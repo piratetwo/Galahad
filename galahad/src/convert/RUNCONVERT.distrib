@@ -1,0 +1,10 @@
+BEGIN CONVERT SPECIFICATIONS (DEFAULT)
+! error-printout-device                             6
+! printout-device                                   6
+! print-level                                       0
+! transpose-matrix                                  F
+! order-entries                                     F
+! space-critical                                    F
+! deallocate-error-fatal                            F
+! output-line-prefix                                ""
+END CONVERT SPECIFICATIONS (DEFAULT)

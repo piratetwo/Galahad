@@ -1,0 +1,792 @@
+#  Main body of the LANCELOT B installation makefile under GALAHAD
+
+#  N. Gould and Ph. L. Toint.
+#  This version: 12 III 2014
+
+SHELL = /bin/$(BINSHELL)
+
+#  compiler flags
+
+FFLAGS    = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(USUAL)
+FFLAGSS   = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(SPECIAL)
+FFLAGSN   = $(BASIC) $(NOOPTIMIZATION) $(DEBUG) $(MODULES) $(F90)
+FFLAGS77  = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(USUAL)
+FFLAGS77S = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(SPECIAL)
+RUNFFLAGS =          $(OPTIMIZATION) $(DEBUG) $(MODULES)
+
+#  names of random libraries
+
+LG  = $(OBJ)/libgalahad.a
+LGS = $(OBJS)/libgalahad.a
+LGD = $(OBJD)/libgalahad.a
+
+BLG  = $(OBJ)/libgalahad_blas.a
+BLGS = $(OBJS)/libgalahad_blas.a
+BLGD = $(OBJD)/libgalahad_blas.a
+
+HLG  = $(OBJ)/libgalahad_hsl.a
+HLGS = $(OBJS)/libgalahad_hsl.a
+HLGD = $(OBJD)/libgalahad_hsl.a
+
+MLG  = $(OBJ)/libgalahad_metis.a
+MLGS = $(OBJS)/libgalahad_metis.a
+MLGD = $(OBJD)/libgalahad_metis.a
+
+#  Libraries used
+
+LIBS = -lgalahad -lgalahad_hsl -lgalahad_metis -lgalahad_blas
+
+#  Archive manipulation strings
+
+ARR = $(AR) -rc $(LG)
+
+BARR = $(AR) -rc $(BLG)
+BRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(BLG)
+
+HARR = $(AR) -rc $(HLG)
+HRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(HLG)
+
+RMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(LG)
+RMOBFILE = $(GALAHAD)/bin/rmobfile $(RM) $(OBJ)
+
+MARR = $(AR) -rc $(MLG)
+MRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $MHLG)
+
+#  sed scripts
+
+LSEDS = $(GALAHAD)/seds/$(LINEARSOLVER).sed
+LPSEDS = $(GALAHAD)/seds/$(LINEARSOLVER)_precon.sed
+
+#  compilation agenda
+
+OBJECTSBASICS=$(LGS)(extend.o) basics      $(LGS)(bndsl.o)  $(LGS)(others.o) \
+         icfs ma61 linearsolver ma57v4 sils ad02 \
+         $(LGS)(cauchy.o) $(LGS)(cg.o)     $(LGS)(hslint.o) $(LGS)(asmbl.o) \
+         $(LGS)(hsprd.o)  $(LGS)(initw.o)  $(LGS)(mdchl.o)  $(LGS)(precn.o) \
+         $(LGS)(frntl.o)  $(LGS)(strutr.o) $(LGS)(lancelot_types.o)
+
+OBJECTSS=$(OBJECTSBASICS) $(LGS)(lancelot.o) $(LGS)(lancelot_simple.o)
+OBJECTSSTEERINGS=$(OBJECTSBASICS) $(LGS)(lancelot_steering.o)
+
+OBJECTSPSLSS=$(LGS)(extend.o) $(LGS)(bndsl.o) ma61 $(LGS)(hslint.o) \
+             $(LGS)(mdchl.o)
+
+USEOBJECTSS=$(OBJECTSS)   $(LGS)(scaln.o)  $(LGS)(drchg.o) \
+         $(LGS)(drche.o) rand copyright    $(LGS)(uselanb.o) 
+USEOBJECTSSTEERINGS=$(OBJECTSSTEERINGS)    $(LGS)(scaln.o) $(LGS)(drchg.o) \
+         $(LGS)(drche.o) rand copyright    $(LGS)(uselanb_steering.o) 
+
+OBJECTSBASICD=$(LGD)(extend.o) basics      $(LGD)(bndsl.o)  $(LGD)(others.o) \
+         icfs ma61 linearsolver ma57v4 sils ad02 \
+         $(LGD)(cauchy.o) $(LGD)(cg.o)     $(LGD)(hslint.o) $(LGD)(asmbl.o) \
+         $(LGD)(hsprd.o)  $(LGD)(initw.o)  $(LGD)(mdchl.o)  $(LGD)(precn.o) \
+         $(LGD)(frntl.o)  $(LGD)(strutr.o) $(LGD)(lancelot_types.o)
+
+OBJECTSD=$(OBJECTSBASICD) $(LGD)(lancelot.o) $(LGD)(lancelot_simple.o)
+OBJECTSSTEERINGD=$(OBJECTSBASICD) $(LGD)(lancelot_steering.o)
+
+OBJECTSPSLSD=$(LGD)(extend.o)  $(LGD)(bndsl.o) ma61 $(LGD)(hslint.o) \
+             $(LGD)(mdchl.o)
+
+USEOBJECTSD=$(OBJECTSD) $(LGD)(scaln.o) $(LGD)(drchg.o) \
+         $(LGD)(drche.o) rand copyright $(LGD)(uselanb.o)
+USEOBJECTSSTEERINGD=$(OBJECTSSTEERINGD) $(LGD)(scaln.o) $(LGD)(drchg.o) \
+         $(LGD)(drche.o) rand copyright $(LGD)(uselanb_steering.o)
+
+SUCC = precision version) compiled successfully
+SUCC_SIF = precision version) for SIF compiled successfully
+
+#  main compilations and runs
+
+all: lancelotb_sif
+
+lancelotb_sif: lancelotb_sif_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B ($(PRECIS) $(SUCC_SIF)"
+
+lancelotb_sif_single: $(USEOBJECTSS) $(OBJS)/runlanb_sif.o
+	$(RANLIB) $(LGS)
+
+lancelotb_sif_double: $(USEOBJECTSD) $(OBJD)/runlanb_sif.o
+	$(RANLIB) $(LGD)
+
+lancelotb_silent: lancelotb_silent_$(PRECIS)
+lancelotb_silent_single: $(OBJECTSS)
+lancelotb_silent_double: $(OBJECTSD)
+
+lancelotb: lancelotb_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B ($(PRECIS) $(SUCC)"
+lancelotb_single: $(OBJECTSS)
+	$(RANLIB) $(LGS)
+lancelotb_double: $(OBJECTSD)
+	$(RANLIB) $(LGD)
+
+use_lancelotb_silent: use_lancelotb_$(PRECIS)
+use_lancelotb: use_lancelotb_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B ($(PRECIS) $(SUCC)"
+
+use_lancelotb_single: $(USEOBJECTSS)
+	$(RANLIB) $(LGS)
+
+use_lancelotb_double: $(USEOBJECTSD)
+	$(RANLIB) $(LGD)
+
+all_steering: lancelotb_steering_sif
+
+lancelotb_steering_sif: lancelotb_steering_sif_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B STEERING ($(PRECIS) $(SUCC_SIF)"
+
+lancelotb_steering_sif_single: $(USEOBJECTSSTEERINGS) \
+           $(OBJS)/runlanb_steering_sif.o
+	$(RANLIB) $(LGS)
+
+lancelotb_steering_sif_double: $(USEOBJECTSSTEERINGD) \
+          $(OBJD)/runlanb_steering_sif.o
+	$(RANLIB) $(LGD)
+
+lancelotb_steering_silent: lancelotb_steering_silent_$(PRECIS)
+lancelotb_steering_silent_single: $(OBJECTSS)
+lancelotb_steering_silent_double: $(OBJECTSD)
+
+lancelotb_steering: lancelotb_steering_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B ($(PRECIS) $(SUCC)"
+lancelotb_steering_single: $(OBJECTSS)
+	$(RANLIB) $(LGS)
+lancelotb_steering_double: $(OBJECTSD)
+	$(RANLIB) $(LGD)
+
+use_lancelotb_steering_silent: use_lancelotb_steering_$(PRECIS)
+use_lancelotb_steering: use_lancelotb_steering_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B ($(PRECIS) $(SUCC)"
+
+use_lancelotb_steering_single: $(USEOBJECTSS)
+	$(RANLIB) $(LGS)
+
+use_lancelotb_steering_double: $(USEOBJECTSD)
+	$(RANLIB) $(LGD)
+
+lancelotb_psls_silent: lancelotb_silent_psls_$(PRECIS)
+lancelotb_silent_psls_single: $(OBJECTSPSLSS)
+lancelotb_silent_psls_double: $(OBJECTSPSLSD)
+
+lancelotb_psls: lancelotb_psls_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: LANCELOT B ($(PRECIS) $(SUCC)"
+lancelotb_psls_single: $(OBJECTSPSLSS)
+	$(RANLIB) $(LGS)
+lancelotb_psls_double: $(OBJECTSPSLSD)
+	$(RANLIB) $(LGD)
+
+tests: lanbss lanbst lanbds lanbdt
+tests_steering: lanb_steeringss lanb_steeringst lanb_steeringds lanb_steeringdt
+tests_simple: lanb_simpless lanb_simplest lanb_simpleds lanb_simpledt
+
+test: test_$(PRECIS)
+
+test_single: lanbst $(USEOBJECTSS) $(OBJS)/runlanb_sif.o
+	echo ""
+	echo " Testing SIF interface to LANCELOT B"
+	cd $(GALAHAD)/examples ; sdgal $(VERSION) lanb -s ALLINITC
+	echo ""
+	echo " Tests for LANCELOT B complete"
+
+test_double: lanbdt $(USEOBJECTSD) $(OBJD)/runlanb_sif.o
+	echo ""
+	echo " Testing SIF interface to LANCELOT B"
+	cd $(GALAHAD)/examples ; sdgal $(VERSION) lanb ALLINITC
+	echo ""
+	echo " Tests for LANCELOT B complete"
+
+test_nosif: test_nosif_$(PRECIS)
+
+test_nosif_single: lanbst
+	echo ""
+	echo " Tests for LANCELOT B complete"
+
+test_nosif_double: lanbdt
+	echo ""
+	echo " Tests for LANCELOT B complete"
+
+test_spec: test_spec_$(PRECIS)
+
+test_spec_single: lanbss
+	echo ""
+	echo " Tests for LANCELOT B complete"
+
+test_spec_double: lanbds
+	echo ""
+	echo " Tests for LANCELOT B complete"
+
+lanbss: $(OBJECTSS) $(OBJS)/lanbs.o
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb $(OBJS)/lanbs.o \
+            -L$(OBJS) $(LIBS)
+	- ./run_lanb >& lanbss.output
+	cat lanbss.output
+	rm ./run_lanb
+
+lanbds: $(OBJECTSD) $(OBJD)/lanbs.o
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb $(OBJD)/lanbs.o \
+            -L$(OBJD) $(LIBS)
+	- ./run_lanb >& lanbds.output
+	cat lanbds.output
+	rm ./run_lanb
+
+lanbst: $(OBJECTSS) $(OBJS)/lanbt.o
+	echo " Exhaustive test of subroutine interface to LANCELOT B"
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb $(OBJS)/lanbt.o \
+           -L$(OBJS) $(LIBS)
+	- ./run_lanb >& lanbst.output
+	cat lanbst.output
+	rm ./run_lanb
+
+lanbdt: $(OBJECTSD) $(OBJD)/lanbt.o
+	echo " Exhaustive test of subroutine interface to LANCELOT B"
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb $(OBJD)/lanbt.o \
+            -L$(OBJD) $(LIBS)
+	- ./run_lanb >& lanbdt.output
+	cat lanbdt.output
+	rm ./run_lanb
+
+lanb_steeringss: $(OBJECTSSTEERINGS) $(OBJS)/lanb_steerings.o
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_steering \
+            $(OBJS)/lanb_steerings.o -L$(OBJS) $(LIBS)
+	- ./run_lanb_steering >& lanb_steeringss.output
+	cat lanb_steeringss.output
+	rm ./run_lanb_steering
+
+lanb_steeringds: $(OBJECTSSTEERINGD) $(OBJD)/lanb_steerings.o
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_steering \
+          $(OBJD)/lanb_steerings.o -L$(OBJD) $(LIBS)
+	- ./run_lanb_steering >& lanb_steeringds.output
+	cat lanb_steeringds.output
+	rm ./run_lanb_steering
+
+lanb_steeringst: $(OBJECTSSTEERINGS) $(OBJS)/lanb_steeringt.o
+	echo " Exhaustive test of subroutine interface to LANCELOT B"
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_steering \
+          $(OBJS)/lanb_steeringt.o -L$(OBJS) $(LIBS)
+	- ./run_lanb_steering >& lanb_steeringst.output
+	cat lanb_steeringst.output
+	rm ./run_lanb_steering
+
+lanb_steeringdt: $(OBJECTSSTEERINGD) $(OBJD)/lanb_steeringt.o
+	echo " Exhaustive test of subroutine interface to LANCELOT B"
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_steering \
+          $(OBJD)/lanb_steeringt.o -L$(OBJD) $(LIBS)
+	- ./run_lanb_steering >& lanb_steeringdt.output
+	cat lanb_steeringdt.output
+	rm ./run_lanb_steering
+
+lanb_simpless: $(OBJECTSS) $(OBJS)/lancelot_simples.o
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_simple \
+           $(OBJS)/lancelot_simples.o -L$(OBJS) $(LIBS)
+	- ./run_lanb_simple >& lanb_simpless.output
+	cat lanb_simpless.output
+	rm ./run_lanb_simple
+
+lanb_simpleds: $(OBJECTSD) $(OBJD)/lancelot_simples.o
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_simple \
+           $(OBJD)/lancelot_simples.o -L$(OBJD) $(LIBS)
+	- ./run_lanb_simple >& lanb_simpleds.output
+	cat lanb_simpleds.output
+	rm ./run_lanb_simple
+
+lanb_simplest: $(OBJECTSS) $(OBJS)/lancelot_simplet.o
+	echo " Exhaustive test of subroutine interface to LANCELOT B"
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_simple \
+           $(OBJS)/lancelot_simplet.o -L$(OBJS) $(LIBS)
+	- ./run_lanb_simple >& lanb_simplest.output
+	cat lanb_simplest.output
+	rm ./run_lanb_simple
+
+lanb_simpledt: $(OBJECTSD) $(OBJD)/lancelot_simplet.o
+	echo " Exhaustive test of subroutine interface to LANCELOT B"
+	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_lanb_simple \
+            $(OBJD)/lancelot_simplet.o -L$(OBJD) $(LIBS)
+	- ./run_lanb_simple >& lanb_simpledt.output
+	cat lanb_simpledt.output
+	rm ./run_lanb_simple
+
+#  basic packages
+
+basics: 
+	( cd ../general ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            basics_silent scu.o PRECIS=$(PRECIS) PWD=$(PWD)/../general )
+linearsolver: 
+	( cd ../general ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            linearsolver_silent PRECIS=$(PRECIS) PWD=$(PWD)/../general )
+sils: 
+	( cd ../general ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            sils_silent PRECIS=$(PRECIS) PWD=$(PWD)/../general )
+rand:
+	( cd ../general ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            rand.o PRECIS=$(PRECIS) PWD=$(PWD)/../general )
+copyright:
+	( cd ../general ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            copyright.o PRECIS=$(PRECIS) PWD=$(PWD)/../general )
+ma57v4: 
+	( cd ../ma57 ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            ma57v4_silent PRECIS=$(PRECIS) PWD=$(PWD)/../ma57 )
+ma61: 
+	( cd ../ma61 ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            ma61_silent PRECIS=$(PRECIS) PWD=$(PWD)/../ma61 )
+ad02: 
+	( cd ../ad02 ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            ad02_silent PRECIS=$(PRECIS) PWD=$(PWD)/../ad02 )
+icfs: 
+	( cd ../icfs ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            icfs_silent PRECIS=$(PRECIS) PWD=$(PWD)/../icfs )
+
+#  constituent packages
+
+extend.o: $(LG)(extend.o)
+
+$(LG)(extend.o): ../lanb/extend.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "extend" 
+	$(SED) -f $(SEDS) ../lanb/extend.f90 > $(OBJ)/extend.f90
+	cd $(OBJ); $(FORTRAN) -o extend.o $(FFLAGSS) extend.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o extend.o $(FFLAGSN) extend.f90 )
+	cd $(OBJ); $(ARR) extend.o; $(RM) extend.f90 extend.o
+	$(RMARFILE) asmbl.o
+	$(RMARFILE) hsprd.o
+	$(RMARFILE) initw.o
+	$(RMARFILE) psls.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+bndsl.o: $(LG)(bndsl.o)
+
+$(LG)(bndsl.o): ../lanb/bndsl.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "bndsl" 
+	$(SED) -f $(SEDS) ../lanb/bndsl.f90 > $(OBJ)/bndsl.f90
+	cd $(OBJ); $(FORTRAN) -o bndsl.o $(FFLAGSS) bndsl.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o bndsl.o $(FFLAGSN) bndsl.f90 )
+	cd $(OBJ); $(ARR) bndsl.o; $(RM) bndsl.f90 bndsl.o
+	$(RMARFILE) precn.o
+	$(RMARFILE) psls.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+others.o: $(LG)(others.o)
+
+$(LG)(others.o): ../lanb/others.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "others" 
+	$(SED) -f $(SEDS) ../lanb/others.f90 > $(OBJ)/others.f90
+	cd $(OBJ); $(FORTRAN) -o others.o $(FFLAGSS) others.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o others.o $(FFLAGSN) others.f90 )
+	cd $(OBJ); $(ARR) others.o; $(RM) others.f90 others.o
+	$(RMARFILE) initw.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+strutr.o: $(LG)(strutr.o)
+
+$(LG)(strutr.o): ../lanb/strutr.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "strutr" 
+	$(SED) -f $(SEDS) ../lanb/strutr.f90 >  $(OBJ)/strutr.f90
+	cd $(OBJ); $(FORTRAN) -o strutr.o $(FFLAGSS) strutr.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o strutr.o $(FFLAGSN) strutr.f90 )
+	cd $(OBJ); $(ARR) strutr.o; $(RM) strutr.f90 strutr.o
+	$(RMARFILE) lancelot.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+cauchy.o: $(LG)(cauchy.o)
+
+$(LG)(cauchy.o): ../lanb/cauchy.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "cauchy " 
+	$(SED) -f $(SEDS) ../lanb/cauchy.f90 > $(OBJ)/cauchy.f90
+	cd $(OBJ); $(FORTRAN) -o cauchy.o $(FFLAGSS) cauchy.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o cauchy.o $(FFLAGSN) cauchy.f90 )
+	cd $(OBJ); $(ARR) cauchy.o; $(RM) cauchy.f90 cauchy.o
+	$(RMARFILE) lancelot.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+cg.o: $(LG)(cg.o)
+
+$(LG)(cg.o): ../lanb/cg.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "cg    " 
+	$(SED) -f $(SEDS) ../lanb/cg.f90 > $(OBJ)/cg.f90
+	cd $(OBJ); $(FORTRAN) -o cg.o $(FFLAGSS) cg.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o cg.o $(FFLAGSN) cg.f90 )
+	cd $(OBJ); $(ARR) cg.o; $(RM) cg.f90 cg.o
+	$(RMARFILE) lancelot.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+hslint.o: $(LG)(hslint.o)
+
+$(LG)(hslint.o): ../lanb/hslint.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "hslint" 
+	$(CP) ../lanb/hslint.f90 $(OBJ)/hslint.f90
+	cd $(OBJ); $(FORTRAN) -o hslint.o $(FFLAGSS) hslint.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o hslint.o $(FFLAGSN) hslint.f90 )
+	cd $(OBJ); $(ARR) hslint.o; $(RM) hslint.f90 hslint.o
+	$(RMARFILE) mdchl.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+asmbl.o: $(LG)(asmbl.o)
+
+$(LG)(asmbl.o): ../lanb/asmbl.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "asmbl " 
+	$(SED) -f $(SEDS) ../lanb/asmbl.f90 > $(OBJ)/asmbl.f90
+	cd $(OBJ); $(FORTRAN) -o asmbl.o $(FFLAGSS) asmbl.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o asmbl.o $(FFLAGSN) asmbl.f90 )
+	cd $(OBJ); $(ARR) asmbl.o; $(RM) asmbl.f90 asmbl.o
+	$(RMARFILE) precn.o
+	$(RMARFILE) frntl.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+drchg.o: $(LG)(drchg.o)
+
+$(LG)(drchg.o): ../lanb/drchg.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "drchg " 
+	$(SED) -f $(SEDS) ../lanb/drchg.f90 > $(OBJ)/drchg.f90
+	cd $(OBJ); $(FORTRAN) -o drchg.o $(FFLAGSS) drchg.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o drchg.o $(FFLAGSN) drchg.f90 )
+	cd $(OBJ); $(ARR) drchg.o; $(RM) drchg.f90 drchg.o
+	$(RMARFILE) uselanb.o
+	$(RMARFILE) uselanb_steering.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+drche.o: $(LG)(drche.o)
+
+$(LG)(drche.o): ../lanb/drche.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "drche " 
+	$(SED) -f $(SEDS) ../lanb/drche.f90 > $(OBJ)/drche.f90
+	cd $(OBJ); $(FORTRAN) -o drche.o $(FFLAGSS) drche.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o drche.o $(FFLAGSN) drche.f90 )
+	cd $(OBJ); $(ARR) drche.o; $(RM) drche.f90 drche.o
+	$(RMARFILE) uselanb.o
+	$(RMARFILE) uselanb_steering.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+hsprd.o: $(LG)(hsprd.o)
+
+$(LG)(hsprd.o): ../lanb/hsprd.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "hsprd " 
+	$(SED) -f $(SEDS) ../lanb/hsprd.f90 > $(OBJ)/hsprd.f90
+	cd $(OBJ); $(FORTRAN) -o hsprd.o $(FFLAGSS) hsprd.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o hsprd.o $(FFLAGSN) hsprd.f90 \ )
+	cd $(OBJ); $(ARR) hsprd.o; $(RM) hsprd.f90 hsprd.o
+	$(RMARFILE) lancelot.o
+	@printf '[ OK ]\n'
+	$(MVMODS)
+
+initw.o: $(LG)(initw.o)
+
+$(LG)(initw.o): ../lanb/initw.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "initw " 
+	$(SED) -f $(SEDS) ../lanb/initw.f90 > $(OBJ)/initw.f90
+	cd $(OBJ); $(FORTRAN) -o initw.o $(FFLAGSS) initw.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o initw.o $(FFLAGSN) initw.f90 )
+	cd $(OBJ); $(ARR) initw.o; $(RM) initw.f90 initw.o
+	$(RMARFILE) lancelot.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+         
+scaln.o: $(LG)(scaln.o)
+
+$(LG)(scaln.o): ../lanb/scaln.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "scaln " 
+	$(SED) -f $(SEDS) ../lanb/scaln.f90 > $(OBJ)/scaln.f90
+	cd $(OBJ); $(FORTRAN) -o scaln.o $(FFLAGSS) scaln.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o scaln.o $(FFLAGSN) scaln.f90 )
+	cd $(OBJ); $(ARR) scaln.o; $(RM) scaln.f90 scaln.o
+	$(RMARFILE) uselanb.o
+	$(RMARFILE) uselanb_steering.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+mdchl.o: $(LG)(mdchl.o)
+
+$(LG)(mdchl.o): ../lanb/mdchl.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "mdchl " 
+	$(SED) -f $(SEDS) ../lanb/mdchl.f90 > $(OBJ)/mdchl1.f90
+	$(SED) -f $(LSEDS) $(OBJ)/mdchl1.f90 > $(OBJ)/mdchl.f90
+	cd $(OBJ); $(FORTRAN) -o mdchl.o $(FFLAGSS) mdchl.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o mdchl.o $(FFLAGSN) mdchl.f90 )
+	cd $(OBJ); $(ARR) mdchl.o; $(RM) mdchl.f90 mdchl1.f90 mdchl.o
+	$(RMARFILE) precn.o
+	$(RMARFILE) frntl.o
+	$(RMARFILE) psls.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+precn.o: $(LG)(precn.o)
+
+$(LG)(precn.o): ../lanb/precn.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "precn " 
+	$(SED) -f $(SEDS) ../lanb/precn.f90 > $(OBJ)/precn1.f90
+	$(SED) -f $(LSEDS) $(OBJ)/precn1.f90 > $(OBJ)/precn2.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/precn2.f90 > $(OBJ)/precn.f90
+	cd $(OBJ); $(FORTRAN) -o precn.o $(FFLAGSS) precn.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o precn.o $(FFLAGSN) precn.f90 )
+	cd $(OBJ); $(ARR) precn.o; $(RM) precn.f90 precn1.f90 precn2.f90 precn.o
+	$(RMARFILE) lancelot.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+frntl.o: $(LG)(frntl.o)
+
+$(LG)(frntl.o): ../lanb/frntl.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "frntl " 
+	$(SED) -f $(SEDS) ../lanb/frntl.f90 > $(OBJ)/frntl1.f90
+	$(SED) -f $(LSEDS) $(OBJ)/frntl1.f90 > $(OBJ)/frntl.f90
+	cd $(OBJ); $(FORTRAN) -o frntl.o $(FFLAGSS) frntl.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o frntl.o $(FFLAGSN) frntl.f90 )
+	cd $(OBJ); $(ARR) frntl.o; $(RM) frntl.f90 frntl1.f90 frntl.o
+	$(RMARFILE) lancelot.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+lancelot_types.o: $(LG)(lancelot_types.o)
+
+$(LG)(lancelot_types.o): ../lanb/lancelot_types.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lancelot_types" 
+	$(SED) -f $(SEDS) ../lanb/lancelot_types.f90 \
+          > $(OBJ)/lancelot_types1.f90
+	$(SED) -f $(LSEDS) $(OBJ)/lancelot_types1.f90 \
+          > $(OBJ)/lancelot_types2.f90
+	$(SED) -f $(LPSEDS) $(OBJ)/lancelot_types2.f90 \
+          > $(OBJ)/lancelot_types3.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/lancelot_types3.f90 \
+          > $(OBJ)/lancelot_types.f90
+	cd $(OBJ); $(FORTRAN) -o lancelot_types.o $(FFLAGSS) \
+                     lancelot_types.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o lancelot_types.o $(FFLAGSN) \
+                     lancelot_types.f90 )
+	cd $(OBJ); $(ARR) lancelot_types.o; $(RM) lancelot_types.f90 \
+                   lancelot_types1.f90 lancelot_types2.f90 \
+                   lancelot_types3.f90 lancelot_types.o
+	$(RMARFILE) lancelot.o
+	$(RMARFILE) lancelot_steering.o
+	$(RMARFILE) drche.o
+	$(RMARFILE) drchg.o
+	$(RMARFILE) scaln.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+lancelot.o: $(LG)(lancelot.o)
+
+$(LG)(lancelot.o): ../lanb/lancelot.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lancelot" 
+	$(SED) -f $(SEDS) ../lanb/lancelot.f90 > $(OBJ)/lancelot1.f90
+	$(SED) -f $(LSEDS) $(OBJ)/lancelot1.f90 > $(OBJ)/lancelot2.f90
+	$(SED) -f $(LPSEDS) $(OBJ)/lancelot2.f90 > $(OBJ)/lancelot3.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/lancelot3.f90 > $(OBJ)/lancelot.f90
+	cd $(OBJ); $(FORTRAN) -o lancelot.o $(FFLAGSS) lancelot.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o lancelot.o $(FFLAGSN) lancelot.f90 )
+	cd $(OBJ); $(ARR) lancelot.o; $(RM) lancelot.f90 lancelot1.f90 \
+                   lancelot2.f90 lancelot3.f90 lancelot.o
+	$(RMARFILE) lancelot_simple.o
+	$(RMARFILE) drche.o
+	$(RMARFILE) drchg.o
+	$(RMARFILE) scaln.o
+	$(RMOBFILE) lanbs.o
+	$(RMOBFILE) lanbt.o
+	$(RMOBFILE) galahad_ampl.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+lancelot_steering.o: $(LG)(lancelot_steering.o)
+
+$(LG)(lancelot_steering.o): ../lanb/lancelot_steering.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lancelot_steering" 
+	$(SED) -f $(SEDS) ../lanb/lancelot_steering.f90 \
+          > $(OBJ)/lancelot_steering1.f90
+	$(SED) -f $(LSEDS) $(OBJ)/lancelot_steering1.f90 \
+          > $(OBJ)/lancelot_steering2.f90
+	$(SED) -f $(LPSEDS) $(OBJ)/lancelot_steering2.f90 \
+          > $(OBJ)/lancelot_steering3.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/lancelot_steering3.f90 \
+          > $(OBJ)/lancelot_steering.f90
+	cd $(OBJ); $(FORTRAN) -o lancelot_steering.o $(FFLAGSS) \
+          lancelot_steering.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o lancelot_steering.o $(FFLAGSN) \
+                     lancelot_steering.f90 )
+	cd $(OBJ); $(ARR) lancelot_steering.o; $(RM) lancelot_steering.f90 \
+                   lancelot_steering1.f90 lancelot_steering2.f90 \
+                   lancelot_steering3.f90 lancelot_steering.o
+	$(RMARFILE) drche.o
+	$(RMARFILE) drchg.o
+	$(RMARFILE) scaln.o
+	$(RMOBFILE) lanb_steerings.o
+	$(RMOBFILE) lanb_steeringt.o
+	$(RMOBFILE) galahad_ampl.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+lancelot_simple.o: $(LG)(lancelot_simple.o)
+
+$(LG)(lancelot_simple.o): ../lanb_simple/lancelot_simple.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lancelot_simple" 
+	$(SED) -f $(SEDS) ../lanb_simple/lancelot_simple.f90 \
+           > $(OBJ)/lancelot_simple1.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/lancelot_simple1.f90 \
+           > $(OBJ)/lancelot_simple.f90
+	cd $(OBJ); $(FORTRAN) -o lancelot_simple.o $(FFLAGSS) \
+                   lancelot_simple.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o lancelot_simple.o $(FFLAGSN) \
+                   lancelot_simple.f90 )
+	cd $(OBJ); $(ARR) lancelot_simple.o; \
+             $(RM) lancelot_simple.f90 lancelot_simple1.f90 lancelot_simple.o
+	$(RMOBFILE) lancelot_simples.o
+	$(RMOBFILE) lancelot_simplet.o
+#	$(MVMODS)
+	@printf '[ OK ]\n'
+
+#  SIF interfaces
+
+uselanb.o: $(LG)(uselanb.o)
+
+$(LG)(uselanb.o): ../lanb/uselanb.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "uselanb " 
+	$(SED) -f $(SEDS) ../lanb/uselanb.f90 > $(OBJ)/uselanb1.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/uselanb1.f90 > $(OBJ)/uselanb.f90
+	cd $(OBJ); $(FORTRAN) -o uselanb.o $(FFLAGSS) uselanb.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o uselanb.o $(FFLAGSN) uselanb.f90 )
+	cd $(OBJ); $(ARR) uselanb.o; $(RM) uselanb.f90 uselanb1.f90 uselanb.o
+	$(RMOBFILE) runlanb_sif.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+uselanb_steering.o: $(LG)(uselanb_steering.o)
+
+$(LG)(uselanb_steering.o): ../lanb/uselanb_steering.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "uselanb_steering " 
+	$(SED) -f $(SEDS) ../lanb/uselanb_steering.f90 \
+          > $(OBJ)/uselanb_steering1.f90
+	$(SED) "s/^.$(NOT95)/     /" $(OBJ)/uselanb_steering1.f90 \
+          > $(OBJ)/uselanb_steering.f90
+	cd $(OBJ); $(FORTRAN) -o uselanb_steering.o $(FFLAGSS) \
+          uselanb_steering.f90 \
+                || ( printf ' %-26s' "=> Disabling optimization " ; \
+                   $(FORTRAN) -o uselanb_steering.o $(FFLAGSN) \
+                     uselanb_steering.f90 )
+	cd $(OBJ); $(ARR) uselanb_steering.o; $(RM) uselanb_steering.f90 \
+          uselanb_steering1.f90 uselanb_steering.o
+	$(RMOBFILE) runlanb_steering_sif.o
+	$(MVMODS)
+	@printf '[ OK ]\n'
+
+#  main program 
+
+runlanb_sif.o: $(OBJ)/runlanb_sif.o
+
+$(OBJ)/runlanb_sif.o: ../lanb/runlanb_sif.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "runlanb_sif" 
+	$(SED) -f $(SEDS) ../lanb/runlanb_sif.f90 > $(OBJ)/runlanb_sif.f90
+	cd $(OBJ); $(FORTRAN) -o runlanb_sif.o $(FFLAGSS) runlanb_sif.f90
+	$(RM) $(OBJ)/runlanb_sif.f90
+	@printf '[ OK ]\n'
+
+runlanb_steering_sif.o: $(OBJ)/runlanb_steering_sif.o
+
+$(OBJ)/runlanb_steering_sif.o: ../lanb/runlanb_steering_sif.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "runlanb_steering_sif" 
+	$(SED) -f $(SEDS) ../lanb/runlanb_steering_sif.f90 \
+          > $(OBJ)/runlanb_steering_sif.f90
+	cd $(OBJ); $(FORTRAN) -o runlanb_steering_sif.o $(FFLAGSS) \
+          runlanb_steering_sif.f90
+	$(RM) $(OBJ)/runlanb_steering_sif.f90
+	@printf '[ OK ]\n'
+
+#  main program for spec example
+
+lanbs.o: $(OBJ)/lanbs.o
+
+$(OBJ)/lanbs.o: ../lanb/lanbs.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lanbs" 
+	$(SED) -f $(SEDS) ../lanb/lanbs.f90 > $(OBJ)/lanbs.f90
+	cd $(OBJ); $(FORTRAN) -o lanbs.o $(FFLAGSS) lanbs.f90
+	$(RM) $(OBJ)/lanbs.f90
+	@printf '[ OK ]\n'
+
+lanb_steerings.o: $(OBJ)/lanb_steerings.o
+
+$(OBJ)/lanb_steerings.o: ../lanb/lanb_steerings.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lanb_steerings" 
+	$(SED) -f $(SEDS) ../lanb/lanb_steerings.f90 \
+          > $(OBJ)/lanb_steerings.f90
+	cd $(OBJ); $(FORTRAN) -o lanb_steerings.o $(FFLAGSS) lanb_steerings.f90
+	$(RM) $(OBJ)/lanb_steerings.f90
+	@printf '[ OK ]\n'
+
+lancelot_simples.o: $(OBJ)/lancelot_simples.o
+
+$(OBJ)/lancelot_simples.o: ../lanb_simple/lancelot_simples.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lancelot_simples" 
+	$(SED) -f $(SEDS) ../lanb_simple/lancelot_simples.f90 \
+          > $(OBJ)/lancelot_simples.f90
+	cd $(OBJ); $(FORTRAN) -o lancelot_simples.o $(FFLAGSS) \
+           lancelot_simples.f90
+	$(RM) $(OBJ)/lancelot_simples.f90
+	@printf '[ OK ]\n'
+
+#  main program for exhaustive test deck
+
+lanbt.o: $(OBJ)/lanbt.o
+
+$(OBJ)/lanbt.o: ../lanb/lanbt.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lanbt" 
+	$(SED) -f $(SEDS) lanbt.f90 > $(OBJ)/lanbt.f90
+	cd $(OBJ); $(FORTRAN) -o lanbt.o $(FFLAGSS) lanbt.f90
+	$(RM) $(OBJ)/lanbt.f90
+	@printf '[ OK ]\n'
+
+lanb_steeringt.o: $(OBJ)/lanb_steeringt.o
+
+$(OBJ)/lanb_steeringt.o: ../lanb/lanb_steeringt.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lanb_steeringt" 
+	$(SED) -f $(SEDS) lanb_steeringt.f90 > $(OBJ)/lanb_steeringt.f90
+	cd $(OBJ); $(FORTRAN) -o lanb_steeringt.o $(FFLAGSS) lanb_steeringt.f90
+	$(RM) $(OBJ)/lanb_steeringt.f90
+	@printf '[ OK ]\n'
+
+lancelot_simplet.o: $(OBJ)/lancelot_simplet.o
+
+$(OBJ)/lancelot_simplet.o: ../lanb_simple/lancelot_simplet.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "lancelot_simplet" 
+	$(SED) -f $(SEDS) ../lanb_simple/lancelot_simplet.f90 \
+          > $(OBJ)/lancelot_simplet.f90
+	cd $(OBJ); $(FORTRAN) -o lancelot_simplet.o $(FFLAGSS) \
+           lancelot_simplet.f90
+	$(RM) $(OBJ)/lancelot_simplet.f90
+	@printf '[ OK ]\n'
+
+#  book keeping
+
+clean: 
+	@printf ' %-9s\t\t' "Cleaning"
+	$(RM) $(LGS) $(LGD) $(OBJS)/runlanb_sif.o $(OBJD)/runlanb_sif.o
+	@printf '[ OK ]\n'
+
+cleanall: 
+	@printf ' %-14s\t\t' "Removing all $(PRECIS) precision object and module files" 
+	$(RM) $(OBJ)/* $(MOD)/*
+	@printf '[ OK ]\n'

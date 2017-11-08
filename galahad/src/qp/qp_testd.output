@@ -1,0 +1,53 @@
+
+ error exit tests 
+
+ 3: QP_solve exit status =     -3
+ 4: QP_solve+solver exit status =    -65    -4
+ 5: QP_solve+solver exit status =    -65    -5
+18: QP_solve+solver exit status =    -65   -18
+19: optimal objective value =    5.4 status =      0
+23: QP_solve+solver exit status =    -65   -23
+ 7: QP_solve+solver exit status =    -65    -7
+
+ basic tests of storage formats 
+
+I1: optimal objective value =    4.0 status =      0
+I2: optimal objective value =    4.0 status =      0
+D1: optimal objective value =    5.4 status =      0
+D2: optimal objective value =    5.4 status =      0
+R1: optimal objective value =    5.4 status =      0
+R2: optimal objective value =    5.4 status =      0
+C1: optimal objective value =    5.4 status =      0
+C2: optimal objective value =    5.4 status =      0
+
+ basic tests of options 
+
+ 0: optimal objective value =    0.3 status =      0
+ 1: optimal objective value =    0.3 status =      0
+ 2: optimal objective value =    0.3 status =      0
+ 3: optimal objective value =    0.3 status =      0
+ 4: optimal objective value =    0.3 status =      0
+ 5: optimal objective value =    0.3 status =      0
+ 6: optimal objective value =    0.3 status =      0
+ 7: optimal objective value =    0.3 status =      0
+ 8: optimal objective value =    0.3 status =      0
+ 9: optimal objective value =    0.3 status =      0
+10: optimal objective value =    0.3 status =      0
+11: optimal objective value =    0.3 status =      0
+12: optimal objective value =    0.3 status =      0
+13: optimal objective value =    0.3 status =      0
+14: optimal objective value =    0.3 status =      0
+15: optimal objective value =    0.3 status =      0
+16: optimal objective value =    0.3 status =      0
+17: optimal objective value =    0.3 status =      0
+18: optimal objective value =    0.3 status =      0
+19: optimal objective value =    0.3 status =      0
+20: optimal objective value =    0.3 status =      0
+
+ full test of generic problems 
+
+ 1: optimal objective value =   80.7 status =      0
+ 2: optimal objective value =   44.3 status =      0
+ 3: optimal objective value =   44.3 status =      0
+ 4: optimal objective value =   28.1 status =      0
+ 5: optimal objective value =   28.7 status =      0

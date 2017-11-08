@@ -1,0 +1,11 @@
+BEGIN LMS SPECIFICATIONS (DEFAULT)
+! error-printout-device                             6
+! printout-device                                   6
+! print-level                                       0
+! limited-memory-length                             10
+! limited-memory-method                             1
+! allow-any-method                                  F
+! space-critical                                    F
+! deallocate-error-fatal                            F
+! output-line-prefix                                ""
+END LMS SPECIFICATIONS (DEFAULT)

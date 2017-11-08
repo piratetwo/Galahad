@@ -1,0 +1,253 @@
+#  Main body of the installation makefile for Matlab interfaces 
+#  for the GALAHAD library
+
+#  N. Gould, D. Orban and Ph. L. Toint.
+#  This version: 09 VII 2007
+
+SHELL = /bin/$(BINSHELL)
+
+#  compiler flags
+
+MATLABINC = -I$(MATLAB)/extern/include
+FFLAGS    = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(MATLABINC)
+MFLAGS    = -g -largeArrayDims $(MODULES) $(MATLABINC)
+#MFLAGS    = -g $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(USUAL)
+
+#  Libraries used
+
+LIBS = -lgalahad -lgalahad_hsl -lgalahad_metis -lgalahad_lapack -lgalahad_blas
+
+#  main compilations and runs
+
+#  everything for distribution
+
+all: all_$(PRECIS)
+
+all_single: 
+	( cd lanb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lancelotb_sif PRECIS=single PWD=$(PWD)/lanb )
+	( cd qp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     qp_cuter PRECIS=single PWD=$(PWD)/qp )
+	( cd filtrane   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     filtrane_cuter PRECIS=single PWD=$(PWD)/filtrane )
+	( cd eqp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     eqp_cuter PRECIS=single PWD=$(PWD)/eqp )
+	( cd wcp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     wcp_cuter PRECIS=single PWD=$(PWD)/wcp )
+
+all_double: 
+	( cd lanb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lancelotb_sif PRECIS=double PWD=$(PWD)/lanb )
+	( cd qp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     qp_cuter PRECIS=double PWD=$(PWD)/qp )
+	( cd filtrane   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     filtrane_cuter PRECIS=double PWD=$(PWD)/filtrane )
+	( cd eqp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     eqp_cuter PRECIS=double PWD=$(PWD)/eqp )
+	( cd wcp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     wcp_cuter PRECIS=double PWD=$(PWD)/wcp )
+
+#  everything including current developments
+
+all_current: all_current_$(PRECIS)
+
+all_current_single: 
+	( cd lanb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lancelotb_sif PRECIS=single PWD=$(PWD)/lanb )
+	( cd qp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     qp_cuter PRECIS=single PWD=$(PWD)/qp )
+	( cd filtrane   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     filtrane_cuter PRECIS=single PWD=$(PWD)/filtrane )
+	( cd lpsqp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lpsqp_cuter PRECIS=single PWD=$(PWD)/lpsqp )
+	( cd superb   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     superb_cuter PRECIS=single PWD=$(PWD)/superb )
+	( cd eqp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     eqp_cuter PRECIS=single PWD=$(PWD)/eqp )
+	( cd fastr   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     fastr_cuter PRECIS=single PWD=$(PWD)/fastr )
+	( cd wcp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     wcp_cuter PRECIS=single PWD=$(PWD)/wcp )
+	( cd lcf   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lcf_cuter PRECIS=single PWD=$(PWD)/lcf )
+
+all_current_double: 
+	( cd lanb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lancelotb_sif PRECIS=double PWD=$(PWD)/lanb )
+	( cd qp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     qp_cuter PRECIS=double PWD=$(PWD)/qp )
+	( cd filtrane   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     filtrane_cuter PRECIS=double PWD=$(PWD)/filtrane )
+	( cd lpsqp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lpsqp_cuter PRECIS=double PWD=$(PWD)/lpsqp )
+	( cd superb   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     superb_cuter PRECIS=double PWD=$(PWD)/superb )
+	( cd eqp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     eqp_cuter PRECIS=double PWD=$(PWD)/eqp )
+	( cd fastr   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     fastr_cuter PRECIS=double PWD=$(PWD)/fastr )
+	( cd wcp   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     wcp_cuter PRECIS=double PWD=$(PWD)/wcp )
+	( cd lcf   ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+                     lcf_cuter PRECIS=double PWD=$(PWD)/lcf )
+
+#  LANCELOT B
+
+lancelotb: lancelotb_$(PRECIS)
+
+lancelotb_single: 
+	( cd lanb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) lancelotb \
+                      PRECIS=single PWD=$(PWD)/lanb )
+
+lancelotb_double: 
+	( cd lanb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) lancelotb \
+                      PRECIS=double PWD=$(PWD)/lanb )
+
+#  qpa
+
+qpa: qpa_$(PRECIS)
+
+qpa_single: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) qpa \
+                    PRECIS=single PWD=$(PWD)/qp )
+
+qpa_double: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) qpa \
+                    PRECIS=double PWD=$(PWD)/qp )
+
+#  qpb
+
+qpb: qpb_$(PRECIS)
+
+qpb_single: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) qpb \
+                    PRECIS=single PWD=$(PWD)/qp )
+
+qpb_double: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) qpb \
+                    PRECIS=double PWD=$(PWD)/qp )
+
+#  qpc
+
+qpc: qpc_$(PRECIS)
+
+qpc_single: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) qpc \
+                    PRECIS=single PWD=$(PWD)/qp )
+
+qpc_double: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) qpc \
+                    PRECIS=double PWD=$(PWD)/qp )
+
+#  presolve
+
+pre: pre_$(PRECIS)
+
+pre_single: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) pre \
+                    PRECIS=single PWD=$(PWD)/qp )
+
+pre_double: 
+	( cd qp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) pre \
+                    PRECIS=double PWD=$(PWD)/qp )
+
+#  FILTRANE
+
+filtrane: filtrane_$(PRECIS)
+
+filtrane_single: 
+	( cd filtrane ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) filtrane \
+                      PRECIS=single PWD=$(PWD)/filtrane )
+
+filtrane_double: 
+	( cd filtrane ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) filtrane \
+                      PRECIS=double PWD=$(PWD)/filtrane )
+
+#  superb
+
+superb: superb_$(PRECIS)
+
+superb_single: 
+	( cd superb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) superb \
+                    PRECIS=single PWD=$(PWD)/superb )
+
+superb_double: 
+	( cd superb ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) superb \
+                    PRECIS=double PWD=$(PWD)/superb )
+
+#  eqp
+
+eqp: eqp_$(PRECIS)
+
+eqp_single: 
+	( cd eqp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) eqp \
+                    PRECIS=single PWD=$(PWD)/eqp )
+
+eqp_double: 
+	( cd eqp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) eqp \
+                    PRECIS=double PWD=$(PWD)/eqp )
+
+#  fastr
+
+fastr: fastr_$(PRECIS)
+
+fastr_single: 
+	( cd fastr ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) fastr \
+                    PRECIS=single PWD=$(PWD)/fastr )
+
+fastr_double: 
+	( cd fastr ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) fastr \
+                    PRECIS=double PWD=$(PWD)/fastr )
+
+#  wcp
+
+wcp: wcp_$(PRECIS)
+
+wcp_single: 
+	( cd wcp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) wcp \
+                    PRECIS=single PWD=$(PWD)/wcp )
+
+wcp_double: 
+	( cd wcp ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) wcp \
+                    PRECIS=double PWD=$(PWD)/wcp )
+
+#  lcf
+
+lcf: lcf_$(PRECIS)
+
+lcf_single: 
+	( cd lcf ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) lcf \
+                    PRECIS=single PWD=$(PWD)/lcf )
+
+lcf_double: 
+	( cd lcf ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) lcf \
+                    PRECIS=double PWD=$(PWD)/lcf )
+
+#  sils
+
+sils: galahad_matlab.o
+	( cd ../sils ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) linearsolver \
+                    PRECIS=double PWD=$(PWD)/../sils )
+	@printf ' %-9s %-15s\t\t' "Compiling" "galahad_sils" 
+	mex $(MFLAGS) galahad_sils.F -L$(OBJD) $(LIBS) galahad_matlab.o
+	@printf '[ OK ]\n'
+
+#  Generic interface to Mex
+
+galahad_matlab.o: galahad_matlab.F
+	@printf ' %-9s %-15s\t\t' "Compiling" "galahad_matlab" 
+	$(FORTRAN) -o galahad_matlab.o $(FFLAGS) galahad_matlab.F
+	@printf '[ OK ]\n'
+
+#  book keeping
+
+clean: 
+	@printf ' %-9s\t\t' "Cleaning" 
+	$(RM) $(OBJ)/*
+	@printf '[ OK ]\n'
+
+cleanall: 
+	@printf ' %-14s\t\t' "Removing all $(PRECIS) precision object and module files" 
+	$(RM) $(OBJ)/* $(MOD)/*
+	@printf '[ OK ]\n'
+

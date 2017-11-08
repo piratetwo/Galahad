@@ -1,0 +1,4 @@
+mex -g -largeArrayDims -I/users/nimg/fortran/galahad/modules/ath.lnx.g95/double galahad.F mv.f90 -L/users/nimg/fortran/galahad/objects/ath.lnx.g95/double -lgalahad
+
+
+mex -g -largeArrayDims -I/users/nimg/fortran/galahad/modules/ath.lnx.g95/double sils.F -L/users/nimg/fortran/galahad/objects/ath.lnx.g95/double -lgalahad -lgalahad_hsl matlab.o

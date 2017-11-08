@@ -1,0 +1,45 @@
+# GNU g95 compiler
+#
+# Fortran compilation and loading
+#
+
+FORTRAN='g95'
+BASIC='-c -fno-second-underscore'
+LIBCMD=''
+MODCMD='-I$MOD'
+MODCMDB=$MODCMD
+MVMODS='$(MV) -f $(OBJ)/*.mod $(MOD)/'
+OPTIMIZATION='-O'
+NOOPTIMIZATION='-O0'
+DEBUG=
+OPENMP=
+F77='-ffixed-form'
+F90=''
+F95=''
+NOFMAIN=''
+CCONDEF=
+USUAL=
+SPECIAL=
+F77SUFFIX=f90
+F95SUFFIX=f90
+CUDA=
+CUDACOMP=$FORTRAN
+CUDAARCH=
+CUDACODE=
+CUDABASIC=
+CUDALIBS=
+CUDAOPENMP=$OPENMP
+TIMER=GEN
+BLAS=
+LAPACK=
+OMP4=no
+IEEECK=
+HSL=
+SPRAL='-lgalahad_spral'
+METIS='-lgalahad_metis'
+PARDISO='-lgalahad_pardiso'
+WSMP='-lgalahad_wsmp'
+NOT95=IS95
+NOT64=NOT64
+BINSHELL=sh
+MA97BUG=g95

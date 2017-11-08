@@ -1,0 +1,45 @@
+# Sun f95 compiler
+#
+#  Fortran compilation and loading
+#
+
+FORTRAN='f95'
+BASIC='-c'
+LIBCMD=''
+MODCMD='-M$MOD -I$MOD'
+MODCMDB=$MODCMD
+MVMODS='$(MV) -f $(OBJ)/*.mod $(MOD)/'
+#OPTIMIZATION='-fast'
+OPTIMIZATION=''
+NOOPTIMIZATION=''
+DEBUG=
+OPENMP=
+F77='-fixed -w0'
+F90='-w0'
+F95='-w0'
+NOFMAIN=''
+CCONDEF=
+USUAL=
+SPECIAL=
+F77SUFFIX=f
+F95SUFFIX=f95
+CUDA=
+CUDACOMP=$FORTRAN
+CUDAARCH=
+CUDACODE=
+CUDABASIC=
+CUDALIBS=
+CUDAOPENMP=$OPENMP
+TIMER=GEN
+BLAS=
+LAPACK=
+OMP4=no
+IEEECK=
+HSL=
+SPRAL='-lgalahad_spral'
+METIS='-lgalahad_metis'
+PARDISO='-lgalahad_pardiso'
+WSMP='-lgalahad_wsmp'
+NOT95=IS95
+NOT64=NOT64
+BINSHELL=sh

@@ -1,0 +1,17 @@
+# GCC 5
+
+#
+#  C compilation and loading
+#
+
+CC=gcc-5
+CCBASIC='-c -ansi -pedantic -fPIC' # -pedantic-errors -fPIC'
+CCDEBUG= #-g -DDEBUG_GALAHAD
+CCFFLAGS='-lgfortran -lm'
+
+CXX=g++-5
+CXXBASIC='-c -std=c++11'
+CXXOPT=-O2
+CXXNOOPT=-O0
+CXXDEBUG=''
+CXXFFLAGS=''

@@ -1,0 +1,19 @@
+BEGIN RUNFDH SPECIFICATIONS (DEFAULT)
+!  print-level                                     1
+!  write-result-summary                            F
+!  result-summary-file-name                        FDHRES.d
+!  result-summary-file-device                      47
+!  write-solution                                  F
+!  solution-file-name                              FDHSOL.d
+!  solution-file-device                            62
+END RUNFDH SPECIFICATIONS
+
+BEGIN FDH SPECIFICATIONS (DEFAULT)
+!  error-printout-device                           6
+!  printout-device                                 6
+!  print-level                                     0
+!  space-critical                                  F
+!  deallocate-error-fatal                          F
+!  output-line-prefix                              ""
+END FDH SPECIFICATIONS
+

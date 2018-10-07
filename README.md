@@ -1,11 +1,12 @@
 # Galahad and CUTEst test environment for optimization
 Only for academic use!!!
 + https://github.com/ralna/GALAHAD/wiki
++ https://github.com/ralna/CUTEst/wiki
 + http://www.galahad.rl.ac.uk/
 
 ## The SIF files for test problems are downloaded from
-+ svn checkout --username anonymous http://ccpforge.cse.rl.ac.uk/svn/cutest/sif/trunk ./sif
-+ svn checkout --username anonymous http://ccpforge.cse.rl.ac.uk/svn/cutest/marosmeszaros/trunk ./marosmeszaros 
++ git clone https://bitbucket.org/optrove/sif ./sif 
++ git clone https://bitbucket.org/optrove/maros-meszaros ./marosmeszaros  
 
 ### Operation system: Ubuntu 14.04 with 64-bit
 ### Version of Matlab: R2014a
@@ -26,6 +27,7 @@ change the name "pirate" and Matlab path to yours
 
 + export MYARCH="pc64.lnx.gfo"
 + export MYMATLABARCH="pc64.lnx.gfo"
++ export MYMATLAB="/usr/local/MATLAB/R2014a"
 + export MATLAB="/usr/local/MATLAB/R2014a"
 
 + export GALAHAD="/home/pirate/galahad"

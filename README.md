@@ -1,5 +1,8 @@
 # Galahad and CUTEst test environment for optimization
 Only for academic use!!!
+
+Please download the latest version from the following webpages:
+
 + https://github.com/ralna/GALAHAD/wiki
 + https://github.com/ralna/CUTEst/wiki
 + http://www.galahad.rl.ac.uk/
@@ -33,6 +36,10 @@ Please change the name "pirate" and the Matlab path to yours
 + export GALAHAD="/home/pirate/galahad"
 + export PATH="${GALAHAD}/bin:${PATH}"
 + export MANPATH="${GALAHAD}/man:${MANPATH}"
+
+
++ export MATLABPATH="${CUTEST}/src/matlab:$(MATLABPATH)"
++ export MATLABPATH="${GALAHAD}/src/matlab:$(MATLABPATH)"
 
 (2) cd $GALAHAD and run $ARCHDEFS/install_optrove
 

@@ -14,7 +14,8 @@ Only for academic use!!!
 
 ## Install the Galahad and CUTEst environment:
 (1) Set the environment variable by adding the following to the file .bashrc
-change the name "pirate" and Matlab path to yours
+
+Please change the name "pirate" and the Matlab path to yours
 
 + export ARCHDEFS="/home/pirate/archdefs"
 + export SIFDECODE="/home/pirate/sifdecode"
@@ -28,7 +29,6 @@ change the name "pirate" and Matlab path to yours
 + export MYARCH="pc64.lnx.gfo"
 + export MYMATLABARCH="pc64.lnx.gfo"
 + export MYMATLAB="/usr/local/MATLAB/R2014a"
-+ export MATLAB="/usr/local/MATLAB/R2014a"
 
 + export GALAHAD="/home/pirate/galahad"
 + export PATH="${GALAHAD}/bin:${PATH}"
@@ -36,4 +36,4 @@ change the name "pirate" and Matlab path to yours
 
 (2) cd $GALAHAD and run $ARCHDEFS/install_optrove
 
-Then wait for compiling!
+Then follow the steps and wait for compiling!

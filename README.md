@@ -1,6 +1,6 @@
 # Galahad and CUTEst test environment for optimization
 Only for academic use!!!
-+ https://ccpforge.cse.rl.ac.uk/gf/project/cutest/wiki/
++ https://github.com/ralna/GALAHAD/wiki
 + http://www.galahad.rl.ac.uk/
 
 ## The SIF files for test problems are downloaded from
@@ -32,6 +32,6 @@ change the name "pirate" and Matlab path to yours
 + export PATH="${GALAHAD}/bin:${PATH}"
 + export MANPATH="${GALAHAD}/man:${MANPATH}"
 
-(2) cd $GALAHAD and run $ARCHDEFS/install_optsuite
+(2) cd $GALAHAD and run $ARCHDEFS/install_optrove
 
 Then wait for compiling!

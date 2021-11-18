@@ -1,5 +1,4 @@
-Matlab interfaces are now available to a growing number of GALAHAD packages
-(in double-precision).
+Matlab interfaces are now available to a growing number of GALAHAD packages.
 
                             ---------
                             For LINUX
@@ -61,10 +60,10 @@ option when installing, or if a gfortran version has already been installed,
 issue the commands
 
   cd $GALAHAD/src/matlab
-  make -s -f $GALAHAD/makefiles/pc64.lnx.gfo
+  make -s -f $GALAHAD/makefiles/pc.lnx.gfo
 
-(substitute pc.lnx.gfo for the appropriate string on non-Linux or 32-bit
- machines, e.g pc.lnx.gfo).
+(substitute pc.lnx.gfo for the appropriate string on non-Linux or 64-bit
+ machines).
 
 N.B. the MATLAB environment variable must point to your system matlab directory.
 
@@ -82,56 +81,17 @@ to find the current status of available interfaces.
                     .........................
 
 As for MATLAB for R2011a-R2013a, but you will need gfortran/gcc-4.7 not 4.4.
-Edit $GALAHAD/makefiles/pc64.lnx.gfo to check that all mentions of gfortran/gcc
+Edit $GALAHAD/makefiles/pc.lnx.gfo to check that all mentions of gfortran/gcc
 have the trailing -4.7.
 
-                     ........................
-                     MATLAB for R2016b-R2017b
-                    .........................
+                     ...........................
+                     MATLAB for R2016b and above
+                    ...........................
 
 As for MATLAB for R2011a-R2013a, but you will need gfortran/gcc-4.9 not 4.4.
-Edit $GALAHAD/makefiles/pc64.lnx.gfo to check that all mentions of gfortran/gcc
+Edit $GALAHAD/makefiles/pc.lnx.gfo to check that all mentions of gfortran/gcc
 have the trailing -4.9. This should have been taken care of automatically
-during the installation process.
-
-                    .........................
-                     MATLAB for R2018a-R2020a
-                    .........................
-
-As for MATLAB for R2011a-R2013a, but you will need gfortran/gcc-6 not 4.4.
-Edit $GALAHAD/makefiles/pc64.lnx.gfo to check that all mentions of gfortran/gcc
-have the trailing -6. This should have been taken care of automatically
-during the installation process.
-
-                    ............................
-                     MATLAB for R2020b and above
-                    ............................
-
-As for MATLAB for R2011a-R2013a, but you will need gfortran/gcc-8 not 4.4.
-Edit $GALAHAD/makefiles/pc64.lnx.gfo to check that all mentions of gfortran/gcc
-have the trailing -8. This should have been taken care of automatically
-during the installation process.
-
-Note that at present there is no single-precision version.
-
-                    ...........................
-                    Replacement BLAS and LAPACK
-                    ...........................
-
-You may replace the default BLAS and LAPACK routines by tuned, threaded
-versions (e.g., OpenBLAS or MKL). But please be aware that Matlab will ignore
-any dynamic/shared (.so) files, so that you will need to use static (.a) 
-versions. You can achieve this by editing $GALAHAD/makefiles/pc64.lnx.gfo, 
-and setting, for example
-
- BLAS = -l:libopenblas.a
- LAPACK = -l:libopenblas.a
-
-to enable OpenBLAS (check that you have dowloaded the static version of
-OpenBLAS from your favourite package manager, e.g., in the package 
-libopenblas-dev, or downloaded OpenBLAS from https://www.openblas.net
-and compiled and installed this using make). Note the -l:lib*.a rather
-than the dynamic -l* syntax.
+during the installation process
 
                          ------------
                          For MAC OS X
@@ -159,6 +119,11 @@ whether g95/gfortran is compatible with Matlab in this case, we
 are sorry but the Windows user is on her/his own. Matlab claim
 to support Intel Visual Fortran as their default Windows-fortran
 interface.
+
+Nick Gould          (nick.gould@stfc.ac.uk)
+Dominique Orban     (dominique.orban@polymtl.ca)
+Philippe Toint      (philippe.toint@fundp.ac.be)
+
 
  ---------------------------------------------------------------------------
  The dreaded "MATLAB Error: Cannot load any more object with static TLS" bug
@@ -218,9 +183,6 @@ http://stackoverflow.com/questions/19268293/matlab-error-cannot-open-with-static
 
 for the discussion and tip
 
-Nick Gould          (nick.gould@stfc.ac.uk)
-Dominique Orban     (dominique.orban@polymtl.ca)
-Philippe Toint      (philippe.toint@fundp.ac.be)
-
 For GALAHAD productions
-This version: 12th November 2020
+This version: 1st March 2017
+

@@ -103,9 +103,8 @@ for $1 \leq j \leq i \leq n$.
 
 \subsubsection{Sparse co-ordinate storage format}\label{coordinate}
 Only the nonzero entries of the matrices are stored.
-For the $l$-th entry, $1 \leq l \leq$ {\tt H\%ne}, of $\bmH$, 
-its row index $i$, column index $j$ and value $h_{ij}$,
-$1 \leq j \leq i \leq n$,
+For the $l$-th entry of $\bmH$, $1 \leq j \leq i \leq n$,
+its row index $i$, column index $j$ and value $h_{ij}$
 are stored in the $l$-th components of the integer arrays {\tt H\%row},
 {\tt H\%col} and real array {\tt H\%val}, respectively.
 Note that only the entries in the lower triangle should be stored.
@@ -114,8 +113,8 @@ Note that only the entries in the lower triangle should be stored.
 Again only the nonzero entries are stored, but this time
 they are ordered so that those in row $i$ appear directly before those
 in row $i+1$. For the $i$-th row of $\bmH$, the $i$-th component of the
-integer array {\tt H\%ptr} holds the position of the first entry in this row,
-while {\tt H\%ptr} $(n+1)$ holds the total number of entries plus one.
+integer array {\tt A\%ptr} holds the position of the first entry in this row,
+while {\tt A\%ptr} $(m+1)$ holds the total number of entries plus one.
 The column indices $j$, $1 \leq j \leq i$, and values $h_{ij}$ of the
 entries in the $i$-th row are stored in components
 $l =$ {\tt H\%ptr}$(i)$, \ldots ,{\tt H\%ptr} $(i+1)-1$ of the
@@ -691,7 +690,7 @@ and
 {\tt DPS\_control\%new\_h}
 may be changed by \solver).
 
-\itt{LMS\_control} and {\tt LMS\_control\_prec}
+\itt{LMS\_control} and \itt{LMS\_control\_prec}
 are scalar variables of type
 {\tt LMS\_control\_type}
 whose components are used to control the limited memory secant
@@ -827,9 +826,6 @@ value of the objective function at the best estimate of the solution found.
 value of the norm of the objective function gradient at the best estimate
 of the solution found.
 
-\itt{radius} is a scalar variable of type default \realdp, that holds
-the current value of the trust-region radius.
-
 \itt{factorization\_average} is a scalar variable of type default \realdp, that
 gives the average number of factorizations per subproblem solved.
 
@@ -875,8 +871,7 @@ See the specification sheet for the package
 {\tt \libraryname\_DPS}
 for details.
 
-\itt{LMS\_inform} and {\tt LMS\_inform\_prec}
-are scalar variables of type
+\itt{LMS\_inform} is a scalar variable of type
 {\tt LMS\_inform\_type}
 whose components give information about the progress and needs
 of the limited memory secant approximations for the model Hessian
@@ -1542,7 +1537,7 @@ and {\tt inform\%bad\_alloc}, respectively.
     of a badly scaled problem.
 
 \itt{\galerralive.} The user has forced termination of \solver\
-     by removing the file named {\tt control\%a\-live\_file} from
+     by removing the file named {\tt control\%a\-live\_file} from unit
      unit {\tt control\%alive\_unit}.
 
 \end{description}

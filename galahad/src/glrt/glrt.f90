@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.2 - 25/02/2018 AT 07:45 GMT.
+! THIS VERSION: GALAHAD 3.0 - 19/02/2018 AT 15:00 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ G L R T  M O D U L E  *-*-*-*-*-*-*-*-*-
 
@@ -31,7 +31,7 @@
       USE GALAHAD_ROOTS_double, ONLY : ROOTS_quadratic
       USE GALAHAD_SPECFILE_double
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
-      USE GALAHAD_LAPACK_interface, ONLY : PTTRF, STERF
+      USE GALAHAD_LAPACK_interface, ONLY : PTTRF
       USE GALAHAD_GLTR_double, ONLY :                                          &
         GLRT_leftmost_eigenvalue => GLTR_leftmost_eigenvalue,                  &
         GLRT_leftmost_eigenvector => GLTR_leftmost_eigenvector,                &
@@ -104,10 +104,6 @@
 
         INTEGER :: extra_vectors = 0
 
-!   the unit number for writing debug Ritz values
-
-        INTEGER :: ritz_printout_device = 34
-
 !   the iteration stops successfully when the gradient in the M(inverse) norm
 !    is smaller than
 !      max( stop_relative * min( 1, stop_rule ),
@@ -150,15 +146,6 @@
 !     will terminate execution. Otherwise, computation will continue
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
-
-!  should the Ritz values be written to the debug stream?
-
-        LOGICAL :: print_ritz_values = .FALSE.
-
-!  name of debug file containing the Ritz values
-
-        CHARACTER ( LEN = 30 ) :: ritz_file_name =                             &
-          "glrt_ritz.dat"  // REPEAT( ' ', 17 )
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
 !   where %prefix contains the required string enclosed in
@@ -241,8 +228,6 @@
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: P
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: D
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFD
-        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: E
-        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFE
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: ALPHAS
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: RMINVRS
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: MIN_f
@@ -325,23 +310,18 @@
 !   printout-device                                 6
 !   print-level                                     0
 !   maximum-number-of-iterations                    -1
-!   stopping-rule                                   1
 !   tri-diagonal-solve-frequency                    1
 !   number-extra-n-vectors-used                     0
-!   ritz-printout-device                            34
+!   stopping-rule                                   1
 !   relative-accuracy-required                      1.0E-8
 !   absolute-accuracy-required                      0.0
-!   norm-accuracy-required                          0.0
-!   norm-power-used                                 2.0
 !   fraction-optimality-required                    1.0
-!   zero-gradient-tolerance                         2.0E-15
 !   constant-term-in-objective                      0.0
+!   zero-gradient-tolerance                         2.0E-15
 !   two-norm-regularisation                         T
 !   impose-initial-descent                          F
 !   space-critical                                  F
 !   deallocate-error-fatal                          F
-!   print-ritz-values                               F
-!   ritz-file-name                                  glrt_ritz.dat
 !   output-line-prefix                              ""
 !  END GLRT SPECIFICATIONS
 
@@ -355,29 +335,7 @@
 
 !  Local variables
 
-      INTEGER, PARAMETER :: error = 1
-      INTEGER, PARAMETER :: out = error + 1
-      INTEGER, PARAMETER :: print_level = out + 1
-      INTEGER, PARAMETER :: itmax = print_level + 1
-      INTEGER, PARAMETER :: stopping_rule = itmax + 1
-      INTEGER, PARAMETER :: freq = stopping_rule + 1
-      INTEGER, PARAMETER :: extra_vectors = freq + 1
-      INTEGER, PARAMETER :: ritz_printout_device = extra_vectors + 1
-      INTEGER, PARAMETER :: stop_relative = ritz_printout_device + 1
-      INTEGER, PARAMETER :: stop_absolute = stop_relative + 1
-      INTEGER, PARAMETER :: stop_norm = stop_absolute + 1
-      INTEGER, PARAMETER :: stop_power = stop_norm + 1
-      INTEGER, PARAMETER :: fraction_opt = stop_power + 1
-      INTEGER, PARAMETER :: rminvr_zero = fraction_opt + 1
-      INTEGER, PARAMETER :: f_0 = rminvr_zero + 1
-      INTEGER, PARAMETER :: unitm = f_0 + 1
-      INTEGER, PARAMETER :: impose_descent = unitm + 1
-      INTEGER, PARAMETER :: space_critical = impose_descent + 1
-      INTEGER, PARAMETER :: deallocate_error_fatal = space_critical + 1
-      INTEGER, PARAMETER :: print_ritz_values = deallocate_error_fatal + 1
-      INTEGER, PARAMETER :: ritz_file_name =  print_ritz_values + 1
-      INTEGER, PARAMETER :: prefix = ritz_file_name + 1
-      INTEGER, PARAMETER :: lspec = prefix
+      INTEGER, PARAMETER :: lspec = 34
       CHARACTER( LEN = 4 ), PARAMETER :: specname = 'GLRT'
       TYPE ( SPECFILE_item_type ), DIMENSION( lspec ) :: spec
 
@@ -387,37 +345,36 @@
 
 !  Integer key-words
 
-      spec( error )%keyword = 'error-printout-device'
-      spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level'
-      spec( itmax )%keyword = 'maximum-number-of-iterations'
-      spec( stopping_rule )%keyword = 'stopping-rule'
-      spec( freq )%keyword = 'tri-diagonal-solve-frequency'
-      spec( extra_vectors )%keyword = 'number-extra-n-vectors-used'
-      spec( ritz_printout_device )%keyword = 'ritz-printout-device'
+      spec(  1 )%keyword = 'error-printout-device'
+      spec(  2 )%keyword = 'printout-device'
+      spec(  3 )%keyword = 'print-level'
+      spec(  4 )%keyword = 'maximum-number-of-iterations'
+      spec( 18 )%keyword = 'stopping-rule'
+      spec(  5 )%keyword = 'number-extra-n-vectors-used'
+      spec( 19 )%keyword = 'tri-diagonal-solve-frequency'
 
 !  Real key-words
 
-      spec( stop_relative )%keyword = 'relative-accuracy-required'
-      spec( stop_absolute )%keyword = 'absolute-accuracy-required'
-      spec( stop_norm )%keyword = 'norm-accuracy-required'
-      spec( stop_power )%keyword = 'norm-power-used'
-      spec( fraction_opt )%keyword = 'fraction-optimality-required'
-      spec( rminvr_zero )%keyword = 'zero-gradient-tolerance'
-      spec( f_0 )%keyword = 'constant-term-in-objective'
+      spec(  6 )%keyword = 'relative-accuracy-required'
+      spec(  7 )%keyword = 'absolute-accuracy-required'
+      spec( 20 )%keyword = 'norm-accuracy-required'
+      spec( 21 )%keyword = 'norm-power-used'
+      spec(  8 )%keyword = 'fraction-optimality-required'
+      spec(  9 )%keyword = 'constant-term-in-objective'
+      spec( 17 )%keyword = 'zero-gradient-tolerance'
 
 !  Logical key-words
 
-      spec( unitm )%keyword = 'two-norm-regularisation'
-      spec( impose_descent )%keyword = 'impose-initial-descent'
-      spec( space_critical )%keyword = 'space-critical'
-      spec( deallocate_error_fatal )%keyword = 'deallocate-error-fatal'
-      spec( print_ritz_values )%keyword = 'print-ritz-values'
+      spec( 10 )%keyword = 'two-norm-regularisation'
+      spec( 11 )%keyword = 'impose-initial-descent'
+      spec( 12 )%keyword = ''
+      spec( 13 )%keyword = ''
+      spec( 14 )%keyword = 'space-critical'
+      spec( 15 )%keyword = 'deallocate-error-fatal'
 
 !  Character key-words
 
-      spec( ritz_file_name )%keyword = 'ritz-file-name'
-      spec( prefix )%keyword = 'output-line-prefix'
+!     spec( 16 )%keyword = 'output-line-prefix'
 
 !  Read the specfile
 
@@ -431,80 +388,52 @@
 
 !  Set integer values
 
-      CALL SPECFILE_assign_value( spec( error ),                               &
-                                  control%error,                               &
+      CALL SPECFILE_assign_value( spec( 1 ), control%error,                    &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( out ),                                 &
-                                  control%out,                                 &
+      CALL SPECFILE_assign_value( spec( 2 ), control%out,                      &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( print_level ),                         &
-                                  control%print_level,                         &
+      CALL SPECFILE_assign_value( spec( 3 ), control%print_level,              &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( itmax ),                               &
-                                  control%itmax,                               &
+      CALL SPECFILE_assign_value( spec( 4 ), control%itmax,                    &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( stopping_rule),                        &
-                                  control%stopping_rule,                       &
+      CALL SPECFILE_assign_value( spec( 18 ), control%stopping_rule,           &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( freq ),                                &
-                                  control%freq,                                &
+      CALL SPECFILE_assign_value( spec( 5 ), control%extra_vectors,            &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( extra_vectors ),                       &
-                                  control%extra_vectors,                       &
-                                  control%error )
-      CALL SPECFILE_assign_value( spec( ritz_printout_device ),                &
-                                  control%ritz_printout_device,                &
+      CALL SPECFILE_assign_value( spec( 19 ), control%freq,                    &
                                   control%error )
 
 !  Set real values
 
-      CALL SPECFILE_assign_value( spec( stop_relative ),                       &
-                                  control%stop_relative,                       &
+      CALL SPECFILE_assign_value( spec( 6 ), control%stop_relative,            &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( stop_absolute ),                       &
-                                  control%stop_absolute,                       &
+      CALL SPECFILE_assign_value( spec( 7 ), control%stop_absolute,            &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( stop_norm ),                           &
-                                  control%stop_norm,                           &
+      CALL SPECFILE_assign_value( spec( 20 ), control%stop_norm,               &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( stop_power ),                          &
-                                  control%stop_power,                          &
+      CALL SPECFILE_assign_value( spec( 21 ), control%stop_power,              &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( fraction_opt ),                        &
-                                  control%fraction_opt,                        &
+      CALL SPECFILE_assign_value( spec( 8 ), control%fraction_opt,             &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( rminvr_zero ),                         &
-                                  control%rminvr_zero,                         &
+      CALL SPECFILE_assign_value( spec( 9 ), control%f_0,                      &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( f_0 ),                                 &
-                                  control%f_0,                                 &
+      CALL SPECFILE_assign_value( spec( 17 ), control%rminvr_zero,             &
                                   control%error )
 
 !  Set logical values
 
-      CALL SPECFILE_assign_value( spec( unitm ),                               &
-                                  control%unitm,                               &
+      CALL SPECFILE_assign_value( spec( 10 ), control%unitm,                   &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( impose_descent ),                      &
-                                  control%impose_descent,                      &
+      CALL SPECFILE_assign_value( spec( 11 ), control%impose_descent,          &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( space_critical ),                      &
-                                  control%space_critical,                      &
+      CALL SPECFILE_assign_value( spec( 14 ), control%space_critical,          &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( deallocate_error_fatal ),              &
+      CALL SPECFILE_assign_value( spec( 15 ),                                  &
                                   control%deallocate_error_fatal,              &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( print_ritz_values ),                   &
-                                  control%print_ritz_values,                   &
-                                  control%error )
-
 !  Set charcter values
 
-      CALL SPECFILE_assign_value( spec( ritz_file_name ),                      &
-                                  control%ritz_file_name,                      &
-                                  control%error )
-      CALL SPECFILE_assign_value( spec( prefix ),                              &
-                                  control%prefix,                              &
+      CALL SPECFILE_assign_value( spec( 16 ), control%prefix,                  &
                                   control%error )
 
       RETURN
@@ -574,9 +503,8 @@
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
 
-      INTEGER :: dim_sub, it, itp1, info
+      INTEGER :: dim_sub, it, itp1
       REAL ( KIND = wp ) :: f_tol, f_0, u_norm
-      LOGICAL :: filexx
       CHARACTER ( LEN = 80 ) :: array_name
 
 !  prefix for all output
@@ -633,12 +561,8 @@
       IF ( p < two ) GO TO 980
       data%one_pass = sigma == zero .OR. ( p == two .AND. .NOT. PRESENT( O ) )
 !     data%one_pass = .FALSE.
-!write(6,*) ' one pass ',  data%one_pass
-!write(6,*) ' unit m ',  control%unitm
-!write(6,*) 'R ', R
 
-      data%iter = 0 ; data%itm1 = - 1
-      data%iter_descent = 0 ; data%descent = ' '
+      data%iter = 0 ; data%iter_descent = 0 ; data%descent = ' '
       data%itmax = control%itmax ; IF ( data%itmax < 0 ) data%itmax = n
       data%printi = control%out > 0 .AND. control%print_level >= 1
       data%printd = control%out > 0 .AND. control%print_level >= 2
@@ -733,22 +657,6 @@
       IF ( .NOT. data%one_pass ) THEN
         data%titmax = 100
 
-!  if required, open a file to write the Ritz values data
-
-        IF ( control%print_ritz_values ) THEN
-          INQUIRE( FILE = control%ritz_file_name, EXIST = filexx )
-          IF ( filexx ) THEN
-            OPEN( control%ritz_printout_device,                                &
-                  FILE = control%ritz_file_name, FORM = 'FORMATTED',           &
-                  STATUS = 'OLD', IOSTAT = info )
-          ELSE
-            OPEN( control%ritz_printout_device,                                &
-                  FILE = control%ritz_file_name, FORM = 'FORMATTED',           &
-                  STATUS = 'NEW', IOSTAT = info )
-          END IF
-          WRITE( control%ritz_printout_device, * ) 'glrt', n, sigma
-        END IF
-
 !  Allocate space for the Lanczos tridiagonal
 
         array_name = 'glrt: D'
@@ -766,24 +674,6 @@
             exact_size = control%space_critical,                               &
             bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= 0 ) GO TO 960
-
-        IF ( control%print_ritz_values ) THEN
-          array_name = 'gltr: E'
-          CALL SPACE_resize_array( data%itmax + 2, data%E,                     &
-              inform%status, inform%alloc_status, array_name = array_name,     &
-              deallocate_error_fatal = control%deallocate_error_fatal,         &
-              exact_size = control%space_critical,                             &
-              bad_alloc = inform%bad_alloc, out = control%error )
-          IF ( inform%status /= 0 ) GO TO 960
-
-          array_name = 'gltr: OFFE'
-          CALL SPACE_resize_array( data%itmax + 1, data%OFFE,                  &
-              inform%status, inform%alloc_status, array_name = array_name,     &
-              deallocate_error_fatal = control%deallocate_error_fatal,         &
-              exact_size = control%space_critical,                             &
-              bad_alloc = inform%bad_alloc, out = control%error )
-          IF ( inform%status /= 0 ) GO TO 960
-        END IF
 
 !  Allocate space for the factors of the Lanczos tridiagonal
 
@@ -1048,28 +938,6 @@
           data%C_sub( 0 ) = data%pgnorm
         END IF
 
-!  just in case the Ritz values are useful ...
-
-        IF ( control%print_ritz_values  ) THEN
-          data%E( : data%iter ) = data%D( 0 : data%itm1 )
-          data%OFFE( : data%itm1 ) = data%OFFD( : data%itm1)
-          CALL STERF( data%iter, data%E, data%OFFE, info )
-          IF ( info == 0 ) THEN
-            IF (  data%iter /= 0 ) THEN
-              WRITE( control%ritz_printout_device, * )                         &
-                data%iter, data%LAMBDA( data%iter ), data%offdiag,             &
-                ABS( data%x_last * data%offdiag )
-            ELSE
-              WRITE( control%ritz_printout_device, * )                         &
-                data%iter, zero, zero, data%pgnorm
-            END IF
-            WRITE( control%ritz_printout_device, * ) data%E( : data%iter )
-          ELSE
-            IF ( data%printi ) WRITE( control%out, * )                         &
-              info, ' warning: unconverged Ritz values out of ', data%iter
-          END IF
-        END IF
-
 !  Print details of the latest iteration
 
 !if ( data%itm1 >= 1 ) then
@@ -1085,16 +953,14 @@
           IF ( MOD( data%iter, 25 ) == 0 .OR. data%printd )                    &
             WRITE( control%out, 2000 ) prefix
           IF ( data%iter /= 0 ) THEN
-            WRITE( control%out, "( A, I7, ES16.8, ES9.2, ES21.14, ES9.2,       &
-              &  2I5, A )" ) prefix, data%iter,                                &
-              data%MIN_f_regularized( data%itm1 )                              &
+            WRITE( control%out, "( A, I7, ES16.8, ES9.2, ES15.8, 2I5, A )" )   &
+              prefix, data%iter, data%MIN_f_regularized( data%itm1 )           &
               + control%f_0, ABS( data%x_last * data%offdiag ),                &
-              data%LAMBDA( data%itm1 ), data%offdiag,                          &
-              data%titer, data%tinfo, data%descent
+              data%LAMBDA( data%itm1 ), data%titer, data%tinfo, data%descent
 !write(6,"(2ES12.4)" ) data%x_last, data%offdiag
           ELSE
-            WRITE( control%out, "( A, I7, ES16.8, ES9.2, 13X, '-', 12X,        &
-             &      '-', 7X, '-', 5X, '-' )" )                                 &
+            WRITE( control%out, "( A, I7, ES16.8, ES9.2, 8X, '-', 6X,          &
+             &      2( 4X, '-' ) )" )                                          &
                prefix, data%iter, inform%obj_regularized, data%pgnorm
           END IF
         END IF
@@ -1221,10 +1087,10 @@
             data%branch = 500 ; inform%status = 4
             RETURN
           END IF
+        ELSE
 
 !  Special case for the first iteration
 
-        ELSE
           data%P( : n ) = - VECTOR
           data%pmp = data%rminvr
           data%D( 0 ) = data%diag
@@ -1251,10 +1117,10 @@
       ELSE
         IF ( data%iter > 0 ) THEN
           data%beta = data%rminvr / data%rminvr_old
+        ELSE
 
 !  Compute the stopping tolerance
 
-        ELSE
           data%stop = MAX( control%stop_relative * data%pgnorm,                &
                            control%stop_absolute )
           data%pgnorm_zero = data%pgnorm
@@ -1298,26 +1164,18 @@
             inform%multiplier = sigma
             GO TO 900
           END IF
+        ELSE
 
 !  Special case for the first iteration
 
-        ELSE
           IF ( sigma > zero ) data%W( : n ) = - R
           data%P( : n ) = - VECTOR
           data%pmp = data%rminvr ; data%xmp = zero
-
-!  Check for convergence
-
-          IF ( data%iter >= data%itmax .OR. data%rminvr <= data%stop ) THEN
-            inform%multiplier = sigma
-            GO TO 900
-          END IF
         END IF
         data%rminvr_old = data%rminvr
 
         data%itm1 = data%iter ; data%iter = data%iter + 1
       END IF
-!write(6,*) ' obj, ob_reg ', inform%obj, inform%obj_regularized
 
 !  ------------------------------
 !  Obtain the product of H with p
@@ -1451,16 +1309,12 @@
                      ( two * data%xmp + data%alpha * data%pmp )
         inform%xpo_norm = SQRT( data%xmx )
         X = X + data%alpha * data%P( : n )
-!       inform%obj = inform%obj - half * data%alpha * data%alpha * data%curv
-!        IF ( PRESENT( eps ) ) THEN
-!         inform%obj_regularized = inform%obj + half * sigma * eps
-!       ELSE
-!         inform%obj_regularized = inform%obj
-!       END IF
-        inform%obj_regularized =                                               &
-          inform%obj_regularized - half * data%alpha * data%alpha * data%curv
-        inform%obj = inform%obj_regularized - half * sigma * data%xmx
-        IF ( PRESENT( eps ) ) inform%obj = inform%obj - half * sigma * eps
+        inform%obj = inform%obj - half * data%alpha * data%alpha * data%curv
+        IF ( PRESENT( eps ) ) THEN
+          inform%obj_regularized = inform%obj + half * sigma * eps
+        ELSE
+          inform%obj_regularized = inform%obj
+        END IF
 
 !  Update the residual
 
@@ -1774,8 +1628,8 @@
 
 !  Non-executable statements
 
- 2000 FORMAT( /, A, '   Iter    objective     pgnorm           lambda    ',    &
-                    '    gamma    it  info' )
+ 2000 FORMAT( /, A, '   Iter    objective     pgnorm      lambda   ',          &
+                    '    it info' )
  2010 FORMAT( /, A, '   Iter       f          pgnorm ' )
 !2020 FORMAT( /, ' MIN_f, it_exit, it_total ', ES22.14, 2I6 )
 
@@ -1929,8 +1783,6 @@
          inform%status, inform%alloc_status, array_name = array_name,          &
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-      IF ( control%print_ritz_values ) CLOSE( control%ritz_printout_device )
 
       RETURN
 
@@ -2464,7 +2316,7 @@
                        + DOT_PRODUCT( X( : n - 1 ) * OFFD, X( 2 : ) )          &
                        + ( sigma / p ) * omega ** p
             WRITE( out, "( A, ' real, recurred f = ', 2ES22.14 )" ) prefix,    &
-                                    real_f, f_regularized
+                                                                    real_f, f
           END IF
           inform = 0
           RETURN

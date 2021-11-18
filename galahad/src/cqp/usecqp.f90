@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.8 - 24/08/2016 AT 12:40 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E C Q P   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -13,10 +13,10 @@
 
     MODULE GALAHAD_USECQP_double
 
-!    -------------------------------------------------------------
+!    ------------------------------------------------------------
 !    | CUTEst/AMPL interface to CQP, an interior-point algorithm |
-!    | for convex quadratic & least-distance programming         |
-!    -------------------------------------------------------------
+!    | for convex quadratic & least-distance programming        |
+!    ------------------------------------------------------------
 
 !$    USE omp_lib
       USE CUTEst_interface_double
@@ -30,7 +30,7 @@
       USE GALAHAD_SLS_double
       USE GALAHAD_PRESOLVE_double
       USE GALAHAD_SPECFILE_double
-      USE GALAHAD_STRING, ONLY: STRING_upper_word
+      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
@@ -456,11 +456,6 @@
           STOP
         END IF
         CALL SLS_factorize( prob%H, sls_data, sls_control, sls_inform )
-
-        WRITE( out, "( ' convexifying - computed inertia of H = ( ',           &
-       &    I0, ', ', I0, ', ', I0, ' )' )" )                                  &
-          sls_inform%rank - sls_inform%negative_eigenvalues,                   &
-          sls_inform%negative_eigenvalues, prob%H%n - sls_inform%rank
 
 !  the Hessian is not positive definite. Compute the Gershgorin lower bound
 !  on the leftmost eigenvalue
@@ -978,7 +973,6 @@
 !  If the problem was scaled, unscale it
 
         IF ( scale > 0 ) THEN
-qfval = qfval * SCALE_trans%f_scale
           CALL SCALE_recover( prob, SCALE_trans, SCALE_data,                   &
                               SCALE_control, SCALE_inform )
           IF ( SCALE_inform%status < 0 ) THEN
@@ -1186,7 +1180,7 @@ qfval = qfval * SCALE_trans%f_scale
                 state = 'UPPER'
               IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) <       stopr )        &
                 state = 'EQUAL'
-              WRITE( out, 2130 ) i, CNAME( i ), state, prob%C( i ),            &
+              WRITE( out, 2130 ) i, CNAME( i ), STATE, prob%C( i ),            &
                                  prob%C_l( i ), prob%C_u( i ), prob%Y( i )
             END DO
           END DO
@@ -1249,7 +1243,7 @@ qfval = qfval * SCALE_trans%f_scale
               state = 'UPPER'
             IF ( ABS( prob%X_l( I ) - prob%X_u( I ) ) < stopr )                &
               state = 'FIXED'
-            WRITE( sfiledevice, 2050 ) i, VNAME( i ), state, prob%X( i ),      &
+            WRITE( sfiledevice, 2050 ) i, VNAME( i ), STATE, prob%X( i ),      &
               prob%X_l( i ), prob%X_u( i ), prob%Z( i )
           END DO
 
@@ -1263,7 +1257,7 @@ qfval = qfval * SCALE_trans%f_scale
                 state = 'UPPER'
               IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) < stopr )              &
                 state = 'EQUAL'
-              WRITE( sfiledevice, 2130 ) i, CNAME( i ), state, prob%C( i ),    &
+              WRITE( sfiledevice, 2130 ) i, CNAME( i ), STATE, prob%C( i ),    &
                 prob%C_l( i ), prob%C_u( i ), prob%Y( i )
             END DO
           END IF
@@ -1317,7 +1311,6 @@ qfval = qfval * SCALE_trans%f_scale
           WRITE( rfiledevice, "( A10, ES16.8, 3ES9.1, bn, I9, F12.2, I6 )" )   &
             pname, qfval, res_c, res_k, max_cs, - iter, - clockt, status
         END IF
-        CLOSE( rfiledevice )
       END IF
 
 !  Print the first and last few components of the solution.
@@ -1416,3 +1409,5 @@ qfval = qfval * SCALE_trans%f_scale
 !  End of module USECQP_double
 
    END MODULE GALAHAD_USECQP_double
+
+

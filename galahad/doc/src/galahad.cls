@@ -42,7 +42,7 @@
 
 \newcommand{\libraryname}{GA\-LA\-H\-AD}
 %\newcommand{\releasename}{GALAHAD Optimization Library version $2.\epsilon$}
-\newcommand{\releasename}{GALAHAD Optimization Library version $3.3$}
+\newcommand{\releasename}{GALAHAD Optimization Library version $3.1$}
 
 \newcommand\@ptsize{}
 \newif\if@restonecol
@@ -639,7 +639,7 @@
 \newcommand{\lancelota}{\textsf{LANCELOT A}}
 \newcommand{\lancelotb}{\textsf{LANCELOT B}}
 
-\usepackage{graphicx,fancyheadings,pslatex,bm,fancyvrb,ifthen,url,varioref}
+\usepackage{graphicx,fancyheadings,pslatex,bm,fancyvrb,ifthen,url}
 
 % Page sizes
 
@@ -715,7 +715,6 @@ See {\tt http://galahad.rl.ac.uk/galahad-www/cou.html} for full details.}}
 %  Specifics
 
 \newcommand{\itt}[1]{\item[\tt #1]}
-\newcommand{\itte}[1]{\item[\tt #1$^{\ddagger}$]}
 \newcommand{\ittf}[1]{\item[\tt \parbox{7mm}{{#1}}]}
 \newcommand{\ittt}[1]{\item[\tt #1]\hspace*{-2mm}}
 \setcounter{secnumdepth}{3}
@@ -737,9 +736,7 @@ See {\tt http://galahad.rl.ac.uk/galahad-www/cou.html} for full details.}}
 
 %\includegraphics[totalheight=40pt]{galahad.small.ps}\hfill\includegraphics[totalheight=55pt]{stfc.eps}\hspace{1mm}\includegraphics[totalheight=55pt]{epm.eps}\hspace{2mm}\includegraphics[totalheight=55pt]{unamur.ps}
 
-%\includegraphics[totalheight=40pt]{galahad.small.ps}\hfill\includegraphics[totalheight=40pt]{stfc.eps}\hspace{1mm}\includegraphics[totalheight=40pt]{epm.eps}\hspace{2mm}\includegraphics[totalheight=40pt]{unamur.ps}
-
-\includegraphics[totalheight=40pt]{galahad.small.ps}\hfill\includegraphics[totalheight=40pt]{ukristfc.eps}\hspace{4mm}\includegraphics[totalheight=40pt]{epm.eps}\hspace{2mm}\includegraphics[totalheight=40pt]{unamur.ps}
+\includegraphics[totalheight=40pt]{galahad.small.ps}\hfill\includegraphics[totalheight=40pt]{stfc.eps}\hspace{1mm}\includegraphics[totalheight=40pt]{epm.eps}\hspace{2mm}\includegraphics[totalheight=40pt]{unamur.ps}
 
 \end{figure}
 \vspace*{-4mm}
@@ -810,8 +807,6 @@ See {\tt http://galahad.rl.ac.uk/galahad-www/cou.html} for full details.}}
 \newcommand{\galsymbols}{\subsection{The GALAHAD symbols\label{galsymbols}}}
 \newcommand{\galtype}{\subsection{The derived data type\label{galtype}}}
 \newcommand{\galtypes}{\subsection{The derived data types\label{galtypes}}}
-\newcommand{\galopenmp}{\subsection{OpenMP}}\label{galopenmp}
-\newcommand{\galintkinds}{\subsection{Integer kinds}}\label{galintkinds}
 \newcommand{\galarguments}{\subsection{Argument lists and calling sequences\label{galarguments}}}
 \newcommand{\galreverse}{\subsection{Reverse communication\label{galreverse}}}
 \newcommand{\galerrors}{\subsection{Warning and error messages\label{galerrors}}}
@@ -921,11 +916,6 @@ See {\tt http://galahad.rl.ac.uk/galahad-www/cou.html} for full details.}}
 \newcommand{\threehalves}{\sfrac{3}{2}}
 \newcommand{\fivehalves}{\sfrac{5}{2}}
 
-% super and subscripts
-
-\newcommand{\s}[1]{^{\mbox{\protect\tiny #1}}}
-\newcommand{\sub}[1]{_{\mbox{\protect\tiny #1}}}
-
 % Bold mathematics
 % syntax: \bm[A-Z,a-z]
 
@@ -1029,7 +1019,6 @@ See {\tt http://galahad.rl.ac.uk/galahad-www/cou.html} for full details.}}
 \newcommand{\galerrspral}{-72}
 \newcommand{\galerrrepeated}{-73}
 \newcommand{\galerreval}{-78}
-\newcommand{\galerroptional}{-79}
 \newcommand{\galerralive}{-82}
 
 \endinput

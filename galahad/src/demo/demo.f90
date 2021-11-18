@@ -14,7 +14,6 @@
 
     USE GALAHAD_SYMBOLS
     USE GALAHAD_SPECFILE_double
-    USE GALAHAD_SPACE_double
 
     IMPLICIT NONE     
 
@@ -241,7 +240,7 @@
 
 !  set initial values
 
-    inform%status = 0 ; inform%alloc_status = 0
+    inform%status = 0 ; inform%alloc_status = 0 ; inform%bad_alloc = 0
 
 !  ensure that input parameters are within allowed ranges
 
@@ -253,7 +252,7 @@
 !  allocate sufficient space for the problem
 
      array_name = 'demo: data%VECTOR'
-     CALL SPACE_resize_array( n, data%VECTOR, inform%status,                   &
+     CALL SPACE_resize_array( n, data%X_current, inform%status,                &
             inform%alloc_status, array_name = array_name,                      &
             deallocate_error_fatal = control%deallocate_error_fatal,           &
             exact_size = control%space_critical,                               &

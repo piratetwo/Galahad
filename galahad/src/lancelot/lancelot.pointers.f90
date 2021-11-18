@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 20/05/2021 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.4 - 09/04/2010 AT 07:45 GMT.
 
 !  |--------------------------------------------------------------------|
 !  |                                                                    |
@@ -42,9 +42,9 @@
      USE GALAHAD_SMT_double
      USE GALAHAD_SILS_double
      USE GALAHAD_SCU_double, ONLY : SCU_matrix_type, SCU_data_type,            &
-       SCU_inform_type, SCU_factorize, SCU_terminate
+       SCU_info_type, SCU_factorize, SCU_terminate
      USE LANCELOT_ASMBL_double, ONLY : ASMBL_save_type
-     USE GALAHAD_EXTEND_double, ONLY : EXTEND_save_type
+     USE LANCELOT_EXTEND_double, ONLY : EXTEND_save_type
 
      IMPLICIT NONE
 
@@ -343,7 +343,7 @@
        REAL ( KIND = wp ) :: ratio, mu, radius, ciccg
        LOGICAL :: newsol
        CHARACTER ( LEN = 24 ) :: bad_alloc
-       TYPE ( SCU_inform_type ) :: SCU_info
+       TYPE ( SCU_info_type ) :: SCU_info
        TYPE ( SILS_ainfo ) :: SILS_infoa
        TYPE ( SILS_finfo ) :: SILS_infof
        TYPE ( SILS_sinfo ) :: SILS_infos

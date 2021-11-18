@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 28/09/2021 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.7 - 27/07/2015 AT 14:20 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ C Q P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -39,7 +39,7 @@
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_verb_pleural,           &
+      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_verb_pleural,    &
                                        STRING_ies, STRING_are, STRING_ordinal
       USE GALAHAD_SPACE_double
       USE GALAHAD_SMT_double
@@ -51,7 +51,8 @@
                               CQP_abs_AX => QPD_abs_AX, CQP_abs_HX => QPD_abs_HX
       USE GALAHAD_ROOTS_double
       USE GALAHAD_LMS_double, ONLY: LMS_data_type, LMS_apply_lbfgs
-      USE GALAHAD_SORT_double, ONLY: SORT_inverse_permute
+      USE GALAHAD_SORT_double, ONLY: SORT_heapsort_build,                      &
+                               SORT_heapsort_smallest, SORT_inverse_permute
       USE GALAHAD_FDC_double
       USE GALAHAD_SBLS_double
       USE GALAHAD_CRO_double
@@ -66,21 +67,7 @@
       PUBLIC :: CQP_initialize, CQP_read_specfile, CQP_solve, CQP_solve_main,  &
                 CQP_terminate, QPT_problem_type, SMT_type, SMT_put, SMT_get,   &
                 CQP_Ax, CQP_data_type, CQP_dims_type, CQP_indicators,          &
-                CQP_workspace, CQP_full_initialize, CQP_full_terminate,        &
-                CQP_import, CQP_solve_qp, CQP_solve_sld, CQP_reset_control,    &
-                CQP_information
-
-!----------------------
-!   I n t e r f a c e s
-!----------------------
-
-     INTERFACE CQP_initialize
-       MODULE PROCEDURE CQP_initialize, CQP_full_initialize
-     END INTERFACE CQP_initialize
-
-     INTERFACE CQP_terminate
-       MODULE PROCEDURE CQP_terminate, CQP_full_terminate
-     END INTERFACE CQP_terminate
+                CQP_workspace
 
 !--------------------
 !   P r e c i s i o n
@@ -195,8 +182,6 @@
 !     2 the Zhao-Sun quadratic residual trajectory
 !     3 the Zhang arc ultimately switching to the Zhao-Sun residual trajectory
 !     4 the mixed linear-quadratic residual trajectory
-!     5 the Zhang arc ultimately switching to the mixed linear-quadratic
-!       residual trajectory
 
         INTEGER :: arc = 1
 
@@ -329,11 +314,6 @@
 !   if %just_feasible is true, the algorithm will stop as soon as a feasible
 !     point is found. Otherwise, the optimal solution to the problem will be
 !     found
-
-        LOGICAL :: treat_separable_as_general = .FALSE.
-
-!   if %treat_separable_as_general, is true, any separability in the
-!    problem structure will be ignored
 
         LOGICAL :: just_feasible  = .FALSE.
 
@@ -595,14 +575,6 @@
         TYPE ( RPD_inform_type ) :: RPD_inform
       END TYPE
 
-      TYPE, PUBLIC :: CQP_full_data_type
-        LOGICAL :: f_indexing
-        TYPE ( CQP_data_type ) :: CQP_data
-        TYPE ( CQP_control_type ) :: CQP_control
-        TYPE ( CQP_inform_type ) :: CQP_inform
-        TYPE ( QPT_problem_type ) :: prob
-      END TYPE CQP_full_data_type
-
    CONTAINS
 
 !-*-*-*-*-*-   C Q P _ I N I T I A L I Z E   S U B R O U T I N E   -*-*-*-*-*
@@ -686,38 +658,6 @@
 
       END SUBROUTINE CQP_initialize
 
-!- G A L A H A D -  C Q P _ F U L L _ I N I T I A L I Z E  S U B R O U T I N E -
-
-     SUBROUTINE CQP_full_initialize( data, control, inform )
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!   Provide default values for CQP controls
-
-!   Arguments:
-
-!   data     private internal data
-!   control  a structure containing control information. See preamble
-!   inform   a structure containing output information. See preamble
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( CQP_control_type ), INTENT( OUT ) :: control
-     TYPE ( CQP_inform_type ), INTENT( OUT ) :: inform
-
-     CALL CQP_initialize( data%cqp_data, control, inform )
-
-     RETURN
-
-!  End of subroutine CQP_full_initialize
-
-     END SUBROUTINE CQP_full_initialize
-
 !-*-*-*-*-   C Q P _ R E A D _ S P E C F I L E  S U B R O U T I N E   -*-*-*-
 
       SUBROUTINE CQP_read_specfile( control, device, alt_specname )
@@ -770,7 +710,6 @@
 !  maximum-clock-time-limit                          -1.0
 !  remove-linear-dependencies                        T
 !  treat-zero-bounds-as-general                      F
-!  treat-separable-as-general                        F
 !  just-find-feasible-point                          F
 !  balance-initial-complentarity                     F
 !  get-advanced-dual-variables                       F
@@ -839,9 +778,7 @@
       INTEGER, PARAMETER :: remove_dependencies = clock_time_limit + 1
       INTEGER, PARAMETER :: treat_zero_bounds_as_general =                     &
                               remove_dependencies + 1
-      INTEGER, PARAMETER :: treat_separable_as_general =                       &
-                              treat_zero_bounds_as_general + 1
-      INTEGER, PARAMETER :: just_feasible = treat_separable_as_general + 1
+      INTEGER, PARAMETER :: just_feasible = treat_zero_bounds_as_general + 1
       INTEGER, PARAMETER :: getdua = just_feasible + 1
       INTEGER, PARAMETER :: puiseux = getdua + 1
       INTEGER, PARAMETER :: every_order = puiseux + 1
@@ -910,7 +847,6 @@
       spec( remove_dependencies )%keyword = 'remove-linear-dependencies'
       spec( treat_zero_bounds_as_general )%keyword =                           &
         'treat-zero-bounds-as-general'
-      spec( treat_separable_as_general )%keyword = 'treat-separable-as-general'
       spec( just_feasible )%keyword = 'just-find-feasible-point'
       spec( getdua )%keyword = 'get-advanced-dual-variables'
       spec( puiseux )%keyword = 'puiseux-series'
@@ -930,7 +866,7 @@
       spec( qplib_file_name )%keyword = 'qplib-file-name'
       spec( prefix )%keyword = 'output-line-prefix'
 
-!     IF ( PRESENT( alt_specname ) ) WRITE(6,*) ' cqp: ', alt_specname
+      IF ( PRESENT( alt_specname ) ) WRITE(6,*) ' cqp: ', alt_specname
 
 !  Read the specfile
 
@@ -1072,9 +1008,6 @@
                                  control%error )
      CALL SPECFILE_assign_value( spec( just_feasible ),                        &
                                  control%just_feasible,                        &
-                                 control%error )
-     CALL SPECFILE_assign_value( spec( treat_separable_as_general ),           &
-                                 control%treat_separable_as_general,           &
                                  control%error )
      CALL SPECFILE_assign_value( spec( getdua ),                               &
                                  control%getdua,                               &
@@ -1501,7 +1434,7 @@
 !  Local variables
 
       INTEGER :: i, j, l, n_depen, nzc
-      REAL :: time_start, time_record, time_now
+      REAL ( KIND = wp ) :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize, cro_clock_matrix
@@ -1711,7 +1644,6 @@
 
 !  the problem is a separable bound-constrained QP. Solve it explicitly
 
-        IF ( control%treat_separable_as_general ) separable_bqp = .FALSE.
         IF ( separable_bqp ) THEN
           IF ( printi ) WRITE( control%out,                                    &
             "( /, A, ' Solving separable bound-constrained QP -' )" ) prefix
@@ -1762,18 +1694,10 @@
 !  perform the preprocessing
 
       IF ( prob%new_problem_structure ) THEN
-        IF ( printi ) THEN
-          IF ( prob%m > 0 ) THEN
-            WRITE( control%out,                                                &
-               "(  A, ' problem dimensions before preprocessing: ', /,  A,     &
-           &   ' n = ', I0, ' m = ', I0, ' a_ne = ', I0, ' h_ne = ', I0 )" )   &
+        IF ( printi ) WRITE( control%out,                                      &
+               "( /, A, ' problem dimensions before preprocessing: ', /,  A,   &
+     &         ' n = ', I8, ' m = ', I8, ' a_ne = ', I8, ' h_ne = ', I8 )" )   &
                prefix, prefix, prob%n, prob%m, data%a_ne, data%h_ne
-          ELSE
-            WRITE( control%out,                                                &
-               "(  A, ' problem dimensions before preprocessing:',             &
-           &   ' n = ', I0, ' h_ne = ', I0 )" ) prefix, prob%n, data%h_ne
-          END IF
-        END IF
 
         CALL QPP_initialize( data%QPP_map, data%QPP_control )
         data%QPP_control%infinity = control%infinity
@@ -1832,18 +1756,10 @@
           END SELECT
         END IF
 
-        IF ( printi ) THEN
-          IF ( prob%m > 0 ) THEN
-            WRITE( control%out,                                                &
+        IF ( printi ) WRITE( control%out,                                      &
                "(  A, ' problem dimensions after preprocessing: ', /,  A,      &
-           &   ' n = ', I0, ' m = ', I0, ' a_ne = ', I0, ' h_ne = ', I0 )" )   &
+     &         ' n = ', I8, ' m = ', I8, ' a_ne = ', I8, ' h_ne = ', I8 )" )   &
                prefix, prefix, prob%n, prob%m, data%a_ne, data%h_ne
-          ELSE
-            WRITE( control%out,                                                &
-               "(  A, ' problem dimensions after  preprocessing:',             &
-           &   ' n = ', I0, ' h_ne = ', I0 )" ) prefix, prob%n, data%h_ne
-          END IF
-        END IF
 
         prob%new_problem_structure = .FALSE.
         data%trans = 1
@@ -1930,7 +1846,7 @@
         inform%nfacts = 1
 
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
+               time_now - time_start > control%cpu_time_limit ) .OR.           &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit
@@ -2725,8 +2641,8 @@
 
       IF ( stat_required .AND. control%crossover .AND.                         &
            inform%status == GALAHAD_ok ) THEN
-        IF ( printa ) THEN
-          WRITE( control%out, "( A, ' Before crossover:' )" ) prefix
+         IF ( printa ) THEN
+          WRITE( control%out, "( A, ' Before crossover:`' )" ) prefix
           WRITE( control%out, "( /, A, '      i       X_l             X   ',   &
          &   '          X_u            Z        st' )" ) prefix
           DO i = 1, prob%n
@@ -2884,14 +2800,14 @@
 
   800 CONTINUE
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
 
       IF ( printi ) WRITE( control%out,                                        &
      "( /, A, 3X, ' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=',    &
     &             '-=-=-=-=-=-=-=',                                            &
-    &   /, A, 3X, ' =                            total time              ',    &
+    &   /, A, 3X, ' =                          CQP total time            ',    &
     &             '             =',                                            &
     &   /, A, 3X, ' =', 24X, 0P, F12.2, 29x, '='                               &
     &   /, A, 3X, ' =    preprocess    analyse    factorize     solve    ',    &
@@ -2913,7 +2829,7 @@
   900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
@@ -3291,8 +3207,8 @@
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_record, clock_start, clock_now, clock_solve
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize
-      REAL ( KIND = wp ) :: pjgnrm, mu, amax, gmax, hmax, gamma_f, bik, slope
-      REAL ( KIND = wp ) :: cs, slknes, slkmin, reduce_infeas, tau, comp
+      REAL ( KIND = wp ) :: pjgnrm, mu, amax, hmax, gamma_f, bik, slope, comp
+      REAL ( KIND = wp ) :: cs, slknes, slkmin, reduce_infeas, tau
       REAL ( KIND = wp ) :: slknes_x, slknes_c, slkmax_x, slkmax_c, res_cs
       REAL ( KIND = wp ) :: slkmin_x, slkmin_c, res_primal, res_primal_dual
       REAL ( KIND = wp ) :: merit, merit_trial, merit_best, merit_model
@@ -3342,52 +3258,46 @@
 !  move to argument list
 
       IF ( control%out > 0 .AND. control%print_level >= 20 ) THEN
-!     IF ( control%out > 0 .AND. control%print_level >= 1 ) THEN
-        WRITE( control%out, "( /, A, ' n = ', I0, ', m = ', I0, ', f =',       &
-       &                       ES24.16 )" ) prefix, n, m, f
-        IF ( gradient_kind == 0 ) THEN
-          WRITE( control%out, "( A, ' G = zeros' )" ) prefix
-        ELSE IF ( gradient_kind == 1 ) THEN
-          WRITE( control%out, "( A, ' G = ones' )" ) prefix
+        WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) n, m
+        WRITE( control%out, "( ' f = ', ES12.4 )" ) f
+        IF ( gradient_kind == 1 ) THEN
+          WRITE( control%out, "( ' G = 1.0' )" )
         ELSE
-          WRITE( control%out, "( A, ' G =', /, ( 5X, 3ES24.16 ) )" )           &
-            prefix, G( : n )
+          IF ( PRESENT( G ) )                                                  &
+            WRITE( control%out, "( ' G = ', /, ( 5ES12.4 ) )" ) G( : n )
         END IF
-        IF ( Hessian_kind == 0 ) THEN
-          WRITE( control%out, "( A, ' W = zeros' )" ) prefix
-        ELSE IF ( Hessian_kind == 1 ) THEN
-          WRITE( control%out, "( A, ' W = ones ' )" ) prefix
-        ELSE IF ( Hessian_kind == 2 ) THEN
-          WRITE( control%out, "( A, ' W = ', /, ( 5X, 3ES24.16 ) )" )          &
-            prefix, WEIGHT( : n )
+        IF ( hessian_kind == 1 ) THEN
+          WRITE( control%out, "( ' H  = 1.0' )" )
+        ELSE IF ( hessian_kind == 2 ) THEN
+          WRITE( control%out, "( ' H  =' )" )
+          WRITE( control%out, "( ( 4( ES12.4 ) ) )" ) ( WEIGHT( i ), i = 1, n )
         ELSE IF ( hessian_kind < 0 ) THEN
           IF ( lbfgs ) THEN
             WRITE( control%out, "( ' H (limited-memory, held implicitly)' )" )
           ELSE
-            WRITE( control%out, "( A, ' H (row-wise) =' )" ) prefix
-            DO i = 1, n
-              IF ( H_ptr( i ) <= H_ptr( i + 1 ) - 1 )                          &
-                WRITE( control%out, "( ( 2X, 2( 2I8, ES24.16 ) ) )" )          &
+            WRITE( control%out, "( ' H (row-wise) = ' )" )
+            IF ( diagonal_hessian ) THEN
+              DO i = 1, n
+                WRITE( control%out, "( ( 2I8, ES12.4 ) )" ) i, i, H_val( i )
+              END DO
+            ELSE
+              DO i = 1, n
+                WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )               &
                ( i, H_col( j ), H_val( j ), j = H_ptr( i ), H_ptr( i + 1 ) - 1 )
-            END DO
+              END DO
+            END IF
           END IF
         END IF
-        WRITE( control%out, "( A,                                              &
-       &  ' X_l =', /, ( 5X, 3ES24.16 ) )" ) prefix, X_l( : n )
-        WRITE( control%out, "( A,                                              &
-       &  ' X_u =', /, ( 5X, 3ES24.16 ) )" ) prefix, X_u( : n )
-        IF ( m > 0 ) THEN
-          WRITE( control%out, "( A, ' A (row-wise) =' )" ) prefix
+        WRITE( control%out, "( ' X_l = ', /, ( 5ES12.4 ) )" ) X_l( : n )
+        WRITE( control%out, "( ' X_u = ', /, ( 5ES12.4 ) )" ) X_u( : n )
+          WRITE( control%out, "( ' A (row-wise) = ' )" )
           DO i = 1, m
-           IF ( A_ptr( i ) <= A_ptr( i + 1 ) - 1 )                             &
-              WRITE( control%out, "( ( 2X, 2( 2I8, ES24.16 ) ) )" )            &
-              ( i, A_col( j ), A_val( j ), j = A_ptr( i ), A_ptr( i + 1 ) - 1 )
+            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
+              ( i, A_col( j ), A_val( j ),                                     &
+                j = A_ptr( i ), A_ptr( i + 1 ) - 1 )
           END DO
-          WRITE( control%out, "( A,                                            &
-         &  ' C_l =', /, ( 5X, 3ES24.16 ) )" ) prefix, C_l( : m )
-          WRITE( control%out, "( A,                                            &
-         &  ' C_u =', /, ( 5X, 3ES24.16 ) )" ) prefix, C_u( : m )
-        END IF
+        WRITE( control%out, "( ' C_l = ', /, ( 5ES12.4 ) )" ) C_l( : m )
+        WRITE( control%out, "( ' C_u = ', /, ( 5ES12.4 ) )" ) C_u( : m )
       END IF
 
 ! -------------------------------------------------------------------
@@ -3975,16 +3885,10 @@
         inform%obj = f + half * curv
       END IF
 
-!  also compute the largest component of g
-
       IF ( gradient_kind == 1 ) THEN
         inform%obj = inform%obj + SUM( X )
-        gmax = one
       ELSE IF ( gradient_kind /= 0 ) THEN
         inform%obj = inform%obj + DOT_PRODUCT( G, X )
-        gmax = MAXVAL( ABS( G( : n ) ) )
-      ELSE
-        gmax = zero
       END IF
 
 !  find the largest components of A and H
@@ -4011,10 +3915,9 @@
         hmax = zero
       END IF
 
-      IF ( printi .AND. m > 0 ) WRITE( out,                                    &
-         "( /, A, '  maximum element of A =', ES11.4 )" ) prefix, amax
-      IF ( printi ) WRITE( out, "( /, A, '  maximum element of H =', ES11.4,   &
-    &    /, A, '  maximum element of G =', ES11.4 )") prefix, hmax, prefix, gmax
+      IF ( printi ) WRITE( out, "( /, A, '  maximum element of A =', ES11.4,   &
+    &                              /, A, '  maximum element of H =', ES11.4 )")&
+        prefix, amax, prefix, hmax
 
 !  test to see if we are feasible
 
@@ -4313,8 +4216,7 @@
         IF ( control%arc == 2 .OR.                                             &
              ( control%arc == 3 .AND. mu <= tenm4 ) ) THEN
           arc = 'ZS'
-        ELSE IF ( control%arc == 4 .OR.                                        &
-             ( control%arc == 5 .AND. mu <= tenm10 ) ) THEN
+        ELSE IF ( control%arc == 4 ) THEN
           arc = 'ZP'
           puiseux = .TRUE.
         ELSE
@@ -4501,7 +4403,7 @@
 
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
+               time_now - time_start > control%cpu_time_limit ) .OR.           &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit ; GO TO 600
@@ -4691,7 +4593,7 @@
                SBLS_control%preconditioner == 5 .OR.                           &
                SBLS_control%preconditioner >= 9 .OR.                           &
                SBLS_control%preconditioner <= 0 )                              &
-            SBLS_control%preconditioner = 8
+            SBLS_control%preconditioner = 6
         ELSE
           IF ( SBLS_control%preconditioner == 6 .OR.                           &
                SBLS_control%preconditioner == 7 .OR.                           &
@@ -4724,8 +4626,7 @@
        &  ' ......... factorization of KKT matrix ............... ' )" ) prefix
         IF ( lbfgs ) THEN
           CALL SBLS_form_and_factorize( A_sbls%n, A_sbls%m, H_sbls, A_sbls,    &
-            C_sbls, SBLS_data, SBLS_control, inform%SBLS_inform,               &
-            D = H_sbls%val, H_lm = H_lm )
+            C_sbls, SBLS_data, SBLS_control, inform%SBLS_inform, H_lm = H_lm )
         ELSE
           CALL SBLS_form_and_factorize( A_sbls%n, A_sbls%m, H_sbls, A_sbls,    &
             C_sbls, SBLS_data, SBLS_control, inform%SBLS_inform )
@@ -6297,7 +6198,7 @@
 
         IF ( printt ) WRITE( out,                                              &
            "( A, ' time for solves = ', F0.2 ) " ) prefix, clock_solve
-        inform%time%solve = inform%time%solve + REAL( time_solve, wp )
+        inform%time%solve = inform%time%solve + time_solve
         inform%time%clock_solve = inform%time%clock_solve + clock_solve
 
         IF ( printw ) WRITE( out,                                              &
@@ -7322,9 +7223,6 @@ END DO
             ELSE IF ( control%arc == 4 ) THEN
               WRITE( control%out, "( A, '  Maximum order ', I0, ' Puiseux',    &
            &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
-            ELSE IF ( control%arc == 5 ) THEN
-              WRITE( control%out, "( A, '  Maximum order ', I0, ' Puiseux',    &
-           &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
             ELSE
               WRITE( control%out, "( A, '  Maximum order ', I0, ' Puiseux',    &
            &   ' fit to the Zhang-Zhao-Sun arc is used' )" ) prefix, order
@@ -7337,9 +7235,6 @@ END DO
               WRITE( control%out, "( A, '  Order ', I0, ' Puiseux',            &
            &   ' fit to the Zhao-Sun arc is used' )" ) prefix, order
             ELSE IF ( control%arc == 4 ) THEN
-              WRITE( control%out, "( A, '  Order ', I0, ' Puiseux',            &
-           &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
-            ELSE IF ( control%arc == 5 ) THEN
               WRITE( control%out, "( A, '  Order ', I0, ' Puiseux',            &
            &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
             ELSE
@@ -8006,150 +7901,6 @@ END DO
 !  End of subroutine CQP_terminate
 
       END SUBROUTINE CQP_terminate
-
-! -  G A L A H A D -  C Q P _ f u l l _ t e r m i n a t e  S U B R O U T I N E -
-
-     SUBROUTINE CQP_full_terminate( data, control, inform )
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!   Deallocate all private storage
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( CQP_control_type ), INTENT( IN ) :: control
-     TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
-
-!-----------------------------------------------
-!   L o c a l   V a r i a b l e s
-!-----------------------------------------------
-
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  deallocate workspace
-
-     CALL CQP_terminate( data%cqp_data, control, inform )
-
-!  deallocate any internal problem arrays
-
-     array_name = 'cqp: data%prob%X'
-     CALL SPACE_dealloc_array( data%prob%X,                                    &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%X_l'
-     CALL SPACE_dealloc_array( data%prob%X_l,                                  &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%X_u'
-     CALL SPACE_dealloc_array( data%prob%X_u,                                  &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%G'
-     CALL SPACE_dealloc_array( data%prob%G,                                    &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%Z'
-     CALL SPACE_dealloc_array( data%prob%Z,                                    &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%C'
-     CALL SPACE_dealloc_array( data%prob%C,                                    &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%C_l'
-     CALL SPACE_dealloc_array( data%prob%C_l,                                  &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%C_u'
-     CALL SPACE_dealloc_array( data%prob%C_u,                                  &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%WEIGHT'
-     CALL SPACE_dealloc_array( data%prob%WEIGHT,                               &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%X0'
-     CALL SPACE_dealloc_array( data%prob%X0,                                   &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%H%ptr'
-     CALL SPACE_dealloc_array( data%prob%H%ptr,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%H%row'
-     CALL SPACE_dealloc_array( data%prob%H%row,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%H%col'
-     CALL SPACE_dealloc_array( data%prob%H%col,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%H%val'
-     CALL SPACE_dealloc_array( data%prob%H%val,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%A%ptr'
-     CALL SPACE_dealloc_array( data%prob%A%ptr,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%A%row'
-     CALL SPACE_dealloc_array( data%prob%A%row,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%A%col'
-     CALL SPACE_dealloc_array( data%prob%A%col,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'cqp: data%prob%A%val'
-     CALL SPACE_dealloc_array( data%prob%A%val,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     RETURN
-
-!  End of subroutine CQP_full_terminate
-
-     END SUBROUTINE CQP_full_terminate
 
 !-*-*-*-*-*-   C Q P _ M E R I T _ V A L U E   F U N C T I O N   -*-*-*-*-*-*-
 
@@ -9434,30 +9185,30 @@ END DO
 !$OMP             local_ROOTS_control, local_ROOTS_inform )
         IF ( dims%x_free + 1 <= dims%x_l_end ) THEN
 !$OMP     DO
-            DO i = dims%x_free + 1, dims%x_l_end
-              x0 = X_coef( i, 0 ) - X_l( i )
-              DO j = 0, order
-                c = x0 * Z_l_coef( i, j )
-                DO k = 1, j
-                  c = c + X_coef( i, k ) * Z_l_coef( i, j - k )
-                END DO
-                COEF( j ) = c - scale * CS_coef( j )
+          DO i = dims%x_free + 1, dims%x_l_end
+            x0 = X_coef( i, 0 ) - X_l( i )
+            DO j = 0, order
+              c = x0 * Z_l_coef( i, j )
+              DO k = 1, j
+                c = c + X_coef( i, k ) * Z_l_coef( i, j - k )
               END DO
-              DO j = 1, order
-                opj = order + j
-                c = X_coef( i, j ) * Z_l_coef( i, order )
-                DO k = j + 1, order
-                  c = c + X_coef( i, k ) * Z_l_coef( i, opj - k )
-                END DO
-                COEF( opj ) = c - scale * CS_coef( opj )
-              END DO
-              COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$            thread = OMP_get_thread_num( )
-              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
-                          COEF( 0 : 2 * order ), lower, upper,                 &
-                          local_ROOTS_data( thread ), local_ROOTS_control,     &
-                          local_ROOTS_inform( thread ) )
+              COEF( j ) = c - scale * CS_coef( j )
             END DO
+            DO j = 1, order
+              opj = order + j
+              c = X_coef( i, j ) * Z_l_coef( i, order )
+              DO k = j + 1, order
+                c = c + X_coef( i, k ) * Z_l_coef( i, opj - k )
+              END DO
+              COEF( opj ) = c - scale * CS_coef( opj )
+            END DO
+            COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$          thread = OMP_get_thread_num( )
+            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
+                        COEF( 0 : 2 * order ), lower, upper,                   &
+                        local_ROOTS_data( thread ), local_ROOTS_control,       &
+                        local_ROOTS_inform( thread ) )
+          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                            MINVAL( ALPHA_m( dims%x_free + 1 : dims%x_l_end ) ) )
@@ -9466,30 +9217,30 @@ END DO
 
         IF ( dims%x_u_start <= n ) THEN
 !$OMP     DO
-            DO i = dims%x_u_start, n
-              x0 = X_coef( i, 0 ) - X_u( i )
-              DO j = 0, order
-                c = x0 * Z_u_coef( i, j )
-                DO k = 1, j
-                  c = c + X_coef( i, k ) * Z_u_coef( i, j - k )
-                END DO
-                COEF( j ) = c - scale * CS_coef( j )
+          DO i = dims%x_u_start, n
+            x0 = X_coef( i, 0 ) - X_u( i )
+            DO j = 0, order
+              c = x0 * Z_u_coef( i, j )
+              DO k = 1, j
+                c = c + X_coef( i, k ) * Z_u_coef( i, j - k )
               END DO
-              DO j = 1, order
-                opj = order + j
-                c = X_coef( i, j ) * Z_u_coef( i, order )
-                DO k = j + 1, order
-                  c = c + X_coef( i, k ) * Z_u_coef( i, opj - k )
-                END DO
-                COEF( opj ) = c - scale * CS_coef( opj )
-              END DO
-              COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$            thread = OMP_get_thread_num( )
-              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
-                          COEF( 0 : 2 * order ), lower, upper,                 &
-                          local_ROOTS_data( thread ), local_ROOTS_control,     &
-                          local_ROOTS_inform( thread ) )
+              COEF( j ) = c - scale * CS_coef( j )
             END DO
+            DO j = 1, order
+              opj = order + j
+              c = X_coef( i, j ) * Z_u_coef( i, order )
+              DO k = j + 1, order
+                c = c + X_coef( i, k ) * Z_u_coef( i, opj - k )
+              END DO
+              COEF( opj ) = c - scale * CS_coef( opj )
+            END DO
+            COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$          thread = OMP_get_thread_num( )
+            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
+                        COEF( 0 : 2 * order ), lower, upper,                   &
+                        local_ROOTS_data( thread ), local_ROOTS_control,       &
+                        local_ROOTS_inform( thread ) )
+          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                            MINVAL( ALPHA_m( dims%x_u_start : n ) ) )
@@ -9498,30 +9249,30 @@ END DO
 
         IF ( dims%c_l_start <= dims%c_l_end ) THEN
 !$OMP     DO
-            DO i = dims%c_l_start, dims%c_l_end
-              c0 = C_coef( i, 0 ) - C_l( i )
-              DO j = 0, order
-                c = c0 * Y_l_coef( i, j )
-                DO k = 1, j
-                  c = c + C_coef( i, k ) * Y_l_coef( i, j - k )
-                END DO
-                COEF( j ) = c - scale * CS_coef( j )
+          DO i = dims%c_l_start, dims%c_l_end
+            c0 = C_coef( i, 0 ) - C_l( i )
+            DO j = 0, order
+              c = c0 * Y_l_coef( i, j )
+              DO k = 1, j
+                c = c + C_coef( i, k ) * Y_l_coef( i, j - k )
               END DO
-              DO j = 1, order
-                opj = order + j
-                c = C_coef( i, j ) * Y_l_coef( i, order )
-                DO k = j + 1, order
-                  c = c + C_coef( i, k ) * Y_l_coef( i, opj - k )
-                END DO
-                COEF( opj ) = c - scale * CS_coef( opj )
-              END DO
-              COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$            thread = OMP_get_thread_num( )
-              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
-                          COEF( 0 : 2 * order ), lower, upper,                 &
-                          local_ROOTS_data( thread ), local_ROOTS_control,     &
-                          local_ROOTS_inform( thread ) )
+              COEF( j ) = c - scale * CS_coef( j )
             END DO
+            DO j = 1, order
+              opj = order + j
+              c = C_coef( i, j ) * Y_l_coef( i, order )
+              DO k = j + 1, order
+                c = c + C_coef( i, k ) * Y_l_coef( i, opj - k )
+              END DO
+              COEF( opj ) = c - scale * CS_coef( opj )
+            END DO
+            COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$          thread = OMP_get_thread_num( )
+            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
+                        COEF( 0 : 2 * order ), lower, upper,                   &
+                        local_ROOTS_data( thread ), local_ROOTS_control,       &
+                        local_ROOTS_inform( thread ) )
+          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                            MINVAL( ALPHA_m( dims%c_l_start : dims%c_l_end ) ) )
@@ -9530,30 +9281,30 @@ END DO
 
         IF ( dims%c_u_start <= dims%c_u_end ) THEN
 !$OMP     DO
-            DO i = dims%c_u_start, dims%c_u_end
-              c0 = C_coef( i, 0 ) - C_u( i )
-              DO j = 0, order
-                c = c0 * Y_u_coef( i, j )
-                DO k = 1, j
-                  c = c + C_coef( i, k ) * Y_u_coef( i, j - k )
-                END DO
-                COEF( j ) = c - scale * CS_coef( j )
+          DO i = dims%c_u_start, dims%c_u_end
+            c0 = C_coef( i, 0 ) - C_u( i )
+            DO j = 0, order
+              c = c0 * Y_u_coef( i, j )
+              DO k = 1, j
+                c = c + C_coef( i, k ) * Y_u_coef( i, j - k )
               END DO
-              DO j = 1, order
-                opj = order + j
-                c = C_coef( i, j ) * Y_u_coef( i, order )
-                DO k = j + 1, order
-                  c = c + C_coef( i, k ) * Y_u_coef( i, opj - k )
-                END DO
-                COEF( opj ) = c - scale * CS_coef( opj )
-              END DO
-              COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$            thread = OMP_get_thread_num( )
-              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
-                          COEF( 0 : 2 * order ), lower, upper,                 &
-                          local_ROOTS_data( thread ), local_ROOTS_control,     &
-                          local_ROOTS_inform( thread ) )
+              COEF( j ) = c - scale * CS_coef( j )
             END DO
+            DO j = 1, order
+              opj = order + j
+              c = C_coef( i, j ) * Y_u_coef( i, order )
+              DO k = j + 1, order
+                c = c + C_coef( i, k ) * Y_u_coef( i, opj - k )
+              END DO
+              COEF( opj ) = c - scale * CS_coef( opj )
+            END DO
+            COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$          thread = OMP_get_thread_num( )
+            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
+                        COEF( 0 : 2 * order ), lower, upper,                   &
+                        local_ROOTS_data( thread ), local_ROOTS_control,       &
+                        local_ROOTS_inform( thread ) )
+          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                             MINVAL( ALPHA_m( dims%c_u_start : dims%c_u_end ) ) )
@@ -10625,785 +10376,58 @@ END DO
 
       END SUBROUTINE CQP_workspace
 
-! -----------------------------------------------------------------------------
-! =============================================================================
-! -----------------------------------------------------------------------------
-!              specific interfaces to make calls from C easier
-! -----------------------------------------------------------------------------
-! =============================================================================
-! -----------------------------------------------------------------------------
-
-!-*-*-*-*-  G A L A H A D -  C Q P _ i m p o r t _ S U B R O U T I N E -*-*-*-*-
-
-     SUBROUTINE CQP_import( control, data, status, n, m,                       &
-                            H_type, H_ne, H_row, H_col, H_ptr,                 &
-                            A_type, A_ne, A_row, A_col, A_ptr )
-
-!  import fixed problem data into internal storage prior to solution.
-!  Arguments are as follows:
-
-!  control is a derived type whose components are described in the leading
-!   comments to CQP_solve
-!
-!  data is a scalar variable of type CQP_full_data_type used for internal data
-!
-!  status is a scalar variable of type default intege that indicates the
-!   success or otherwise of the import. Possible values are:
-!
-!    1. The import was succesful, and the package is ready for the solve phase
-!
-!   -1. An allocation error occurred. A message indicating the offending
-!       array is written on unit control.error, and the returned allocation
-!       status and a string containing the name of the offending array
-!       are held in inform.alloc_status and inform.bad_alloc respectively.
-!   -2. A deallocation error occurred.  A message indicating the offending
-!       array is written on unit control.error and the returned allocation
-!       status and a string containing the name of the offending array
-!       are held in inform.alloc_status and inform.bad_alloc respectively.
-!   -3. The restriction n > 0, m >= 0 or requirement that type contains
-!       its relevant string 'DENSE', 'COORDINATE', 'SPARSE_BY_ROWS',
-!       'DIAGONAL' 'SCALED_IDENTITY', 'IDENTITY', 'ZERO', 'NONE' or
-!       'SHIFTED_LEAST_DISTANCE' has been violated.
-!
-!  n is a scalar variable of type default integer, that holds the number of
-!   variables
-!
-!  m is a scalar variable of type default integer, that holds the number of
-!   residuals
-!
-!  H_type is a character string that specifies the Hessian storage scheme
-!   used. It should be one of 'coordinate', 'sparse_by_rows', 'dense'
-!   'diagonal' 'scaled_identity', 'identity', 'zero', 'none' or
-!   'shifted_least_distance', the latter if the Hessian is that of
-!   1/2 sum_j w_j (x_j-x^0_j)^2 rather than of 1/2 x' H x
-!   Lower or upper case variants are allowed.
-!
-!  H_ne is a scalar variable of type default integer, that holds the number of
-!   entries in the  lower triangular part of H in the sparse co-ordinate
-!   storage scheme. It need not be set for any of the other schemes.
-!
-!  H_row is a rank-one array of type default integer, that holds
-!   the row indices of the  lower triangular part of H in the sparse
-!   co-ordinate storage scheme. It need not be set for any of the other
-!   three schemes, and in this case can be of length 0
-!
-!  H_col is a rank-one array of type default integer,
-!   that holds the column indices of the  lower triangular part of H in either
-!   the sparse co-ordinate, or the sparse row-wise storage scheme. It need not
-!   be set when the dense, diagonal, scaled identity, identity or zero schemes
-!   are used, and in this case can be of length 0
-!
-!  H_ptr is a rank-one array of dimension n+1 and type default
-!   integer, that holds the starting position of  each row of the  lower
-!   triangular part of H, as well as the total number of entries plus one,
-!   in the sparse row-wise storage scheme. It need not be set when the
-!   other schemes are used, and in this case can be of length 0
-!
-!  A_type is a character string that specifies the Jacobian storage scheme
-!   used. It should be one of 'coordinate', 'sparse_by_rows', 'dense'
-!   or 'absent', the latter if m = 0; lower or upper case variants are allowed
-!
-!  A_ne is a scalar variable of type default integer, that holds the number of
-!   entries in J in the sparse co-ordinate storage scheme. It need not be set
-!  for any of the other schemes.
-!
-!  A_row is a rank-one array of type default integer, that holds the row
-!   indices J in the sparse co-ordinate storage scheme. It need not be set
-!   for any of the other schemes, and in this case can be of length 0
-!
-!  A_col is a rank-one array of type default integer, that holds the column
-!   indices of J in either the sparse co-ordinate, or the sparse row-wise
-!   storage scheme. It need not be set when the dense scheme is used, and
-!   in this case can be of length 0
-!
-!  A_ptr is a rank-one array of dimension n+1 and type default integer,
-!   that holds the starting position of each row of J, as well as the total
-!   number of entries plus one, in the sparse row-wise storage scheme.
-!   It need not be set when the other schemes are used, and in this case
-!   can be of length 0
-!
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( CQP_control_type ), INTENT( INOUT ) :: control
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( IN ) :: n, m, A_ne, H_ne
-     INTEGER, INTENT( OUT ) :: status
-     CHARACTER ( LEN = * ), INTENT( IN ) :: A_type
-     INTEGER, DIMENSION( : ), INTENT( IN ) :: A_row, A_col, A_ptr
-     CHARACTER ( LEN = * ), INTENT( IN ) :: H_type
-     INTEGER, DIMENSION( : ), INTENT( IN ) :: H_row, H_col, H_ptr
-
-!  local variables
-
-     INTEGER :: error
-     LOGICAL :: deallocate_error_fatal, space_critical
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  copy control to data
-
-     data%cqp_control = control
-
-     error = data%cqp_control%error
-     space_critical = data%cqp_control%space_critical
-     deallocate_error_fatal = data%cqp_control%space_critical
-
-!  allocate vector space if required
-
-     array_name = 'cqp: data%prob%X'
-     CALL SPACE_resize_array( n, data%prob%X,                                  &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%X_l'
-     CALL SPACE_resize_array( n, data%prob%X_l,                                &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%X_u'
-     CALL SPACE_resize_array( n, data%prob%X_u,                                &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%Z'
-     CALL SPACE_resize_array( n, data%prob%Z,                                  &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%C'
-     CALL SPACE_resize_array( m, data%prob%C,                                  &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%C_l'
-     CALL SPACE_resize_array( m, data%prob%C_l,                                &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%C_u'
-     CALL SPACE_resize_array( m, data%prob%C_u,                                &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     array_name = 'cqp: data%prob%Y'
-     CALL SPACE_resize_array( m, data%prob%Y,                                  &
-            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%cqp_inform%bad_alloc, out = error )
-     IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-!  put data into the required components of the qpt storage type
-
-     data%prob%n = n ; data%prob%m = m
-
-!  set H appropriately in the qpt storage type
-
-     SELECT CASE ( H_type )
-     CASE ( 'coordinate', 'COORDINATE' )
-       CALL SMT_put( data%prob%H%type, 'COORDINATE',                           &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = H_ne
-       data%prob%Hessian_kind = - 1
-
-       array_name = 'cqp: data%prob%H%row'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%row,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%H%col'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%col,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%H%val'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       data%prob%H%row( : data%prob%H%ne ) = H_row( : data%prob%H%ne )
-       data%prob%H%col( : data%prob%H%ne ) = H_col( : data%prob%H%ne )
-
-     CASE ( 'sparse_by_rows', 'SPARSE_BY_ROWS' )
-       CALL SMT_put( data%prob%H%type, 'SPARSE_BY_ROWS',                       &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = H_ptr( n + 1 ) - 1
-       data%prob%Hessian_kind = - 1
-
-       array_name = 'cqp: data%prob%H%ptr'
-       CALL SPACE_resize_array( n + 1, data%prob%H%ptr,                        &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%H%col'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%col,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%H%val'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       data%prob%H%ptr( : n + 1 ) = H_ptr( : n + 1 )
-       data%prob%H%col( : data%prob%H%ne ) = H_col( : data%prob%H%ne )
-
-     CASE ( 'dense', 'DENSE' )
-       CALL SMT_put( data%prob%H%type, 'DENSE',                                &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = ( n * ( n + 1 ) ) / 2
-       data%prob%Hessian_kind = - 1
-
-       array_name = 'cqp: data%prob%H%val'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     CASE ( 'diagonal', 'DIAGONAL' )
-       CALL SMT_put( data%prob%H%type, 'DIAGONAL',                             &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = n
-       data%prob%Hessian_kind = - 1
-
-       array_name = 'cqp: data%prob%H%val'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     CASE ( 'scaled_identity', 'SCALED_IDENTITY' )
-       CALL SMT_put( data%prob%H%type, 'SCALED_IDENTITY',                      &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = 1
-       data%prob%Hessian_kind = - 1
-
-       array_name = 'cqp: data%prob%H%val'
-       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     CASE ( 'identity', 'IDENTITY' )
-       CALL SMT_put( data%prob%H%type, 'SCALED_IDENTITY',                      &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = 0
-       data%prob%Hessian_kind = - 1
-
-     CASE ( 'zero', 'ZERO', 'none', 'NONE' )
-       CALL SMT_put( data%prob%H%type, 'ZERO',                                 &
-                     data%cqp_inform%alloc_status )
-       data%prob%H%n = n
-       data%prob%H%ne = 0
-       data%prob%Hessian_kind = 0
-     CASE ( 'shifted_least_distance', 'SHIFTED_LEAST_DISTANCE' )
-       data%prob%Hessian_kind = 2
-     CASE DEFAULT
-       data%cqp_inform%status = GALAHAD_error_unknown_storage
-       GO TO 900
-     END SELECT
-
-!  set A appropriately in the qpt storage type
-
-     SELECT CASE ( A_type )
-     CASE ( 'coordinate', 'COORDINATE' )
-       CALL SMT_put( data%prob%A%type, 'COORDINATE',                           &
-                     data%cqp_inform%alloc_status )
-       data%prob%A%n = n ; data%prob%A%m = m
-       data%prob%A%ne = A_ne
-
-       array_name = 'cqp: data%prob%A%row'
-       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%row,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%A%col'
-       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%col,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%A%val'
-       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       data%prob%A%row( : data%prob%A%ne ) = A_row( : data%prob%A%ne )
-       data%prob%A%col( : data%prob%A%ne ) = A_col( : data%prob%A%ne )
-
-     CASE ( 'sparse_by_rows', 'SPARSE_BY_ROWS' )
-       CALL SMT_put( data%prob%A%type, 'SPARSE_BY_ROWS',                       &
-                     data%cqp_inform%alloc_status )
-       data%prob%A%n = n ; data%prob%A%m = m
-       data%prob%A%ne = A_ptr( m + 1 ) - 1
-       array_name = 'cqp: data%prob%A%ptr'
-       CALL SPACE_resize_array( m + 1, data%prob%A%ptr,                        &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%A%col'
-       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%col,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       array_name = 'cqp: data%prob%A%val'
-       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-       data%prob%A%ptr( : m + 1 ) = A_ptr( : m + 1 )
-       data%prob%A%col( : data%prob%A%ne ) = A_col( : data%prob%A%ne )
-
-     CASE ( 'dense', 'DENSE' )
-       CALL SMT_put( data%prob%A%type, 'DENSE',                                &
-                     data%cqp_inform%alloc_status )
-       data%prob%A%n = n ; data%prob%A%m = m
-       data%prob%A%ne = m * n
-
-       array_name = 'cqp: data%prob%A%val'
-       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%val,               &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%cqp_inform%bad_alloc, out = error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-
-     CASE DEFAULT
-       data%cqp_inform%status = GALAHAD_error_unknown_storage
-       GO TO 900
-     END SELECT
-
-     status = GALAHAD_ready_to_solve
-     RETURN
-
-!  error returns
-
- 900 CONTINUE
-     status = data%cqp_inform%status
-     RETURN
-
-!  End of subroutine CQP_import
-
-     END SUBROUTINE CQP_import
-
-!-  G A L A H A D -  C Q P _ r e s e t _ c o n t r o l   S U B R O U T I N E  -
-
-     SUBROUTINE CQP_reset_control( control, data, status )
-
-!  reset control parameters after import if required.
-!  See CQP_solve for a description of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( CQP_control_type ), INTENT( IN ) :: control
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( OUT ) :: status
-
-!  set control in internal data
-
-     data%cqp_control = control
-
-!  flag a successful call
-
-     status = GALAHAD_ready_to_solve
-     RETURN
-
-!  end of subroutine CQP_reset_control
-
-     END SUBROUTINE CQP_reset_control
-
-!-*-*-*-  G A L A H A D -  C Q P _ s o l v e _ q p  S U B R O U T I N E  -*-*-*-
-
-     SUBROUTINE CQP_solve_qp( data, status, H_val, G, f, A_val, C_l, C_u,      &
-                              X_l, X_u, X, C, Y, Z, X_stat, C_stat )
-
-!  solve the quadratic programming problem whose structure was previously
-!  imported. See CQP_solve for a description of the required arguments.
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-!  X is a rank-one array of dimension n and type default
-!   real, that holds the vector of the primal variables, x.
-!   The j-th component of X, j = 1, ... , n, contains (x)_j.
-!
-!  G is a rank-one array of dimension n and type default
-!   real, that holds the vector of linear terms of the objective, g.
-!   The j-th component of G, j = 1, ... , n, contains (g)_j.
-
-     INTEGER, INTENT( OUT ) :: status
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: H_val
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: G
-     REAL ( KIND = wp ), INTENT( IN ) :: f
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: A_val
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: C_l, C_u
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: X_l, X_u
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X, Y, Z
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: C
-     INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( : ) :: C_stat, X_stat
-
-!  local variables
-
-     INTEGER :: m, n
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  recover the dimensions
-
-     m = data%prob%m ; n = data%prob%n
-
-!  save the constant term of the objective function
-
-     data%prob%f = f
-
-!  save the linear term of the objective function
-
-     IF ( COUNT( G( : n ) == 0.0_wp ) == n ) THEN
-       data%prob%gradient_kind = 0
-     ELSE IF ( COUNT( G( : n ) == 1.0_wp ) == n ) THEN
-       data%prob%gradient_kind = 1
-     ELSE
-       data%prob%gradient_kind = 2
-       array_name = 'cqp: data%prob%G'
-       CALL SPACE_resize_array( n, data%prob%G,                                &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal =                                         &
-                data%cqp_control%deallocate_error_fatal,                       &
-              exact_size = data%cqp_control%space_critical,                    &
-              bad_alloc = data%cqp_inform%bad_alloc,                           &
-              out = data%cqp_control%error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-       data%prob%G( : n ) = G( : n )
-     END IF
-
-!  save the lower and upper simple bounds
-
-     data%prob%X_l( : n ) = X_l( : n )
-     data%prob%X_u( : n ) = X_u( : n )
-
-!  save the lower and upper constraint bounds
-
-     data%prob%C_l( : m ) = C_l( : m )
-     data%prob%C_u( : m ) = C_u( : m )
-
-!  save the initial primal and dual variables and Lagrange multipliers
-
-     data%prob%X( : n ) = X( : n )
-     data%prob%Z( : n ) = Z( : n )
-     data%prob%Y( : m ) = Y( : m )
-
-!  save the Hessian entries
-
-     IF ( data%prob%Hessian_kind /= 2 ) THEN
-       data%prob%H%val( : data%prob%H%ne ) = H_val( : data%prob%H%ne )
-     ELSE
-       data%cqp_inform%status = GALAHAD_error_hessian_type
-       GO TO 900
-     END IF
-
-!  save the constraint Jacobian entries
-
-     data%prob%A%val( : data%prob%A%ne ) = A_val( : data%prob%A%ne )
-
-!  call the solver
-
-     CALL CQP_solve( data%prob, data%cqp_data, data%cqp_control,               &
-                     data%cqp_inform, C_stat = C_stat, B_stat = X_stat )
-
-!  recover the optimal primal and dual variables, Lagrange multipliers and
-!  constraint values
-
-     X( : n ) = data%prob%X( : n )
-     Z( : n ) = data%prob%Z( : n )
-     Y( : m ) = data%prob%Y( : m )
-     C( : m ) = data%prob%C( : m )
-
-     status = data%cqp_inform%status
-     RETURN
-
-!  error returns
-
- 900 CONTINUE
-     status = data%cqp_inform%status
-     RETURN
-
-!  End of subroutine CQP_solve_qp
-
-     END SUBROUTINE CQP_solve_qp
-
-!-*-*-*-  G A L A H A D -  C Q P _ s o l v e _ s l d  S U B R O U T I N E  -*-*-
-
-     SUBROUTINE CQP_solve_sld( data, status, W, X_0, G, f, A_val, C_l, C_u,    &
-                               X_l, X_u, X, C, Y, Z, X_stat, C_stat )
-
-!  solve the shifted-least-distance problem whose structure was previously
-!  imported. See CQP_solve for a description of the required arguments.
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( OUT ) :: status
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: W, X_0
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: G
-     REAL ( KIND = wp ), INTENT( IN ) :: f
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: A_val
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: C_l, C_u
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: X_l, X_u
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X, Y, Z
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: C
-     INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( : ) :: C_stat, X_stat
-
-!  local variables
-
-     INTEGER :: m, n
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  recover the dimensions
-
-     m = data%prob%m ; n = data%prob%n
-
-!  save the constant term of the objective function
-
-     data%prob%f = f
-
-!  save the linear term of the objective function
-
-     IF ( COUNT( G( : n ) == 0.0_wp ) == n ) THEN
-       data%prob%gradient_kind = 0
-     ELSE IF ( COUNT( G( : n ) == 1.0_wp ) == n ) THEN
-       data%prob%gradient_kind = 1
-     ELSE
-       data%prob%gradient_kind = 2
-       array_name = 'cqp: data%prob%G'
-       CALL SPACE_resize_array( n, data%prob%G,                                &
-              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal =                                         &
-                data%cqp_control%deallocate_error_fatal,                       &
-              exact_size = data%cqp_control%space_critical,                    &
-              bad_alloc = data%cqp_inform%bad_alloc,                           &
-              out = data%cqp_control%error )
-       IF ( data%cqp_inform%status /= 0 ) GO TO 900
-       data%prob%G( : n ) = G( : n )
-     END IF
-
-!  save the lower and upper simple bounds
-
-     data%prob%X_l( : n ) = X_l( : n )
-     data%prob%X_u( : n ) = X_u( : n )
-
-!  save the lower and upper constraint bounds
-
-     data%prob%C_l( : m ) = C_l( : m )
-     data%prob%C_u( : m ) = C_u( : m )
-
-!  save the initial primal and dual variables and Lagrange multipliers
-
-     data%prob%X( : n ) = X( : n )
-     data%prob%Z( : n ) = Z( : n )
-     data%prob%Y( : m ) = Y( : m )
-
-!  save the Hessian entries
-
-     IF ( data%prob%Hessian_kind == 2 ) THEN
-       IF ( COUNT( W( : n ) == 0.0_wp ) == n ) THEN
-         data%prob%Hessian_kind = 0
-       ELSE IF ( COUNT( W( : n ) == 1.0_wp ) == n ) THEN
-         data%prob%Hessian_kind = 1
-       ELSE
-         array_name = 'cqp: data%prob%WEIGHT'
-         CALL SPACE_resize_array( n, data%prob%WEIGHT,                         &
-                data%cqp_inform%status, data%cqp_inform%alloc_status,          &
-                array_name = array_name,                                       &
-                deallocate_error_fatal =                                       &
-                  data%cqp_control%deallocate_error_fatal,                     &
-                exact_size = data%cqp_control%space_critical,                  &
-                bad_alloc = data%cqp_inform%bad_alloc,                         &
-                out = data%cqp_control%error )
-         IF ( data%cqp_inform%status /= 0 ) GO TO 900
-         data%prob%WEIGHT( : n ) = W( : n )
-       END IF
-
-       IF ( COUNT( X_0( : n ) == 0.0_wp ) == n ) THEN
-         data%prob%target_kind = 0
-       ELSE IF ( COUNT( X_0( : n ) == 1.0_wp ) == n ) THEN
-         data%prob%target_kind = 1
-       ELSE
-         data%prob%target_kind = 2
-         array_name = 'cqp: data%prob%X0'
-         CALL SPACE_resize_array( n, data%prob%X0,                             &
-                data%cqp_inform%status, data%cqp_inform%alloc_status,          &
-                array_name = array_name,                                       &
-                deallocate_error_fatal =                                       &
-                  data%cqp_control%deallocate_error_fatal,                     &
-                exact_size = data%cqp_control%space_critical,                  &
-                bad_alloc = data%cqp_inform%bad_alloc,                         &
-                out = data%cqp_control%error )
-         IF ( data%cqp_inform%status /= 0 ) GO TO 900
-         data%prob%X0( : n ) = X_0( : n )
-       END IF
-     ELSE
-       data%cqp_inform%status = GALAHAD_error_hessian_type
-       GO TO 900
-     END IF
-
-!  save the constraint Jacobian entries
-
-     data%prob%A%val( : data%prob%A%ne ) = A_val( : data%prob%A%ne )
-
-!  call the solver
-
-     CALL CQP_solve( data%prob, data%cqp_data, data%cqp_control,               &
-                     data%cqp_inform, C_stat = C_stat, B_stat = X_stat )
-
-!  recover the optimal primal and dual variables, Lagrange multipliers and
-!  constraint values
-
-     X( : n ) = data%prob%X( : n )
-     Z( : n ) = data%prob%Z( : n )
-     Y( : m ) = data%prob%Y( : m )
-     C( : m ) = data%prob%C( : m )
-
-     status = data%cqp_inform%status
-     RETURN
-
-!  error returns
-
- 900 CONTINUE
-     status = data%cqp_inform%status
-     RETURN
-
-!  End of subroutine CQP_solve_sld
-
-     END SUBROUTINE CQP_solve_sld
-
-!-  G A L A H A D -  C Q P _ i n f o r m a t i o n   S U B R O U T I N E  -
-
-     SUBROUTINE CQP_information( data, inform, status )
-
-!  return solver information during or after solution by CQP
-!  See CQP_solve for a description of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( CQP_inform_type ), INTENT( OUT ) :: inform
-     INTEGER, INTENT( OUT ) :: status
-
-!  recover inform from internal data
-
-     inform = data%cqp_inform
-
-!  flag a successful call
-
-     status = GALAHAD_ok
-     RETURN
-
-!  end of subroutine CQP_information
-
-     END SUBROUTINE CQP_information
-
 !  End of module CQP
 
     END MODULE GALAHAD_CQP_double
+
+
+!  GRAD_L(dims%c_e)
+!  DIST_X_l(dims%x_l_start,dims%x_l_end)
+!  DIST_X_u(dims%x_u_start,dims%x_u_end)
+!  Z_l(dims%x_free+1,dims%x_l_end)
+!  Z_u(dims%x_u_start,n)
+!  BARRIER_X(dims%x_free+1,n)
+!  Y_l(dims%c_l_start,dims%c_l_end)
+!  DIST_C_l(dims%c_l_end,dims%c_l_start)
+!  Y_u(dims%c_u_start,dims%c_u_end)
+!  DIST_C_u(dims%c_u_start,dims%c_u_end)
+!  C(dims%c_l_start,dims%c_u_end)
+!  BARRIER_C(dims%c_l_start,dims%c_u_end)
+!  SCALE_C(dims%c_l_start,dims%c_u_end)
+!  RHS(dims%v_e)
+!  OPT_alpha(order)
+!  OPT_merit(order)
+!  X_coef(1:n,0:order)
+!  C_coef(dims%c_l_start:dims%c_u_end,0:order)
+!  Y_coef(1:m,0:order)
+!  Y_l_coef(dims%c_l_start:dims%c_l_end,0:order)
+!  Y_u_coef(dims%c_u_start:dims%c_u_end,0:order)
+!  Z_l_coef(dims%x_free+1:dims%x_l_end,0:order)
+!  Z_u_coef(dims%x_u_start:n,0:order)
+!  BINOMIAL(0:order-1,order)
+!  CS_coef(0:2*order)
+!  COEF(0:2*order)
+!  ROOTS(2*order)
+!  DX_zh(1:n)
+!  DY_zh(1:m)
+!  DC_zh(dims%c_l_start:dims%c_u_end)
+!  DY_l_zh(dims%c_l_start:dims%c_l_end)
+!  DY_u_zh(dims%c_u_start:dims%c_u_end)
+!  DZ_l_zh(dims%x_free+1:dims%x_l_end)
+!  DZ_u_zh(dims%x_u_start:n)
+!
+!  A_sbls%row(A_sbls%ne)
+!  A_sbls%col(A_sbls%ne)
+!  A_sbls%val(A_sbls%ne)
+!
+!  IF ( stat_required ) THEN
+!    H_s(n)
+!    A_s(m)
+!    Y_last(m)
+!    Z_last(n)
+!
+!  IF ( Hessian_kind < 0 .AND. .NOT. lbfgs ) THEN
+!    H_sbls%row(H_sbls%ne)
+!    H_sbls%col(H_sbls%ne)
+!
+!  H_sbls%val(H_sbls%ne)

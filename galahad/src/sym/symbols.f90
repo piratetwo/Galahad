@@ -17,7 +17,7 @@
 !   originally released pre GALAHAD Version 1.0. December 1st 2000
 !   update released with GALAHAD Version 2.0. February 16th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_SYMBOLS
@@ -65,6 +65,8 @@
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_preconditioner    = - 15
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_ill_conditioned   = - 16
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_tiny_step         = - 17
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_no_progress             =          &
+                                    GALAHAD_error_tiny_step
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_max_iterations    = - 18
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_time_limit        = - 19
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_cpu_limit         =          &
@@ -123,6 +125,11 @@
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_spqr              = - 81
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_alive             = - 82
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_ccqp              = - 83
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_max_evaluations   = - 84
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_warning_skip_update     = - 85
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_h_not_diagonal    = - 86
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_error_h_not_permitted   = - 87
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_unsuitable_option       = - 88
 
 !     General integers
 
@@ -142,8 +149,9 @@
 !     Matrix storage schemes
 
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_DIAGONAL               =  -3
-      INTEGER, PUBLIC, PARAMETER :: GALAHAD_DENSE                  =  -2 
-      INTEGER, PUBLIC, PARAMETER :: GALAHAD_SPARSE_BY_ROWS         =  -1 
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_DENSE                  =  -2
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_SPARSE_BY_ROWS         =  -1
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_ZERO                   =   0
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_COORDINATE             =   1
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_ELEMENTAL              =   2
 
@@ -151,7 +159,7 @@
 !     We must have that ELIMINATED < ACTIVE < other active status < FREE
 
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_INACTIVE               =  -2
-      INTEGER, PUBLIC, PARAMETER :: GALAHAD_STRUCTURAL             =  -1 
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_STRUCTURAL             =  -1
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_ELIMINATED             =   0
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_ACTIVE                 =   1
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_FIXED                  =   2
@@ -269,7 +277,7 @@
 
        INTEGER, PUBLIC, PARAMETER :: GALAHAD_BEST_FIT              =  0
        INTEGER, PUBLIC, PARAMETER :: GALAHAD_BEST_REDUCTION        =  1
-       
+
 !-------------------------------------------------------------------------------
 !                            LANCELOT
 !-------------------------------------------------------------------------------
@@ -286,7 +294,7 @@
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_DFP                    =   2
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_PSB                    =   3
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_SR1                    =   4
-      
+
 !     Linear solver
 
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_CG                     =   1
@@ -295,7 +303,7 @@
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_EXPANDING_BAND_CG      =   4
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_MUNKSGAARD_CG          =   5
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_SCHNABEL_ESKOW_CG      =   6
-      INTEGER, PUBLIC, PARAMETER :: GALAHAD_GMPS_CG                =   7 
+      INTEGER, PUBLIC, PARAMETER :: GALAHAD_GMPS_CG                =   7
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_BAND_CG                =   8
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_LIN_MORE_CG            =   9
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_MULTIFRONTAL           =   11
@@ -305,7 +313,7 @@
 !                           PRECONDITIONERS
 !-------------------------------------------------------------------------------
 
-!     Note: the values in this series should be different from GALAHAD_NONE 
+!     Note: the values in this series should be different from GALAHAD_NONE
 !           GALAHAD_and USER_DEFINED
 
       INTEGER, PUBLIC, PARAMETER :: GALAHAD_BANDED                 =   1
@@ -336,7 +344,7 @@
      CASE( GALAHAD_error_allocate )
        WRITE( out, "( /, A,  ' Error return from ', A, ' -', /, A,             &
       &       '   allocation error' )" )                                       &
-         prefix, routine, prefix 
+         prefix, routine, prefix
      CASE( GALAHAD_error_deallocate )
        WRITE( out, "( /, A,  ' Error return from ', A, ' -', /, A,             &
       &       '   deallocation error' )" )                                     &
@@ -605,6 +613,10 @@
        WRITE( out, "( /, A,  ' Error return from ', A, ' -', /, A,             &
       &       '   function evaluation error: check its return status' )" )     &
          prefix, routine, prefix
+     CASE( GALAHAD_error_max_evaluations )
+       WRITE( out, "( /, A,  ' Error return from ', A, ' -', /, A,             &
+      &       '   the evaluation limit has been exceeded' )" )                 &
+         prefix, routine, prefix
      CASE DEFAULT
        WRITE( out, "( /, A,  ' Error return from ', A, ' -', /, A,             &
       &       '   status = ', I0 )" ) prefix, routine, prefix, status
@@ -627,4 +639,3 @@
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-

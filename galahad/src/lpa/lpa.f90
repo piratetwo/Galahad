@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 3.1 - 07/10/2018 AT 12:05 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ L P A    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -33,7 +33,7 @@
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_verb_pleural,           &
+      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_verb_pleural,    &
                                        STRING_ies, STRING_are, STRING_ordinal
       USE GALAHAD_SPACE_double
       USE GALAHAD_SMT_double
@@ -138,14 +138,12 @@
 
 !  the tolerable relative perturbation of the data (A,g,..) defining the problem
 
-!      REAL ( KIND = wp ) :: tol_data = epsmch ** ( 2.0_wp / 3.0_wp )
-       REAL ( KIND = wp ) :: tol_data = ten ** ( - 10 )
+       REAL ( KIND = wp ) :: tol_data = epsmch ** ( 2.0_wp / 3.0_wp )
 
 !   any constraint violated by less than feas_tol will be considered to be
 !    satisfied
 
-!      REAL ( KIND = wp ) :: feas_tol =  epsmch ** ( 2.0_wp / 3.0_wp )
-       REAL ( KIND = wp ) :: feas_tol =  ten ** ( - 10 )
+       REAL ( KIND = wp ) :: feas_tol =  epsmch ** ( 2.0_wp / 3.0_wp )
 
 !  pivot threshold used to control the selection of pivot elements in the
 !   matrix factorization. Any potential pivot which is less than the largest
@@ -165,8 +163,7 @@
 !  any solution component whose change is smaller than a tolerence times the
 !   largest change may be considered to be zero
 
-!      REAL ( KIND = wp ) :: change_tolerance = epsmch ** ( 2.0_wp / 3.0_wp )
-       REAL ( KIND = wp ) :: change_tolerance = ten ** ( - 10 )
+       REAL ( KIND = wp ) :: change_tolerance = epsmch ** ( 2.0_wp / 3.0_wp )
 
 !   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than
 !    identical_bounds_tol will be reset to the average of their values
@@ -362,12 +359,6 @@
       TYPE ( LPA_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
-
-!  revise control parameters (not all compilers currently support fortran 2013)
-
-      control%tol_data = epsmch ** ( 2.0_wp / 3.0_wp )
-      control%feas_tol =  epsmch ** ( 2.0_wp / 3.0_wp )
-      control%change_tolerance = epsmch ** ( 2.0_wp / 3.0_wp )
 
 !  initialise private data
 
@@ -894,13 +885,15 @@
 
 !  Local variables
 
-      INTEGER :: i, j, l, a_ne
-      REAL :: time_start, time_now
-      REAL ( KIND = wp ) :: clock_start, clock_now
+      INTEGER :: i, j, l, n_depen, nzc, a_ne
+      REAL ( KIND = wp ) :: time_start, time_record, time_now
+      REAL ( KIND = wp ) :: time_analyse, time_factorize
+      REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
+      REAL ( KIND = wp ) :: clock_analyse, clock_factorize, cro_clock_matrix
       REAL ( KIND = wp ) :: av_bnd, x_l, x_u, g, sigma
 !     REAL ( KIND = wp ) :: fixed_sum, xi
-      LOGICAL :: printi, printa, reset_bnd, stat_required
-      LOGICAL :: restart, warm_start
+      LOGICAL :: printi, printa, remap_freed, reset_bnd, stat_required
+      LOGICAL :: separable_bqp, restart, warm_start
       CHARACTER ( LEN = 80 ) :: array_name
 
 !  functions
@@ -1165,8 +1158,7 @@
 !     a_ne = data%A_ptr( data%n + 1 ) - 1
       a_ne = SIZE( data%A_val )
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%preprocess =                                                 &
-        inform%time%preprocess + REAL( time_now - time_start, wp )
+      inform%time%preprocess = inform%time%preprocess + time_now - time_start
       inform%time%clock_preprocess =                                           &
         inform%time%clock_preprocess + clock_now - clock_start
 
@@ -1331,7 +1323,7 @@
 
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
+               time_now - time_start > control%cpu_time_limit ) .OR.           &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           IF ( printi ) WRITE( control%out,                                    &
@@ -1542,7 +1534,7 @@
 
   800 CONTINUE
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
 
@@ -1561,7 +1553,7 @@
 
   900 CONTINUE
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
@@ -1574,7 +1566,7 @@
   910 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
@@ -1985,7 +1977,7 @@
 
 !  local variables
 
-      INTEGER :: i, ii, j, jj, l, b0, b1, b2, r1, r2, s0, s1, s2
+      INTEGER :: i, ii, j, jj, k, l, ll, b0, b1, b2, r1, r2, s0, s1, s2
       INTEGER :: free, nonneg, lower, range, upper, nonpos, fixed, basic
       INTEGER :: c_lower, c_range, c_upper, c_equality, a_ne, a_type, v_stat
 
@@ -2278,6 +2270,7 @@
       r1 = b1 + nonneg + nonpos
       s1 = r1 + 1
       n = r1 + c_lower + c_upper
+
 !  allocate space for the reordered problem
 
       array_name = 'lpa: A_ptr'
@@ -2629,11 +2622,9 @@
                 basic = basic + 1
                 IF ( jj <= kb ) JX( jj ) = - 1
                 IX( basic ) = jj
-!write(6, "( ' basic         ', 2I7, 3ES12.4 )" ) &
-!  jj, j,  prob%X_l(j), prob%X(j), prob%X_u(j)
+!write(6,*) ' basic ', jj, j,  prob%X_l(j), prob%X(j), prob%X_u(j)
               ELSE
-!write(6, "( ' free nonbasic ', 2I7, 3ES12.4 )" ) &
-!  jj, j,  prob%X_l(j), prob%X(j), prob%X_u(j)
+!write(6,*) ' free nonbasic ', jj, j,  prob%X_l(j), prob%X(j), prob%X_u(j)
                 IF ( jj <= kb ) JX( jj ) = 0
               END IF
             END IF
@@ -2792,7 +2783,7 @@
         l = 0
         DO i = 1, prob%m
           prob%C( i ) =                                                        &
-            DOT_PRODUCT( prob%A%val( l + 1 : l + prob%n ), prob%X( : prob%n ) )
+            DOT_PRODUCT( prob%A%val( i + 1 : i + prob%n ), prob%X( : prob%n ) )
           yi = prob%Y( i )
           prob%Z( : prob%n ) = prob%Z( : prob%n ) -                            &
             prob%A%val( i + 1 : i + prob%n ) * yi
@@ -3070,10 +3061,10 @@
 
 !  local variables
 
-      INTEGER :: i, ii, j, jj, l, m_e, m_l, m_u, n_l, n_u
+      INTEGER :: i, ii, j, jj, k, l, ll, m_e, m_l, m_u, n_l, n_u
       INTEGER :: free, lower, range, upper, fixed, basic
       INTEGER :: c_lower, c_range, c_upper, c_equality, a_ne, a_type, v_stat
-      INTEGER :: m_es, m_is, n_s, ai_len
+      INTEGER :: m_es, m_ee, m_is, m_ie, n_s, n_e, ai_len
 
       REAL ( KIND = wp ) :: xl, xu, cl, cu
       CHARACTER ( LEN = 80 ) :: array_name

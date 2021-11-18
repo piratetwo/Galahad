@@ -63,7 +63,7 @@
 
 !-*-*-  O P T _ P R I M A L _ I N F E A S I B I L I T Y   F U C T I O N S  -*-*-
 
-     FUNCTION OPT_primal_infeasibility_bounds( n, X, X_l, X_u, norm, SCALE )
+     FUNCTION OPT_primal_infeasibility_bounds( n, X, X_l, X_u, norm )
 
 !  Find an appropriate norm of the infeasibility of x in
 !    x^l <= x <= x_u
@@ -77,7 +77,6 @@
      INTEGER, INTENT( IN ) :: n
      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X_l, X_u, X
      INTEGER, INTENT( IN ), OPTIONAL :: norm
-     REAL ( KIND = wp ), INTENT( IN ), OPTIONAL, DIMENSION( n ) :: SCALE
 
 !--------------------------------
 !   L o c a l   V a r i a b l e s
@@ -103,51 +102,24 @@
          norm_used = 0
        END IF
 
-!  use the scaled ||scale*vector|| norm
-
-       IF ( PRESENT( SCALE ) ) THEN
-
 !  find the one-norm of the infeasibility
 
-         IF ( norm_used == 1 ) THEN
-           OPT_primal_infeasibility_bounds = ONE_NORM( SCALE( : n ) *          &
-             MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
+       IF ( norm_used == 1 ) THEN
+         OPT_primal_infeasibility_bounds =                                     &
+           ONE_NORM( MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
 
 !  find the two-norm of the infeasibility
 
-         ELSE IF ( norm_used == 2 ) THEN
-           OPT_primal_infeasibility_bounds = TWO_NORM( SCALE( : n ) *          &
-             MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
+       ELSE IF ( norm_used == 2 ) THEN
+         OPT_primal_infeasibility_bounds =                                     &
+           TWO_NORM( MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
 
 !  find the infinity-norm of the infeasibility
-
-         ELSE
-           OPT_primal_infeasibility_bounds = INFINITY_NORM( SCALE( : n ) *     &
-             MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
-         END IF
-
-!  use the unscaled ||vector|| norm
 
        ELSE
-
-!  find the one-norm of the infeasibility
-
-         IF ( norm_used == 1 ) THEN
-           OPT_primal_infeasibility_bounds = ONE_NORM(                         &
-             MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
-
-!  find the two-norm of the infeasibility
-
-         ELSE IF ( norm_used == 2 ) THEN
-           OPT_primal_infeasibility_bounds = TWO_NORM(                         &
-             MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
-
-!  find the infinity-norm of the infeasibility
-
-         ELSE
-           OPT_primal_infeasibility_bounds = INFINITY_NORM(                    &
-             MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ), zero ) )
-         END IF
+         OPT_primal_infeasibility_bounds =                                     &
+           INFINITY_NORM( MAX( X_l( : n ) - X( : n ), X( : n ) - X_u( : n ),   &
+                               zero ) )
        END IF
      END IF
 
@@ -158,7 +130,7 @@
      END FUNCTION OPT_primal_infeasibility_bounds
 
      FUNCTION OPT_primal_infeasibility_general( n, X, X_l, X_u,                &
-                                                m, C, C_l, C_u, norm, SCALE )
+                                                m, C, C_l, C_u, norm )
 
 !  Find an appropriate norm of the infeasibility of x in
 !    x^l <= x <= x_u and c^l <= c(x) <= c^u
@@ -173,7 +145,6 @@
      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X_l, X_u, X
      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: C_l, C_u, C
      INTEGER, INTENT( IN ), OPTIONAL :: norm
-     REAL ( KIND = wp ), INTENT( IN ), OPTIONAL, DIMENSION( m ) :: SCALE
 
 !--------------------------------
 !   L o c a l   V a r i a b l e s

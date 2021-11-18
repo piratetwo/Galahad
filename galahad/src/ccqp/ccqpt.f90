@@ -9,7 +9,7 @@
    TYPE ( QPT_problem_type ) :: p
    TYPE ( CCQP_data_type ) :: data
    TYPE ( CCQP_control_type ) :: control        
-   TYPE ( CCQP_inform_type ) :: inform
+   TYPE ( CCQP_inform_type ) :: info
    TYPE ( LMS_control_type ) :: LMS_control
    TYPE ( LMS_inform_type ) :: LMS_inform
    INTEGER :: n, m, h_ne, a_ne, tests, smt_stat
@@ -21,9 +21,9 @@
    CHARACTER ( LEN = 30 ) :: definite_linear_solver = REPEAT( ' ', 30 )
    REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: S, Y
 !  symmetric_linear_solver = 'ssids'
-   symmetric_linear_solver = 'sils'
+   symmetric_linear_solver = 'ma97'
 !  definite_linear_solver = 'ssids'
-   definite_linear_solver = 'sils'
+   definite_linear_solver = 'ma97'
 
 !go to 111
    n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4 
@@ -68,7 +68,7 @@
 !    IF ( status == - GALAHAD_error_upper_entry ) CYCLE
      IF ( status == - GALAHAD_error_sort ) CYCLE
 
-     CALL CCQP_initialize( data, control, inform )
+     CALL CCQP_initialize( data, control, info )
      control%infinity = infty
      control%restore_problem = 1
 ! control%print_level = 1
@@ -110,12 +110,12 @@
        p%X_u = (/ 1.0_wp, infty, 2.0_wp /)
      ELSE IF ( status == - GALAHAD_error_tiny_step ) THEN
 !      control%print_level = 1
-       control%CQP_control%stop_abs_c = 0.0_wp
-       control%CQP_control%stop_rel_c = 0.0_wp
+       control%stop_abs_c = 0.0_wp
+       control%stop_rel_c = 0.0_wp
 !      p%X_l = (/ - 1.0_wp, 8.0_wp, - infty /)
 !      p%X_u = (/ 1.0_wp, infty, 2.0_wp /)
      ELSE IF ( status == - GALAHAD_error_max_iterations ) THEN
-       control%CQP_control%maxit = 0
+       control%maxit = 0
 !      control%print_level = 1
      ELSE IF ( status == - GALAHAD_error_cpu_limit ) THEN
        control%cpu_time_limit = 0.0
@@ -129,23 +129,22 @@
 
 !    control%out = 6 ; control%print_level = 1
 
-     CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
-     IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) status, inform%CQP_inform%iter,  &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+     CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
+     IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &      F6.1, ' status = ', I6 )" ) status, info%iter,                     &
+              info%obj, info%status
      ELSE
-       WRITE( 6, "(I2, ': CCQP_solve exit status = ', I6 )" )                  &
-          status, inform%status
+       WRITE( 6, "(I2, ': CCQP_solve exit status = ', I6 )") status, info%status
      END IF
      DEALLOCATE( p%H%val, p%H%row, p%H%col )
      DEALLOCATE( p%A%val, p%A%row, p%A%col )
-     CALL CCQP_terminate( data, control, inform )
+     CALL CCQP_terminate( data, control, info )
 !    IF ( status == - GALAHAD_error_max_iterations ) STOP
 !    IF ( status == - GALAHAD_error_primal_infeasible ) STOP
 !    IF ( status == - GALAHAD_error_cpu_limit ) STOP
    END DO
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
    DEALLOCATE( p%X, p%Y, p%Z, p%C, B_stat, C_stat )
    DEALLOCATE( p%H%ptr, p%A%ptr )
@@ -175,7 +174,7 @@
    p%H%val = (/ 0.0_wp /)
    p%H%row = (/ 1 /)
    p%H%col = (/ 1 /)
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%infinity = 0.1_wp * infty
    control%restore_problem = 1
 !  control%print_level = 1
@@ -190,16 +189,15 @@
 !  control%every_order = .FALSE.
 
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
-   CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
-   IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) status, inform%CQP_inform%iter,  &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+   CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
+   IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &          F6.1, ' status = ', I6 )" ) status, info%iter,                 &
+                  info%obj, info%status
      ELSE
-       WRITE( 6, "(I2, ': CCQP_solve exit status = ', I6 )" )                  &
-         status, inform%status
+       WRITE( 6, "(I2, ': CCQP_solve exit status = ', I6 )") status, info%status
    END IF
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
@@ -230,9 +228,8 @@
 
 !  DO data_storage_type = -3, -3
 !  DO data_storage_type = -7, -7
-!  DO data_storage_type = -7, 0
-   DO data_storage_type = -6, 0
-     CALL CCQP_initialize( data, control, inform )
+   DO data_storage_type = -7, 0
+     CALL CCQP_initialize( data, control, info )
      control%infinity = infty
      control%restore_problem = 2
 !    control%out = 6 ; control%print_level = 1
@@ -242,8 +239,8 @@
 ! control%SBLS_control%preconditioner = 3
 !  control%SBLS_control%factorization = 2
 ! control%SBLS_control%itref_max = 2
-!    control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!    control%SBLS_control%definite_linear_solver = definite_linear_solver
+     control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+     control%SBLS_control%definite_linear_solver = definite_linear_solver
      p%new_problem_structure = .TRUE.
      IF ( data_storage_type == 0 ) THEN           ! sparse co-ordinate storage
        st = 'C'
@@ -251,8 +248,8 @@
        ALLOCATE( p%A%val( a_ne ), p%A%row( a_ne ), p%A%col( a_ne ) )
        IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )
        CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
-       p%H%row = (/ 1, 2, 2, 3 /)
-       p%H%col = (/ 1, 1, 2, 3 /) ; p%H%ne = h_ne
+       p%H%row = (/ 1, 2, 3, 3 /)
+       p%H%col = (/ 1, 2, 3, 1 /) ; p%H%ne = h_ne
        IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
        CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
        p%A%row = (/ 1, 1, 2, 2 /)
@@ -263,8 +260,8 @@
        ALLOCATE( p%A%val( a_ne ), p%A%row( 0 ), p%A%col( a_ne ) )
        IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )
        CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat )
-       p%H%col = (/ 1, 1, 2, 3 /)
-       p%H%ptr = (/ 1, 2, 4, 5 /)
+       p%H%col = (/ 1, 2, 3, 1 /)
+       p%H%ptr = (/ 1, 2, 3, 5 /)
        IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
        CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
        p%A%col = (/ 1, 2, 2, 3 /)
@@ -341,16 +338,16 @@
      DO i = 1, 2
 !    DO i = 1, 1
        IF ( data_storage_type == 0 ) THEN          ! sparse co-ordinate storage
-         p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 3.0_wp /)
+         p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp /)
          p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
        ELSE IF ( data_storage_type == - 1 ) THEN    !  sparse row-wise storage
-         p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 3.0_wp /)
+         p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp /)
          p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
        ELSE IF ( data_storage_type == - 2 ) THEN    !  dense storage
-         p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 3.0_wp /)
+         p%H%val = (/ 1.0_wp, 0.0_wp, 2.0_wp, 4.0_wp, 0.0_wp, 3.0_wp /)
          p%A%val = (/ 2.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, 1.0_wp, 1.0_wp /)
        ELSE IF ( data_storage_type == - 3 ) THEN    !  diagonal/dense storage
-         p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp /)
+         p%H%val = (/ 1.0_wp, 0.0_wp, 2.0_wp /)
          p%A%val = (/ 2.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, 1.0_wp, 1.0_wp /)
        ELSE IF ( data_storage_type == - 4 ) THEN    ! scaled I/dense storage
          p%H%val( 1 ) = 2.0_wp
@@ -363,20 +360,19 @@
          p%A%val = (/ 2.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, 1.0_wp, 1.0_wp /)
        END IF
        p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
-       CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
+       CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
 
-       IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( A1, I1, ':(', 2I6, ') iterations.',                        &
-     &      ' Optimal objective value = ', F6.1, ' status = ', I6 )" ) st, i,  &
-          inform%CQP_inform%iter, inform%DQP_inform%iter, inform%obj,          &
-          inform%status
+       IF ( info%status == 0 ) THEN
+         WRITE( 6, "( A1,I1,':', I6,' iterations. Optimal objective value = ', &
+     &            F6.1, ' status = ', I6 )" ) st, i, info%iter,                &
+                  info%obj, info%status
        ELSE
-         WRITE( 6, "( A1, I1,': CCQP_solve exit status = ', I6 ) " )           &
-           st, i, inform%status
+         WRITE( 6, "( A1, I1,': CCQP_solve exit status = ', I6 ) " )            &
+           st, i, info%status
        END IF
 !      STOP
      END DO
-     CALL CCQP_terminate( data, control, inform )
+     CALL CCQP_terminate( data, control, info )
      IF ( ALLOCATED( p%H%row ) ) DEALLOCATE( p%H%row )
      IF ( ALLOCATED( p%H%col ) ) DEALLOCATE( p%H%col )
      IF ( ALLOCATED( p%H%val ) ) DEALLOCATE( p%H%val )
@@ -420,21 +416,53 @@
    CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
    p%A%col = (/ 1, 2 /)
    p%A%ptr = (/ 1, 3 /)
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%infinity = infty
    control%restore_problem = 2
 !  control%out = 6 ; control%print_level = 1
 !  control%sbls_control%print_level = 1
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    
 !  test with new and existing data
 
-   tests = 2
+   tests = 17
    DO i = 0, tests
-     IF ( i == 1 ) THEN
-       B_stat = 0 ; C_stat = 0 ; B_stat( 1 ) = - 1
+     IF ( i == 0 ) THEN
+!      control%precon = 0
+     ELSE IF ( i == 1 ) THEN
+!      control%precon = 1
      ELSE IF ( i == 2 ) THEN
+!      control%precon = 2
+     ELSE IF ( i == 3 ) THEN
+!      control%precon = 3
+     ELSE IF ( i == 4 ) THEN
+!      control%precon = 5
+     ELSE IF ( i == 5 ) THEN     
+       control%SBLS_control%factorization = - 1
+     ELSE IF ( i == 6 ) THEN     
+       control%SBLS_control%factorization = 1
+     ELSE IF ( i == 7 ) THEN     
+       control%SBLS_control%max_col = 0
+     ELSE IF ( i == 8 ) THEN     
+       control%SBLS_control%factorization = 2
+!      control%precon = 0
+     ELSE IF ( i == 9 ) THEN
+!      control%print_level = 2
+!      control%precon = 1
+     ELSE IF ( i == 10 ) THEN
+!      control%precon = 2
+     ELSE IF ( i == 11 ) THEN
+!      control%precon = 3
+     ELSE IF ( i == 12 ) THEN
+!      control%precon = 5
+     ELSE IF ( i == 13 ) THEN
+     ELSE IF ( i == 14 ) THEN
+     ELSE IF ( i == 15 ) THEN
+       control%feasol = .FALSE.
+     ELSE IF ( i == 16 ) THEN
+       B_stat = 0 ; C_stat = 0 ; B_stat( 1 ) = - 1
+     ELSE IF ( i == 17 ) THEN
        B_stat = 0 ; C_stat = 0 ; C_stat( 1 ) = - 1
      END IF
 
@@ -442,17 +470,17 @@
      p%A%val = (/ 1.0_wp, 1.0_wp /)
      p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
 !    control%print_level = 4
-     CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
+     CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
 !    write(6,"('x=', 2ES12.4)") p%X
-     IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) i, inform%CQP_inform%iter,       &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+     IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) i, info%iter,                &
+                      info%obj, info%status
      ELSE
-       WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) i, inform%status
+       WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) i, info%status
      END IF
    END DO
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
 
 !  case when there are no bounded variables
 
@@ -467,29 +495,29 @@
    CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
    p%A%col = (/ 1, 2 /)
    p%A%ptr = (/ 1, 3 /)
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%infinity = infty
    control%restore_problem = 2
 !  control%out = 6 ; control%print_level = 11
 !  control%EQP_control%print_level = 21
 !  control%print_level = 4
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    DO i = tests + 1, tests + 1
      p%H%val = (/ 1.0_wp, 1.0_wp /)
      p%A%val = (/ 1.0_wp, 1.0_wp /)
      p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
-     CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
+     CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
 !    write(6,"('x=', 2ES12.4)") p%X
-     IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) i, inform%CQP_inform%iter,       &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+     IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) i, info%iter,                &
+                      info%obj, info%status
      ELSE
-       WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) i, inform%status
+       WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) i, info%status
      END IF
    END DO
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
 
 !  case when there are no free variables
 
@@ -504,30 +532,30 @@
    CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
    p%A%col = (/ 1, 2 /)
    p%A%ptr = (/ 1, 3 /)
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%CRO_control%error = 0
 !  control%print_level = 4
    control%infinity = infty
    control%restore_problem = 2
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    DO i = tests + 2, tests + 2
      p%H%val = (/ 1.0_wp, 1.0_wp /)
      p%A%val = (/ 1.0_wp, 1.0_wp /)
      p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
 !    control%print_level = 1
-     CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
+     CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
 !    write(6,"('x=', 2ES12.4)") p%X
-     IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) i, inform%CQP_inform%iter,       &
-                      inform%DQP_inform%iter, inform%obj, inform%status
-!      write(6,*) inform%obj
+     IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) i, info%iter,                &
+                      info%obj, info%status
+!      write(6,*) info%obj
      ELSE
-       WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) i, inform%status
+       WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) i, info%status
      END IF
    END DO
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
@@ -569,9 +597,10 @@
               1.0_wp, 0.0_wp, 1.0_wp, 2.0_wp, - infty, - infty, - infty /)
    p%X_u = (/ 1.0_wp, infty, infty, 3.0_wp, 4.0_wp, 0.0_wp, infty,             &
               1.0_wp, infty, infty, 3.0_wp, 4.0_wp, 0.0_wp, infty /)
-   p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 2.0_wp, 3.0_wp, 3.0_wp, 4.0_wp,        &
-                4.0_wp, 5.0_wp, 5.0_wp, 6.0_wp, 6.0_wp, 7.0_wp, 7.0_wp,        &
-                8.0_wp, 9.0_wp, 10.0_wp, 11.0_wp, 12.0_wp, 13.0_wp, 14.0_wp /)
+   p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 2.0_wp, 3.0_wp, 3.0_wp,                &
+                4.0_wp, 4.0_wp, 5.0_wp, 5.0_wp, 6.0_wp, 6.0_wp,                &
+                7.0_wp, 7.0_wp, 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp,                &
+                5.0_wp, 6.0_wp, 7.0_wp /)
    p%H%row = (/ 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14,                 &
                 8, 9, 10, 11, 12, 13, 14  /)
    p%H%col = (/ 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7,                      &
@@ -592,9 +621,9 @@
                 8, 10, 12, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 9, 11, 13,      &
                 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /) 
 
-   CALL CCQP_initialize( data, control, inform )
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   CALL CCQP_initialize( data, control, info )
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    control%infinity = infty
    control%restore_problem = 1
    control%print_level = 101
@@ -604,16 +633,16 @@
 !  control%error = 6
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
    OPEN( UNIT = scratch_out, STATUS = 'SCRATCH' )
-   CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
+   CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
    CLOSE( UNIT = scratch_out )
-   IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) 1, inform%CQP_inform%iter,       &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+   IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) 1, info%iter,                &
+                      info%obj, info%status
    ELSE
-     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 1, inform%status
+     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 1, info%status
    END IF
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
@@ -672,22 +701,22 @@
                 8, 10, 12, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 9, 11, 13,      &
                 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /) 
 
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%infinity = infty
    control%restore_problem = 0
    control%treat_zero_bounds_as_general = .TRUE.
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
-   CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
-   IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) 2, inform%CQP_inform%iter,       &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+   CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
+   IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) 2, info%iter,                &
+                      info%obj, info%status
    ELSE
-     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 2, inform%status
+     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 2, info%status
    END IF
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
@@ -746,12 +775,12 @@
                 8, 10, 12, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 9, 11, 13,      &
                 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /) 
 
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%infinity = infty
    control%restore_problem = 0
    control%treat_zero_bounds_as_general = .TRUE.
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
    B_stat = 0 ; C_stat = 0
    B_stat( 2 ) = - 1 ; B_stat( 9 ) = - 1
@@ -760,15 +789,15 @@
 !  C_stat( 12 ) = 1 ; C_stat( 13 ) = 1
 !  C_stat( 14 ) = 1 ; C_stat( 15 ) = 1
 !  C_stat( 16 ) = 1 ; C_stat( 17 ) = 1
-   CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
-   IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &            F6.1, ' status = ', I6 )" ) 3, inform%CQP_inform%iter,       &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+   CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
+   IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) 3, info%iter,                &
+                      info%obj, info%status
    ELSE
-     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 3, inform%status
+     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 3, info%status
    END IF
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
    DEALLOCATE( p%A%type, p%H%type )
@@ -819,23 +848,23 @@
    END DO
    p%C_u = p%C_l
 
-   CALL CCQP_initialize( data, control, inform )
+   CALL CCQP_initialize( data, control, info )
    control%infinity = infty
    control%restore_problem = 0
    control%treat_zero_bounds_as_general = .TRUE.
-!  control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
-!  control%SBLS_control%definite_linear_solver = definite_linear_solver
+   control%SBLS_control%symmetric_linear_solver = symmetric_linear_solver
+   control%SBLS_control%definite_linear_solver = definite_linear_solver
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
    B_stat = 0 ; C_stat = 0
    B_stat( 2 ) = - 1 ; B_stat( 9 ) = - 1
    C_stat( 8 ) = - 1 ; C_stat( 9 ) = - 1
-   CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
-   IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &                F6.1, ' status = ', I6 )" ) 4, inform%CQP_inform%iter,   &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+   CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
+   IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) 4, info%iter,                &
+                      info%obj, info%status
    ELSE
-     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 4, inform%status
+     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 4, info%status
    END IF
 
 !  control%out = 6 ; control%print_level = 1
@@ -846,16 +875,16 @@
    B_stat = 0 ; C_stat = 0
    B_stat( 2 ) = - 1 ; B_stat( 9 ) = - 1
    C_stat( 8 ) = - 1 ; C_stat( 9 ) = - 1
-   CALL CCQP_solve( p, data, control, inform, C_stat, B_stat )
-   IF ( inform%status == 0 ) THEN
-       WRITE( 6, "( I2, ':(', 2I6, ') iterations. Optimal objective value = ', &
-     &                F6.1, ' status = ', I6 )" ) 5, inform%CQP_inform%iter,   &
-                      inform%DQP_inform%iter, inform%obj, inform%status
+   CALL CCQP_solve( p, data, control, info, C_stat, B_stat )
+   IF ( info%status == 0 ) THEN
+       WRITE( 6, "( I2, ':', I6, ' iterations. Optimal objective value = ',    &
+     &                F6.1, ' status = ', I6 )" ) 5, info%iter,                &
+                      info%obj, info%status
    ELSE
-     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 5, inform%status
+     WRITE( 6, "( I2, ': CCQP_solve exit status = ', I6 ) " ) 5, info%status
    END IF
 
-   CALL CCQP_terminate( data, control, inform )
+   CALL CCQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
    DEALLOCATE( p%A%type, p%H%type )

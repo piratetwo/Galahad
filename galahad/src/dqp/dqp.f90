@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 3.0 - 10/04/2017 AT 08:50 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ D Q P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -47,7 +47,7 @@
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_verb_pleural,           &
+      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_verb_pleural,    &
                                        STRING_ies, STRING_are, STRING_ordinal, &
                                        STRING_their, STRING_integer_6
       USE GALAHAD_SPACE_double
@@ -542,12 +542,12 @@
 
 !  return information from GLTR
 
-        TYPE ( GLTR_inform_type ) :: GLTR_inform
+        TYPE ( GLTR_info_type ) :: GLTR_inform
 
 !  inform parameters for SCU
 
         INTEGER :: scu_status = 0
-        TYPE ( SCU_inform_type ) :: SCU_inform
+        TYPE ( SCU_info_type ) :: SCU_inform
 
 !  inform parameters for RPD
 
@@ -1396,7 +1396,7 @@
 !  Local variables
 
       INTEGER :: i, j, l, n_depen, nzc, nv, lbd, dual_starting_point
-      REAL :: time_start, time_record, time_now
+      REAL ( KIND = wp ) :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize
@@ -1473,91 +1473,87 @@
 !  if required, write out problem
 
       IF ( control%out > 0 .AND. control%print_level >= 20 ) THEN
-        WRITE( control%out, "( /, A, ' n = ', I0, ', m = ', I0, ', f =',       &
-       &                       ES24.16 )" ) prefix, prob%n, prob%m, prob%f
+        WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) prob%n, prob%m
+        WRITE( control%out, "( ' f = ', ES12.4 )" ) prob%f
         IF ( prob%gradient_kind == 0 ) THEN
-          WRITE( control%out, "( A, ' G = zeros' )" ) prefix
+          WRITE( control%out, "( ' G = zeros' )" )
         ELSE IF ( prob%gradient_kind == 1 ) THEN
-          WRITE( control%out, "( A, ' G = ones' )" ) prefix
+          WRITE( control%out, "( ' G = ones' )" )
         ELSE
-          WRITE( control%out, "( A, ' G =', /, ( 5X, 3ES24.16 ) )" )           &
-            prefix, prob%G( : prob%n )
+          WRITE( control%out, "( ' G = ', /, ( 5ES12.4 ) )" )                  &
+            prob%G( : prob%n )
         END IF
         IF ( prob%Hessian_kind == 0 ) THEN
-          WRITE( control%out, "( A, ' W = zeros' )" ) prefix
+          WRITE( control%out, "( ' W = zeros' )" )
         ELSE IF ( prob%Hessian_kind == 1 ) THEN
-          WRITE( control%out, "( A, ' W = ones ' )" ) prefix
+          WRITE( control%out, "( ' W = ones ' )" )
           IF ( prob%target_kind == 0 ) THEN
-            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
+            WRITE( control%out, "( ' X0 = zeros ' )" )
           ELSE IF ( prob%target_kind == 1 ) THEN
-            WRITE( control%out, "( A, ' X0 = ones ' )" ) prefix
+            WRITE( control%out, "( ' X0 = ones ' )" )
           ELSE
-            WRITE( control%out, "( A, ' X0 =', /, ( 5X, 3ES24.16 ) )" )        &
-              prefix, prob%X0( : prob%n )
+            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" )               &
+              prob%X0( : prob%n )
           END IF
         ELSE IF ( prob%Hessian_kind == 2 ) THEN
-          WRITE( control%out, "( A, ' W =', /, ( 5X, 3ES24.16 ) )" )           &
-            prefix, prob%WEIGHT( : prob%n )
+          WRITE( control%out, "( ' W = ', /, ( 5ES12.4 ) )" )                  &
+            prob%WEIGHT( : prob%n )
           IF ( prob%target_kind == 0 ) THEN
-            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
+            WRITE( control%out, "( ' X0 = zeros ' )" )
           ELSE IF ( prob%target_kind == 1 ) THEN
-            WRITE( control%out, "( A, ' X0 = ones ' )" ) prefix
+            WRITE( control%out, "( ' X0 = ones ' )" )
           ELSE
-            WRITE( control%out, "( A, ' X0 = ', /, ( 5X, 3ES24.16 ) )" )       &
-              prefix, prob%X0( : prob%n )
+            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" )               &
+              prob%X0( : prob%n )
           END IF
         ELSE
           IF ( SMT_get( prob%H%type ) == 'IDENTITY' ) THEN
-            WRITE( control%out, "( A, ' H  = I' )" ) prefix
+            WRITE( control%out, "( ' H  = I' )" )
           ELSE IF ( SMT_get( prob%H%type ) == 'SCALED_IDENTITY' ) THEN
-            WRITE( control%out, "( A, ' H  = ', ES24.16, ' * I' )" )           &
-              prefix, prob%H%val( 1 )
+            WRITE( control%out, "( ' H  =', ES12.4, ' * I' )" ) prob%H%val( 1 )
           ELSE IF ( SMT_get( prob%H%type ) == 'DIAGONAL' ) THEN
-            WRITE( control%out, "( A, ' H (diagonal) =', /,                    &
-           &    ( 5X, 3ES24.16 ) )" ) prob%H%val( : prob%n )
+            WRITE( control%out, "( ' H (diagonal) = ', /, ( 5ES12.4 ) )" )     &
+              prob%H%val( : prob%n )
           ELSE IF ( SMT_get( prob%H%type ) == 'DENSE' ) THEN
-            WRITE( control%out, "( A, ' H (dense) = ', /,                      &
-           &  ( 5X, 3ES24.16 ) )" )                                            &
-              prefix, prob%H%val( : prob%n * ( prob%n + 1 ) / 2 )
+            WRITE( control%out, "( ' H (dense) = ', /, ( 5ES12.4 ) )" )        &
+              prob%H%val( : prob%n * ( prob%n + 1 ) / 2 )
           ELSE IF ( SMT_get( prob%H%type ) == 'SPARSE_BY_ROWS' ) THEN
-            WRITE( control%out, "( A, ' H (row-wise) = ' )" ) prefix
+            WRITE( control%out, "( ' H (row-wise) = ' )" )
             DO i = 1, prob%n
-              IF ( prob%H%ptr( i ) <= prob%H%ptr( i + 1 ) - 1 )                &
-                WRITE( control%out, "( ( 2( 2I8, ES24.16 ) ) )" )              &
-                  ( i, prob%H%col( j ), prob%H%val( j ),                       &
-                    j = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1 )
+              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
+                ( i, prob%H%col( j ), prob%H%val( j ),                         &
+                  j = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1 )
             END DO
           ELSE
-            WRITE( control%out, "( A, ' H (co-ordinate) = ' )" ) prefix
-            WRITE( control%out, "( ( 2( 2I8, ES24.16 ) ) )" )                  &
+            WRITE( control%out, "( ' H (co-ordinate) = ' )" )
+            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
             ( prob%H%row( i ), prob%H%col( i ), prob%H%val( i ),               &
               i = 1, prob%H%ne)
           END IF
         END IF
-        WRITE( control%out, "( A, ' X_l =', /, ( 5X, 3ES24.16 ) )" )           &
-          prefix, prob%X_l( : prob%n )
-        WRITE( control%out, "( A, ' X_u =', /, ( 5X, 3ES24.16 ) )" )           &
-          prefix, prob%X_u( : prob%n )
+        WRITE( control%out, "( ' X_l = ', /, ( 5ES12.4 ) )" )                  &
+          prob%X_l( : prob%n )
+        WRITE( control%out, "( ' X_u = ', /, ( 5ES12.4 ) )" )                  &
+          prob%X_u( : prob%n )
         IF ( SMT_get( prob%A%type ) == 'DENSE' ) THEN
-          WRITE( control%out, "( ' A (dense) = ', /, ( 5X, 3ES24.16 ) )" )     &
+          WRITE( control%out, "( ' A (dense) = ', /, ( 5ES12.4 ) )" )          &
             prob%A%val( : prob%n * prob%m )
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
-          WRITE( control%out, "( A, ' A (row-wise) = ' )" ) prefix
+          WRITE( control%out, "( ' A (row-wise) = ' )" )
           DO i = 1, prob%m
-            IF ( prob%A%ptr( i ) <= prob%A%ptr( i + 1 ) - 1 )                  &
-              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
-                ( i, prob%A%col( j ), prob%A%val( j ),                         &
-                  j = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1 )
+            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
+              ( i, prob%A%col( j ), prob%A%val( j ),                           &
+                j = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1 )
           END DO
         ELSE
-          WRITE( control%out, "( A, ' A (co-ordinate) = ' )" ) prefix
+          WRITE( control%out, "( ' A (co-ordinate) = ' )" )
           WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                     &
           ( prob%A%row( i ), prob%A%col( i ), prob%A%val( i ), i = 1, prob%A%ne)
         END IF
-        WRITE( control%out, "( A, ' C_l =', /, ( 5X, 3ES24.16 ) )" )           &
-          prefix, prob%C_l( : prob%m )
-        WRITE( control%out, "( A, ' C_u =', /, ( 5X, 3ES24.16 ) )" )           &
-          prefix, prob%C_u( : prob%m )
+        WRITE( control%out, "( ' C_l = ', /, ( 5ES12.4 ) )" )                  &
+          prob%C_l( : prob%m )
+        WRITE( control%out, "( ' C_u = ', /, ( 5ES12.4 ) )" )                  &
+          prob%C_u( : prob%m )
       END IF
 
 !  check that problem bounds are consistent; reassign any pair of bounds
@@ -1796,8 +1792,7 @@
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
 
@@ -1864,7 +1859,7 @@
                           prob, get_all = .TRUE. )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
-            inform%time%preprocess + REAL( time_now - time_record, wp )
+            inform%time%preprocess + time_now - time_record
           inform%time%clock_preprocess =                                       &
             inform%time%clock_preprocess + clock_now - clock_record
 
@@ -1921,7 +1916,7 @@
                                  inform%FDC_inform )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%find_dependent =                                           &
-          inform%time%find_dependent + REAL( time_now - time_record, wp )
+          inform%time%find_dependent + time_now - time_record
         inform%time%clock_find_dependent =                                     &
           inform%time%clock_find_dependent + clock_now - clock_record
 
@@ -1937,7 +1932,7 @@
         inform%nfacts = 1
 
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
+               time_now - time_start > control%cpu_time_limit ) .OR.           &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit
@@ -2048,8 +2043,7 @@
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
 
@@ -2524,8 +2518,7 @@
         CALL QPP_restore( data%QPP_map_freed, data%QPP_inform, prob,           &
                           get_all = .TRUE.)
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         data%dims = data%dims_save_freed
@@ -2579,8 +2572,7 @@
         END IF
 
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         prob%new_problem_structure = data%new_problem_structure
@@ -2593,7 +2585,7 @@
       IF ( control%error > 0 .AND. control%print_level >= 1 )                  &
         CALL SYMBOLS_status( inform%status, control%error, prefix, 'DQP' )
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
 
@@ -2622,7 +2614,7 @@
   900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
@@ -3035,8 +3027,7 @@
       LOGICAL, INTENT( INOUT ) :: refactor
       INTEGER, INTENT( IN ) :: dual_starting_point
       INTEGER, INTENT( INOUT ) :: nv, lbd, m_ref
-      REAL, INTENT( INOUT ) :: cpu_total
-      REAL ( KIND = wp ), INTENT( INOUT ) :: clock_total
+      REAL ( KIND = wp ), INTENT( INOUT ) :: cpu_total, clock_total
       INTEGER, INTENT( INOUT ), DIMENSION( m ) :: C_status, C_status_old
       INTEGER, INTENT( INOUT ), DIMENSION( nv ) :: NZ_p, V_status
       INTEGER, INTENT( INOUT ), DIMENSION( n ) :: IUSED, INDEX_r, INDEX_w
@@ -3089,7 +3080,7 @@
       INTEGER :: start_ce, start_yl, start_yu, start_zl, start_zu
       INTEGER :: arc_search_iter, l_start, u_start, print_gap
       INTEGER :: max_row_length, added, deleted, len_list, no_change
-      REAL :: time_record, time_start, time_now
+      REAL ( KIND = wp ) :: time_record, time_start, time_now
       REAL ( KIND = wp ) :: clock_record, clock_start, clock_now, sl, slope
       REAL ( KIND = wp ) :: a_max, h_max, xi, curv, alpha, dual_g_norm, dual_f
       REAL ( KIND = wp ) :: stop_d, step_max, feas_tol, q0, qt, qc, val
@@ -3287,64 +3278,53 @@
         WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) n, m
         WRITE( control%out, "( ' f = ', ES12.4 )" ) f
         IF ( gradient_kind == 0 ) THEN
-          WRITE( control%out, "( A, ' G = zeros' )" ) prefix
+          WRITE( control%out, "( ' G = zeros' )" )
         ELSE IF ( gradient_kind == 1 ) THEN
-          WRITE( control%out, "( A, ' G = ones' )" ) prefix
+          WRITE( control%out, "( ' G = ones' )" )
         ELSE
-          WRITE( control%out, "( A, ' G =', /, ( 5X, 3ES24.16 ) )" )           &
-            prefix, G( : n )
+          WRITE( control%out, "( ' G = ', /, ( 5ES12.4 ) )" ) G( : n )
         END IF
         IF ( Hessian_kind == 1 ) THEN
-          WRITE( control%out, "( A, ' W = ones ' )" ) prefix
+          WRITE( control%out, "( ' W = ones ' )" )
           IF ( target_kind == 0 ) THEN
-            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
+            WRITE( control%out, "( ' X0 = zeros ' )" )
           ELSE IF ( target_kind == 1 ) THEN
-            WRITE( control%out, "( A, ' X0 = ones ' )" ) prefix
+            WRITE( control%out, "( ' X0 = ones ' )" )
           ELSE
-            WRITE( control%out, "( A, ' X0 =', /, ( 5X, 3ES24.16 ) )" )        &
-             prefix, X0( : n )
+            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" ) X0( : n )
           END IF
         ELSE IF ( Hessian_kind == 2 ) THEN
-          WRITE( control%out, "( A, ' W = ', /, ( 5X, 3ES24.16 ) )" )          &
-            prefix, WEIGHT( : n )
+          WRITE( control%out, "( ' W = ', /, ( 5ES12.4 ) )" ) WEIGHT( : n )
           IF ( target_kind == 0 ) THEN
-            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
+            WRITE( control%out, "( ' X0 = zeros ' )" )
           ELSE IF ( target_kind == 1 ) THEN
-            WRITE( control%out, "( A, ' X0 = ones' )" ) prefix
+            WRITE( control%out, "( ' X0 = ones ' )" )
           ELSE
-            WRITE( control%out, "( A, ' X0 =', /, ( 5X, 3ES24.16 ) )" )        &
-              prefix, X0( : n )
+            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" ) X0( : n )
           END IF
         ELSE IF ( Hessian_kind /= 0 ) THEN
           IF ( identity_h ) THEN
-            WRITE( control%out, "( A, ' H  = I' )" ) prefix
+            WRITE( control%out, "( ' H  = I ' )" )
           ELSE IF ( scaled_identity_h ) THEN
-            WRITE( control%out, "( A, ' H  = ', ES24.16, ' * I ' )" )          &
-              prefix, h_scale( 1 )
+            WRITE( control%out, "( ' H  =', ES12.4, ' * I ' )" ) h_scale( 1 )
           ELSE
-            WRITE( control%out, "( A, ' H (row-wise) =' )" ) prefix
+            WRITE( control%out, "( ' H (row-wise) = ' )" )
             DO i = 1, n
-              IF ( H_ptr( i ) <= H_ptr( i + 1 ) - 1 )                          &
-                WRITE( control%out, "( ( 2( 2I8, ES24.16 ) ) )" )              &
+              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
                ( i, H_col( j ), H_val( j ), j = H_ptr( i ), H_ptr( i + 1 ) - 1 )
             END DO
           END IF
         END IF
-        WRITE( control%out, "( A, ' X_l =', /, ( 5X, 3ES24.16 ) )" )           &
-          prefix, X_l( : n )
-        WRITE( control%out, "( A, ' X_u =', /, ( 5X, 3ES24.16 ) )" )           &
-          prefix, X_u( : n )
+        WRITE( control%out, "( ' X_l = ', /, ( 5ES12.4 ) )" ) X_l( : n )
+        WRITE( control%out, "( ' X_u = ', /, ( 5ES12.4 ) )" ) X_u( : n )
         IF ( m > 0 ) THEN
-          WRITE( control%out, "( A, ' A (row-wise) = ' )" ) prefix
+          WRITE( control%out, "( ' A (row-wise) = ' )" )
           DO i = 1, m
-            IF ( A_ptr( i ) <= A_ptr( i + 1 ) - 1 )                            &
-              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
+            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
               ( i, A_col( j ), A_val( j ), j = A_ptr( i ), A_ptr( i + 1 ) - 1 )
           END DO
-          WRITE( control%out, "( A, ' C_l =', /, ( 5X, 3ES24.16 ) )" )         &
-            prefix, C_l( : m )
-          WRITE( control%out, "( A, ' C_u =', /, ( 5X, 3ES24.16 ) )" )         &
-            prefix, C_u( : m )
+          WRITE( control%out, "( ' C_l = ', /, ( 5ES12.4 ) )" ) C_l( : m )
+          WRITE( control%out, "( ' C_u = ', /, ( 5ES12.4 ) )" ) C_u( : m )
         END IF
       END IF
 
@@ -3666,8 +3646,7 @@
         SLS_control%pivot_control = 2
         CALL SLS_analyse( H_sbls, SLS_data, SLS_control, inform%SLS_inform )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%analyse =                                                  &
-          inform%time%analyse + REAL( time_now - time_record, wp )
+        inform%time%analyse = inform%time%analyse + time_now - time_record
         inform%time%clock_analyse =                                            &
           inform%time%clock_analyse + clock_now - clock_record
 
@@ -3691,8 +3670,7 @@
         CALL SLS_factorize( H_sbls, SLS_data, SLS_control, inform%SLS_inform )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%nfacts = inform%nfacts + 1
-        inform%time%factorize =                                                &
-          inform%time%factorize + REAL( time_now - time_record, wp )
+        inform%time%factorize = inform%time%factorize + time_now - time_record
         inform%time%clock_factorize =                                          &
           inform%time%clock_factorize + clock_now - clock_record
 
@@ -3862,8 +3840,7 @@
           CALL SLS_solve( H_sbls, SOL, SLS_data, SLS_control, inform%SLS_inform)
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%solve =                                                    &
-          inform%time%solve + REAL( time_now - time_record, wp )
+        inform%time%solve = inform%time%solve + time_now - time_record
         inform%time%clock_solve =                                              &
           inform%time%clock_solve + clock_now - clock_record
 
@@ -3945,8 +3922,7 @@
                                  SLS_control, inform%SLS_inform )
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve =                                                  &
-            inform%time%solve + REAL( time_now - time_record, wp )
+          inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -4357,8 +4333,7 @@
           CALL SLS_solve( H_sbls, X, SLS_data, SLS_control, inform%SLS_inform )
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%solve =                                                    &
-          inform%time%solve + REAL( time_now - time_record, wp )
+        inform%time%solve = inform%time%solve + time_now - time_record
         inform%time%clock_solve =                                              &
           inform%time%clock_solve + clock_now - clock_record
 
@@ -4478,7 +4453,7 @@
 !  test for optimality
 
         CALL CPU_TIME( time_record  )
-        CALL CHECKPOINT( inform%iter, time_record - time_start,                &
+        CALL CHECKPOINT( inform%iter, REAL( time_record - time_start, sp ),    &
                          dual_g_norm, inform%checkpointsIter,                  &
                          inform%checkpointsTime, 1, 16 )
 
@@ -4538,7 +4513,7 @@
             IF ( printw )                                                      &
               WRITE( out, "( /, A, ' ** form_and_factor complete' )" ) prefix
             inform%time%factorize                                              &
-              = inform%time%factorize + REAL( time_now - time_record, wp )
+              = inform%time%factorize + time_now - time_record
             inform%time%clock_factorize                                        &
               = inform%time%clock_factorize + clock_now - clock_record
             inform%nfacts = inform%nfacts + 1
@@ -4834,8 +4809,8 @@
 !write(6,"( ' VT ', /, ( 5ES16.8 ) )" ) VT( ce_start : zu_end )
 !write(6,"( ' V_status ', /, ( 5I5 ) )" ) V_status( : nv )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%search = inform%time%search +                              &
-          REAL( time_now - time_record, wp ) + t_solve - inform%time%solve
+        inform%time%search = inform%time%search + time_now - time_record       &
+          + t_solve - inform%time%solve
         inform%time%clock_search = inform%time%clock_search                    &
           + clock_now - clock_record + c_solve - inform%time%clock_solve
 
@@ -4902,8 +4877,7 @@
             CALL SLS_solve( H_sbls, X, SLS_data, SLS_control, inform%SLS_inform)
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve =                                                  &
-            inform%time%solve + REAL( time_now - time_record, wp )
+          inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -5338,7 +5312,7 @@
             IF ( printw )                                                      &
               WRITE( out, "( /, A, ' ** form_and_factor complete' )" ) prefix
             inform%time%factorize                                              &
-              = inform%time%factorize + REAL( time_now - time_record, wp )
+              = inform%time%factorize + time_now - time_record
             inform%time%clock_factorize                                        &
               = inform%time%clock_factorize + clock_now - clock_record
             inform%nfacts = inform%nfacts + 1
@@ -5856,8 +5830,7 @@
                                    SLS_control, inform%SLS_inform )
             END IF
             CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-            inform%time%solve =                                                &
-              inform%time%solve + REAL( time_now - time_record, wp )
+            inform%time%solve = inform%time%solve + time_now - time_record
             inform%time%clock_solve =                                          &
               inform%time%clock_solve + clock_now - clock_record
 
@@ -5947,8 +5920,7 @@
                             SLS_control, inform%SLS_inform )
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve =                                                  &
-            inform%time%solve + REAL( time_now - time_record, wp )
+          inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -6040,8 +6012,7 @@
                                 SLS_control, inform%SLS_inform )
               END IF
               CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-              inform%time%solve =                                              &
-                inform%time%solve + REAL( time_now - time_record, wp )
+              inform%time%solve = inform%time%solve + time_now - time_record
               inform%time%clock_solve =                                        &
                 inform%time%clock_solve + clock_now - clock_record
 
@@ -6232,8 +6203,7 @@
           END IF
 !write(6,"(A, /, (5ES16.8))" ) ' x ', RES( : n )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve =                                                  &
-            inform%time%solve + REAL( time_now - time_record, wp )
+          inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -6484,8 +6454,8 @@
 !write(6,"( ' VT ', /, ( 5ES16.8 ) )" ) VT( ce_start : zu_end )
 !write(6,"( ' V_status ', /, ( 5I5 ) )" ) V_status( : nv )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%search = inform%time%search +                            &
-            REAL( time_now - time_record, wp ) + t_solve - inform%time%solve
+          inform%time%search = inform%time%search + time_now - time_record     &
+            + t_solve - inform%time%solve
           inform%time%clock_search = inform%time%clock_search                  &
             + clock_now - clock_record + c_solve - inform%time%clock_solve
 
@@ -6684,8 +6654,7 @@
                             inform%SLS_inform )
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve =                                                  &
-            inform%time%solve + REAL( time_now - time_record, wp )
+          inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -7806,7 +7775,7 @@
 
 !  order the breakpoints in increasing size using a heapsort. Build the heap
 
-      CALL SORT_heapsort_build( n_break, BREAK_points, insort, ix = NZ_p )
+      CALL SORT_heapsort_build( n_break, BREAK_points, insort, INDA = NZ_p )
 
 !  compute w = J^T p
 
@@ -7870,7 +7839,7 @@
       END IF
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      solve = solve + REAL( time_now - time_record, wp )
+      solve = solve + time_now - time_record
       clock_solve = clock_solve + clock_now - clock_record
 
 !  initialize h
@@ -7934,7 +7903,8 @@
 !  find the next breakpoint ( end of the piece )
 
         tbreak = BREAK_points( 1 )
-        CALL SORT_heapsort_smallest( n_break, BREAK_points, insort, ix = NZ_p )
+        CALL SORT_heapsort_smallest( n_break, BREAK_points, insort,            &
+                                     INDA = NZ_p )
 
 !  compute the length of the current piece
 
@@ -8046,7 +8016,7 @@
 
           IF (  BREAK_points( 1 ) >= feasep  ) EXIT
           CALL SORT_heapsort_smallest( n_break, BREAK_points, insort,          &
-                                       ix = NZ_p )
+                                       INDA = NZ_p )
         END DO
 
 !  update u and beta
@@ -8153,7 +8123,7 @@
                                          SLS_data, SLS_control, SLS_inform )
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        solve = solve + REAL( time_now - time_record, wp )
+        solve = solve + time_now - time_record
         clock_solve = clock_solve + clock_now - clock_record
 
 !  reset nonzero components of r to zero
@@ -8722,7 +8692,7 @@
         CALL SLS_part_solve( 'S', H, SLS_data, SLS_control, SLS_inform )
       END IF
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      solve = solve + REAL( time_now - time_record, wp )
+      solve = solve + time_now - time_record
       clock_solve = clock_solve + clock_now - clock_record
 
 !  compute J^T d and store in S
@@ -8770,7 +8740,7 @@
         CALL SLS_part_solve( 'S', S, SLS_data, SLS_control, SLS_inform )
       END IF
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      solve = solve + REAL( time_now - time_record, wp )
+      solve = solve + time_now - time_record
       clock_solve = clock_solve + clock_now - clock_record
 
 !  compute the slope along d
@@ -8960,7 +8930,7 @@
           CALL SLS_part_solve( 'S', S, SLS_data, SLS_control, SLS_inform )
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        solve = solve + REAL( time_now - time_record, wp )
+        solve = solve + time_now - time_record
         clock_solve = clock_solve + clock_now - clock_record
 
 !  compute the slope along d

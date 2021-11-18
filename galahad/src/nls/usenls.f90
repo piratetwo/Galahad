@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 05/05/2021 AT 14:15 GMT
+! THIS VERSION: GALAHAD 3.0 - 25/11/2016 AT 09:15 GMT
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D   U S E _ N L S  -*-*-*-*-*-*-*-*-*-*-
 
@@ -19,8 +19,7 @@
      USE GALAHAD_COPYRIGHT
      USE GALAHAD_SPACE_double
      USE GALAHAD_CUTEST_FUNCTIONS_double
-     USE GALAHAD_STRING
-
+USE GALAHAD_STRING_double
      IMPLICIT NONE
 
      PRIVATE
@@ -48,7 +47,7 @@
      TYPE ( NLS_inform_type ) :: inform
      TYPE ( NLS_data_type ) :: data
      TYPE ( NLPT_problem_type ) :: nlp
-     TYPE ( GALAHAD_userdata_type ) :: userdata
+     TYPE ( NLPT_userdata_type ) :: userdata
      TYPE ( CUTEST_FUNCTIONS_control_type ) :: cutest_control
      TYPE ( CUTEST_FUNCTIONS_inform_type ) :: cutest_inform
 
@@ -217,8 +216,6 @@
 
      CALL NLS_initialize( data, control, inform )
      IF ( is_specfile ) CALL NLS_read_specfile( control, input_specfile )
-     control%jacobian_available = 2
-     control%hessian_available = 2
 
 !  Initialize the problem data
 

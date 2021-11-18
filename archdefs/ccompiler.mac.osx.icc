@@ -6,7 +6,6 @@
 
 CC=icc
 CCBASIC='-c -vec-report0 -DIsifr' # -mmacosx-version-min=10.4'
-CCBASIC='-c -DIsifr'
 CCISO='-ansi'
 CCDEBUG=#-DDEBUG_GALAHAD
 CCFFLAGS=-nofor_main

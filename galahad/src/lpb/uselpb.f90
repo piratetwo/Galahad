@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 3.1 - 07/08/2018 AT 10:35 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E L P B   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -27,9 +27,10 @@
       USE GALAHAD_SORT_double, ONLY: SORT_reorder_by_rows
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
       USE GALAHAD_LPB_double
+      USE GALAHAD_SLS_double
       USE GALAHAD_PRESOLVE_double
       USE GALAHAD_SPECFILE_double
-      USE GALAHAD_STRING, ONLY: STRING_upper_word
+      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
@@ -82,16 +83,18 @@
 
 !  Scalars
 
-      INTEGER :: i, j, l, nea, n, m, ir, ic, la, liw, iores, smt_stat
+      INTEGER :: n, m, ir, ic, la, lh, liw, iores, smt_stat
 !     INTEGER :: np1, npm
+      INTEGER :: i, j, l, neh, nea
       INTEGER :: status, mfixed, mdegen, nfixed, ndegen, mequal, mredun
       INTEGER :: alloc_stat, cutest_status, A_ne, iter
       REAL :: time, timeo, times, timet, timep1, timep2, timep3, timep4
       REAL ( KIND = wp ) :: clock, clocko, clocks, clockt
-      REAL ( KIND = wp ) :: objf, qfval, stopr, dummy
-      REAL ( KIND = wp ) :: res_c, res_k, max_cs, max_d
+      REAL ( KIND = wp ) :: objf, qfval, stopr, dummy, wnorm, wnorm_old
+      REAL ( KIND = wp ) :: res_c, res_k, max_cs, max_d, lambda_lower
       LOGICAL :: filexx, printo, printe, is_specfile
 !     LOGICAL :: ldummy
+      TYPE ( RAND_seed ) :: seed
 
 !  Specfile characteristics
 
@@ -159,6 +162,7 @@
       LOGICAL :: do_solve = .TRUE.
       LOGICAL :: fulsol = .FALSE.
       REAL ( KIND = wp ) :: pert_bnd = zero
+      REAL ( KIND = wp ) :: wnorm_stop = 0.0000000000001_wp
 
 !  Output file characteristics
 
@@ -182,11 +186,14 @@
       TYPE ( SCALE_data_type ) :: SCALE_data
       TYPE ( SCALE_control_type ) :: SCALE_control
       TYPE ( SCALE_inform_type ) :: SCALE_inform
+      TYPE ( sls_data_type ) :: sls_data
+      TYPE ( sls_control_type ) :: sls_control
+      TYPE ( sls_inform_type ) :: sls_inform
 
 !  Allocatable arrays
 
       CHARACTER ( LEN = 10 ), ALLOCATABLE, DIMENSION( : ) :: VNAME, CNAME
-      REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: C, AY, HX
+      REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: C, AY, HX, D, O
       LOGICAL, ALLOCATABLE, DIMENSION( : ) :: EQUATN, LINEAR
       INTEGER, ALLOCATABLE, DIMENSION( : ) :: IW, C_stat, B_stat
 

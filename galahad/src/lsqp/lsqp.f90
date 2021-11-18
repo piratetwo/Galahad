@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.4 - 02/03/2011 AT 09:15 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ L S Q P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -39,12 +39,13 @@
       USE GALAHAD_SMT_double
       USE GALAHAD_QPT_double
       USE GALAHAD_SPECFILE_double
-      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_ies, STRING_are
+      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_ies, STRING_are
       USE GALAHAD_QPP_double, LSQP_dims_type => QPP_dims_type
       USE GALAHAD_QPD_double, LSQP_data_type => QPD_data_type,                 &
                               LSQP_AX => QPD_AX
 
-      USE GALAHAD_SORT_double, ONLY: SORT_inverse_permute
+      USE GALAHAD_SORT_double, ONLY: SORT_heapsort_build,                      &
+         SORT_heapsort_smallest, SORT_inverse_permute
       USE GALAHAD_FDC_double
       USE GALAHAD_SBLS_double
       USE GALAHAD_ROOTS_double

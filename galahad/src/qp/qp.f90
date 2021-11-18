@@ -45,7 +45,7 @@
       USE GALAHAD_SORT_double, ONLY: SORT_reorder_by_rows
       USE GALAHAD_SCALE_double
       USE GALAHAD_PRESOLVE_double
-      USE GALAHAD_MOP_double, ONLY: mop_AX
+      USE GALAHAD_MOP_double
       USE GALAHAD_QPA_double
       USE GALAHAD_QPB_double
       USE GALAHAD_QPC_double
@@ -151,7 +151,7 @@
 !   qpa, qpb, qpc, cqp, dqp, ccqp
 
         CHARACTER ( LEN = 30 ) :: quadratic_programming_solver =               &
-           "qpc" // REPEAT( ' ', 27 )
+           "ccqp" // REPEAT( ' ', 26 )
 
 !  name of generated SIF file containing input problem
 
@@ -1660,3 +1660,14 @@
 !  End of module QP
 
    END MODULE GALAHAD_QP_double
+
+
+
+
+
+
+
+
+
+
+

@@ -75,7 +75,7 @@ C  Local variables
      *                 TCPROD, TREPRT
       CHARACTER * 150  msg
       REAL * 8         ci, GCI( NMAX ), N_real, M_real, NNZ_real
-      REAL * 8         CALLS( 7 ), TIME( 4 )
+      REAL * 8         CALLS( 7 ), TIME( 2 )
 
 C  External functions
 
@@ -1924,7 +1924,7 @@ C  Check number of input and output arguments.
 
 C  Call CUTEST_creport
 
-	 CALL CUTEST_creport( status, CALLS, TIME )
+	 CALL CUTEST_creport( status, TIME, CALLS )
          IF ( status .NE. 0 ) GO TO 910
 
 C  Make room for output - only report CALLS

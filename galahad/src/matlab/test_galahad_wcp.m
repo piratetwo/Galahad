@@ -23,10 +23,10 @@ end
 fprintf('solve dense example \n')
 [ x, inform, aux ] = galahad_wcp( A, c_l, c_u, x_l, x_u ) ;
 disp( sprintf( '%s %13.6e %s %2.0f', ...
-  ' - wcp: optimal f =', inform.obj, '- status =', inform.status ) )
+  ' - optimal f =', inform.obj, '- status =', inform.status ) )
 
 fprintf('solve sparse example \n')
 SA = sparse(A) ;
 [ x, inform, aux ] = galahad_wcp( SA, c_l, c_u, x_l, x_u ) ;
 disp( sprintf( '%s %13.6e %s %2.0f', ...
-  ' - wcp: optimal f =', inform.obj, '- status =', inform.status ) )
+  ' - optimal f =', inform.obj, '- status =', inform.status ) )

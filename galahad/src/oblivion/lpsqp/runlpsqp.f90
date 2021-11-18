@@ -13,7 +13,7 @@
 !  checks data, and calls the appropriate minimizers
 
 !A   USE GALAHAD_LPSQPA_double
-     USE GALAHAD_LPSQP_double
+!B   USE GALAHAD_LPSQP_double
      USE GALAHAD_SPECFILE_double
      IMPLICIT NONE
 

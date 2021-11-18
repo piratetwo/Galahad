@@ -29,45 +29,6 @@ catch excpt
 end
 
 try
-    pkg = 'BQP';
-    disp(sprintf('******* Testing %s *******', pkg));
-    ntests = ntests + 1;
-    test_galahad_bqp
-    if inform.status ~= 0
-        pkg_failures = pkg_failures + 1;
-    end
-catch excpt
-    disp(sprintf('%d %d\n', err, pkg));
-    syntax_errors = syntax_errors + 1;
-end
-
-try
-    pkg = 'BQPB';
-    disp(sprintf('******* Testing %s *******', pkg));
-    ntests = ntests + 1;
-    test_galahad_bqpb
-    if inform.status ~= 0
-        pkg_failures = pkg_failures + 1;
-    end
-catch excpt
-    disp(sprintf('%d %d\n', err, pkg));
-    syntax_errors = syntax_errors + 1;
-end
-
-try
-    pkg = 'BLLS';
-    disp(sprintf('******* Testing %s *******', pkg));
-    ntests = ntests + 1;
-    test_galahad_blls
-    if inform.status ~= 0
-        pkg_failures = pkg_failures + 1;
-    end
-catch excpt
-    disp(sprintf('%d %d\n', err, pkg));
-    syntax_errors = syntax_errors + 1;
-end
-
-try
     pkg = 'LPB';
     disp(sprintf('******* Testing %s *******', pkg));
     ntests = ntests + 1;
@@ -225,19 +186,6 @@ catch excpt
 end
 
 try
-    pkg = 'NLS';
-    disp(sprintf('******* Testing %s *******', pkg));
-    ntests = ntests + 1;
-    test_galahad_nls
-    if inform.status ~= 0
-        pkg_failures = pkg_failures + 1;
-    end
-catch excpt
-    disp(sprintf('%d %d\n', err, pkg));
-    syntax_errors = syntax_errors + 1;
-end
-
-try
     pkg = 'QPA';
     disp(sprintf('******* Testing %s *******', pkg));
     ntests = ntests + 1;
@@ -321,32 +269,6 @@ try
     ntests = ntests + 1;
     test_galahad_sils
     if inform.flag ~= 0
-        pkg_failures = pkg_failures + 1;
-    end
-catch excpt
-    disp(sprintf('%d %d\n', err, pkg));
-    syntax_errors = syntax_errors + 1;
-end
-
-try
-    pkg = 'SLS';
-    disp(sprintf('******* Testing %s *******', pkg));
-    ntests = ntests + 1;
-    test_galahad_sls
-    if inform.status ~= 0
-        pkg_failures = pkg_failures + 1;
-    end
-catch excpt
-    disp(sprintf('%d %d\n', err, pkg));
-    syntax_errors = syntax_errors + 1;
-end
-
-try
-    pkg = 'TRB';
-    disp(sprintf('******* Testing %s *******', pkg));
-    ntests = ntests + 1;
-    test_galahad_trb
-    if inform.status ~= 0
         pkg_failures = pkg_failures + 1;
     end
 catch excpt

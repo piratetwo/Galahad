@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 20/05/2021 AT 11:00 GMT.
+! THIS VERSION: GALAHAD 2.5 - 09/02/2013 AT 16:30 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E L C F   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -27,8 +27,8 @@
       USE GALAHAD_PRESOLVE_double
       USE GALAHAD_SPECFILE_double 
       USE GALAHAD_COPYRIGHT
-      USE GALAHAD_STRING
-      USE GALAHAD_SCALING_double
+      USE GALAHAD_STRING_double
+      USE SCALING
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
           TRACE                 => GALAHAD_TRACE,                              &

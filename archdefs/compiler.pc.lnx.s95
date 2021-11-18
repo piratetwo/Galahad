@@ -14,7 +14,6 @@ OPTIMIZATION='-xO5 -xarch=ssse3 -xdepend=yes -dalign -fsimple=2 -fns=yes -ftrap=
 NOOPTIMIZATION=''
 DEBUG=
 OPENMP='-openmp'
-SOMP='-openmp'
 F77='-fixed -w0'
 F90='-w0'
 F95='-w0'
@@ -40,7 +39,6 @@ HSL=
 SPRAL='-lgalahad_spral'
 METIS='-lgalahad_metis'
 PARDISO='-lgalahad_pardiso'
-MKL_PARDISO='-lgalahad_mkl_pardiso'
 WSMP='-lgalahad_wsmp'
 NOT95=IS95
 NOT64=NOT64

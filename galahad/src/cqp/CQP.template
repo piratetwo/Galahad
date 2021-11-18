@@ -38,11 +38,10 @@
 ! maximum-clock-time-limit                          -1.0
 ! remove-linear-dependencies                        yes
 ! treat-zero-bounds-as-general                      no
-! treat-separable-as-general                        no
 ! just-find-feasible-point                          no
 ! balance-initial-complentarity                     no
 ! get-advanced-dual-variables                       no
-! puiseux-series                                    yes
+! puiseux-extrapolation                             yes
 ! try-every-order-of-series                         yes
 ! move-final-solution-onto-bound                    no
 ! cross-over-solution                               yes

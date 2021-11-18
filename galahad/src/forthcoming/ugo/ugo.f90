@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 02/08/2021 AT 12:00 GMT.
+! THIS VERSION: GALAHAD 2.8 - 20/05/2016 AT 15:15 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D _ U G O   M O D U L E  *-*-*-*-*-*-*-*-*-*-
 
@@ -26,27 +26,13 @@
      USE GALAHAD_SYMBOLS
      USE GALAHAD_SPECFILE_double
      USE GALAHAD_SPACE_double
-     USE GALAHAD_STRING, ONLY: STRING_integer_6
-     USE GALAHAD_USERDATA_double
+     USE GALAHAD_STRING_double, ONLY: STRING_integer_6
+     USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
 
      IMPLICIT NONE
 
      PRIVATE
-     PUBLIC :: UGO_initialize, UGO_read_specfile, UGO_solve, UGO_terminate,   &
-               UGO_import, UGO_solve_direct, UGO_solve_reverse,               &
-               UGO_full_initialize, UGO_full_terminate, UGO_information
-
-!----------------------
-!   I n t e r f a c e s
-!----------------------
-
-      INTERFACE UGO_initialize
-        MODULE PROCEDURE UGO_initialize, UGO_full_initialize
-      END INTERFACE UGO_initialize
-
-      INTERFACE UGO_terminate
-        MODULE PROCEDURE UGO_terminate, UGO_full_terminate
-      END INTERFACE UGO_terminate
+     PUBLIC :: UGO_initialize, UGO_read_specfile, UGO_solve, UGO_terminate
 
 !--------------------
 !   P r e c i s i o n
@@ -66,7 +52,6 @@
      REAL ( KIND = wp ), PARAMETER :: two = 2.0_wp
      REAL ( KIND = wp ), PARAMETER :: ten = 10.0_wp
      REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one )
-     REAL ( KIND = wp ), PARAMETER :: infinity = HUGE( one )
 
      INTEGER, PARAMETER :: header_interval = 50
      REAL ( KIND = wp ), PARAMETER :: midxdg_min = ten * epsmch
@@ -124,7 +109,7 @@
 
 !   the maximum number of iterations allowed
 
-       INTEGER :: maxit = 100
+       INTEGER :: maxit = 100000
 
 !   the number of initial (uniformly-spaced) evaluation points (<2 reset to 2)
 
@@ -140,7 +125,7 @@
 
 !   what sort of Lipschitz constant estimate will be used:
 !     1 = global contant provided, 2 = global contant estimated,
-!     3 = local constants estimated
+!     3 = local costants estimated
 
        INTEGER :: lipschitz_estimate_used = 3
 
@@ -267,17 +252,13 @@
 
        INTEGER :: h_eval = 0
 
-!  the length of the largest remaining search interval
-
-       REAL ( KIND = wp ) :: dx_best = HUGE( one )
-
 !  timings (see above)
 
        TYPE ( UGO_time_type ) :: time
      END TYPE UGO_inform_type
 
 !  - - - - - - - - - -
-!   data derived types
+!   data derived type
 !  - - - - - - - - - -
 
      TYPE, PUBLIC :: UGO_data_type
@@ -308,14 +289,6 @@
 
        TYPE ( UGO_control_type ) :: control
      END TYPE UGO_data_type
-
-     TYPE, PUBLIC :: UGO_full_data_type
-       REAL ( KIND = wp ) :: x_l, x_u
-       TYPE ( UGO_data_type ) :: ugo_data
-       TYPE ( UGO_control_type ) :: ugo_control
-       TYPE ( UGO_inform_type ) :: ugo_inform
-       TYPE ( GALAHAD_userdata_type ) :: userdata
-     END TYPE UGO_full_data_type
 
    CONTAINS
 
@@ -359,38 +332,6 @@
 
      END SUBROUTINE UGO_initialize
 
-!- G A L A H A D -  U G O _ F U L L _ I N I T I A L I Z E  S U B R O U T I N E -
-
-     SUBROUTINE UGO_full_initialize( data, control, inform )
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!   Provide default values for UGO controls
-
-!   Arguments:
-
-!   data     private internal data
-!   control  a structure containing control information. See preamble
-!   inform   a structure containing output information. See preamble
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( UGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( UGO_control_type ), INTENT( OUT ) :: control
-     TYPE ( UGO_inform_type ), INTENT( OUT ) :: inform
-
-     CALL UGO_initialize( data%ugo_data, control, inform )
-
-     RETURN
-
-!  End of subroutine UGO_full_initialize
-
-     END SUBROUTINE UGO_full_initialize
-
 !-*-*-*-*-   U G O _ R E A D _ S P E C F I L E  S U B R O U T I N E  -*-*-*-*-
 
      SUBROUTINE UGO_read_specfile( control, device, alt_specname )
@@ -417,9 +358,9 @@
 !  next-interval-selection-method                  2
 !  refine-with-newton-iterations                   5
 !  global-lipschitz-constant                       -1.0
-!  lipschitz-reliability-parameter                 1.2
+!  reliability-parameter                           1.2
 !  lipschitz-lower-bound                           1.0D-8
-!  maximum-interval-length-required                1.0D-5
+!  max-interval-length-required                    1.0D-5
 !  try-newton-tolerence                            1.0D-3
 !  sufficient-objective-value                      -1.0D+32
 !  maximum-cpu-time-limit                          -1.0
@@ -498,14 +439,12 @@
 !  Real key-words
 
      spec( global_lipschitz_constant )%keyword = 'global-lipschitz-constant'
-     spec( reliability_parameter )%keyword = 'lipschitz-reliability-parameter'
+     spec( reliability_parameter )%keyword = 'reliability-parameter'
      spec( lipschitz_lower_bound )%keyword = 'lipschitz-lower-bound'
-     spec( stop_length )%keyword = 'maximum-interval-length-required'
+     spec( stop_length )%keyword = 'max-interval-length-required'
      spec( small_g_for_newton )%keyword = 'try-newton-tolerence'
      spec( small_g )%keyword = 'sufficient-gradient-tolerence'
      spec( obj_sufficient )%keyword = 'sufficient-objective-value'
-     spec( cpu_time_limit )%keyword = 'maximum-cpu-time-limit'
-     spec( clock_time_limit )%keyword = 'maximum-clock-time-limit'
 
 !  Logical key-words
 
@@ -595,12 +534,7 @@
      CALL SPECFILE_assign_value( spec( obj_sufficient ),                       &
                                  control%obj_sufficient,                       &
                                  control%error )
-     CALL SPECFILE_assign_value( spec( cpu_time_limit ),                       &
-                                 control%cpu_time_limit,                       &
-                                 control%error )
-     CALL SPECFILE_assign_value( spec( clock_time_limit ),                     &
-                                 control%clock_time_limit,                     &
-                                 control%error )
+
 !  Set logical values
 
      CALL SPECFILE_assign_value( spec( space_critical ),                       &
@@ -702,7 +636,6 @@
 !        If the user is unable to evaluate f(x) - for instance, if the function
 !        is undefined at x - the user need not set f, but should then set
 !        data%eval_status to a non-zero value.
-!        ** NB. Not used at present
 !     3. The user should compute the objective function value f(x) and its
 !        derivative f'(x) at the point x and then re-enter the subroutine.
 !        The required values should be set in f and g respectively,
@@ -710,7 +643,6 @@
 !        If the user is unable to evaluate f(x) or f'(x) - for instance, if the
 !        function or its derivative is undefined at x - the user need not
 !        set f or g, but should then set data%eval_status to a non-zero value.
-!        ** NB. Not used at present
 !     4. The user should compute the objective function value f(x) and its
 !        first two derivatives f'(x) and f''(x) at the point x and then
 !        re-enter the subroutine. The required values should be set in f, g
@@ -721,7 +653,7 @@
 !
 !  data is a scalar variable of type UGO_data_type used for internal data.
 !
-!  userdata is a scalar variable of type GALAHAD_userdata_type which may be used
+!  userdata is a scalar variable of type NLPT_userdata_type which may be used
 !   to pass user data to and from the eval_* subroutines (see below)
 !   Available coomponents which may be allocated as required are:
 !
@@ -739,10 +671,10 @@
 !  eval_F is an optional subroutine which if present must have the arguments
 !   given below (see the interface blocks). The value of the objective
 !   function f(x) evaluated at x=x must be returned in f, and the status
-!   variable set to 0. If the evaluation is impossible at x, status should be
-!   set to a nonzero value. If eval_F is not present, UGO_solve will return
-!   to the user with inform%status = 2 each time an evaluation is required. 
-!   ** NB. Not used at present
+!   variable set to 0. If the evaluation is impossible at x, status should
+!   be set to a nonzero value. If eval_F is not present, UGO_solve will
+!   return to the user with inform%status = 2 each time an evaluation is
+!   required.
 !
 !  eval_FG is an optional subroutine which if present must have the arguments
 !   given below (see the interface blocks). The value of the objective
@@ -750,8 +682,7 @@
 !   returned in f and g respectively, and the status variable set to 0.
 !   If the evaluation is impossible at x, status should be set to a nonzero
 !   value. If eval_FG is not present, UGO_solve will return to the user with
-!   inform%status = 3 each time an evaluation is required. 
-!   ** NB. Not used at present
+!   inform%status = 3 each time an evaluation is required.
 !
 !  eval_FGH is an optional subroutine which if present must have the arguments
 !   given below (see the interface blocks). The value of the objective
@@ -772,7 +703,7 @@
      TYPE ( UGO_control_type ), INTENT( IN ) :: control
      TYPE ( UGO_inform_type ), INTENT( INOUT ) :: inform
      TYPE ( UGO_data_type ), INTENT( INOUT ) :: data
-     TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+     TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
      OPTIONAL :: eval_FGH
 !    OPTIONAL :: eval_F, eval_FG, eval_FGH
      REAL ( KIND = wp ), INTENT( IN ), OPTIONAL :: x_extra
@@ -783,34 +714,34 @@
 
 !     INTERFACE
 !       SUBROUTINE eval_F( status, x, userdata, f )
-!       USE GALAHAD_USERDATA_double
+!       USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
 !       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
 !       INTEGER, INTENT( OUT ) :: status
 !       REAL ( KIND = wp ), INTENT( OUT ) :: f
 !       REAL ( KIND = wp ), INTENT( IN ) :: x
-!       TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+!       TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
 !       END SUBROUTINE eval_F
 !     END INTERFACE
 
 !    INTERFACE
 !      SUBROUTINE eval_FG( status, x, userdata, f, g )
-!      USE GALAHAD_USERDATA_double
-!      INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
-!      INTEGER, INTENT( OUT ) :: status
-!      REAL ( KIND = wp ), INTENT( OUT ) :: f, g
-!      REAL ( KIND = wp ), INTENT( IN ) :: x
-!      TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
-!      END SUBROUTINE eval_FG
+!      USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
+!       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
+!       INTEGER, INTENT( OUT ) :: status
+!       REAL ( KIND = wp ), INTENT( OUT ) :: f, g
+!       REAL ( KIND = wp ), INTENT( IN ) :: x
+!       TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
+!       END SUBROUTINE eval_FG
 !     END INTERFACE
 
      INTERFACE
        SUBROUTINE eval_FGH( status, x, userdata, f, g, h )
-       USE GALAHAD_USERDATA_double
+       USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( OUT ) :: status
        REAL ( KIND = wp ), INTENT( OUT ) :: f, g, h
        REAL ( KIND = wp ), INTENT( IN ) :: x
-       TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+       TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
        END SUBROUTINE eval_FGH
      END INTERFACE
 
@@ -823,7 +754,7 @@
      REAL ( KIND = wp ) :: xi, xip, dg, di, dx, fi, fip, gi, gip, bi, ci
      REAL ( KIND = wp ) :: mi, term, wi, yi, zi, vox, v_max, x_max, x_new
      REAL ( KIND = wp ) :: argmin, argmin_psi, min_psi
-     REAL ( KIND = wp ) :: gpiwi, gpiyi, argmin_pi, min_pi, midxdg
+     REAL ( KIND = wp ) :: gpiwi, gpiyi, argmin_pi, min_pi, dx_best, midxdg
      REAL ( KIND = wp ) :: psi_best, phizi, argmin_fiip, min_fiip
      REAL ( KIND = wp ) :: vi, vim, vip, hi, hip, x_newton
      LOGICAL :: alive, new_point
@@ -1026,14 +957,11 @@
 !                            INITIAL POINT LOOP
 !   ----------------------------------------------------------------------------
 
-     IF ( data%printi ) WRITE( control%out,                                    &
-        "( 10X, 10( '-' ), ' initial point loop ', 10( '-' ) )" )
-
 !  The initial trials are performed at the points
 !     x_k = x_l + (i-1)/(p-1) (x_u-x_l), k = 1,...,p
 
      data%x_l = MIN( x_l, x_u ) ; data%x_u = MAX( x_l, x_u )
-     data%dx = ( data%x_u - data%x_l )                                         &
+     data%dx = ( data%x_u - data%x_l )                                        &
                  / REAL( data%initial_points - 1, KIND = wp )
 
      data%x_extra_used = .NOT. PRESENT( x_extra )
@@ -1107,7 +1035,6 @@
 !  check to see if the iteration limit has been achieved
 
        IF ( inform%iter >= control%maxit ) THEN
-         x = data%x_best ; f = data%f_best ; g = data%g_best ; h = data%h_best
          inform%status = GALAHAD_error_max_iterations ; GO TO 990
        END IF
 
@@ -1139,11 +1066,10 @@
 !                            MAIN ITERATION LOOP
 !   ----------------------------------------------------------------------------
 
-     IF ( data%printi ) WRITE( control%out,                                    &
-        "( 10X, 12( '-' ), ' main iteration ', 12( '-' ) )" )
-
 !  The point x_k+1, k ≥ 2, of the current (k+1)th iteration is chosen as follows
 
+     IF ( data%printi ) WRITE( control%out,                                    &
+        "( 10X, 12( '-' ), ' main iteration ', 12( '-' ) )" )
  200 CONTINUE
 
 !  check whether to continue printing
@@ -1323,20 +1249,19 @@
 
        CASE ( local_lipschitz_estimated )
          mi = control%lipschitz_lower_bound
-         x_max = zero ; v_max = - infinity
+         x_max = zero
          i = 1
          xi = data%X( i ) ; fi = data%F( i ) ;  gi = data%G( i )
 
 !  compute v_i and update x_max
 
-         DO l = 1, inform%iter - 1 ! loop through intervals in increasing order
+         DO l = 1, inform%iter - 1  !loop through intervals in increasing order
            ip = data%NEXT( i ) !  consider the i-th interval
            xip = data%X( ip ) ; fip = data%F( ip ) ; gip = data%G( ip )
            dx = xip - xi
            term = ABS( two * ( fi - fip ) + ( gi + gip ) * dx )
            di = SQRT( term ** 2 + ( ( gip - gi ) * dx ) ** 2 )
            data%V( i ) = ( term + di ) / dx ** 2
-           v_max = MAX( v_max, data%V( i ) ) ! nick added
            x_max = MAX( x_max, dx )
            IF ( l < inform%iter - 1 ) THEN !  prepare for the next interval
              i = ip ; xi = xip ; fi = fip ; gi = gip
@@ -1345,7 +1270,7 @@
 
 !  compute v_max
 
-!        v_max = MAXVAL( data%V( 1 : inform%iter - 1 ) ) ! nick removed
+         v_max = MAXVAL( data%V( 1 : inform%iter - 1 ) )
          vox = v_max / x_max
 
 !  compute the local estimates of the gradient Lipschitz constants
@@ -1354,7 +1279,6 @@
          vi = data%V( i ) ; hi = ABS( data%H( i ) )
          ip = data%NEXT( i ) ; xip = data%X( ip ) ;
          vip = data%V( ip ) ; hip = ABS( data%H( ip ) )
-         vim = zero
 
          IF ( inform%iter >= 4 ) THEN
            data%G_lips( i ) = control%reliability_parameter *                  &
@@ -1381,7 +1305,7 @@
          ELSE IF ( inform%iter == 2 ) THEN
            data%G_lips( i ) = control%reliability_parameter *                  &
              MAX( control%lipschitz_lower_bound, vox * ( xip - xi ),           &
-                  vi, hi, hip )
+             vi, hi, hip )
          END IF
        END SELECT
 
@@ -1413,8 +1337,7 @@
 !  t indicates the interval with the smallest value of psi, psi_best;
 !  initialize with hopeless values
 
-       t = 0 ; psi_best = fi + one ; inform%dx_best = infinity
-       new_point = .FALSE.
+       t = 0 ; psi_best = fi + one ; new_point = .FALSE.
 
        DO l = 1, inform%iter - 1 !loop through the intervals in increasing order
          mi = data%G_lips( i )
@@ -1521,7 +1444,7 @@
 
            IF ( data%UNFATHOMED( i ) ) THEN
              IF ( min_psi < psi_best ) THEN
-               t = i ; psi_best = min_psi ; inform%dx_best = dx
+               t = i ; psi_best = min_psi ; dx_best = dx
 
                IF ( argmin == 0 ) THEN
                  x_new = argmin_psi
@@ -1536,21 +1459,15 @@
 
                IF ( ABS( gi ) <= control%small_g_for_newton ) THEN
                  IF ( ABS( gip ) <= ABS( gi ) ) THEN
-                   IF ( ABS( data%H( ip ) ) /= zero ) THEN
-                     x_newton = xip - gip / data%H( ip )
-                     IF ( x_newton > xi .AND. x_newton < xip ) x_new = x_newton
-                   END IF
-                 ELSE
-                   IF ( ABS( data%H( i ) ) /= zero ) THEN
-                     x_newton = xi - gi / data%H( i )
-                     IF ( x_newton > xi .AND. x_newton < xip ) x_new = x_newton
-                   END IF
-                 END IF
-               ELSE IF ( ABS( gip ) <= control%small_g_for_newton ) THEN
-                 IF ( ABS( data%H( ip ) ) /= zero ) THEN
                    x_newton = xip - gip / data%H( ip )
                    IF ( x_newton > xi .AND. x_newton < xip ) x_new = x_newton
+                 ELSE
+                   x_newton = xi - gi / data%H( i )
+                   IF ( x_newton > xi .AND. x_newton < xip ) x_new = x_newton
                  END IF
+               ELSE IF ( ABS( gip ) <= control%small_g_for_newton ) THEN
+                 x_newton = xip - gip / data%H( ip )
+                 IF ( x_newton > xi .AND. x_newton < xip ) x_new = x_newton
                END IF
              END IF
            END IF
@@ -1600,6 +1517,7 @@
 
 !  flag=NOTFLAG(flag)
 
+
        CASE ( interval_local_improvement )
 
        END SELECT
@@ -1620,9 +1538,8 @@
 !  if the best value of psi is in a tiny interval, or if every interval has
 !  been fathomed, exit with an estimate of the global minimizer
 
-       IF ( inform%dx_best <= control%stop_length .OR. t == 0 ) THEN
+       IF ( dx_best <= control%stop_length .OR. t == 0) THEN
          x = data%x_best ; f = data%f_best ; g = data%g_best ; h = data%h_best
-         IF ( t == 0 ) inform%dx_best = zero
          GO TO 300
 
 !  record the next evaluation point
@@ -1766,9 +1683,8 @@
 !  if desired, illustrate the intervals
 
      IF ( data%printi ) THEN
-       WRITE( control%out, "( /, 10X, 8( '-' ), ' illustrated intervals ',    &
-      &  8( '-' ), /, ' intvl      x           f           g           h',    &
-      &  '     fathomed      L' )" )
+       WRITE(6,"( /, '   int      x           f           g           h  ',    &
+      &              '   fathomed      L' )" )
        i = 1
        DO l = 1, data%intervals - 1
          WRITE(6,"( I6, 4ES12.4, 1X, L1, I6, ES12.4 )" ) l, data%X( i ),       &
@@ -1819,6 +1735,7 @@
 2010 FORMAT( I8, 3ES14.6, ' |', 2ES14.6 )
 
 !  End of subroutine UGO_solve
+
 
      END SUBROUTINE UGO_solve
 
@@ -1920,223 +1837,6 @@
 !  End of subroutine UGO_terminate
 
      END SUBROUTINE UGO_terminate
-
-!-  G A L A H A D -  U G O _ f u l l _ t e r m i n a t e  S U B R O U T I N E -
-
-     SUBROUTINE UGO_full_terminate( data, control, inform )
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!   Deallocate all private storage
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( UGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( UGO_control_type ), INTENT( IN ) :: control
-     TYPE ( UGO_inform_type ), INTENT( INOUT ) :: inform
-
-!-----------------------------------------------
-!   L o c a l   V a r i a b l e s
-!-----------------------------------------------
-
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  deallocate workspace
-
-     CALL UGO_terminate( data%ugo_data, data%ugo_control, data%ugo_inform )
-     inform = data%ugo_inform
-     RETURN
-
-!  End of subroutine UGO_full_terminate
-
-     END SUBROUTINE UGO_full_terminate
-
-! -----------------------------------------------------------------------------
-! =============================================================================
-! -----------------------------------------------------------------------------
-!              specific interfaces to make calls from C easier
-! -----------------------------------------------------------------------------
-! =============================================================================
-! -----------------------------------------------------------------------------
-
-!-*-*-*-*-  G A L A H A D -  U G O _ i m p o r t _ S U B R O U T I N E -*-*-*-*-
-
-     SUBROUTINE UGO_import( control, data, status, x_l, x_u )
-
-!  import fixed problem data into internal storage prior to solution. 
-!  Arguments are as follows:
-
-!  control is a derived type whose components are described in the leading 
-!   comments to UGO_solve
-!
-!  data is a scalar variable of type UGO_full_data_type used for internal data
-!
-!  status is a scalar variable of type default intege that indicates the
-!   success or otherwise of the import. Possible values are:
-!
-!    1. The import was succesful, and the package is ready for the solve phase
-!
-!   -1. An allocation error occurred. A message indicating the offending
-!       array is written on unit control.error, and the returned allocation
-!       status and a string containing the name of the offending array
-!       are held in inform.alloc_status and inform.bad_alloc respectively.
-!   -2. A deallocation error occurred.  A message indicating the offending
-!       array is written on unit control.error and the returned allocation
-!       status and a string containing the name of the offending array
-!       are held in inform.alloc_status and inform.bad_alloc respectively.
-!   -3. The restriction n > 0 or requirement that type contains
-!       its relevant string 'DENSE', 'COORDINATE', 'SPARSE_BY_ROWS',
-!       'DIAGONAL' or 'ABSENT' has been violated.
-!
-!  x_l is a scalar variable of type default real that holds the value x_l 
-!   of the lower bound on the optimization variable x.
-!
-!  x_u is a scalar variable of type default real that holds the value x_u
-!   of the upper bound on the optimization variable x.. 
-!
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( UGO_control_type ), INTENT( INOUT ) :: control
-     TYPE ( UGO_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( OUT ) :: status
-     REAL ( KIND = wp ), INTENT( IN  ) :: x_l, x_u
-
-!  copy control to data
-
-     data%ugo_control = control
-
-!  record the lower and upper bounds on x
-
-     data%x_l = x_l
-     data%x_u = x_u
-
-!  flag a successful call
-
-     status = GALAHAD_ready_to_solve
-     RETURN
-
-!  End of subroutine UGO_import
-
-     END SUBROUTINE UGO_import
-
-!-*  G A L A H A D -  U G O _ s o l v e _ d i r e c t   S U B R O U T I N E  *-
-
-     SUBROUTINE UGO_solve_direct( data, userdata, status, x, f, g, h, eval_FGH )
-
-!  solve the bound-constrained problem previously imported when access
-!  to function, gradient and Hessian operations are available via subroutine 
-!  calls. See UGO_solve for a description of the required arguments. The 
-!  variable status is a proxy for inform%status, and should be set to 1 on
-!  initial entry
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( INOUT ) :: status
-     TYPE ( UGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
-     REAL ( KIND = wp ), INTENT( INOUT ) :: x
-     REAL ( KIND = wp ), INTENT( OUT ) :: f, g, h
-
-!----------------------------------
-!   I n t e r f a c e   B l o c k s
-!----------------------------------
-
-     INTERFACE
-       SUBROUTINE eval_FGH( status, x, userdata, f, g, h )
-       USE GALAHAD_USERDATA_double
-       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
-       INTEGER, INTENT( OUT ) :: status
-       REAL ( KIND = wp ), INTENT( OUT ) :: f, g, h
-       REAL ( KIND = wp ), INTENT( IN ) :: x
-       TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
-       END SUBROUTINE eval_FGH
-     END INTERFACE
-
-!  import the initial status
-
-     data%ugo_inform%status = status
-
-!  call the solver
-
-     CALL UGO_solve( data%x_l, data%x_u, x, f, g, h, data%ugo_control,         &
-                     data%ugo_inform, data%ugo_data, userdata,                 &
-                     eval_FGH = eval_FGH )
-
-     status = data%ugo_inform%status
-     RETURN
-
-     END SUBROUTINE UGO_solve_direct
-
-!-*  G A L A H A D -  U G O _ s o l v e _ r e v e r s e  S U B R O U T I N E  *-
-
-     SUBROUTINE UGO_solve_reverse( data, status, eval_status, x, f, g, h )
-
-!  solve the univariate bound-constrained problem previously imported when 
-!  access to function, gradient and Hessian values are
-!  available via reverse communication. See UGO_solve for a description 
-!  of the required arguments. The variable status is a proxy for inform%status,
-!  should be set to 1 on initial entry, and if it is positive on exit, further
-!  action is required from the calling program
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( INOUT ) :: status
-     TYPE ( UGO_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( INOUT ) :: eval_status
-     REAL ( KIND = wp ), INTENT( INOUT ) :: x, f, g, h
-
-!  recover data from reverse communication
-
-     data%ugo_inform%status = status
-     data%ugo_data%eval_status = eval_status
-
-!  call the solver
-
-     CALL UGO_solve( data%x_l, data%x_u, x, f, g, h, data%ugo_control,         &
-                     data%ugo_inform, data%ugo_data, data%userdata )
-
-     status = data%ugo_inform%status
-     RETURN
-
-     END SUBROUTINE UGO_solve_reverse
-
-!-  G A L A H A D -  U G O _ i n f o r m a t i o n   S U B R O U T I N E  -
-
-     SUBROUTINE UGO_information( data, inform, status )
-
-!  return solver information during or after solution by UGO
-!  See UGO_solve for a description of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( UGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( UGO_inform_type ), INTENT( OUT ) :: inform
-     INTEGER, INTENT( OUT ) :: status
-
-!  recover inform from internal data
-
-     inform = data%ugo_inform
-     
-!  flag a successful call
-
-     status = GALAHAD_ok
-     RETURN
-
-!  end of subroutine UGO_information
-
-     END SUBROUTINE UGO_information
 
 !  End of module GALAHAD_UGO
 

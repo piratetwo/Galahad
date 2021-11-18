@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 10/08/2021 AT 08:30 GMT.
+! THIS VERSION: GALAHAD 3.0 - 19/02/2018 AT 15:00 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D _ G L T R  double  M O D U L E  *-*-*-*-*-*-*-
 
@@ -33,7 +33,7 @@
       USE GALAHAD_ROOTS_double, ONLY: ROOTS_quadratic
       USE GALAHAD_SPECFILE_double
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
-      USE GALAHAD_LAPACK_interface, ONLY : PTTRF, STERF
+      USE GALAHAD_LAPACK_interface, ONLY : PTTRF
 
       IMPLICIT NONE
 
@@ -41,22 +41,6 @@
       PUBLIC :: GLTR_initialize, GLTR_read_specfile, GLTR_solve,               &
                 GLTR_terminate, GLTR_leftmost_eigenvalue,                      &
                 GLTR_leftmost_eigenvector, GLTR_tridiagonal_solve
-
-!----------------------
-!   I n t e r f a c e s
-!----------------------
-
-      INTERFACE GLTR_initialize
-        MODULE PROCEDURE GLTR_initialize, GLTR_initialize_info
-      END INTERFACE GLTR_initialize
-
-      INTERFACE GLTR_solve
-        MODULE PROCEDURE GLTR_solve, GLTR_solve_info
-      END INTERFACE GLTR_solve
-
-      INTERFACE GLTR_terminate
-        MODULE PROCEDURE GLTR_terminate, GLTR_terminate_info
-      END INTERFACE GLTR_terminate
 
 !--------------------
 !   P r e c i s i o n
@@ -116,10 +100,6 @@
 
         INTEGER :: extra_vectors = 0
 
-!   the unit number for writing debug Ritz values
-
-        INTEGER :: ritz_printout_device = 34
-
 !   the iteration stops successfully when the gradient in the M(inverse) norm
 !    is smaller than max( stop_relative * initial M(inverse)
 !                         gradient norm, stop_absolute )
@@ -127,14 +107,14 @@
         REAL ( KIND = wp ) :: stop_relative = epsmch
         REAL ( KIND = wp ) :: stop_absolute = zero
 
+!   the iteration stops if the objective-function value is lower than f_min
+
+        REAL ( KIND = wp ) :: f_min = - ( biginf / two )
+
 !   an estimate of the solution that gives at least %fraction_opt times
 !    the optimal objective value will be found
 
         REAL ( KIND = wp ) :: fraction_opt = one
-
-!   the iteration stops if the objective-function value is lower than f_min
-
-        REAL ( KIND = wp ) :: f_min = - ( biginf / two )
 
 !   the smallest value that the square of the M norm of the gradient of the
 !    the objective may be before it is considered to be zero
@@ -161,37 +141,28 @@
 
         LOGICAL :: equality_problem = .FALSE.
 
-!  if %space_critical true, every effort will be made to use as little
-!    space as possible. This may result in longer computation time
+!   if %space_critical true, every effort will be made to use as little
+!     space as possible. This may result in longer computation time
 
         LOGICAL :: space_critical = .FALSE.
 
-!  if %deallocate_error_fatal is true, any array/pointer deallocation error
-!    will terminate execution. Otherwise, computation will continue
+!   if %deallocate_error_fatal is true, any array/pointer deallocation error
+!     will terminate execution. Otherwise, computation will continue
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
-
-!  should the Ritz values be written to the debug stream?
-
-        LOGICAL :: print_ritz_values = .FALSE.
-
-!  name of debug file containing the Ritz values
-
-        CHARACTER ( LEN = 30 ) :: ritz_file_name =                             &
-          "gltr_ritz.dat"  // REPEAT( ' ', 17 )
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
 !   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
-      END TYPE GLTR_control_type
+      END TYPE
 
 !  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
 !  - - - - - - - - - - - - - - - - - - - - - - -
 
-      TYPE, PUBLIC :: GLTR_inform_type
+      TYPE, PUBLIC :: GLTR_info_type
 
 !  return status. See GLTR_solve for details
 
@@ -245,17 +216,7 @@
 !  did the hard case occur ?
 
         LOGICAL :: hard_case = .FALSE.
-      END TYPE GLTR_inform_type
-
-!  - - - - - - - - - - - - - - - - - - - - - - -
-!   info derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - -
-
-!  extends the GLTR_info_type so that it can be refered to as 
-!  the more conventional GLTR_inform_type
-
-      TYPE, PUBLIC, EXTENDS( GLTR_inform_type ) :: GLTR_info_type
-      END TYPE GLTR_info_type
+      END TYPE
 
 !  - - - - - - - - - - - - - - - - - - - - - -
 !   data derived type with private components
@@ -276,8 +237,6 @@
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: P
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: D
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFD
-        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: E
-        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFE
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: ALPHAS
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: RMINVRS
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: MIN_f
@@ -292,7 +251,7 @@
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: R_extra
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: P_extra
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : , : ) :: V_extra
-      END TYPE GLTR_data_type
+      END TYPE
 
     CONTAINS
 
@@ -319,7 +278,7 @@
 
       TYPE ( GLTR_data_type ), INTENT( INOUT ) :: data
       TYPE ( GLTR_control_type ), INTENT( OUT ) :: control
-      TYPE ( GLTR_inform_type ), INTENT( OUT ) :: inform
+      TYPE ( GLTR_info_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
 
@@ -342,21 +301,6 @@
 
       END SUBROUTINE GLTR_initialize
 
-!-*-*-*-  G L T R _ I N I T I A L I Z E  _ I N F O  S U B R O U T I N E   -*-*-
-
-      SUBROUTINE GLTR_initialize_info( data, control, info )
-
-!  equivalent to GLTR_initialize, needed for backward compatibility
-
-      TYPE ( GLTR_data_type ), INTENT( INOUT ) :: data
-      TYPE ( GLTR_control_type ), INTENT( OUT ) :: control
-      TYPE ( GLTR_info_type ), INTENT( OUT ) :: info
-      TYPE ( GLTR_inform_type ) :: inform
-      CALL GLTR_initialize( data, control, inform )
-      info%GLTR_inform_type = inform
-      RETURN
-      END SUBROUTINE GLTR_initialize_info
-
 !-*-*-*-   G L T R _ R E A D _ S P E C F I L E  S U B R O U T I N E   -*-*-*-*-
 
       SUBROUTINE GLTR_read_specfile( control, device, alt_specname )
@@ -374,21 +318,18 @@
 !   maximum-number-of-iterations                    -1
 !   maximum-number-of-Lanczos-iterations            -1
 !   number-extra-n-vectors-used                     0
-!   ritz-printout-device                            34
 !   relative-accuracy-required                      1.0E-8
 !   absolute-accuracy-required                      0.0
 !   fraction-optimality-required                    1.0
 !   small-f-stop                                    - 1.0D+100
-!   zero-gradient-tolerance                         2.0E-15
 !   constant-term-in-objective                      0.0
+!   zero-gradient-tolerance                         2.0E-15
 !   two-norm-trust-region                           T
 !   stop-as-soon-as-boundary-encountered            F
 !   solution-is-likely-on-boundary                  F
 !   equality-problem                                F
 !   space-critical                                  F
 !   deallocate-error-fatal                          F
-!   print-ritz-values                               F
-!   ritz-file-name                                  gltr_ritz.dat
 !   output-line-prefix                              ""
 !  END GLTR SPECIFICATIONS
 
@@ -402,71 +343,46 @@
 
 !  Local variables
 
-      INTEGER, PARAMETER :: error = 1
-      INTEGER, PARAMETER :: out = error + 1
-      INTEGER, PARAMETER :: print_level = out + 1
-      INTEGER, PARAMETER :: itmax = print_level + 1
-      INTEGER, PARAMETER :: Lanczos_itmax = itmax + 1
-      INTEGER, PARAMETER :: extra_vectors = Lanczos_itmax + 1
-      INTEGER, PARAMETER :: ritz_printout_device = extra_vectors + 1
-      INTEGER, PARAMETER :: stop_relative = ritz_printout_device + 1
-      INTEGER, PARAMETER :: stop_absolute = stop_relative + 1
-      INTEGER, PARAMETER :: fraction_opt = stop_absolute + 1
-      INTEGER, PARAMETER :: rminvr_zero = fraction_opt + 1
-      INTEGER, PARAMETER :: f_0 = rminvr_zero + 1
-      INTEGER, PARAMETER :: f_min = f_0 + 1
-      INTEGER, PARAMETER :: unitm = f_min + 1
-      INTEGER, PARAMETER :: steihaug_toint = unitm + 1
-      INTEGER, PARAMETER :: boundary = steihaug_toint + 1
-      INTEGER, PARAMETER :: equality_problem = boundary + 1
-      INTEGER, PARAMETER :: space_critical = equality_problem + 1
-      INTEGER, PARAMETER :: deallocate_error_fatal = space_critical + 1
-      INTEGER, PARAMETER :: print_ritz_values = deallocate_error_fatal + 1
-      INTEGER, PARAMETER :: ritz_file_name =  print_ritz_values + 1
-      INTEGER, PARAMETER :: prefix = ritz_file_name + 1
-      INTEGER, PARAMETER :: lspec = prefix
+      INTEGER, PARAMETER :: lspec = 34
       CHARACTER( LEN = 4 ), PARAMETER :: specname = 'GLTR'
       TYPE ( SPECFILE_item_type ), DIMENSION( lspec ) :: spec
 
-!  define the keywords
+!  Define the keywords
 
      spec%keyword = ''
 
-!  integer key-words
+!  Integer key-words
 
-      spec( error )%keyword = 'error-printout-device'
-      spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level'
-      spec( itmax )%keyword = 'maximum-number-of-iterations'
-      spec( Lanczos_itmax )%keyword = 'maximum-number-of-Lanczos-iterations'
-      spec( extra_vectors )%keyword = 'number-extra-n-vectors-used'
-      spec( ritz_printout_device )%keyword = 'ritz-printout-device'
+      spec(  1 )%keyword = 'error-printout-device'
+      spec(  2 )%keyword = 'printout-device'
+      spec(  3 )%keyword = 'print-level'
+      spec(  4 )%keyword = 'maximum-number-of-iterations'
+      spec(  5 )%keyword = 'maximum-number-of-Lanczos-iterations'
+      spec( 18 )%keyword = 'number-extra-n-vectors-used'
 
-!  real key-words
+!  Real key-words
 
-      spec( stop_relative )%keyword = 'relative-accuracy-required'
-      spec( stop_absolute )%keyword = 'absolute-accuracy-required'
-      spec( fraction_opt )%keyword = 'fraction-optimality-required'
-      spec( rminvr_zero )%keyword = 'zero-gradient-tolerance'
-      spec( f_0 )%keyword = 'constant-term-in-objective'
-      spec( f_min )%keyword = 'small-f-stop'
+      spec(  6 )%keyword = 'relative-accuracy-required'
+      spec(  7 )%keyword = 'absolute-accuracy-required'
+      spec(  8 )%keyword = 'fraction-optimality-required'
+      spec(  9 )%keyword = 'constant-term-in-objective'
+      spec( 17 )%keyword = 'zero-gradient-tolerance'
+      spec( 19 )%keyword = 'small-f-stop'
 
-!  logical key-words
+!  Logical key-words
 
-      spec( unitm )%keyword = 'two-norm-trust-region'
-      spec( steihaug_toint )%keyword = 'stop-as-soon-as-boundary-encountered'
-      spec( boundary )%keyword = 'solution-is-likely-on-boundary'
-      spec( equality_problem )%keyword = 'equality-problem'
-      spec( space_critical )%keyword = 'space-critical'
-      spec( deallocate_error_fatal )%keyword = 'deallocate-error-fatal'
-      spec( print_ritz_values )%keyword = 'print-ritz-values'
+      spec( 10 )%keyword = 'two-norm-trust-region'
+      spec( 11 )%keyword = 'stop-as-soon-as-boundary-encountered'
+      spec( 12 )%keyword = 'solution-is-likely-on-boundary'
+      spec( 13 )%keyword = 'equality-problem'
+      spec( 14 )%keyword = 'space-critical'
+      spec( 15 )%keyword = 'deallocate-error-fatal'
 
-!  character key-words
+!  Character key-words
 
-      spec( ritz_file_name )%keyword = 'ritz-file-name'
-      spec( prefix )%keyword = 'output-line-prefix'
+!     spec( 16 )%keyword = 'output-line-prefix'
 
-!  read the specfile
+!  Read the specfile
 
       IF ( PRESENT( alt_specname ) ) THEN
         CALL SPECFILE_read( device, alt_specname, spec, lspec, control%error )
@@ -474,84 +390,56 @@
         CALL SPECFILE_read( device, specname, spec, lspec, control%error )
       END IF
 
-!  interpret the result
+!  Interpret the result
 
 !  Set integer values
 
-      CALL SPECFILE_assign_value( spec( error ),                               &
-                                  control%error,                               &
+      CALL SPECFILE_assign_value( spec( 1 ), control%error,                    &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( out ),                                 &
-                                  control%out,                                 &
+      CALL SPECFILE_assign_value( spec( 2 ), control%out,                      &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( print_level ),                         &
-                                  control%print_level,                         &
+      CALL SPECFILE_assign_value( spec( 3 ), control%print_level,              &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( itmax ),                               &
-                                  control%itmax,                               &
+      CALL SPECFILE_assign_value( spec( 4 ), control%itmax,                    &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( Lanczos_itmax ),                       &
-                                  control%Lanczos_itmax,                       &
+      CALL SPECFILE_assign_value( spec( 5 ), control%Lanczos_itmax,            &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( extra_vectors ),                       &
-                                  control%extra_vectors,                       &
-                                  control%error )
-      CALL SPECFILE_assign_value( spec( ritz_printout_device ),                &
-                                  control%ritz_printout_device,                &
+      CALL SPECFILE_assign_value( spec( 18 ), control%extra_vectors,           &
                                   control%error )
 
 !  Set real values
 
-      CALL SPECFILE_assign_value( spec( stop_relative ),                       &
-                                  control%stop_relative,                       &
+      CALL SPECFILE_assign_value( spec( 6 ), control%stop_relative,            &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( stop_absolute ),                       &
-                                  control%stop_absolute,                       &
+      CALL SPECFILE_assign_value( spec( 7 ), control%stop_absolute,            &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( fraction_opt ),                        &
-                                  control%fraction_opt,                        &
+      CALL SPECFILE_assign_value( spec( 8 ), control%fraction_opt,             &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( f_min ),                               &
-                                  control%f_min,                               &
+      CALL SPECFILE_assign_value( spec( 9 ), control%f_0,                      &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( rminvr_zero ),                         &
-                                  control%rminvr_zero,                         &
+      CALL SPECFILE_assign_value( spec( 17 ), control%rminvr_zero,             &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( f_0 ),                                 &
-                                  control%f_0,                                 &
+      CALL SPECFILE_assign_value( spec( 19 ), control%f_min,                   &
                                   control%error )
 
 !  Set logical values
 
-      CALL SPECFILE_assign_value( spec( unitm ),                               &
-                                  control%unitm,                               &
+      CALL SPECFILE_assign_value( spec( 10 ), control%unitm,                   &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( steihaug_toint ),                      &
-                                  control%steihaug_toint,                      &
+      CALL SPECFILE_assign_value( spec( 11 ), control%steihaug_toint,          &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( boundary ),                            &
-                                  control%boundary,                            &
+      CALL SPECFILE_assign_value( spec( 12 ), control%boundary,                &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( equality_problem ),                    &
-                                  control%equality_problem,                    &
+      CALL SPECFILE_assign_value( spec( 13 ), control%equality_problem,        &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( space_critical ),                      &
-                                  control%space_critical,                      &
+      CALL SPECFILE_assign_value( spec( 14 ), control%space_critical,          &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( deallocate_error_fatal ),              &
+      CALL SPECFILE_assign_value( spec( 15 ),                                  &
                                   control%deallocate_error_fatal,              &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( print_ritz_values ),                   &
-                                  control%print_ritz_values,                   &
-                                  control%error )
-
 !  Set charcter values
 
-      CALL SPECFILE_assign_value( spec( ritz_file_name ),                      &
-                                  control%ritz_file_name,                      &
-                                  control%error )
-      CALL SPECFILE_assign_value( spec( prefix ),                              &
-                                  control%prefix,                              &
+      CALL SPECFILE_assign_value( spec( 16 ), control%prefix,                  &
                                   control%error )
 
       RETURN
@@ -614,15 +502,14 @@
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X, R, VECTOR
       TYPE ( GLTR_data_type ), INTENT( INOUT ) :: data
       TYPE ( GLTR_control_type ), INTENT( IN ) :: control
-      TYPE ( GLTR_inform_type ), INTENT( INOUT ) :: inform
+      TYPE ( GLTR_info_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
 
-      INTEGER :: dim_sub, it, itp1, nroots, info
+      INTEGER :: dim_sub, it, itp1, nroots
       REAL ( KIND = wp ) :: alpha, f_tol, other_root, xmx_trial, u_norm
-      LOGICAL :: filexx
       CHARACTER ( LEN = 80 ) :: array_name
 
 !  prefix for all output
@@ -667,7 +554,7 @@
       IF ( n <= 0 ) GO TO 940
       IF ( radius <= zero ) GO TO 950
 
-      data%iter = 0 ; data%itm1 = - 1
+      data%iter = 0
       data%itmax = control%itmax ; IF ( data%itmax < 0 ) data%itmax = n
       data%Lanczos_itmax = control%Lanczos_itmax
       data%switch_to_Lanczos = .FALSE.
@@ -715,22 +602,6 @@
       IF ( .NOT. control%steihaug_toint ) THEN
         data%titmax = 100
 
-!  if required, open a file to write the Ritz values data
-
-        IF ( control%print_ritz_values ) THEN
-          INQUIRE( FILE = control%ritz_file_name, EXIST = filexx )
-          IF ( filexx ) THEN
-            OPEN( control%ritz_printout_device,                                &
-                  FILE = control%ritz_file_name, FORM = 'FORMATTED',           &
-                  STATUS = 'OLD', IOSTAT = info )
-          ELSE
-            OPEN( control%ritz_printout_device,                                &
-                  FILE = control%ritz_file_name, FORM = 'FORMATTED',           &
-                  STATUS = 'NEW', IOSTAT = info )
-          END IF
-          WRITE( control%ritz_printout_device, * ) 'gltr', n, radius
-        END IF
-
 !  Allocate space for the Lanczos tridiagonal
 
         array_name = 'gltr: D'
@@ -748,24 +619,6 @@
             exact_size = control%space_critical,                               &
             bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= 0 ) GO TO 960
-
-        IF ( control%print_ritz_values ) THEN
-          array_name = 'gltr: E'
-          CALL SPACE_resize_array( data%itmax + 2, data%E,                     &
-              inform%status, inform%alloc_status, array_name = array_name,     &
-              deallocate_error_fatal = control%deallocate_error_fatal,         &
-              exact_size = control%space_critical,                             &
-              bad_alloc = inform%bad_alloc, out = control%error )
-          IF ( inform%status /= 0 ) GO TO 960
-
-          array_name = 'gltr: OFFE'
-          CALL SPACE_resize_array( data%itmax + 1, data%OFFE,                  &
-              inform%status, inform%alloc_status, array_name = array_name,     &
-              deallocate_error_fatal = control%deallocate_error_fatal,         &
-              exact_size = control%space_critical,                             &
-              bad_alloc = inform%bad_alloc, out = control%error )
-          IF ( inform%status /= 0 ) GO TO 960
-        END IF
 
 !  Allocate space for the factors of the Lanczos tridiagonal
 
@@ -970,10 +823,10 @@
         data%diag = data%beta / data%alpha
 !       data%offdiag = - SQRT( data%beta ) / data%alpha
         data%offdiag = SQRT( data%beta ) / ABS( data%alpha )
+      ELSE
 
 !  Compute the stopping tolerance
 
-      ELSE
         data%diag = zero ; data%xmx = zero
         data%stop = MAX( control%stop_relative * data%pgnorm,                  &
                          control%stop_absolute )
@@ -981,33 +834,6 @@
           WRITE( control%out, "( /, A, ' stopping tolerance = ',               &
          &         ES10.4, ', radius = ', ES10.4 )" ) prefix, data%stop, radius
         IF ( .NOT. control%steihaug_toint ) data%C_sub( 0 ) = data%pgnorm
-      END IF
-
-!  just in case the Ritz values are useful ...
-
-      IF ( control%print_ritz_values .AND. .NOT. control%steihaug_toint ) THEN
-        data%E( : data%iter ) = data%D( 0 : data%itm1 )
-        data%OFFE( : data%itm1 ) = data%OFFD( : data%itm1 )
-        CALL STERF( data%iter, data%E, data%OFFE, info )
-        IF ( info == 0 ) THEN
-          IF ( control%steihaug_toint .OR. data%interior ) THEN
-            IF (  data%iter /= 0 ) THEN
-              WRITE( control%ritz_printout_device, * )                         &
-                data%iter, zero, data%offdiag, data%pgnorm
-            ELSE
-              WRITE( control%ritz_printout_device, * )                         &
-                data%iter, zero, zero, data%pgnorm
-            END IF
-          ELSE
-            WRITE( control%ritz_printout_device, * )                           &
-              data%iter, data%LAMBDA( data%iter ), data%offdiag,               &
-              ABS( data%x_last * data%offdiag )
-          END IF
-          WRITE( control%ritz_printout_device, * ) data%E( : data%iter )
-        ELSE
-          IF ( data%printi ) WRITE( control%out, * )                           &
-            info, ' warning: unconverged Ritz values out of ', data%iter
-        END IF
       END IF
 
 !  Print details of the latest iteration
@@ -1047,12 +873,10 @@
           END IF
         ELSE
           IF ( data%iter /= 0 ) THEN
-            WRITE( control%out, "( A, I7, ES16.8, ES9.2, ES15.8, ES9.2, 2I5 )")&
+            WRITE( control%out, "( A, I7, ES16.8, ES9.2, ES15.8, 2I5 )" )      &
                    prefix, data%iter, data%MIN_f( data%itm1 ) + control%f_0,   &
                    ABS( data%x_last * data%offdiag ),                          &
-!                  data%LAMBDA( data%itm1 ),  ABS( data%x_last ),              &
-                   data%LAMBDA( data%itm1 ), data%offdiag,                     &
-                   data%titer, data%tinfo
+                   data%LAMBDA( data%itm1 ), data%titer, data%tinfo
           END IF
         END IF
       END IF
@@ -1074,79 +898,79 @@
 
 !  Test to see that iteration limit has not been exceeded
 
-        IF ( data%iter >= data%itmax .AND. data%interior ) THEN
-          inform%mnormx = SQRT( data%xmx )
-          data%dim_sub = data%iter
-          GO TO 910
-        END IF
+         IF ( data%iter >= data%itmax .AND. data%interior ) THEN
+           inform%mnormx = SQRT( data%xmx )
+           data%dim_sub = data%iter
+           GO TO 910
+         END IF
 
 !  Obtain the search direction P
 
-        data%xmp = data%beta * ( data%xmp + data%alpha * data%pmp )
-        data%pmp = data%rminvr + data%pmp * data%beta * data%beta
-        data%P( : n ) = - VECTOR + data%beta * data%P( : n )
+         data%xmp = data%beta * ( data%xmp + data%alpha * data%pmp )
+         data%pmp = data%rminvr + data%pmp * data%beta * data%beta
+         data%P( : n ) = - VECTOR + data%beta * data%P( : n )
 
 !  If required, continue accumulating the Lanczos tridiagonal
 
-        IF ( .NOT. control%steihaug_toint ) THEN
-          data%D( data%iter ) = data%diag
-          data%OFFD( data%iter ) = data%offdiag
-        END IF
+         IF ( .NOT. control%steihaug_toint ) THEN
+           data%D( data%iter ) = data%diag
+           data%OFFD( data%iter ) = data%offdiag
+         END IF
 
 !  Check for convergence on the trust-region boundary
 
-        IF ( data%iter >= data%itmax .OR. ( .NOT. data%interior .AND.          &
-             ABS( data%offdiag * data%x_last ) <= data%stop ) ) THEN
+         IF ( data%iter >= data%itmax .OR. ( .NOT. data%interior .AND.         &
+              ABS( data%offdiag * data%x_last ) <= data%stop ) ) THEN
 
 !  Convergence on the trust-region boundary has occured. Determine at which
 !  iteration a fraction, fraction_opt, of the optimal solution was found
 
-          IF ( control%fraction_opt < one ) THEN
-            f_tol = data%MIN_f( data%itm1 ) * control%fraction_opt
-            DO dim_sub = 1, data%iter
-               IF ( data%MIN_f( dim_sub - 1 ) <= f_tol ) EXIT
-            END DO
-          ELSE
-            dim_sub = data%iter
-          END IF
-          data%dim_sub = dim_sub
+           IF ( control%fraction_opt < one ) THEN
+             f_tol = data%MIN_f( data%itm1 ) * control%fraction_opt
+             DO dim_sub = 1, data%iter
+                IF ( data%MIN_f( dim_sub - 1 ) <= f_tol ) EXIT
+             END DO
+           ELSE
+             dim_sub = data%iter
+           END IF
+           data%dim_sub = dim_sub
 
 !  Special case: the required fraction of f was achieved by an interior point
 
-          IF ( dim_sub <= data%switch ) THEN
-            inform%mnormx = SQRT( data%xmx )
-            GO TO 900
-          END IF
+           IF ( dim_sub <= data%switch ) THEN
+             inform%mnormx = SQRT( data%xmx )
+             GO TO 900
+           END IF
 
-!         IF ( data%printi ) WRITE( control%out, 2020 )                        &
-!           WRITE( control%out, 2020 ) data%MIN_f( dim_sub - 1 ), dim_sub, iter
+!          IF ( data%printi ) WRITE( control%out, 2020 )                       &
+!            WRITE( control%out, 2020 ) data%MIN_f( dim_sub - 1 ), dim_sub, iter
 
 !  Restore the solution to the Lanczos TR subproblem for this iteration
 
-          data%use_old = .FALSE.
-          IF ( dim_sub > 1 + data%switch ) THEN
-            data%LAMBDA( dim_sub - 1 ) = data%LAMBDA( dim_sub - 2 )
-          ELSE
-            data%LAMBDA( dim_sub - 1 ) = zero
-            data%try_warm = .FALSE.
-          END IF
+           data%use_old = .FALSE.
+           IF ( dim_sub > 1 + data%switch ) THEN
+             data%LAMBDA( dim_sub - 1 ) = data%LAMBDA( dim_sub - 2 )
+           ELSE
+             data%LAMBDA( dim_sub - 1 ) = zero
+             data%try_warm = .FALSE.
+           END IF
 
-          CALL GLTR_ttrs( dim_sub, data%D( : dim_sub - 1 ),                    &
-                     data%OFFD( : dim_sub - 1 ),                               &
-                     data%D_fact( : dim_sub - 1 ),                             &
-                     data%OFFD_fact( : dim_sub - 1 ),                          &
-                     data%C_sub( : dim_sub - 1 ), radius, data%rtol,           &
-                     data%interior, control%equality_problem,                  &
-                     data%titmax, data%try_warm, data%use_old,                 &
-                     inform%leftmost, data%LAMBDA( dim_sub - 1 ),              &
-                     data%MIN_f( dim_sub - 1 ),                                &
-                     data%X_sub( : dim_sub - 1 ), data%tinfo, data%titer,      &
-                     data%U_sub( : dim_sub - 1 ), data%W( : dim_sub - 1 ),     &
-                     data%seed, data%printd, control%out, prefix,              &
-                     inform%hard_case, data%hard_case_step )
+           CALL GLTR_ttrs( dim_sub, data%D( : dim_sub - 1 ),                   &
+                      data%OFFD( : dim_sub - 1 ),                              &
+                      data%D_fact( : dim_sub - 1 ),                            &
+                      data%OFFD_fact( : dim_sub - 1 ),                         &
+                      data%C_sub( : dim_sub - 1 ), radius, data%rtol,          &
+                      data%interior, control%equality_problem,                 &
+                      data%titmax, data%try_warm, data%use_old,                &
+                      inform%leftmost, data%LAMBDA( dim_sub - 1 ),             &
+                      data%MIN_f( dim_sub - 1 ),                               &
+                      data%X_sub( : dim_sub - 1 ), data%tinfo, data%titer,     &
+                      data%U_sub( : dim_sub - 1 ), data%W( : dim_sub - 1 ),    &
+                      data%seed, data%printd, control%out, prefix,             &
+                      inform%hard_case, data%hard_case_step )
 
-!         IF ( data%printi ) WRITE( control%out, 2020 )                        &
-!         WRITE( control%out, 2020 ) data%MIN_f(dim_sub-1), dim_sub, data%iter
+!          IF ( data%printi ) WRITE( control%out, 2020 )                       &
+!          WRITE( control%out, 2020 ) data%MIN_f(dim_sub-1), dim_sub, data%iter
 
 !  Record the optimal objective function value and prepare to recover the
 !  approximate solution
@@ -1619,33 +1443,13 @@
 !  Non-executable statements
 
  2000 FORMAT( /, A, '  Iter        f         pgnorm      lambda    ',          &
-                    '   gamma  tr it info' )
+                    ' tr it info' )
  2010 FORMAT( /, A, ' Boundary encountered. Switching to Lanczos mode ' )
 !2020 FORMAT( /, ' MIN_f, it_exit, it_total ', ES22.14, 2I6 )
 
 !  End of subroutine GLTR_solve
 
       END SUBROUTINE GLTR_solve
-
-!-*-*-*-*-*-*-*  G L T R _ S O L V E _ I N F O  S U B R O U T I N E  -*-*-*-*-*
-
-      SUBROUTINE GLTR_solve_info( n, radius, f, X, R, VECTOR, data, control,   &
-                                  info )
-!  equivalent to GLTR_solve, needed for backward compatibility
-
-      INTEGER, INTENT( IN ) :: n
-      REAL ( KIND = wp ), INTENT( IN ) :: radius
-      REAL ( KIND = wp ), INTENT( INOUT ) :: f
-      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X, R, VECTOR
-      TYPE ( GLTR_data_type ), INTENT( INOUT ) :: data
-      TYPE ( GLTR_control_type ), INTENT( IN ) :: control
-      TYPE ( GLTR_info_type ), INTENT( INOUT ) :: info
-      TYPE ( GLTR_inform_type ) :: inform
-      inform = info%GLTR_inform_type
-      CALL GLTR_solve( n, radius, f, X, R, VECTOR, data, control, inform )
-      info%GLTR_inform_type = inform
-      RETURN
-      END SUBROUTINE GLTR_solve_info
 
 !-*-*-*-*-*-  G L T R _ T E R M I N A T E   S U B R O U T I N E   -*-*-*-*-*-
 
@@ -1670,7 +1474,7 @@
 
       TYPE ( GLTR_data_type ), INTENT( INOUT ) :: data
       TYPE ( GLTR_control_type ), INTENT( IN ) :: control
-      TYPE ( GLTR_inform_type ), INTENT( INOUT ) :: inform
+      TYPE ( GLTR_info_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e
@@ -1700,18 +1504,6 @@
 
       array_name = 'gltr: OFFD'
       CALL SPACE_dealloc_array( data%OFFD,                                     &
-         inform%status, inform%alloc_status, array_name = array_name,          &
-         bad_alloc = inform%bad_alloc, out = control%error )
-      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-      array_name = 'gltr: E'
-      CALL SPACE_dealloc_array( data%D,                                        &
-         inform%status, inform%alloc_status, array_name = array_name,          &
-         bad_alloc = inform%bad_alloc, out = control%error )
-      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-      array_name = 'gltr: OFFE'
-      CALL SPACE_dealloc_array( data%OFFE,                                     &
          inform%status, inform%alloc_status, array_name = array_name,          &
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
@@ -1794,29 +1586,11 @@
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-      IF ( control%print_ritz_values ) CLOSE( control%ritz_printout_device )
-
       RETURN
 
 !  End of subroutine GLTR_terminate
 
       END SUBROUTINE GLTR_terminate
-
-!-*-*-*-  G L T R _ T E R M I N A T E _ I N F O   S U B R O U T I N E   -*-*-*-
-
-      SUBROUTINE GLTR_terminate_info( data, control, info )
-
-!  equivalent to GLTR_terminate, needed for backward compatibility
-
-      TYPE ( GLTR_data_type ), INTENT( INOUT ) :: data
-      TYPE ( GLTR_control_type ), INTENT( IN ) :: control
-      TYPE ( GLTR_info_type ), INTENT( INOUT ) :: info
-      TYPE ( GLTR_inform_type ) :: inform
-      inform = info%GLTR_inform_type
-      CALL GLTR_terminate( data, control, inform )
-      info%GLTR_inform_type = inform
-      RETURN
-      END SUBROUTINE GLTR_terminate_info
 
 !-*-*-*-*-*-*-*-*-*-*-  G L T R _ t t r s  S U B R O U T I N E -*-*-*-*-*-*-*-*
 

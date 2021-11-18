@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 23/10/2014 AT 10:00 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D _ T R A C E   M O D U L E  *-*-*-*-*-*-*-*-*-
 
@@ -39,7 +39,7 @@
      USE GALAHAD_SPACE_double
      USE GALAHAD_MOP_double, ONLY: mop_Ax
      USE GALAHAD_NORMS_double, ONLY: TWO_NORM
-     USE GALAHAD_STRING, ONLY: STRING_integer_6
+     USE GALAHAD_STRING_double, ONLY: STRING_integer_6
      USE GALAHAD_LAPACK_interface, ONLY : GESVD
 !    USE SPDSOL
 !    USE HSL_MI13
@@ -506,7 +506,7 @@
 
 !  inform parameters for GLTR
 
-       TYPE ( GLTR_inform_type ) :: GLTR_inform
+       TYPE ( GLTR_info_type ) :: GLTR_inform
 
 !  inform parameters for PSLS
 
@@ -1964,7 +1964,7 @@
 
        IF ( data%control%subproblem_direct .AND. scale ) THEN
          ALLOCATE( data%H%row( nlp%H%ne ), data%H%col( nlp%H%ne ),             &
-                   data%H%val( nlp%H%ne ), data%G( nlp%n ), STAT = i )
+                   data%H%val( nlp%H%ne ), data%G( nlp%n ) )
          data%H%n = nlp%H%n ; data%H%ne = nlp%H%ne
          CALL SMT_put( data%H%type, 'COORDINATE', i )
          data%H%row( : nlp%H%ne ) = nlp%H%row( : nlp%H%ne )

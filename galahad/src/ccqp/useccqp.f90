@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.7 - 17/07/2015 AT 13:00 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E C C Q P   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -31,7 +31,7 @@
       USE GALAHAD_SLS_double
       USE GALAHAD_PRESOLVE_double
       USE GALAHAD_SPECFILE_double
-      USE GALAHAD_STRING, ONLY: STRING_upper_word
+      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
@@ -728,8 +728,8 @@
       DO i = 1, n
         IF ( ABS( prob%G( i ) ) > 0.0_wp ) wnorm = MIN( wnorm, ABS( prob%G( i ) ) )
       END DO
-!      write(6,*) ' gmin, gmax ', wnorm, MAXVAL( ABS( prob%G( : n ) ) )
-!      write(6,*) ' hmin, hmax ', MINVAL( ABS( prob%H%val( : H_ne ) ) ), MAXVAL( ABS( prob%H%val( : H_ne ) ) )
+      write(6,*) ' gmin, gmax ', wnorm, MAXVAL( ABS( prob%G( : n ) ) )
+      write(6,*) ' hmin, hmax ', MINVAL( ABS( prob%H%val( : H_ne ) ) ), MAXVAL( ABS( prob%H%val( : H_ne ) ) )
 
 !  If required, append results to a file
 

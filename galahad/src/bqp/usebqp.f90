@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 20/05/2021 AT 11:00 GMT.
+! THIS VERSION: GALAHAD 2.5 - 09/02/2013 AT 18:00 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E B Q P   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -26,7 +26,7 @@
       USE GALAHAD_BQP_double
       USE GALAHAD_SPECFILE_double 
       USE GALAHAD_COPYRIGHT
-      USE GALAHAD_SCALING_double
+      USE SCALING
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
           TRACE                 => GALAHAD_TRACE,                              &
@@ -144,7 +144,7 @@
       TYPE ( BQP_data_type ) :: data
       TYPE ( BQP_control_type ) :: BQP_control        
       TYPE ( BQP_inform_type ) :: BQP_inform
-      TYPE ( GALAHAD_userdata_type ) :: userdata
+      TYPE ( NLPT_userdata_type ) :: userdata
       TYPE ( QPT_problem_type ) :: prob
 
 !  Allocatable arrays

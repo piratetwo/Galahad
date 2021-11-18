@@ -99,7 +99,6 @@
       USE GALAHAD_MATLAB
       USE GALAHAD_TRANSFER_MATLAB
       USE GALAHAD_SBLS_MATLAB_TYPES
-      USE GALAHAD_SPACE_double
       USE GALAHAD_SBLS_double
       IMPLICIT NONE
       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
@@ -125,7 +124,7 @@
 !  local variables
 
       INTEGER :: i, info
-      INTEGER * 4 :: m, n, i4, status, alloc_status
+      INTEGER * 4 :: m, n, i4
       mwSize :: s_len
       mwSize :: h_arg, a_arg, c_arg, b_arg, d_arg, con_arg
       mwSize :: x_arg, y_arg, i_arg
@@ -135,7 +134,7 @@
 
       INTEGER, PARAMETER :: history_max = 100
       CHARACTER ( len = 80 ) :: output_unit, filename
-      LOGICAL :: opened, initial_set = .FALSE.
+      LOGICAL :: filexx, opened, initial_set = .FALSE.
       INTEGER :: iores
       CHARACTER ( len = 18 ) :: mode
       TYPE ( SBLS_pointer_type ) :: SBLS_pointer
@@ -161,7 +160,7 @@
 
 !  interpret the first argument
 
-      info = mxGetString( prhs( 1 ), mode, 17 )
+      i = mxGetString( prhs( 1 ), mode, 17 )
 
 !  initial entry
 
@@ -280,7 +279,7 @@
         IF ( control%out > 0 ) REWIND( control%out )
          b_arg = 2 ; d_arg = 3 ; con_arg = 4
          IF ( nrhs > con_arg )                                                 &
-           CALL mexErrMsgTxt( ' Too many input arguments to galahad_sls' )
+           CALL mexErrMsgTxt( ' Too many input arguments to galahad_sbls' )
          x_arg = 1 ; y_arg = 2 ; i_arg = 3
          IF ( nlhs > i_arg )                                                   &
            CALL mexErrMsgTxt( ' too many output arguments required' )
@@ -307,9 +306,7 @@
 !  Allocate space for input vector (b,d) in SOL
 
         m = A%m ; n = A%n
-
-        CALL SPACE_resize_array( n + m, SOL, status, alloc_status )
-        IF ( status /= 0 ) CALL mexErrMsgTxt( ' allocate error SOL' )
+        ALLOCATE( SOL( n + m ), STAT = info )
 
 !  Input b
 
@@ -352,18 +349,16 @@
 
         CALL SBLS_matlab_inform_create( plhs( i_arg ), SBLS_pointer )
 
-!  remove unwanted storage
-
-        CALL SPACE_dealloc_array( H%row, status, alloc_status )
-        CALL SPACE_dealloc_array( H%col, status, alloc_status )
-        CALL SPACE_dealloc_array( H%val, status, alloc_status )
-        CALL SPACE_dealloc_array( A%row, status, alloc_status )
-        CALL SPACE_dealloc_array( A%col, status, alloc_status )
-        CALL SPACE_dealloc_array( A%val, status, alloc_status )
-        CALL SPACE_dealloc_array( C%row, status, alloc_status )
-        CALL SPACE_dealloc_array( C%col, status, alloc_status )
-        CALL SPACE_dealloc_array( C%val, status, alloc_status )
-        CALL SPACE_dealloc_array( SOL, status, alloc_status )
+        IF ( ALLOCATED( H%row ) ) DEALLOCATE( H%row, STAT = info )
+        IF ( ALLOCATED( H%col ) ) DEALLOCATE( H%col, STAT = info )
+        IF ( ALLOCATED( H%val ) ) DEALLOCATE( H%val, STAT = info )
+        IF ( ALLOCATED( A%row ) ) DEALLOCATE( A%row, STAT = info )
+        IF ( ALLOCATED( A%col ) ) DEALLOCATE( A%col, STAT = info )
+        IF ( ALLOCATED( A%val ) ) DEALLOCATE( A%val, STAT = info )
+        IF ( ALLOCATED( C%row ) ) DEALLOCATE( C%row, STAT = info )
+        IF ( ALLOCATED( C%col ) ) DEALLOCATE( C%col, STAT = info )
+        IF ( ALLOCATED( C%val ) ) DEALLOCATE( C%val, STAT = info )
+        IF ( ALLOCATED( SOL ) ) DEALLOCATE( SOL, STAT = info )
         CALL SBLS_terminate( data, control, inform )
 
 !  close any opened io units

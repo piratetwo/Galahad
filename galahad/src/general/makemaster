@@ -24,10 +24,6 @@ BLG  = $(OBJ)/libgalahad_blas.a
 BLGS = $(OBJS)/libgalahad_blas.a
 BLGD = $(OBJD)/libgalahad_blas.a
 
-PRLG  = $(OBJ)/libgalahad_problem.a
-PRLGS = $(OBJS)/libgalahad_problem.a
-PRLGD = $(OBJD)/libgalahad_problem.a
-
 DLG  = $(OBJ)/libgalahad_dummy.a
 DLGS = $(OBJS)/libgalahad_dummy.a
 DLGD = $(OBJD)/libgalahad_dummy.a
@@ -48,13 +44,13 @@ RLG  = $(OBJ)/libgalahad_spral.a
 RLGS = $(OBJS)/libgalahad_spral.a
 RLGD = $(OBJD)/libgalahad_spral.a
 
-PLG  = $(OBJ)/libgalahad_pardiso.a
-PLGS = $(OBJS)/libgalahad_pardiso.a
-PLGD = $(OBJD)/libgalahad_pardiso.a
+SLG  = $(OBJ)/libgalahad_pardiso.a
+SLGS = $(OBJS)/libgalahad_pardiso.a
+SLGD = $(OBJD)/libgalahad_pardiso.a
 
-MPLG  = $(OBJ)/libgalahad_mkl_pardiso.a
-MPLGS = $(OBJS)/libgalahad_mkl_pardiso.a
-MPLGD = $(OBJD)/libgalahad_mkl_pardiso.a
+PLG  = $(OBJ)/libgalahad_problem.a
+PLGS = $(OBJS)/libgalahad_problem.a
+PLGD = $(OBJD)/libgalahad_problem.a
 
 WLG  = $(OBJ)/libgalahad_wsmp.a
 WLGS = $(OBJS)/libgalahad_wsmp.a
@@ -62,27 +58,40 @@ WLGD = $(OBJD)/libgalahad_wsmp.a
 
 #  Libraries used
 
-LIBS = -lgalahad $(HSL) $(SPRAL) $(MKL_PARDISO) $(PARDISO) $(WSMP) $(METIS) \
-                 $(LAPACK) $(BLAS)
+LIBS = -lgalahad $(HSL) $(SPRAL) $(PARDISO) $(WSMP) $(METIS) $(LAPACK) $(BLAS)
 PLIBS = $(LIBS) -lgalahad_problem
 
 #  Archive manipulation strings
 
 ARR = $(AR) $(ARREPFLAGS) $(LG)
-BARR = $(AR) $(ARREPFLAGS) $(BLG)
-PRARR = $(AR) $(ARREPFLAGS) $(PRLG)
-DARR = $(AR) $(ARREPFLAGS) $(DLG)
-HARR = $(AR) $(ARREPFLAGS) $(HLG)
-LARR = $(AR) $(ARREPFLAGS) $(LLG)
-MARR = $(AR) $(ARREPFLAGS) $(MLG)
-PARR = $(AR) $(ARREPFLAGS) $(PLG)
-MPARR = $(AR) $(ARREPFLAGS) $(MPLG)
-RARR = $(AR) $(ARREPFLAGS) $(RLG)
-WARR = $(AR) $(ARREPFLAGS) $(WLG)
-
 RMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(LG)
 RMOBFILE = $(GALAHAD)/bin/rmobfile $(RM) $(OBJ)
-PRRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(PRLG)
+
+BARR = $(AR) $(ARREPFLAGS) $(BLG)
+BRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(BLG)
+
+DARR = $(AR) $(ARREPFLAGS) $(DLG)
+
+LARR = $(AR) $(ARREPFLAGS) $(LLG)
+LRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(LLG)
+
+HARR = $(AR) $(ARREPFLAGS) $(HLG)
+HRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(HLG)
+
+MARR = $(AR) $(ARREPFLAGS) $(MLG)
+MRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(MLG)
+
+PARR = $(AR) $(ARREPFLAGS) $(PLG)
+PRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(PLG)
+
+RARR = $(AR) $(ARREPFLAGS) $(RLG)
+RRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(RLG)
+
+SARR = $(AR) $(ARREPFLAGS) $(SLG)
+SRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(SLG)
+
+WARR = $(AR) $(ARREPFLAGS) $(WLG)
+WRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(WLG)
 
 #  sed scripts
 
@@ -105,37 +114,36 @@ glss = ma33 $(LGS)(smt.o) $(LGS)(gls.o)
 glsd = ma33 $(LGD)(smt.o) $(LGD)(gls.o)
 ma48v3s = ma48v3
 ma48v3d = ma48v3
-cutest_functionss = $(SMTS) $(LGS)(space.o) nlpt $(PRLGS)(cutest_functions.o)
-cutest_functionsd = $(SMTD) $(LGD)(space.o) nlpt $(PRLGD)(cutest_functions.o)
-problems = $(SMTS) nlpt $(PRLGS)(problem.o)
-problemd = $(SMTD) nlpt $(PRLGD)(problem.o)
+cutest_functionss = $(SMTS) $(LGS)(space.o) nlpt $(PLGS)(cutest_functions.o)
+cutest_functionsd = $(SMTD) $(LGD)(space.o) nlpt $(PLGD)(cutest_functions.o)
+problems = $(SMTS) nlpt $(PLGS)(problem.o)
+problemd = $(SMTD) nlpt $(PLGD)(problem.o)
 
-BASIX = $(LG)(cpu_time.o) $(LG)(clock.o) $(BLG)(blas.o) $(LLG)(lapack.o) \
-         $(LG)(symbols.o) pardiso mkl_pardiso $(MLG)(metis.o) wsmp \
-         $(DLG)(dummy.o) $(LG)(blas_interface.o) \
-         $(LG)(lapack_interface.o) minpack
+BASICZ = $(LG)(cputim.o) $(LG)(clock.o) $(BLG)(blas.o) $(LLG)(lapack.o) \
+         $(LG)(symbols.o) $(SLG)(pardiso.o) $(MLG)(metis.o) $(WLG)(wsmp.o) \
+         $(DLG)(dummy.o) $(LG)(blas_interface.o) $(LG)(lapack_interface.o) \
+         $(LG)(string.o) buildspec_silent minpack
+#        $(SSIDS)
 
-ROOTSS = $(BASIX) $(LGS)(string.o) buildspec_silent $(LGS)(specfile.o) \
-         $(LGS)(sort.o) zd11 $(LGS)(smt.o) $(LGS)(space.o) $(LGS)(roots.o)
+BASICS = $(BASICZ) $(LGS)(symbols.o) $(LGS)(specfile.o) \
+         $(LGS)(rand.o) $(LGS)(oldscale.o) $(LGS)(sort.o) $(LGS)(tools.o) \
+         zd11 $(LGS)(smt.o) qpt $(LGS)(space.o) $(LGS)(string.o) \
+         $(LGS)(trans.o) $(LGS)(scale.o) $(LGS)(roots.o) $(LGS)(norms.o) \
+         $(LGS)(checkpoint.o) $(LGS)(opt.o) $(LGS)(convert.o)
 
-ROOTSD = $(BASIX) $(LGD)(string.o) buildspec_silent $(LGD)(specfile.o) \
-         $(LGD)(sort.o) zd11 $(LGD)(smt.o) $(LGD)(space.o) $(LGD)(roots.o)
-
-BASICS = $(ROOTSS) $(LGS)(rand.o) $(LGS)(scaling.o) $(LGS)(tools.o) lmt qpt \
-         $(LGS)(trans.o) $(LGS)(scale.o) $(LGS)(norms.o) \
-         $(LGS)(checkpoint.o) $(LGS)(opt.o) # $(LGS)(convert.o)
-
-BASICD = $(ROOTSD) $(LGD)(rand.o) $(LGD)(scaling.o) $(LGD)(tools.o) lmt qpt \
-         $(LGD)(trans.o) $(LGD)(scale.o) $(LGD)(norms.o) \
-         $(LGD)(checkpoint.o) $(LGD)(opt.o) # $(LGD)(convert.o)
+BASICD = $(BASICZ) $(LGD)(symbols.o) $(LGD)(specfile.o) \
+         $(LGD)(rand.o) $(LGD)(oldscale.o) $(LGD)(sort.o) $(LGD)(tools.o) \
+         zd11  $(LGD)(smt.o) qpt $(LGD)(space.o) $(LGD)(string.o) \
+         $(LGD)(trans.o) $(LGD)(scale.o) $(LGD)(roots.o) $(LGD)(norms.o) \
+         $(LGD)(checkpoint.o) $(LGD)(opt.o) $(LGD)(convert.o)
 
 #        zd11 $(LGD)(smt.o) qpt $(LGD)(space.o) $(LGD)(string.o) $(LGD)(trans.o)
 
-SSIDSS = $(LG)(symbols.o) $(RLGS)(ssidss.o)
-SSIDSD = $(LG)(symbols.o) $(RLGD)(ssidsd.o)
+SSIDSS = $(LG)(symbols.o) $(RLGS)(ssids.o)
+SSIDSD = $(LG)(symbols.o) $(RLGD)(ssids.o)
 
-PARDISOS = $(LG)(symbols.o) $(PLGS)(pardiso.o)
-PARDISOD = $(LG)(symbols.o) $(PLGD)(pardiso.o)
+PARDISOS = $(LG)(symbols.o) $(SLGS)(pardiso.o)
+PARDISOD = $(LG)(symbols.o) $(SLGD)(pardiso.o)
 
 METISS = $(LG)(symbols.o) $(MLGS)(metis.o)
 METISD = $(LG)(symbols.o) $(MLGD)(metis.o)
@@ -165,11 +173,6 @@ RANDDS = $(OBJD)/rands.o
 RANDDT = $(OBJD)/randt.o
 RANDSS = $(OBJS)/rands.o
 RANDST = $(OBJS)/randt.o
-
-SORTDS = $(OBJD)/sorts.o
-SORTDT = $(OBJD)/sortt.o
-SORTSS = $(OBJS)/sorts.o
-SORTST = $(OBJS)/sortt.o
 
 SCALEDS = $(BASICD) $(OBJD)/scale_spec.o
 SCALEDT = $(BASICD) $(OBJD)/scale_test.o
@@ -217,11 +220,6 @@ RRANDDT = $(OBJD)/randt.o -L$(OBJD) $(LIBS)
 RRANDSS = $(OBJS)/rands.o -L$(OBJS) $(LIBS)
 RRANDST = $(OBJS)/randt.o -L$(OBJS) $(LIBS)
 
-RSORTDS = $(OBJD)/sorts.o -L$(OBJD) $(LIBS)
-RSORTDT = $(OBJD)/sortt.o -L$(OBJD) $(LIBS)
-RSORTSS = $(OBJS)/sorts.o -L$(OBJS) $(LIBS)
-RSORTST = $(OBJS)/sortt.o -L$(OBJS) $(LIBS)
-
 RSCUDS = $(OBJD)/scus.o -L$(OBJD) $(LIBS)
 RSCUDT = $(OBJD)/scut.o -L$(OBJD) $(LIBS)
 RSCUSS = $(OBJS)/scus.o -L$(OBJS) $(LIBS)
@@ -253,27 +251,28 @@ cutest_functions_silent: cutest_functions_$(PRECIS)
 cutest_functions: cutest_functions_$(PRECIS)
 	@printf ' %-21s\n' "GALAHAD: cutest_functions package ($(PRECIS) $(SUCC)"
 cutest_functions_single: $(cutest_functionss)
-	$(RANLIB) $(PRLGS)
+	$(RANLIB) $(PLGS)
 cutest_functions_double: $(cutest_functionsd)
-	$(RANLIB) $(PRLGD)
+	$(RANLIB) $(PLGD)
 
 problem_silent: problem_$(PRECIS)
 problem: problem_$(PRECIS)
 	@printf ' %-21s\n' "GALAHAD: basic packages ($(PRECIS) $(SUCC)"
 problem_single: $(problems)
-	$(RANLIB) $(PRLGS)
+	$(RANLIB) $(PLGS)
 problem_double: $(problemd)
-	$(RANLIB) $(PRLGD)
+	$(RANLIB) $(PLGD)
 
 #  basic packages
 
-basic_silent: $(BASIX)
+basicz_silent: $(BASICZ)
 
 basics_silent: basics_silent_$(PRECIS)
 basics_silent_single: $(BASICS)
 basics_silent_double: $(BASICD)
 
 basics: basics_$(PRECIS)
+#	echo $(BASICZ)
 	@printf ' %-21s\n' "GALAHAD: basic packages ($(PRECIS) $(SUCC)"
 basics_single: $(BASICS)
 	$(RANLIB) $(LGS)
@@ -315,12 +314,7 @@ ssids:
 	( cd ../ssids ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
             ssids PRECIS=$(PRECIS) PWD=$(PWD)/../ssids )
 
-ssids_dum_silent: ssids_dum_silent_$(PRECIS)
-ssids_dum_silent_single: $(SSIDSS)
-	$(RANLIB) $(RLGS)
-ssids_dum_silent_double: $(SSIDSD)
-	$(RANLIB) $(RLGD)
-
+ssids_dum_silent: ssids_dum_$(PRECIS)
 ssids_dum: ssids_dum_$(PRECIS)
 	@printf ' %-21s\n' "GALAHAD: $(SSIDS) ($(PRECIS) $(SUCC)"
 ssids_dum_single: $(SSIDSS)
@@ -330,23 +324,23 @@ ssids_dum_double: $(SSIDSD)
 
 #  pardiso
 
-#pardiso_silent: pardiso_$(PRECIS)
-#pardiso: pardiso_$(PRECIS)
-#	@printf ' %-21s\n' "GALAHAD: $(PARDISO) ($(PRECIS) $(SUCC)"
-#pardiso_single: $(PARDISOS)
-#	$(RANLIB) $(PLGS)
-#pardiso_double: $(PARDISOD)
-#	$(RANLIB) $(PLGD)
+pardiso_silent: pardiso_$(PRECIS)
+pardiso: pardiso_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: $(PARDISO) ($(PRECIS) $(SUCC)"
+pardiso_single: $(PARDISOS)
+	$(RANLIB) $(SLGS)
+pardiso_double: $(PARDISOD)
+	$(RANLIB) $(SLGD)
 
 #  wsmp
 
-#wsmp_silent: wsmp_$(PRECIS)
-#wsmp: wsmp_$(PRECIS)
-#	@printf ' %-21s\n' "GALAHAD: $(WSMP) ($(PRECIS) $(SUCC)"
-#wsmp_single: $(WSMPS)
-#	$(RANLIB) $(WLGS)
-#wsmp_double: $(WSMPD)
-#	$(RANLIB) $(WLGD)
+wsmp_silent: wsmp_$(PRECIS)
+wsmp: wsmp_$(PRECIS)
+	@printf ' %-21s\n' "GALAHAD: $(WSMP) ($(PRECIS) $(SUCC)"
+wsmp_single: $(WSMPS)
+	$(RANLIB) $(WLGS)
+wsmp_double: $(WSMPD)
+	$(RANLIB) $(WLGD)
 
 #  metis
 
@@ -370,42 +364,7 @@ lapack_silent: $(LLG)(lapack.o)
 lapack: $(LLG)(lapack.o)
 	@printf ' %-21s\n' "GALAHAD: LAPACK compiled successfully"
 
-# dummy
-
-dummy_silent: $(DLG)(dummy.o)
-dummy: $(DLG)(dummy.o)
-	@printf ' %-21s\n' "GALAHAD: DUMMY compiled successfully"
-
-#  blas_interface
-
-blas_interface_silent: $(LG)(blas_interface.o)
-blas_interface: $(LG)(blas_interface.o)
-	@printf ' %-21s\n' "GALAHAD: BLAS_interface compiled successfully"
-
-# lapack_interface
-
-lapack_interface_silent: $(LG)(lapack_interface.o)
-lapack_interface: $(LG)(lapack_interface.o)
-	@printf ' %-21s\n' "GALAHAD: LAPACK_interface compiled successfully"
-
-# symbols
-
-symbols_silent: $(LG)(symbols.o)
-symbols: $(LG)(symbols.o)
-	@printf ' %-21s\n' "GALAHAD: SYMBOLS compiled successfully"
-
 # smt
-
-smt_silent: smt_silent_$(PRECIS)
-smt_silent_single: $(LGS)(smt.o)
-smt_silent_double: $(LGD)(smt.o)
-
-smt: smt_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: SMT ($(PRECIS) $(SUCC)"
-smt_single: $(smts)
-	$(RANLIB) $(LGS)
-smt_double: $(smtd)
-	$(RANLIB) $(LGD)
 
 smtsrunall: smtss smtst
 smtdrunall: smtds smtdt
@@ -473,78 +432,13 @@ randsrunall: randss randst
 randdrunall: randds randdt
 randrunall: randdrunall randsrunall
 
-# sort
-
-sort_silent: sort_silent_$(PRECIS)
-sort_silent_single: $(LGS)(sort.o)
-sort_silent_double: $(LGD)(sort.o)
-
-sort: sort_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: SORT ($(PRECIS) $(SUCC)"
-sort_single: $(SORTS)
-	$(RANLIB) $(LGS)(sort.o)
-sort_double: $(SORTD)
-	$(RANLIB) $(LGD)(sort.o)
-
-sortsrunall: sortss sortst
-sortdrunall: sortds sortdt
-sortrunall: sortdrunall sortsrunall
-
-# space
-
-space_silent: space_silent_$(PRECIS)
-space_silent_single: $(LGS)(space.o)
-space_silent_double: $(LGD)(space.o)
-
-space: space_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: SPACE ($(PRECIS) $(SUCC)"
-space_single: $(SPACES)
-	$(RANLIB) $(LGS)(space.o)
-space_double: $(SPACED)
-	$(RANLIB) $(LGD)(space.o)
-
-# spec
-
-spec_silent: spec_silent_$(PRECIS)
-spec_silent_single: $(LGS)(specfile.o)
-spec_silent_double: $(LGD)(specfile.o)
-
-spec: spec_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: SPEC ($(PRECIS) $(SUCC)"
-spec_single: $(SPECS)
-	$(RANLIB) $(LGS)(specfile.o)
-spec_double: $(SPECD)
-	$(RANLIB) $(LGD)(specfile.o)
-
 # scu
-
-scu_silent: scu_silent_$(PRECIS)
-scu_silent_single: $(LGS)(scu.o)
-scu_silent_double: $(LGD)(scu.o)
-
-scu: scu_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: SCU ($(PRECIS) $(SUCC)"
-scu_single: $(SCUS)
-	$(RANLIB) $(LGS)(scu.o)
-scu_double: $(SCUD)
-	$(RANLIB) $(LGD)(scu.o)
 
 scusrunall: scuss scust
 scudrunall: scuds scudt
 scurunall: scudrunall scusrunall
 
 # roots
-
-roots_silent: roots_silent_$(PRECIS)
-roots_silent_single: $(ROOTSS)
-roots_silent_double: $(ROOTSD)
-
-roots: roots_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: ROOTS ($(PRECIS) $(SUCC)"
-roots_single: $(ROOTSS)
-	$(RANLIB) $(LGS)
-roots_double: $(ROOTSD)
-	$(RANLIB) $(LGD)
 
 rootssrunall: rootsss rootsst
 rootsdrunall: rootsds rootsdt
@@ -579,12 +473,8 @@ filterrunall: filterdrunall filtersrunall
 #  other galahad packages
 
 nlpt:
-	( cd ../nlpt ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
-            nlpt.o PRECIS=$(PRECIS) PWD=$(PWD)/../nlpt )
-
-lmt:
-	( cd ../lmt ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
-            lmt.o PRECIS=$(PRECIS) PWD=$(PWD)/../lmt )
+	( cd ../filtrane ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
+            nlpt.o PRECIS=$(PRECIS) PWD=$(PWD)/../filtrane )
 
 qpt:
 	( cd ../qpt ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
@@ -620,61 +510,41 @@ ma48v3:
 	( cd ../non-free/ma48 ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
             ma48v3_silent PRECIS=$(PRECIS) PWD=$(PWD)/../non-free/ma48 )
 
-#  other external packages
-
-pardiso_silent: pardiso
-pardiso:
-	( cd ../non-free/pardiso ; $(MAKE) -f \
-           $(GALAHAD)/makefiles/$(VERSION) pardiso_silent \
-           PRECIS=$(PRECIS) PWD=$(PWD)/../non-free/pardiso )
-
-mkl_pardiso_silent: mkl_pardiso
-mkl_pardiso:
-	( cd ../non-free/mkl ; $(MAKE) -f \
-           $(GALAHAD)/makefiles/$(VERSION) mkl_pardiso_silent \
-           PRECIS=$(PRECIS) PWD=$(PWD)/../non-free/mkl )
-
-wsmp_silent: wsmp
-wsmp:
-	( cd ../non-free/mkl ; $(MAKE) -f \
-           $(GALAHAD)/makefiles/$(VERSION) wsmp_silent \
-           PRECIS=$(PRECIS) PWD=$(PWD)/../non-free/wsmp )
-
 minpack:
 	( cd ../non-free/minpack ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
             minpack_silent PRECIS=$(PRECIS) PWD=$(PWD)/../non-free/minpack )
 
-# run spec-sheet example and exhaustive tests
+# run spec-sheet example tests
 
 smtds: $(SMTDS)
 	cd ../smt ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_smt $(RSMTDS)
-	- ../smt/run_smt > ../smt/smtds.output 2>&1
+	- ../smt/run_smt >& ../smt/smtds.output
 	cat ../smt/smtds.output
 	rm ../smt/run_smt
 
 smtdt: $(SMTDT)
 	echo " Exhaustive test of subroutine interface to smt"
 	cd ../smt ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_smt $(RSMTDT)
-	- ../smt/run_smt > ../smt/smtdt.output 2>&1
+	- ../smt/run_smt >& ../smt/smtdt.output
 	cat ../smt/smtdt.output
 	rm ../smt/run_smt
 
 smtss: $(SMTSS)
 	cd ../smt ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_smt $(RSMTSS)
-	- ../smt/run_smt > ../smt/smts.output 2>&1
+	- ../smt/run_smt >& ../smt/smts.output
 	cat ../smt/smts.output
 	rm ../smt/run_smt
 
 smtst: $(SMTST)
 	echo " Exhaustive test of subroutine interface to smt"
 	cd ../smt ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_smt $(RSMTST)
-	- ../smt/run_smt > ../smt/smtt.output 2>&1
+	- ../smt/run_smt >& ../smt/smtt.output
 	cat ../smt/smtt.output
 	rm ../smt/run_smt
 
 silsds: $(SILSDS)
 	cd ../sils ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sils $(RSILSDS)
-	- ../sils//run_sils < ../sils/silss.data > ../sils/silsds.output 2>&1
+	- ../sils//run_sils < ../sils/silss.data >& ../sils/silsds.output
 	cat ../sils/silsds.output
 	rm ../sils/run_sils
 
@@ -682,13 +552,13 @@ silsdt: $(SILSDT)
 	echo " Exhaustive test of subroutine interface to sils"
 	cd ../sils ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sils \
                        $(RSILSDT) ym01ad.f fa04ad.f
-	- ../sils/run_sils  < ../sils/silst.data > ../sils/silsdt.output 2>&1
+	- ../sils/run_sils  < ../sils/silst.data >& ../sils/silsdt.output
 	cat ../sils/silsdt.output
 	rm ../sils/run_sils
 
 silsss: $(SILSSS)
 	cd ../sils ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sils $(RSILSSS)
-	- ../sils/run_sils < ../sils/silss.data > ../sils/silss.output 2>&1
+	- ../sils/run_sils < ../sils/silss.data >& ../sils/silss.output
 	cat ../sils/silss.output
 	rm ../sils/run_sils
 
@@ -696,13 +566,13 @@ silsst: $(SILSST)
 	echo " Exhaustive test of subroutine interface to sils"
 	cd ../sils ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sils \
                        $(RSILSST) ym01a.f fa04a.f
-	- ../sils/run_sils < ../sils/silst.data > ../sils/silst.output 2>&1
+	- ../sils/run_sils < ../sils/silst.data >& ../sils/silst.output
 	cat ../sils/silst.output
 	rm ../sils/run_sils
 
 glsdsbig: $(GLSDSBIG)
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls $(RGLSDSBIG)
-#	- ../gls//run_gls < ../gls/glssbig.data > ../gls/glsdsbig.output 2>&1
+#	- ../gls//run_gls < ../gls/glssbig.data >& ../gls/glsdsbig.output
 #	cat ../gls/glsdsbig.output
 	- ../gls//run_gls < ../gls/glssbig.data
 	rm ../gls/run_gls
@@ -710,7 +580,7 @@ glsdsbig: $(GLSDSBIG)
 glsds: $(GLSDS)
 	echo "$(GLSDS)"
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls $(RGLSDS)
-	- ../gls//run_gls < ../gls/glss.data > ../gls/glsds.output 2>&1
+	- ../gls//run_gls < ../gls/glss.data >& ../gls/glsds.output
 	cat ../gls/glsds.output
 	rm ../gls/run_gls
 
@@ -718,7 +588,7 @@ glsds_rectangular: $(GLSDS)
 	echo "$(GLSDS)"
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls $(RGLSDS)
 	- ../gls//run_gls < ../gls/glss.data.rectangular \
-                          > ../gls/glsds.output.rectangular 2>&1
+          >& ../gls/glsds.output.rectangular
 	cat ../gls/glsds.output.rectangular
 	rm ../gls/run_gls
 
@@ -726,7 +596,7 @@ glsds_rectangular2: $(GLSDS)
 	echo "$(GLSDS)"
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls $(RGLSDS)
 	- ../gls//run_gls < ../gls/glss.data.rectangular2 \
-                          > ../gls/glsds.output.rectangular2 2>&1
+          >& ../gls/glsds.output.rectangular2
 	cat ../gls/glsds.output.rectangular2
 	rm ../gls/run_gls
 
@@ -734,13 +604,13 @@ glsdt: $(GLSDT)
 	echo " Exhaustive test of subroutine interface to gls"
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls \
                        $(RGLSDT) ym01ad.f fa04ad.f
-	- ../gls/run_gls  < ../gls/glst.data > ../gls/glsdt.output 2>&1
+	- ../gls/run_gls  < ../gls/glst.data >& ../gls/glsdt.output
 	cat ../gls/glsdt.output
 	rm ../gls/run_gls
 
 glsss: $(GLSSS)
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls $(RGLSSS)
-	- ../gls/run_gls < ../gls/glss.data > ../gls/glss.output 2>&1
+	- ../gls/run_gls < ../gls/glss.data >& ../gls/glss.output
 	cat ../gls/glss.output
 	rm ../gls/run_gls
 
@@ -748,66 +618,40 @@ glsst: $(GLSST)
 	echo " Exhaustive test of subroutine interface to gls"
 	cd ../gls ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_gls \
                        $(RGLSST) ym01a.f fa04a.f
-	- ../gls/run_gls < ../gls/glst.data > ../gls/glst.output 2>&1
+	- ../gls/run_gls < ../gls/glst.data >& ../gls/glst.output
 	cat ../gls/glst.output
 	rm ../gls/run_gls
 
 randds: $(RANDDS)
 	cd ../rand ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_rand $(RRANDDS)
-	- ../rand/run_rand > ../rand/randds.output 2>&1
+	- ../rand/run_rand >& ../rand/randds.output
 	cat ../rand/randds.output
-	rm ../rand/run_rand
+#	rm ../rand/run_rand
 
 randdt: $(RANDDT)
 	echo " Exhaustive test of subroutine interface to rand"
 	cd ../rand ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_rand $(RRANDDT)
-	- ../rand/run_rand > ../rand/randdt.output 2>&1
+	- ../rand/run_rand >& ../rand/randdt.output
 	cat ../rand/randdt.output
 	rm ../rand/run_rand
 
 randss: $(RANDSS)
 	cd ../rand ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_rand $(RRANDSS)
-	- ../rand/run_rand > ../rand/rands.output 2>&1
+	- ../rand/run_rand >& ../rand/rands.output
 	cat ../rand/rands.output
 	rm ../rand/run_rand
 
 randst: $(RANDST)
 	echo " Exhaustive test of subroutine interface to rand"
 	cd ../rand ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_rand $(RRANDST)
-	- ../rand/run_rand > ../rand/randt.output 2>&1
+	- ../rand/run_rand >& ../rand/randt.output
 	cat ../rand/randt.output
 	rm ../rand/run_rand
-
-sortds: $(SORTDS)
-	cd ../sort ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sort $(RSORTDS)
-	- ../sort/run_sort > ../sort/sortds.output 2>&1
-	cat ../sort/sortds.output
-	rm ../sort/run_sort
-
-sortdt: $(SORTDT)
-	echo " Exhaustive test of subroutine interface to sort"
-	cd ../sort ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sort $(RSORTDT)
-	- ../sort/run_sort > ../sort/sortdt.output 2>&1
-	cat ../sort/sortdt.output
-	rm ../sort/run_sort
-
-sortss: $(SORTSS)
-	cd ../sort ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sort $(RSORTSS)
-	- ../sort/run_sort > ../sort/sorts.output 2>&1
-	cat ../sort/sorts.output
-	rm ../sort/run_sort
-
-sortst: $(SORTST)
-	echo " Exhaustive test of subroutine interface to sort"
-	cd ../sort ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_sort $(RSORTST)
-	- ../sort/run_sort > ../sort/sortt.output 2>&1
-	cat ../sort/sortt.output
-	rm ../sort/run_sort
 
 scaleds: $(SCALEDS)
 	cd ../scale ; \
           $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scale $(RSCALEDS)
-	- ../scale/run_scale > ../scale/scale_specd.output 2>&1
+	- ../scale/run_scale >& ../scale/scale_specd.output
 	cat ../scale/scale_specd.output
 	rm ../scale/run_scale
 
@@ -815,14 +659,14 @@ scaledt: $(SCALEDT)
 	echo " Exhaustive test of subroutine interface to scale"
 	cd ../scale ; \
           $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scale $(RSCALEDT)
-	- ../scale/run_scale > ../scale/scale_testd.output 2>&1
+	- ../scale/run_scale >& ../scale/scale_testd.output
 	cat ../scale/scale_testd.output
 	rm ../scale/run_scale
 
 scaless: $(SCALESS)
 	cd ../scale ; \
           $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scale $(RSCALESS)
-	- ../scale/run_scale > ../scale/scale_specs.output 2>&1
+	- ../scale/run_scale >& ../scale/scale_specs.output
 	cat ../scale/scale_spces.output
 	rm ../scale/run_scale
 
@@ -830,141 +674,128 @@ scalest: $(SCALEST)
 	echo " Exhaustive test of subroutine interface to scale"
 	cd ../scale ; \
           $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scale $(RSCALEST)
-	- ../scale/run_scale > ../scale/scale_tests.output 2>&1
+	- ../scale/run_scale >& ../scale/scale_tests.output
 	cat ../scale/scale_tests.output
 	rm ../scale/run_scale
 
 scuds: $(SCUDS)
 	cd ../scu ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scu $(RSCUDS)
-	- ../scu/run_scu > ../scu/scuds.output 2>&1
+	- ../scu/run_scu >& ../scu/scuds.output
 	cat ../scu/scuds.output
 	rm ../scu/run_scu
 
 scudt: $(SCUDT)
 	echo " Exhaustive test of subroutine interface to scu"
 	cd ../scu ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scu $(RSCUDT)
-	- ../scu/run_scu > ../scu/scudt.output 2>&1
+	- ../scu/run_scu >& ../scu/scudt.output
 	cat ../scu/scudt.output
 	rm ../scu/run_scu
 
 scuss: $(SCUSS)
 	cd ../scu ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scu $(RSCUSS)
-	- ../scu/run_scu > ../scu/scus.output 2>&1
+	- ../scu/run_scu >& ../scu/scus.output
 	cat ../scu/scus.output
 	rm ../scu/run_scu
 
 scust: $(SCUST)
 	echo " Exhaustive test of subroutine interface to scu"
 	cd ../scu ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_scu $(RSCUST)
-	- ../scu/run_scu > ../scu/scut.output 2>&1
+	- ../scu/run_scu >& ../scu/scut.output
 	cat ../scu/scut.output
 	rm ../scu/run_scu
 
 rootsds: $(ROOTSDS)
-	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots \
-                        $(RROOTSDS)
-	- ../roots/run_roots > ../roots/rootsds.output 2>&1
+	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots $(RROOTSDS)
+	- ../roots/run_roots >& ../roots/rootsds.output
 	cat ../roots/rootsds.output
 	rm ../roots/run_roots
 
 rootsdt: $(ROOTSDT)
 	echo " Exhaustive test of subroutine interface to roots"
-	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots \
-                        $(RROOTSDT)
-	- ../roots/run_roots > ../roots/rootsdt.output 2>&1
+	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots $(RROOTSDT)
+	- ../roots/run_roots >& ../roots/rootsdt.output
 	cat ../roots/rootsdt.output
 #	- ../roots/run_roots
 	rm ../roots/run_roots
 
 rootsss: $(ROOTSSS)
-	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots \
-                        $(RROOTSSS)
-	- ../roots/run_roots > ../roots/rootss.output 2>&1
+	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots $(RROOTSSS)
+	- ../roots/run_roots >& ../roots/rootss.output
 	cat ../roots/rootss.output
 	rm ../roots/run_roots
 
 rootsst: $(ROOTSST)
 	echo " Exhaustive test of subroutine interface to roots"
-	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots \
-                        $(RROOTSST)
-	- ../roots/run_roots > ../roots/rootst.output 2>&1
+	cd ../roots ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_roots $(RROOTSST)
+	- ../roots/run_roots >& ../roots/rootst.output
 	cat ../roots/rootst.output
 	rm ../roots/run_roots
 
 convertds: $(CONVERTDS)
-	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert \
-                          $(RCONVERTDS)
-	- ../convert/run_convert > ../convert/convertds.output 2>&1
+	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert $(RCONVERTDS)
+	- ../convert/run_convert >& ../convert/convertds.output
 	cat ../convert/convertds.output
 	rm ../convert/run_convert
 
 convertdt: $(CONVERTDT)
 	echo " Exhaustive test of subroutine interface to convert"
-	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert \
-                          $(RCONVERTDT)
-	- ../convert/run_convert > ../convert/convertdt.output 2>&1
+	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert $(RCONVERTDT)
+	- ../convert/run_convert >& ../convert/convertdt.output
 	cat ../convert/convertdt.output
 #	- ../convert/run_convert
 	rm ../convert/run_convert
 
 convertss: $(CONVERTSS)
-	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert \
-                          $(RCONVERTSS)
-	- ../convert/run_convert > ../convert/converts.output 2>&1
+	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert $(RCONVERTSS)
+	- ../convert/run_convert >& ../convert/converts.output
 	cat ../convert/converts.output
 	rm ../convert/run_convert
 
 convertst: $(CONVERTST)
 	echo " Exhaustive test of subroutine interface to convert"
-	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert \
-                          $(RCONVERTST)
-	- ../convert/run_convert > ../convert/convertt.output 2>&1
+	cd ../convert ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_convert $(RCONVERTST)
+	- ../convert/run_convert >& ../convert/convertt.output
 	cat ../convert/convertt.output
 	rm ../convert/run_convert
 
 filterds: $(FILTERDS)
-	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter \
-                         $(RFILTERDS)
-	- ../filter/run_filter > ../filter/filterds.output 2>&1
+	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter $(RFILTERDS)
+	- ../filter/run_filter >& ../filter/filterds.output
 	cat ../filter/filterds.output
 	rm ../filter/run_filter
 
 filterdt: $(FILTERDT)
 	echo " Exhaustive test of subroutine interface to filter"
-	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter \
-                         $(RFILTERDT)
-	- ../filter/run_filter > ../filter/filterdt.output 2>&1
+	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter $(RFILTERDT)
+	- ../filter/run_filter >& ../filter/filterdt.output
 	cat ../filter/filterdt.output
 #	- ../filter/run_filter
 	rm ../filter/run_filter
 
 filterss: $(FILTERSS)
-	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter \
-                         $(RFILTERSS)
-	- ../filter/run_filter > ../filter/filters.output 2>&1
+	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter $(RFILTERSS)
+	- ../filter/run_filter >& ../filter/filters.output
 	cat ../filter/filters.output
 	rm ../filter/run_filter
 
 filterst: $(FILTERST)
 	echo " Exhaustive test of subroutine interface to filter"
-	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter \
-                         $(RFILTERST)
-	- ../filter/run_filter > ../filter/filtert.output 2>&1
+	cd ../filter ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o run_filter $(RFILTERST)
+	- ../filter/run_filter >& ../filter/filtert.output
 	cat ../filter/filtert.output
 	rm ../filter/run_filter
 
 #  individual compilations
 
-cpu_time.o: $(LG)(cpu_time.o)
+cputim.o: $(LG)(cputim.o)
 
-$(LG)(cpu_time.o): ../cpu_time/cpu_time.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "cpu_time"
-	$(SED) "s/^.$(TIMER)/     /" ../cpu_time/cpu_time.f90 \
-            > $(OBJ)/cpu_time.f90
-	cd $(OBJ); $(FORTRAN) -o cpu_time.o $(FFLAGS) cpu_time.f90 \
+$(LG)(cputim.o): ../auxiliary/cputim.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "cputim"
+	$(SED) "s/^.$(TIMER)/     /" ../auxiliary/cputim.f90 > $(OBJ)/cputim.f90
+	cd $(OBJ); $(FORTRAN) -o cputim.o $(FFLAGS) cputim.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
-                   $(FORTRAN) -o cpu_time.o $(FFLAGSN) cpu_time.f90 )
-	cd $(OBJ); $(ARR) cpu_time.o; $(RM) cpu_time.f90 cpu_time.o
+                   $(FORTRAN) -o cputim.o $(FFLAGSN) cputim.f90 )
+	cd $(OBJ); $(ARR) cputim.o; $(RM) cputim.f90 cputim.o
 	$(RMARFILE) precn.o
 	$(MVMODS)
 	@printf '[ OK ]\n'
@@ -984,9 +815,9 @@ $(LG)(clock.o): ../clock/clock.f90
 
 copyright.o: $(LG)(copyright.o)
 
-$(LG)(copyright.o): ../copyright/copyright.f90
+$(LG)(copyright.o): ../auxiliary/copyright.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "copyright"
-	$(CP) ../copyright/copyright.f90 $(OBJ)/copyright.f90
+	$(CP) ../auxiliary/copyright.f90 $(OBJ)/copyright.f90
 	cd $(OBJ); $(FORTRAN) -o copyright.o $(FFLAGS) copyright.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o copyright.o $(FFLAGSN) copyright.f90 )
@@ -1003,9 +834,9 @@ $(LG)(copyright.o): ../copyright/copyright.f90
 
 norms.o: $(LG)(norms.o)
 
-$(LG)(norms.o): ../norms/norms.f90
+$(LG)(norms.o): ../auxiliary/norms.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "norms"
-	$(SED) -f $(SEDS) ../norms/norms.f90 > $(OBJ)/norms.f90
+	$(SED) -f $(SEDS) ../auxiliary/norms.f90 > $(OBJ)/norms.f90
 	cd $(OBJ); $(FORTRAN) -o norms.o $(FFLAGS) norms.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o norms.o $(FFLAGSN) norms.f90 )
@@ -1020,9 +851,9 @@ $(LG)(norms.o): ../norms/norms.f90
 
 checkpoint.o: $(LG)(checkpoint.o)
 
-$(LG)(checkpoint.o): ../checkpoint/checkpoint.f90
+$(LG)(checkpoint.o): ../auxiliary/checkpoint.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "checkpoint"
-	$(SED) -f $(SEDS) ../checkpoint/checkpoint.f90 > $(OBJ)/checkpoint.f90
+	$(SED) -f $(SEDS) ../auxiliary/checkpoint.f90 > $(OBJ)/checkpoint.f90
 	cd $(OBJ); $(FORTRAN) -o checkpoint.o $(FFLAGS) checkpoint.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o checkpoint.o $(FFLAGSN) checkpoint.f90 )
@@ -1057,6 +888,7 @@ $(BLG)(blas.o): ../lapack/blas.f
 
 dummy.o: $(DLG)(dummy.o)
 
+
 $(DLG)(dummy.o): ../dum/dummy.f
 	@printf ' %-9s %-15s\t\t' "Compiling" "dummy"
 	$(CP) ../dum/dummy.f $(OBJ)/dummy.f90
@@ -1066,6 +898,7 @@ $(DLG)(dummy.o): ../dum/dummy.f
 	@printf '[ OK ]\n'
 
 lapack.o: $(LLG)(lapack.o)
+
 
 $(LLG)(lapack.o): ../lapack/lapack.f
 	@printf ' %-9s %-15s\t\t' "Compiling" "lapack"
@@ -1077,6 +910,7 @@ $(LLG)(lapack.o): ../lapack/lapack.f
 	@printf '[ OK ]\n'
 
 blas_interface.o: $(LG)(blas_interface.o)
+
 
 $(LG)(blas_interface.o): ../lapack/blas_interface.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "blas_interface"
@@ -1098,6 +932,7 @@ $(LG)(blas_interface.o): ../lapack/blas_interface.f90
 	@printf '[ OK ]\n'
 
 lapack_interface.o: $(LG)(lapack_interface.o)
+
 
 $(LG)(lapack_interface.o): ../lapack/lapack_interface.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "lapack_interface"
@@ -1128,41 +963,29 @@ $(MLG)(metis.o): ../dum/metis.f
 	$(RANLIB) $(MLG)
 	@printf '[ OK ]\n'
 
-ssidss.o: $(RLG)(ssidss.o)
+ssids.o: $(RLG)(ssids.o)
 
-$(RLG)(ssidss.o): ../dum/ssidss.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "ssidss_dum"
-	$(SED) -f $(SEDS) ../dum/ssidss.f90 > $(OBJ)/ssidss.f90
-	cd $(OBJ); $(FORTRAN) -o ssidss.o $(FFLAGS) ssidss.f90
-	cd $(OBJ); $(RARR) ssidss.o ; $(RM) ssidss.f90 ssidss.o
+$(RLG)(ssids.o): ../dum/ssids.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "ssids_dum"
+	$(SED) -f $(SEDS) ../dum/ssids.f90 > $(OBJ)/ssids.f90
+	cd $(OBJ); $(FORTRAN) -o ssids.o $(FFLAGS) ssids.f90
+	cd $(OBJ); $(RARR) ssids.o ; $(RM) ssids.f90 ssids.o
 	$(MVMODS)
 	$(RMARFILE) sls.o
 	$(RANLIB) $(RLG)
 	@printf '[ OK ]\n'
 
-ssidsd.o: $(RLG)(ssidsd.o)
+pardiso.o: $(SLG)(pardiso.o)
 
-$(RLG)(ssidsd.o): ../dum/ssidsd.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "ssidsd_dum"
-	$(SED) -f $(SEDS) ../dum/ssidsd.f90 > $(OBJ)/ssidsd.f90
-	cd $(OBJ); $(FORTRAN) -o ssidsd.o $(FFLAGS) ssidsd.f90
-	cd $(OBJ); $(RARR) ssidsd.o ; $(RM) ssidsd.f90 ssidsd.o
-	$(MVMODS)
-	$(RMARFILE) sls.o
-	$(RANLIB) $(RLG)
-	@printf '[ OK ]\n'
-
-pardiso.o: $(PLG)(pardiso.o)
-
-$(PLG)(pardiso.o): ../dum/pardiso.f
+$(SLG)(pardiso.o): ../dum/pardiso.f
 	@printf ' %-9s %-15s\t\t' "Compiling" "pardiso  "
 	$(SED) -f $(SEDS) ../dum/pardiso.f > $(OBJ)/pardiso.f90
 	cd $(OBJ); $(FORTRAN) -o pardiso.o $(FFLAGS) pardiso.f90
-	cd $(OBJ); $(PARR) pardiso.o ; $(RM) pardiso.f90 pardiso.o
-	$(RANLIB) $(PLG)
+	cd $(OBJ); $(SARR) pardiso.o ; $(RM) pardiso.f90 pardiso.o
+	$(RANLIB) $(SLG)
 	@printf '[ OK ]\n'
 
-wsmp.o: $(WLG)(wsmp.o)
+wsmp.o: $(SLG)(wsmp.o)
 
 $(WLG)(wsmp.o): ../dum/wsmp.f
 	@printf ' %-9s %-15s\t\t' "Compiling" "wsmp  "
@@ -1174,9 +997,9 @@ $(WLG)(wsmp.o): ../dum/wsmp.f
 
 specfile.o: $(LG)(specfile.o)
 
-$(LG)(specfile.o): ../specfile/specfile.f90
+$(LG)(specfile.o): ../spec/specfile.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "specfile"
-	$(SED) -f $(SEDS) ../specfile/specfile.f90 > $(OBJ)/specfile.f90
+	$(SED) -f $(SEDS) ../spec/specfile.f90 > $(OBJ)/specfile.f90
 	cd $(OBJ); $(FORTRAN) -o specfile.o $(FFLAGSS) specfile.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o specfile.o $(FFLAGSN) specfile.f90 )
@@ -1196,15 +1019,15 @@ $(LG)(specfile.o): ../specfile/specfile.f90
 	$(MVMODS)
 	@printf '[ OK ]\n'
 
-scaling.o: $(LG)(scaling.o)
+oldscale.o: $(LG)(oldscale.o)
 
-$(LG)(scaling.o): ../scaling/scaling.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "scaling"
-	$(SED) -f $(SEDS) ../scaling/scaling.f90 > $(OBJ)/scaling.f90
-	cd $(OBJ); $(FORTRAN) -o scaling.o $(FFLAGSS) scaling.f90 \
+$(LG)(oldscale.o): ../auxiliary/oldscale.f90
+	@printf ' %-9s %-15s\t\t' "Compiling" "oldscale"
+	$(SED) -f $(SEDS) ../auxiliary/oldscale.f90 > $(OBJ)/oldscale.f90
+	cd $(OBJ); $(FORTRAN) -o oldscale.o $(FFLAGSS) oldscale.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
-                   $(FORTRAN) -o scaling.o $(FFLAGSN) scaling.f90 )
-	cd $(OBJ); $(ARR) scaling.o ; $(RM) scaling.f90 scaling.o
+                   $(FORTRAN) -o oldscale.o $(FFLAGSN) oldscale.f90 )
+	cd $(OBJ); $(ARR) oldscale.o ; $(RM) oldscale.f90 oldscale.o
 	$(RMARFILE) useqpa.o
 	$(RMARFILE) useqpb.o
 	$(RMARFILE) useqpc.o
@@ -1225,7 +1048,7 @@ $(LG)(smt.o): ../smt/smt.f90
 	$(RMARFILE) space.o
 	$(RMARFILE) nlpt.o
 	$(RMARFILE) mop.o
-	$(PRRMARFILE) cutest_functions.o
+	$(PRMARFILE) cutest_functions.o
 	$(RMARFILE) qpt.o
 	$(RMARFILE) sils.o
 	$(RMARFILE) gls.o
@@ -1276,7 +1099,6 @@ $(LG)(trans.o): ../trans/trans.f90
                    $(FORTRAN) -o trans.o $(FFLAGSN) trans.f90 )
 	cd $(OBJ); $(ARR) trans.o ; $(RM) trans.f90 f90 trans.o
 	$(RMARFILE) ptrans.o
-	$(RMARFILE) qtrans.o
 	$(RMARFILE) scale.o
 	$(MVMODS)
 	@printf '[ OK ]\n'
@@ -1293,19 +1115,6 @@ $(LG)(ptrans.o): ../ptrans/ptrans.f90
 	cd $(OBJ); $(ARR) ptrans.o ; $(RM) ptrans.f90 ptrans1.f90 ptrans.o
 	$(RMARFILE) superb.o
 	$(RMARFILE) trtn.o
-	$(MVMODS)
-	@printf '[ OK ]\n'
-
-qtrans.o: $(LG)(qtrans.o)
-
-$(LG)(qtrans.o): ../qtrans/qtrans.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "qtrans   "
-	$(SED) -f $(SEDS) ../qtrans/qtrans.f90 > $(OBJ)/qtrans1.f90
-	$(SED) -f $(LSEDS) $(OBJ)/qtrans1.f90 > $(OBJ)/qtrans.f90
-	cd $(OBJ); $(FORTRAN) -o qtrans.o $(FFLAGSS) qtrans.f90 \
-                || ( printf ' %-26s' "=> Disabling optimization " ; \
-                   $(FORTRAN) -o qtrans.o $(FFLAGSN) qtrans.f90 )
-	cd $(OBJ); $(ARR) qtrans.o ; $(RM) qtrans.f90 qtrans1.f90 qtrans.o
 	$(MVMODS)
 	@printf '[ OK ]\n'
 
@@ -1384,7 +1193,7 @@ $(LG)(space.o): ../space/space.f90
 	$(RMARFILE) gltr.o
 	$(RMARFILE) qpc.o
 	$(RMARFILE) wcp.o
-	$(PRRMARFILE) cutest_functions.o
+	$(PRMARFILE) cutest_functions.o
 	$(MVMODS)
 	@printf '[ OK ]\n'
 
@@ -1392,13 +1201,12 @@ string.o: $(LG)(string.o)
 
 $(LG)(string.o): ../string/string.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "string  "
-	$(SED) -f $(SEDS) ../string/string.f90 > $(OBJ)/string.f90
+#	$(SED) -f $(SEDS) ../string/string.f90 > $(OBJ)/string.f90
 	$(CP) ../string/string.f90 $(OBJ)/string.f90
 	cd $(OBJ); $(FORTRAN) -o string.o $(FFLAGSS) string.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o string.o $(FFLAGSN) string.f90 )
-#	cd $(OBJ); $(ARR) string.o ; $(RM) string.f90 string.o
-	cd $(OBJ); $(ARR) string.o ; $(RM) string.o
+	cd $(OBJ); $(ARR) string.o ; $(RM) string.f90 string.o
 	$(RMARFILE) uls.o
 	$(RMARFILE) sls.o
 	$(RMARFILE) wcp.o
@@ -1408,9 +1216,9 @@ $(LG)(string.o): ../string/string.f90
 
 symbols.o: $(LG)(symbols.o)
 
-$(LG)(symbols.o): ../symbols/symbols.f90
+$(LG)(symbols.o): ../sym/symbols.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "symbols"
-	$(SED) -f $(SEDS) ../symbols/symbols.f90 > $(OBJ)/symbols.f90
+	$(SED) -f $(SEDS) ../sym/symbols.f90 > $(OBJ)/symbols.f90
 	cd $(OBJ); $(FORTRAN) -o symbols.o $(FFLAGSS) symbols.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o symbols.o $(FFLAGSN) symbols.f90 )
@@ -1491,23 +1299,23 @@ $(LG)(roots.o): ../roots/roots.f90
 	$(MVMODS)
 	@printf '[ OK ]\n'
 
-problem.o: $(PRLG)(problem.o)
+problem.o: $(PLG)(problem.o)
 
-$(PRLG)(problem.o): ../problem/problem.f90
+$(PLG)(problem.o): ../auxiliary/problem.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "problem   "
-	$(SED) -f $(SEDS) ../problem/problem.f90 > $(OBJ)/problem1.f90
+	$(SED) -f $(SEDS) ../auxiliary/problem.f90 > $(OBJ)/problem1.f90
 	$(SED) -f $(LSEDS) $(OBJ)/problem1.f90 > $(OBJ)/problem.f90
 	cd $(OBJ); $(FORTRAN) -o problem.o $(FFLAGSS) problem.f90 \
                 || ( printf ' %-26s' "=> Disabling optimization " ; \
                    $(FORTRAN) -o problem.o $(FFLAGSN) problem.f90 )
-	cd $(OBJ); $(PRARR) problem.o ; $(RM) problem.f90 probblem1.f90 problem.o
+	cd $(OBJ); $(PARR) problem.o ; $(RM) problem.f90 probblem1.f90 problem.o
 	@printf '[ OK ]\n'
 
-cutest_functions.o: $(PRLG)(cutest_functions.o)
+cutest_functions.o: $(PLG)(cutest_functions.o)
 
-$(PRLG)(cutest_functions.o): ../cutest_functions/cutest_functions.f90
+$(PLG)(cutest_functions.o): ../auxiliary/cutest_functions.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "cutest_functions   "
-	$(SED) -f $(SEDS) ../cutest_functions/cutest_functions.f90 > \
+	$(SED) -f $(SEDS) ../auxiliary/cutest_functions.f90 > \
           $(OBJ)/cutest_functions1.f90
 	$(SED) -f $(LSEDS) $(OBJ)/cutest_functions1.f90 > \
           $(OBJ)/cutest_functions.f90
@@ -1515,7 +1323,7 @@ $(PRLG)(cutest_functions.o): ../cutest_functions/cutest_functions.f90
           $(FORTRAN) -o cutest_functions.o $(FFLAGSS) cutest_functions.f90 \
               || ( printf ' %-26s' "=> Disabling optimization " ; \
               $(FORTRAN) -o cutest_functions.o $(FFLAGSN) cutest_functions.f90 )
-	cd $(OBJ); $(PRARR) cutest_functions.o ; $(RM) cutest_functions.f90 \
+	cd $(OBJ); $(PARR) cutest_functions.o ; $(RM) cutest_functions.f90 \
           cutest_functions1.f90 cutest_functions.o
 	$(RMARFILE) usefisqp.o
 	$(RMARFILE) usefastr.o
@@ -1534,9 +1342,9 @@ buildspec_silent: $(OBJ)/buildspec
 buildspec: $(OBJ)/buildspec
 	@printf ' %-21s\n' "GALAHAD: buildspec package ($(PRECIS) $(SUCC)"
 
-$(OBJ)/buildspec: ../buildspec/buildspec.f90
+$(OBJ)/buildspec: ../spec/buildspec.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "buildspec  "
-	$(SED) -f $(SEDS) ../buildspec/buildspec.f90 > $(OBJ)/buildspec.f90
+	$(SED) -f $(SEDS) ../spec/buildspec.f90 > $(OBJ)/buildspec.f90
 	cd $(OBJ) ; $(FORTRAN) -o buildspec $(RUNFFLAGS) buildspec.f90 \
           -lgalahad -L$(OBJ)
 	rm $(OBJ)/*.f90
@@ -1622,24 +1430,6 @@ $(OBJ)/randt.o: ../rand/randt.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "randt  "
 	$(SED) -f $(SEDS) ../rand/randt.f90 > $(OBJ)/randt.f90
 	cd $(OBJ) ; $(FORTRAN) -o randt.o $(FFLAGSS) randt.f90
-	rm $(OBJ)/*.f90
-	@printf '[ OK ]\n'
-
-sorts.o: $(OBJ)/sorts.o
-
-$(OBJ)/sorts.o: ../sort/sorts.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "sorts  "
-	$(SED) -f $(SEDS) ../sort/sorts.f90 > $(OBJ)/sorts.f90
-	cd $(OBJ) ; $(FORTRAN) -o sorts.o $(FFLAGS) sorts.f90
-	rm $(OBJ)/*.f90
-	@printf '[ OK ]\n'
-
-sortt.o: $(OBJ)/sortt.o
-
-$(OBJ)/sortt.o: ../sort/sortt.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "sortt  "
-	$(SED) -f $(SEDS) ../sort/sortt.f90 > $(OBJ)/sortt.f90
-	cd $(OBJ) ; $(FORTRAN) -o sortt.o $(FFLAGSS) sortt.f90
 	rm $(OBJ)/*.f90
 	@printf '[ OK ]\n'
 
@@ -1749,11 +1539,6 @@ clean:
 	$(RM) $(LGS) $(LGD) $(OBJ)/qpbdt.o $(OBJ)/qpbs.o $(OBJ)/qpbt.o $(OBJ)/qpbst.o
 	@printf '[ OK ]\n'
 
-clean_spral:
-	@printf ' %-9s\t\t' "Removing spral"
-	$(RM) $(LGS) $(LGD) $(OBJ)/libgalahad_spral.a $(MOD)/spral*
-	@printf '[ OK ]\n'
-
 cleanall:
 	@printf ' %-14s\t\t' "Removing all $(PRECIS) precision object and module files"
 	$(RM) $(OBJ)/* $(MOD)/*
@@ -1762,4 +1547,4 @@ cleanall:
 rmgls:
 	@printf ' %-9s %-15s\t\t' "Removing" "gls from archive "
 	$(RMARFILE) gls.o
-	@printf '[ OK ]
+	@printf '[ OK ]\n'

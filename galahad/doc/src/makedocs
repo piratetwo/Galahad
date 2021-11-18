@@ -1,14 +1,11 @@
 #!/bin/csh
 
-#foreach pack ( arc blls bqp bqpb bsc check convert cro ccqp cqp dps dqp eqp fdc fdh filtrane fisqp glrt gls gltr ir lancelot lancelot_simple lpa lpb lsqp l2rt lsrt lstr llst lms miqr mop nls nlpt presolve qp qpa qpb qpc qpp qpt rand roots sbls scale scu sils sls smt sort symbols trb trs tru uls wcp )
+#foreach pack ( arc bqp bsc check cro ccqp cqp dps dqp eqp fdc fdh filtrane glrt gls gltr ir lancelot lancelot_simple lpa lpb lsqp l2rt lsrt lstr llst lms miqr mop nls nlpt presolve qp qpa qpb qpc qpp qpt rand roots sbls scale scu sils sls smt sort symbols trs tru uls wcp )
 #foreach pack ( filtrane )
 #foreach pack ( sils )
 #foreach pack ( sort )
-#foreach pack ( convert )
-#foreach pack ( blls )
-#foreach pack ( bqpb )
 #foreach pack ( ccqp )
-foreach pack ( cqp )
+#foreach pack ( cqp )
 #foreach pack ( lpa )
 #foreach pack ( lpb )
 #foreach pack ( gltr )
@@ -31,15 +28,13 @@ foreach pack ( cqp )
 #foreach pack ( fdh )
 #foreach pack ( dqp )
 #foreach pack ( nls )
-#foreach pack ( fisqp )
-#foreach pack ( ir )
 #foreach pack ( qpp )
 #foreach pack ( lsqp )
 #foreach pack ( qpa )
 #foreach pack ( qpb lsqp )
 #foreach pack ( qpb qpc )
 #foreach pack ( qpc )
-#foreach pack ( cqp dqp )
+foreach pack ( cqp dqp )
 #foreach pack ( cro )
 #foreach pack ( qpc eqp )
 #foreach pack ( lsqp )
@@ -57,19 +52,17 @@ foreach pack ( cqp )
 #foreach pack ( miqr )
 #foreach pack ( scale )
 #foreach pack ( gls )
-#foreach pack ( uls gls )
+#foreach pack ( uls )
 #foreach pack ( sls )
 #foreach pack ( sbls )
 #foreach pack ( smt )
 #foreach pack ( trs rqs )
 #foreach pack ( dps )
-#foreach pack ( trb )
-#foreach pack ( gltr scu )
 #foreach pack ( trs )
 #foreach pack ( llst )
 #foreach pack ( rqs)
 #foreach pack ( tru )
-#foreach pack ( arc tru trb )
+#foreach pack ( arc tru )
 #foreach pack ( ir )
 #foreach pack ( gltr sbls eqp )
 #foreach pack ( symbols )
@@ -83,9 +76,9 @@ foreach pack ( cqp )
 #foreach pack ( qpa qpb qpc qpp lsqp fdc symbols eqp sbls )
 #foreach pack ( cqp eqp fdc lsqp qpa qpb qpc qp rqs sbls sls trs wcp )
   echo "    " $pack
-  my_latex $pack
-  my_latex $pack
-  my_latex $pack
+  latex $pack
+  latex $pack
+  latex $pack
   psfromdvi ../$pack
 # lpr ../$pack.ps
   ps2pdf "-sPAPERSIZE=a4" ../$pack.ps ../$pack.pdf

@@ -10,7 +10,7 @@
    TYPE ( L1QP_inform_type ) :: inform
    INTEGER :: s
    INTEGER, PARAMETER :: n = 3, m = 2, h_ne = 4, a_ne = 4 
-   INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_stat, X_stat
+   INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_stat, B_stat
 ! start problem data
    ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ) )
    ALLOCATE( p%C( m ), p%C_l( m ), p%C_u( m ) )

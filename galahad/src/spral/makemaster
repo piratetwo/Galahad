@@ -15,15 +15,14 @@ FFLAGSN       = $(BASIC) $(NOOPTIMIZATION) $(DEBUG) $(MODULES) $(F90)
 FFLAGS77      = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(USUAL)
 FFLAGS77S     = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(SPECIAL)
 FFLAGSOMP     = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(USUAL) \
-                $(SOMP)
-FFLAGSNOMP    = $(BASIC) $(NOOPTIMIZATION) $(DEBUG) $(MODULES) $(F90) \
-                $(SOMP)
+                $(OPENMP)
+FFLAGSNOMP    = $(BASIC) $(NOOPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(OPENMP)
 RUNFFLAGS     =          $(OPTIMIZATION) $(DEBUG) $(MODULES)
 RUNFFLAGSCUDA =          $(OPTIMIZATION)          $(MODULES)
-RUNFFLAGSOMP  =          $(OPTIMIZATION) $(DEBUG) $(MODULES) $(SOMP)
+RUNFFLAGSOMP  =          $(OPTIMIZATION) $(DEBUG) $(MODULES) $(OPENMP)
 
-CXXFLAGSOMP   = $(CXXBASIC) $(OPTIMIZATION) $(CXXDEBUG)  $(SOMP)
-CXXFLAGSNOMP  = $(CXXBASIC) $(NOOPTIMIZATION) $(CXXDEBUG) $(SOMP)
+CXXFLAGSOMP   = $(CXXBASIC) $(OPTIMIZATION) $(CXXDEBUG)  $(OPENMP)
+CXXFLAGSNOMP  = $(CXXBASIC) $(NOOPTIMIZATION) $(CXXDEBUG) $(OPENMP)
 
 CUDAFLAGS   = -arch=$(CUDAARCH) -code=$(CUDACODE) $(CUDABASIC) $(OPTIMIZATION)
 CUDAFLAGSN  = -arch=$(CUDAARCH) -code=$(CUDACODE) $(CUDABASIC) $(NOOPTIMIZATION)
@@ -158,9 +157,8 @@ ssids_double: $(SSIDSD)
 ssidsds: $(SSIDSDS)
 	cd ../ssids ; $(FORTRAN) $(RUNFFLAGSOMP) $(SPECIAL) \
           -o run_ssids $(RSSIDSDS)
-#	- ../ssids/run_ssids < ../ssids/ssidss.data
-	- ../ssids/run_ssids < ../ssids/ssidss.data \
-                             > ../ssids/ssidsds.output 2>&1
+	- ../ssids//run_ssids < ../ssids/ssidss.data
+#	- ../ssids//run_ssids < ../ssids/ssidss.data >& ../ssids/ssidsds.output
 	cat ../ssids/ssidsds.output
 	rm ../ssids/run_ssids
 
@@ -174,9 +172,8 @@ ssidsds_valgrind: $(SSIDSDS)
 ssidsds_cuda: $(SSIDSDS)
 	cd ../ssids ; $(CUDACOMP) $(CUDAOPENMP) -o run_ssids \
                       $(RSSIDSDS) $(CUDALIBS) $(RUNFFLAGSCUDA) $(SPECIAL)
-#	- ../ssids/run_ssids < ../ssids/ssidss.data
-	- ../ssids/run_ssids < ../ssids/ssidss.data \
-                             > ../ssids/ssidsds.output 2>&1
+#	- ../ssids//run_ssids < ../ssids/ssidss.data
+	- ../ssids//run_ssids < ../ssids/ssidss.data >& ../ssids/ssidsds.output
 	cat ../ssids/ssidsds.output
 	rm ../ssids/run_ssids
 
@@ -192,15 +189,15 @@ ssidsdt: $(SSIDSDT)
 	cd ../ssids ; $(FORTRAN) $(RUNFFLAGSOMP) $(SPECIAL) \
           -o run_ssids $(RSSIDSDT)
 #	- ../ssids/run_ssids
-	- ../ssids/run_ssids  > ../ssids/ssidsdt.output 2>&1
+	- ../ssids/run_ssids  >& ../ssids/ssidsdt.output
 	cat ../ssids/ssidsdt.output
 	rm ../ssids/run_ssids
 
 ssidsdt_cuda: $(SSIDSDT)
 	cd ../ssids ; $(CUDACOMP) $(CUDAOPENMP) -o run_ssids \
                       $(RSSIDSDT) $(CUDALIBS) $(RUNFFLAGSCUDA) $(SPECIAL)
-#	- ../ssids/run_ssids
-	- ../ssids/run_ssids > ../ssids/ssidsdt.output 2>&1
+#	- ../ssids//run_ssids
+	- ../ssids//run_ssids >& ../ssids/ssidsdt.output
 	cat ../ssids/ssidsdt.output
 	rm ../ssids/run_ssids
 
@@ -224,8 +221,7 @@ ssidsss: $(SSIDSSS)
 	cd ../ssids ; $(FORTRAN) $(RUNFFLAGSOMP) $(SPECIAL) \
           -o run_ssids $(RSSIDSSS)
 #	- ../ssids/run_ssids < ../ssids/ssidss.data
-	- ../ssids/run_ssids < ../ssids/ssidss.data \
-                             > ../ssids/ssidss.output 2>&1
+	- ../ssids/run_ssids < ../ssids/ssidss.data >& ../ssids/ssidss.output
 	cat ../ssids/ssidss.output
 	rm ../ssids/run_ssids
 
@@ -234,7 +230,7 @@ ssidsst: $(SSIDSST)
 	cd ../ssids ; $(FORTRAN) $(RUNFFLAGSOMP) $(SPECIAL) \
           -o run_ssids $(RSSIDSST)
 #	- ../ssids/run_ssids < ../ssids/ssidss.data
-	- ../ssids/run_ssids > ../ssids/ssidst.output 2>&1
+	- ../ssids/run_ssids >& ../ssids/ssidst.output
 	cat ../ssids/ssidst.output
 	rm ../ssids/run_ssids
 
@@ -997,29 +993,15 @@ $(RLG)(profile_iface.o): ../ssids/profile_iface.f90
 	$(MVMODS)
 	@printf '[ OK ]\n'
 
-#fkeep.o: $(RLG)(fkeep.o)
-
-#$(RLG)(fkeep.o): ../ssids/fkeep.f90
-#	@printf ' %-9s %-15s\t\t' "Compiling" "fkeep  "
-#	$(SED) -f $(SEDS) ../ssids/fkeep.f90 > $(OBJ)/fkeep.f90
-#	cd $(OBJ) ; $(FORTRAN) -o fkeep.o $(FFLAGSOMP) fkeep.f90 \
-#                 || ( printf ' %-26s' "=> Disabling optimization " ; \
-#                    $(FORTRAN) -o fkeep.o $(FFLAGSNOMP) fkeep.f90 )
-#	cd $(OBJ) ; $(RARR) fkeep.o ; $(RM) fkeep.f90 fkeep.o
-#	$(RRMARFILE) ssids.o
-##	$(RANLIB) $(RLG)
-#	$(MVMODS)
-#	@printf '[ OK ]\n'
-
 fkeep.o: $(RLG)(fkeep.o)
 
-$(RLG)(fkeep.o): ../ssids/fkeep.F90
+$(RLG)(fkeep.o): ../ssids/fkeep.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "fkeep  "
-	$(SED) -f $(SEDS) ../ssids/fkeep.F90 > $(OBJ)/fkeep.F90
-	cd $(OBJ) ; $(FORTRAN) -o fkeep.o $(FFLAGSOMP) fkeep.F90 \
+	$(SED) -f $(SEDS) ../ssids/fkeep.f90 > $(OBJ)/fkeep.f90
+	cd $(OBJ) ; $(FORTRAN) -o fkeep.o $(FFLAGSOMP) fkeep.f90 \
                  || ( printf ' %-26s' "=> Disabling optimization " ; \
-                    $(FORTRAN) -o fkeep.o $(FFLAGSNOMP) fkeep.F90 )
-	cd $(OBJ) ; $(RARR) fkeep.o ; $(RM) fkeep.F90 fkeep.o
+                    $(FORTRAN) -o fkeep.o $(FFLAGSNOMP) fkeep.f90 )
+	cd $(OBJ) ; $(RARR) fkeep.o ; $(RM) fkeep.f90 fkeep.o
 	$(RRMARFILE) ssids.o
 #	$(RANLIB) $(RLG)
 	$(MVMODS)
@@ -1098,7 +1080,7 @@ ssidss.o: $(OBJ)/ssidss.o
 $(OBJ)/ssidss.o: ../ssids/ssidss.f90
 	@printf ' %-9s %-15s\t\t' "Compiling" "ssidss  "
 	$(SED) -f $(SEDS) ../ssids/ssidss.f90 > $(OBJ)/ssidss.f90
-	cd $(OBJ) ; $(FORTRAN) -o ssidss.o $(FFLAGSOMP) ssidss.f90
+	cd $(OBJ) ; $(FORTRAN) -o ssidss.o $(FFLAGS) ssidss.f90
 	rm $(OBJ)/*.f90
 	@printf '[ OK ]\n'
 

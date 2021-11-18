@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 20/05/2021 AT 11:00 GMT.
+! THIS VERSION: GALAHAD 3.1 - 16/06/2018 AT 13:00 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D   R U N B Q P B _ D A T A  *-*-*-*-*-*-*-*-*-
 
@@ -29,7 +29,7 @@
    USE GALAHAD_PRESOLVE_double
    USE GALAHAD_SPECFILE_double
    USE GALAHAD_COPYRIGHT
-   USE GALAHAD_SCALING_double
+   USE SCALING
    USE GALAHAD_SYMBOLS,                                                        &
        ACTIVE                => GALAHAD_ACTIVE,                                &
        TRACE                 => GALAHAD_TRACE,                                 &
@@ -180,12 +180,13 @@
       TYPE ( BQPB_control_type ) :: BQPB_control
       TYPE ( BQPB_inform_type ) :: BQPB_inform
       TYPE ( QPT_problem_type ) :: prob
+      TYPE ( NLPT_userdata_type ) :: userdata
 
 !  Allocatable arrays
 
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: SH, SA
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: HX
-      INTEGER, ALLOCATABLE, DIMENSION( : ) :: IW, X_stat
+      INTEGER, ALLOCATABLE, DIMENSION( : ) :: IW, B_stat
 
      CALL CPU_TIME( time )
 
@@ -250,7 +251,7 @@
 
 !  Allocate derived types
 
-      ALLOCATE( prob%X0( n ), X_stat( n ), STAT = alloc_stat )
+      ALLOCATE( prob%X0( n ), B_stat( n ), STAT = alloc_stat )
       IF ( alloc_stat /= 0 ) THEN
         WRITE( out, 2150 ) 'X0', alloc_stat
         STOP
@@ -435,7 +436,7 @@
       WRITE( out, 2020 ) pname
       WRITE( out, 2200 ) n, H_ne
 
-      X_stat = 0
+      B_stat = 0
 
 !  If required, scale the problem
 
@@ -521,8 +522,7 @@
 
         solv = ' BQPB'
         IF ( printo ) WRITE( out, " ( ' ** BQPB solver used ** ' ) " )
-        CALL BQPB_solve( prob, data, BQPB_control, BQPB_inform,                &
-                         X_stat = X_stat )
+        CALL BQPB_solve( prob, B_stat, data, BQPB_control, BQPB_inform, userdata )
 
         IF ( printo ) WRITE( out, " ( /, ' ** BQPB solver used ** ' ) " )
         qfval = BQPB_inform%obj
@@ -533,7 +533,7 @@
 
         status = BQPB_inform%status
         iter = BQPB_inform%iter
-        stopr = BQPB_control%stop_abs_d
+        stopr = BQPB_control%stop_d
         CALL BQPB_terminate( data, BQPB_control, BQPB_inform )
       ELSE
         timeo  = 0.0
@@ -541,7 +541,7 @@
         iter  = 0
         solv   = ' NONE'
         status = 0
-        stopr = BQPB_control%stop_abs_d
+        stopr = BQPB_control%stop_d
         qfval  = prob%f
       END IF
 

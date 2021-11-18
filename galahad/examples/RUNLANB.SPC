@@ -1,1 +1,0 @@
-../src/lanb/RUNLANB.distrib

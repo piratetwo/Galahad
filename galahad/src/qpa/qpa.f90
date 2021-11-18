@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 15/10/2014 AT 13:20 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ Q P A  M O D U L E  -*-*-*-*-*-*-*-*-*-*-
 
@@ -39,8 +39,8 @@
       USE GALAHAD_QPT_double
       USE GALAHAD_RAND_double
       USE GALAHAD_ROOTS_double, ONLY : ROOTS_quadratic
-      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_are,                    &
-                                STRING_exponent, STRING_real_7
+      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_are,             &
+                                       STRING_exponent, STRING_real_7
       USE GALAHAD_SORT_double, ONLY: SORT_heapsort_build,                      &
          SORT_heapsort_smallest, SORT_inplace_permute, SORT_inverse_permute
       USE GALAHAD_SLS_double
@@ -1106,8 +1106,7 @@
       INTEGER :: hd_start, hd_end, hnd_start, hnd_end, type, n_pcg
       REAL ( KIND = wp ) :: a_x, a_norms
       REAL :: time_start, time_record, time_now, time_inner_start
-      REAL ( KIND = WP ) :: clock_start, clock_record
-      REAL ( KIND = WP ) :: clock_now, clock_inner_start
+      REAL ( KIND = WP ) :: clock_start, clock_record, clock_now, clock_inner_start
       LOGICAL :: printi
       CHARACTER ( LEN = 80 ) :: array_name
 
@@ -2194,7 +2193,7 @@
       TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( INOUT ) :: K
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
@@ -2845,7 +2844,7 @@
       TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( INOUT ) :: K
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
@@ -6632,7 +6631,7 @@
 
 !  Order the breakpoints in increasing size using a heapsort. Build the heap
 
-      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, ix = IBREAK )
+      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, INDA = IBREAK )
       cluster_start = 1
       cluster_end = 0
       cluster = '      0      0'
@@ -6690,7 +6689,7 @@
         t_old = t_break
         IF ( nbreak > 0 ) THEN
           t_break = BREAKP( 1 )
-          CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
+          CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
           cluster_end = cluster_end + 1
           cluster_start = cluster_end
         ELSE
@@ -6805,7 +6804,7 @@
 
             IF ( BREAKP( 1 ) >= feasep ) EXIT
             CALL SORT_heapsort_smallest( nbreak, BREAKP( : nbreak ), inheap,   &
-                                         ix = IBREAK )
+                                    INDA = IBREAK )
             cluster_end = cluster_end + 1
           END DO
 
@@ -11450,7 +11449,7 @@ main: DO
       REAL ( KIND = wp ), INTENT( IN ),                                        &
                           DIMENSION( A_ptr( m + 1 ) - 1 ) :: A_val
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( IN ) :: K
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
@@ -11697,7 +11696,7 @@ main: DO
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION ( k_n_max ) :: VECTOR
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m + n ) :: PERT
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( IN ) :: K
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data

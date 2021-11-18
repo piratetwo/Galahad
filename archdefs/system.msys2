@@ -2,6 +2,7 @@
 #
 #  System specifications (Windows + Msys2 + MinGW64)
 #  Requires $MSY2 and $MINGW64 to have been set
+#
 
 SYSTEM="MSYS2"
 KEYSYS="CMINGW"
@@ -16,22 +17,22 @@ TMP=/tmp
 #  basic system commands
 #
 
-MKDIR=$MSY2"/bin/mkdir"
-CP=$MSY2"/bin/cp"
-RM=$MSY2"/bin/rm -f"
-MV=$MSY2"/bin/mv"
-CAT=$MSY2"/bin/cat"
-CHMOD=$MSY2"/bin/chmod"
-SED=$MSY2"/bin/sed"
-LN=$MSY2"/bin/ln"
-LS=$MSY2"/bin/ls"
-AR="$MINGW64/bin/ar"
+MKDIR="mkdir"
+CP="cp"
+RM="rm -f"
+MV="mv"
+CAT="cat"
+CHMOD="chmod"
+SED="sed"
+LN="ln"
+LS="ls"
+AR="ar"
 ARREPFLAGS="-rcuU"
-RMDIR=$MSY2"/bin/rmdir"
-GREP=$MSY2"/bin/grep"
-AWK=$MSY2"/bin/awk"
-HEAD=$MSY2"/bin/head"
-TAIL=$MSY2"/bin/tail"
-WC=$MSY2"/bin/wc"
-MAKE=$MSY2"/bin/make"
-RANLIB="$MINGW64/bin/ranlib"
+RMDIR="rmdir"
+GREP="grep"
+AWK="awk"
+HEAD="head"
+TAIL="tail"
+WC="wc"
+MAKE="make"
+RANLIB="ranlib"

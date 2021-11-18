@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 20/05/2021 AT 11:00 GMT.
+! THIS VERSION: GALAHAD 2.5 - 09/02/2013 AT 18:00 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E B Q P B   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -26,7 +26,7 @@
       USE GALAHAD_BQPB_double
       USE GALAHAD_SPECFILE_double 
       USE GALAHAD_COPYRIGHT
-      USE GALAHAD_SCALING_double
+      USE SCALING
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
           TRACE                 => GALAHAD_TRACE,                              &
@@ -144,6 +144,7 @@
       TYPE ( BQPB_data_type ) :: data
       TYPE ( BQPB_control_type ) :: BQPB_control        
       TYPE ( BQPB_inform_type ) :: BQPB_inform
+      TYPE ( NLPT_userdata_type ) :: userdata
       TYPE ( QPT_problem_type ) :: prob
 
 !  Allocatable arrays
@@ -151,7 +152,7 @@
       CHARACTER ( LEN = 10 ), ALLOCATABLE, DIMENSION( : ) :: VNAME
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: SH, SA
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: HX
-      INTEGER, ALLOCATABLE, DIMENSION( : ) :: IW, X_stat
+      INTEGER, ALLOCATABLE, DIMENSION( : ) :: IW, B_stat
 
       CALL CPU_TIME( time )
 
@@ -163,7 +164,7 @@
 !  Allocate suitable arrays
 
       ALLOCATE( prob%X( n ), prob%X_l( n ), prob%X_u( n ),                     &
-                prob%G( n ), VNAME( n ), X_stat( n ), STAT = alloc_stat )
+                prob%G( n ), VNAME( n ), B_stat( n ), STAT = alloc_stat )
       IF ( alloc_stat /= 0 ) THEN
         WRITE( out, 2150 ) 'X', alloc_stat ; STOP
       END IF
@@ -293,7 +294,7 @@
       prob%n = n
       IF ( ALLOCATED( prob%H%type ) ) DEALLOCATE( prob%H%type )
       CALL SMT_put( prob%H%type, 'SPARSE_BY_ROWS', smt_stat )
-      prob%f = objf
+      prob%f    = objf
         
 !  ------------------- problem set-up complete ----------------------
 
@@ -417,15 +418,15 @@
         CALL BQPB_read_specfile( BQPB_control, input_specfile )
 
       control%print_level = BQPB_control%print_level
-      control%out = BQPB_control%out
-      control%out_error = BQPB_control%error
+      control%out         = BQPB_control%out
+      control%out_error   = BQPB_control%error
 
       printo = out > 0 .AND. control%print_level > 0
       printe = out > 0 .AND. control%print_level >= 0
       WRITE( out, 2200 ) n, H_ne
 
       IF ( printo ) CALL COPYRIGHT( out, '2010' )
-      X_stat = 0
+      B_stat = 0
 
 !  If required, scale the problem
 
@@ -511,8 +512,7 @@
     
         solv = ' BQPB'
         IF ( printo ) WRITE( out, " ( ' ** BQPB solver used ** ' ) " )
-        CALL BQPB_solve( prob, data, BQPB_control, BQPB_inform,                &
-                         X_stat = X_stat )
+        CALL BQPB_solve( prob, B_stat, data, BQPB_control, BQPB_inform, userdata )
 
         IF ( printo ) WRITE( out, " ( /, ' ** BQPB solver used ** ' ) " )
         qfval = BQPB_inform%obj
@@ -523,7 +523,7 @@
   
         status = BQPB_inform%status
         iter = BQPB_inform%iter
-        stopr = BQPB_control%stop_abs_d
+        stopr = BQPB_control%stop_d
 !       factorization_integer = BQPB_inform%factorization_integer 
 !       factorization_real = BQPB_inform%factorization_real
         CALL BQPB_terminate( data, BQPB_control, BQPB_inform )
@@ -533,7 +533,7 @@
         iter   = 0
         solv   = ' NONE'
         status = 0
-        stopr = BQPB_control%stop_abs_d
+        stopr = BQPB_control%stop_d
 !       factorization_integer = 0 ; factorization_real    = 0
         qfval  = prob%f
       END IF

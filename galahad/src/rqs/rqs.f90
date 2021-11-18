@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 31/01/2020 AT 10:00 GMT.
+! THIS VERSION: GALAHAD 2.7 - 08/03/2016 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D _ R Q S  double  M O D U L E  *-*-*-*-*-*-*-
 
@@ -39,7 +39,7 @@
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
       USE GALAHAD_SLS_double
       USE GALAHAD_IR_double
-      USE GALAHAD_MOP_double, ONLY: mop_AX
+      USE GALAHAD_MOP_double
       USE GALAHAD_LAPACK_interface, ONLY : SYEV, SYGV
 
       IMPLICIT NONE
@@ -62,7 +62,6 @@
       INTEGER, PARAMETER :: history_max = 100
       INTEGER, PARAMETER :: max_degree = 3
       INTEGER, PARAMETER :: n_dense = 100
-      INTEGER, PARAMETER :: it_stalled = 100
       REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
       REAL ( KIND = wp ), PARAMETER :: point1 = 0.1_wp
       REAL ( KIND = wp ), PARAMETER :: point01 = 0.01_wp
@@ -81,10 +80,8 @@
       REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one )
       REAL ( KIND = wp ), PARAMETER :: teneps = ten * epsmch
 
-      REAL ( KIND = wp ), PARAMETER :: lambda_pert = epsmch ** 0.75
       REAL ( KIND = wp ), PARAMETER :: theta_ii = one
       REAL ( KIND = wp ), PARAMETER :: theta_eps = point01
-      REAL ( KIND = wp ), PARAMETER :: theta_eps5 = point1
       REAL ( KIND = wp ), PARAMETER :: theta_g = half
       REAL ( KIND = wp ), PARAMETER :: theta_n = half
       REAL ( KIND = wp ), PARAMETER :: theta_n_small = ten ** ( - 1 )
@@ -173,13 +170,11 @@
 !  stop when | ||x|| - (multiplier/sigma)^(1/(p-2)) | <=
 !              stop_normal * max( ||x||, (multiplier/sigma)^(1/(p-2)) )
 
-!       REAL ( KIND = wp ) :: stop_normal = epsmch ** 0.75
-        REAL ( KIND = wp ) :: stop_normal = ten ** ( - 12 )
+        REAL ( KIND = wp ) :: stop_normal = epsmch
 
 !  stop when bracket on optimal multiplier <= stop_hard * max( bracket ends )
 
-!       REAL ( KIND = wp ) :: stop_hard  = epsmch ** 0.75
-        REAL ( KIND = wp ) :: stop_hard  = ten ** ( - 12 )
+        REAL ( KIND = wp ) :: stop_hard  = epsmch
 
 !  start inverse iteration when bracket on optimal multiplier <=
 !    stop_start_invit_tol * max( bracket ends )
@@ -431,15 +426,17 @@
 
       CALL RAND_initialize( data%seed )
 
-!  revise control parameters (not all compilers currently support fortran 2013)
+!  Set initial control parameter values
 
       control%stop_normal = epsmch ** 0.75
+      control%stop_hard = epsmch ** 0.75
 
 !  initalize SLS components
 
       CALL SLS_initialize( control%symmetric_linear_solver,                    &
                            data%SLS_data, control%SLS_control,                 &
                            inform%SLS_inform )
+
 !  Set initial values for factorization controls and data
 
       control%SLS_control%ordering = 0
@@ -1308,8 +1305,8 @@
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
 
-      INTEGER :: i, j, l, it, itt, i_max, j_max, out, nroots, n_invit
-      INTEGER :: print_level, max_order, n_lambda, in_n
+      INTEGER :: i, j, l, it, i_max, j_max, out, nroots, n_invit, print_level
+      INTEGER :: max_order, n_lambda, in_n
       REAL :: time_start, time_now, time_record
       REAL ( KIND = wp ) :: clock_start, clock_now, clock_record
       REAL ( KIND = wp ) :: lambda, lambda_l, lambda_u, delta_lambda, target
@@ -1325,7 +1322,7 @@
       REAL ( KIND = wp ), DIMENSION( 0 : max_degree ) :: pi_beta, theta_beta
       LOGICAL :: printi, printt, printd, psdef, try_zero, dummy, unit_m
       LOGICAL :: problem_file_exists, phase_1, constrained
-      CHARACTER ( LEN = 1 ) :: region, bad_eval
+      CHARACTER ( LEN = 1 ) :: region
       CHARACTER ( LEN = 80 ) :: array_name
 
 !     REAL ( KIND = wp ), DIMENSION( n, n ) :: h_dense
@@ -1910,16 +1907,12 @@
           inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_factorize + clock_now - clock_record
-          IF ( printt ) WRITE( out, 2040 ) prefix, clock_now - clock_record
-
-!  warning that the residual may be inaccurate
-
+          IF ( printt ) WRITE( out, 2050 ) prefix, clock_now - clock_record
           IF ( inform%IR_inform%norm_final_residual >                          &
                inform%IR_inform%norm_initial_residual ) THEN
-! write(out, "( ' *********** WARNING 1 - initial and final residuals are ',   &
+! write(6, "( ' *********** WARNING A - initial and final residuals are ',     &
 !& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
 !               inform%IR_inform%norm_final_residual
-            bad_eval = '1'
           END IF
 
 !  compute the M^-1 norm of c, while checking that M is positive definite
@@ -2060,8 +2053,8 @@
         END IF
 
         IF ( lambda_l > lambda_u ) THEN
-          WRITE( out, "( ' lambda_l = ', ES22.15, ' > lambda_u = ',            &
-         &       ES22.15 )" ) lambda_l, lambda_u
+          WRITE( out, "( ' lambda_l = ', ES12.4, ' > lambda_u = ', ES12.4 )" ) &
+            lambda_l, lambda_u
 !         WRITE( 6, "( ' stopping as initial bracket is faulty ' )" )
           STOP
         END IF
@@ -2111,7 +2104,7 @@
 !          = A%val( : data%a_ne )
 
       try_zero = lambda > zero .AND. lambda_l == zero
-      region = ' ' ; bad_eval = ' '
+      region = ' '
       max_order = MAX( 1, MIN( max_degree, control%taylor_max_degree ) )
       target = zero
       root_eps = SQRT( epsmch )
@@ -2126,26 +2119,9 @@
       DO
         it = it + 1
 
-!  exit if the iteration has stalled
-
-        IF ( it > it_stalled ) THEN
-          inform%status = GALAHAD_error_ill_conditioned
-          RETURN
-        END IF
-
 !  add lambda * M to H to form H(lambda)
 
-        itt = 0
  100    CONTINUE
-
-!  precaution to stop infinite loop
-
-        itt = itt + 1
-        IF ( itt > 100 ) THEN
-          inform%status = GALAHAD_error_ill_conditioned
-          RETURN
-        END IF
-
         IF ( unit_m ) THEN
           data%H_lambda%val( data%h_ne + 1 :  data%m_end ) = lambda
         ELSE
@@ -2219,24 +2195,18 @@
             inform%time%solve = inform%time%solve + time_now - time_record
             inform%time%clock_solve =                                          &
               inform%time%clock_factorize + clock_now - clock_record
-            IF ( printt ) WRITE( out, 2040 ) prefix, clock_now - clock_record
+            IF ( printt ) WRITE( out, 2050 ) prefix, clock_now - clock_record
 
 !  if there has been an increase in the residuals, H + lambda M is likely
 !  singular, so perturb lambda and try again
 
             IF ( p /= two .AND. inform%IR_inform%norm_final_residual >         &
                  inform%IR_inform%norm_initial_residual ) THEN
-              IF ( printd ) WRITE( out,                                        &
-             &    "( ' **** WARNING *** iterative refinement diverged,',       &
-             &    ' increasing lambda marginally' ) ")
-              bad_eval = '2'
-!write(6, "( ' *********** WARNING 2 - initial and final residuals are ',      &
+!write(6, "( ' *********** WARNING B - initial and final residuals are ',      &
 !& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
 !               inform%IR_inform%norm_final_residual
               lambda_l = lambda
-!             lambda = lambda_l + theta_eps * ( lambda_u - lambda_l )
-              lambda = lambda_l + lambda_pert
-              it = it + 1
+              lambda = lambda_l + theta_eps * ( lambda_u - lambda_l )
               GO TO 100
             END IF
 
@@ -2312,7 +2282,7 @@
                   prefix, ' ', 0, lambda_l, lambda, lambda_u
                 WRITE( out, "( A,                                              &
               &    ' Hard-case stopping criteria satisfied.',                  &
-              &    ' Interval width =', ES22.15 )" ) prefix, lambda_u - lambda_l
+              &    ' Interval width =', ES11.4 )" ) prefix, lambda_u - lambda_l
               END IF
               inform%obj = f ; inform%obj_regularized = f
               inform%status = 0
@@ -2328,17 +2298,17 @@
               IF ( printt .OR. ( printi .AND. it == 1 ) ) WRITE( out, 2020 )   &
                 prefix
             END IF
-            IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )          &
-              prefix,  bad_eval, region, it, lambda_l, lambda, lambda_u
+            IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" )              &
+              prefix, region, it, lambda_l, lambda, lambda_u
             GO TO 200
           END IF
 
 !  debug printing
 
           IF ( printd ) THEN
-            WRITE( out, "( A, 9X, 'lambda', 15X, 'x_norm', 17X, 'target' )" )  &
+            WRITE( out, "( A, 8X, 'lambda', 13X, 'x_norm', 15X, 'target' )" )  &
               prefix
-            WRITE( out, "( A, 3ES22.15 )") prefix, lambda, inform%x_norm, target
+            WRITE( out, "( A, 3ES20.12 )") prefix, lambda, inform%x_norm, target
             IF ( phase_1 ) THEN
               WRITE( out, "( A, ' interval width =', ES22.15 )")               &
                 prefix, lambda_u - lambda_l
@@ -2365,9 +2335,8 @@
             IF ( ( phase_1 .AND. printi ) .OR. printt .OR.                     &
                  ( printi .AND. it == 1 ) ) WRITE( out, 2030 ) prefix
             IF ( printi ) THEN
-              WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" ) prefix,  bad_eval,   &
-                region, it, ABS( inform%x_norm - target ), lambda,             &
-                ABS( delta_lambda )
+              WRITE( out, "( A, A2, I4, 3ES22.15 )" ) prefix, region,          &
+                it, ABS( inform%x_norm - target ), lambda, ABS( delta_lambda )
               WRITE( out, "( A,                                                &
           &    ' Normal stopping criteria satisfied' )" ) prefix
             END IF
@@ -2387,15 +2356,14 @@
 
 !  determine which region the current lambda lies in
 
-!  write(6,*) ' ||x||, target ', inform%x_norm, target
+          IF ( inform%x_norm > target ) THEN
 
 !  ----------------------------
 !  The current lambda lies in L
 !  ----------------------------
 
-          IF ( inform%x_norm > target ) THEN
             region = 'L'
-!           lambda_l = MAX( lambda_l, lambda )
+            lambda_l = MAX( lambda_l, lambda )
 
 !  record that we are now in phase 2
 
@@ -2404,8 +2372,8 @@
               delta_lambda = zero
               IF ( printd ) THEN
                 WRITE( out, 2020 ) prefix
-                WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )                    &
-                  prefix,  bad_eval, region, it, lambda_l, lambda, lambda_u
+                WRITE( out, "( A, A2, I4, 3ES22.15 )" )                        &
+                  prefix, region, it, lambda_l, lambda, lambda_u
               END IF
               IF ( printt ) THEN
                 WRITE( out, "( A, 4X, 28( '-' ), ' phase two ', 28( '-' ) )" ) &
@@ -2420,9 +2388,9 @@
 !  a lambda in L has been found. It is now simply a matter of applying
 !  a variety of Taylor-series-based methods starting from this lambda
 
-            IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" ) prefix,  &
-               bad_eval, region, it, ABS( inform%x_norm - target ), lambda,    &
-               ABS( delta_lambda )
+            IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" ) prefix,      &
+              region, it, ABS( inform%x_norm - target ), lambda,               &
+              ABS( delta_lambda )
 
 !  precaution against rounding producing lambda outside L
 
@@ -2437,14 +2405,14 @@
               END IF
               EXIT
             END IF
+          ELSE
 
 !  ----------------------------
 !  The current lambda lies in G
 !  ----------------------------
 
-          ELSE
             region = 'G'
-!           lambda_u = MIN( lambda_u, lambda + control%stop_hard )
+            lambda_u = MIN( lambda_u, lambda )
             IF ( .NOT. phase_1 ) THEN
               phase_1 = .TRUE.
               IF ( printi ) WRITE( out, 2020 ) prefix
@@ -2452,8 +2420,8 @@
               IF ( printt .OR. ( printi .AND. it == 1 ) ) WRITE( out, 2020 )   &
                 prefix
             END IF
-            IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )          &
-              prefix, bad_eval, region, it, lambda_l, lambda, lambda_u
+            IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" )              &
+              prefix, region, it, lambda_l, lambda, lambda_u
 
 !  record, for the future, values of lambda which give small ||x||
 
@@ -2467,10 +2435,10 @@
 !  compute first derivatives of x^T M x
 
           CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
+          IF ( data%accurate ) THEN
 
 !  solve  H(lambda) z = M x
 
-          IF ( data%accurate ) THEN
             IF ( unit_m ) data%Y( : n ) = X
             data%Z( : n ) = data%Y( : n )
             IF ( constrained ) data%Z( n + 1 : data%npm ) = zero
@@ -2479,28 +2447,10 @@
                            data%control%IR_control,                            &
                            data%control%SLS_control,                           &
                            inform%IR_inform, inform%SLS_inform )
-
-!  check that the solution succeeded. If not, increase lambda and try again
-
-            IF ( inform%IR_inform%status == GALAHAD_error_solve ) THEN
-              IF ( printd ) WRITE( out,                                        &
-             &    "( ' **** WARNING 3 *** iterative refinement diverged,',     &
-             &    ' increasing lambda marginally' ) ")
-              bad_eval = '3'
-! write(6, "( ' *********** WARNING 3 - initial and final residuals are ',     &
-!& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
-!              inform%IR_inform%norm_final_residual
-!write(6,"( ' in ', A, ' B, was ', 3ES22.15 )" ) region,lambda_l,lambda,lambda_u
-              lambda_l = lambda
-              lambda = lambda_l + theta_eps * ( lambda_u - lambda_l )
-!write(6,"( ' in ', A, ' B, is  ', 3ES22.15 )" ) region,lambda_l,lambda,lambda_u
-              it = it + 1
-              GO TO 100
-            END IF
+          ELSE
 
 !  find y so that L y = M x
 
-          ELSE
             IF ( unit_m ) data%Y( : n ) = X
             CALL SLS_part_solve( 'L', data%Y( : n ), data%SLS_data,            &
                                  data%control%SLS_control, inform%SLS_inform )
@@ -2515,19 +2465,14 @@
           inform%time%solve = inform%time%solve + time_now - time_record
           inform%time%clock_solve =                                            &
             inform%time%clock_factorize + clock_now - clock_record
-          IF ( data%accurate ) THEN
-            IF ( printt ) WRITE( out, 2040 ) prefix, clock_now - clock_record
-          ELSE
-            IF ( printt ) WRITE( out, 2050 ) prefix, clock_now - clock_record
-          END IF
+          IF ( printt ) WRITE( out, 2050 ) prefix, clock_now - clock_record
 
-!         IF ( inform%IR_inform%norm_final_residual >                          &
-!              inform%IR_inform%norm_initial_residual ) THEN
-!             bad_eval = '4'
-! write(6, "( ' *********** WARNING 4 - initial and final residuals are ',     &
+          IF ( inform%IR_inform%norm_final_residual >                          &
+               inform%IR_inform%norm_initial_residual ) THEN
+! write(6, "( ' *********** WARNING C - initial and final residuals are ',     &
 !& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
 !              inform%IR_inform%norm_final_residual
-!         END IF
+          END IF
 
 !  form ||w||^2 = y^T z = x^T L^-T D^-1 L^-1 x = x^T H^-1(lambda) x
 
@@ -2614,7 +2559,7 @@
             beta = pm2
             CALL RQS_pi_derivs( 1, beta, x_norm2( : 1 ), pi_beta( : 1 ) )
             CALL RQS_theta_derivs( 1, beta / pm2, lambda, sigma,               &
-                                     theta_beta( : 1 )  )
+                                   theta_beta( : 1 )  )
 
 !  compute the "linear Taylor approximation" correction (for beta = p-2)
 
@@ -2663,150 +2608,118 @@
             END IF
           END IF
 
-!         WRITE( out, "( ' lambda, delta ', 2ES22.15 )" ) lambda, delta_lambda
+!         WRITE( out, "( ' lambda, delta ', 2ES22.14 )" ) lambda, delta_lambda
 
           IF ( ( max_order >= 3 .AND. region == 'L' ) .OR.                     &
                ( max_order >= 2 .AND. region == 'G' ) ) THEN
-            IF ( .NOT. data%accurate ) THEN
-              CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
-              CALL SLS_part_solve( 'U', data%Z( : n ), data%SLS_data,          &
-                                   data%control%SLS_control,                   &
-                                   inform%SLS_inform )
-              CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-              inform%time%solve = inform%time%solve + time_now - time_record
-              inform%time%clock_solve =                                        &
-                inform%time%clock_factorize + clock_now - clock_record
-              IF ( printt )                                                    &
-                WRITE( out, 2050 ) prefix, clock_now - clock_record
-            END IF
-
-!  form z^T M z
-
-            IF ( unit_m ) THEN
-              z_norm2 = DOT_PRODUCT( data%Z( : n ), data%Z( : n ) )
-            ELSE
-              CALL mop_AX( one, M, data%Z( : n ), zero, data%Y( : n ), 0,      &
-                           symmetric = .TRUE., m_matrix = n, n_matrix = n )
-              z_norm2 = DOT_PRODUCT( data%Z( : n ), data%Y( : n ) )
-            END IF
-
-!  compute the second derivative of x_norm2 = x^T M x
-
-            x_norm2( 2 ) = six * z_norm2
-
-            IF ( max_order >= 3 ) THEN
-              CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
-
-!  solve  H(lambda) z = M x
-
-              IF ( data%accurate ) THEN
-                IF ( unit_m ) THEN
-                  data%Y( : n ) = data%Z( : n )
-                ELSE
-                  data%Z( : n ) = data%Y( : n )
-                END IF
-                IF ( constrained ) data%Z( n + 1 : data%npm ) = zero
-                CALL IR_solve( data%H_lambda, data%Z( : data%npm ),            &
-                               data%IR_data, data%SLS_data,                    &
-                               data%control%IR_control,                        &
-                               data%control%SLS_control,                       &
-                               inform%IR_inform, inform%SLS_inform )
-
-!  check that the solution succeeded. If not, increase lambda and try again
-
-                IF ( inform%IR_inform%status == GALAHAD_error_solve ) THEN
-                  IF ( printd ) WRITE( out,                                    &
-                 &    "( ' **** WARNING 5 *** iterative refinement diverged,', &
-                 &    ' increasing lambda marginally' ) ")
-                  bad_eval = '5'
-!write(6,"( ' in ', A, ' C, was ', 3ES22.15 )" ) &
-!  region, lambda_l, lambda, lambda_u
-                  lambda_l = lambda
-                  lambda = lambda_l + theta_eps5 * ( lambda_u - lambda_l )
-!write(6,"( ' in ', A, ' C, is  ', 3ES22.15 )" ) &
-!  region, lambda_l ,lambda, lambda_u
-                  it = it + 1
-                  GO TO 100
-                END IF
-
-!  find z so that L z = x'
-
-              ELSE
-                IF ( unit_m ) THEN
-                  CALL SLS_part_solve( 'L', data%Z( : n ), data%SLS_data,      &
-                                       data%control%SLS_control,               &
-                                       inform%SLS_inform )
-
-!  find y so that D L y = D z = x'
-
-                  data%Y( : n ) = data%Z( : n )
-                  CALL SLS_part_solve( 'D', data%Y( : n ), data%SLS_data,      &
-                                       data%control%SLS_control,               &
-                                       inform%SLS_inform )
-                ELSE
-
-!  find z so that L y = M x'
-
-                  CALL SLS_part_solve( 'L', data%Y( : n ), data%SLS_data,      &
-                                       data%control%SLS_control,               &
-                                       inform%SLS_inform )
-
-!  find y so that D L z = D y = x'
-
-                  data%Z( : n ) = data%Y( : n )
-                  CALL SLS_part_solve( 'D', data%Z( : n ), data%SLS_data,      &
-                                       data%control%SLS_control,               &
-                                       inform%SLS_inform )
-                END IF
-              END IF
-              CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-              inform%time%solve = inform%time%solve + time_now - time_record
-              inform%time%clock_solve =                                        &
-                inform%time%clock_factorize + clock_now - clock_record
-              IF ( data%accurate ) THEN
-                IF ( printt )                                                  &
-                  WRITE( out, 2040 ) prefix, clock_now - clock_record
-              ELSE
+              IF ( .NOT. data%accurate ) THEN
+                CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
+                CALL SLS_part_solve( 'U', data%Z( : n ), data%SLS_data,        &
+                                     data%control%SLS_control,                 &
+                                     inform%SLS_inform )
+                CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+                inform%time%solve = inform%time%solve + time_now - time_record
+                inform%time%clock_solve =                                      &
+                  inform%time%clock_factorize + clock_now - clock_record
                 IF ( printt )                                                  &
                   WRITE( out, 2050 ) prefix, clock_now - clock_record
               END IF
 
-!             IF ( inform%IR_inform%norm_final_residual >                      &
-!                  inform%IR_inform%norm_initial_residual ) THEN
-!               bad_eval = '6'
-! write(6, "( ' *********** WARNING 6 - initial and final residuals are ',     &
+!  form z^T M z
+
+              IF ( unit_m ) THEN
+                z_norm2 = DOT_PRODUCT( data%Z( : n ), data%Z( : n ) )
+              ELSE
+                CALL mop_AX( one, M, data%Z( : n ), zero, data%Y( : n ), 0,    &
+                             symmetric = .TRUE., m_matrix = n, n_matrix = n )
+                z_norm2 = DOT_PRODUCT( data%Z( : n ), data%Y( : n ) )
+              END IF
+
+!  compute the second derivative of x_norm2 = x^T M x
+
+              x_norm2( 2 ) = six * z_norm2
+
+              IF ( max_order >= 3 ) THEN
+                CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
+                IF ( data%accurate ) THEN
+
+!  solve  H(lambda) z = M x
+
+                  IF ( unit_m ) THEN
+                    data%Y( : n ) = data%Z( : n )
+                  ELSE
+                    data%Z( : n ) = data%Y( : n )
+                  END IF
+                  IF ( constrained ) data%Z( n + 1 : data%npm ) = zero
+                  CALL IR_solve( data%H_lambda, data%Z( : data%npm ),          &
+                                 data%IR_data, data%SLS_data,                  &
+                                 data%control%IR_control,                      &
+                                 data%control%SLS_control,                     &
+                                 inform%IR_inform, inform%SLS_inform )
+                ELSE
+                  IF ( unit_m ) THEN
+
+!  find z so that L z = x'
+
+                    CALL SLS_part_solve( 'L', data%Z( : n ), data%SLS_data,    &
+                                         data%control%SLS_control,             &
+                                         inform%SLS_inform )
+
+!  find y so that D L y = D z = x'
+
+                    data%Y( : n ) = data%Z( : n )
+                    CALL SLS_part_solve( 'D', data%Y( : n ), data%SLS_data,    &
+                                         data%control%SLS_control,             &
+                                         inform%SLS_inform )
+                  ELSE
+
+!  find z so that L y = M x'
+
+                    CALL SLS_part_solve( 'L', data%Y( : n ), data%SLS_data,    &
+                                         data%control%SLS_control,             &
+                                         inform%SLS_inform )
+
+!  find y so that D L z = D y = x'
+
+                    data%Z( : n ) = data%Y( : n )
+                    CALL SLS_part_solve( 'D', data%Z( : n ), data%SLS_data,    &
+                                         data%control%SLS_control,             &
+                                         inform%SLS_inform )
+                  END IF
+                END IF
+                CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+                inform%time%solve = inform%time%solve + time_now - time_record
+                inform%time%clock_solve =                                      &
+                  inform%time%clock_factorize + clock_now - clock_record
+                IF ( printt )                                                  &
+                  WRITE( out, 2050 ) prefix, clock_now - clock_record
+
+                IF ( inform%IR_inform%norm_final_residual >                    &
+                     inform%IR_inform%norm_initial_residual ) THEN
+! write(6, "( ' *********** WARNING D - initial and final residuals are ',     &
 !& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
 !              inform%IR_inform%norm_final_residual
-!             END IF
+                END IF
 
 !  form ||v||^2 = z^T y = x'^T L^-T D^-1 L^-1 x' = x'^T H^-1(lambda) x'
 
-              v_norm2 = DOT_PRODUCT( data%Z( : n ), data%Y( : n ) )
+                v_norm2 = DOT_PRODUCT( data%Z( : n ), data%Y( : n ) )
 
 !  compute the third derivatives of x_norm2 = x^T M x
 
-              x_norm2( 3 ) = - twentyfour * v_norm2
-            END IF
+                x_norm2( 3 ) = - twentyfour * v_norm2
+              END IF
           END IF
-
-!  reset lower or upper bound appropriately
-
-          IF ( region == 'L' ) lambda_l = MAX( lambda_l, lambda )
-          IF ( region == 'G' ) lambda_u = MIN( lambda_u, lambda )
 
 !  compute pi_beta = ||x||^beta and its derivatives for various beta
 !  and the resulting Taylor series approximants
 
  200      CONTINUE
-          IF ( printd ) WRITE( out,                                            &
-            "( ' --------- OK with lambda = ', ES22.15 )" ) lambda
-          bad_eval = ' '
+          IF ( inform%x_norm > target ) THEN
 
 !  ----------------------------
 !  The current lambda lies in L
 !  ----------------------------
-
-          IF ( inform%x_norm > target ) THEN
 
 !  for Taylor approximants of degree larger than one
 
@@ -2992,7 +2905,7 @@
 !  check that the best Taylor improvement is significant
 
             IF ( ABS( delta_lambda ) < epsmch * MAX( one, ABS( lambda ) ) ) THEN
-              inform%status = GALAHAD_ok
+              inform%status = 0
               IF ( printi ) WRITE( out, "( A, ' normal exit with no ',         &
              &                     'significant Taylor improvement' )" ) prefix
               EXIT
@@ -3384,7 +3297,7 @@
 
               IF ( ABS( delta_lambda ) <                                       &
                    epsmch * MAX( one, ABS( lambda ) ) ) THEN
-                inform%status = GALAHAD_ok
+                inform%status = 0
                 IF ( printi ) WRITE( out, "( A, ' normal exit with no ',       &
                &                   'significant Taylor improvement' )" ) prefix
                 EXIT
@@ -3474,12 +3387,11 @@
                 inform%time%solve = inform%time%solve + time_now - time_record
                 inform%time%clock_solve =                                      &
                   inform%time%clock_factorize + clock_now - clock_record
-                IF ( printt ) WRITE( out, 2040 ) prefix, clock_now -clock_record
+                IF ( printt ) WRITE( out, 2050 ) prefix, clock_now -clock_record
 
 !               IF ( inform%IR_inform%norm_final_residual >                    &
 !                    inform%IR_inform%norm_initial_residual ) THEN
-!                 bad_eval = '7'
-! write(6, "( ' *********** WARNING 7 - initial and final residuals are ',     &
+! write(6, "( ' *********** WARNING E - initial and final residuals are ',     &
 !& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
 !              inform%IR_inform%norm_final_residual
 !               END IF
@@ -3511,7 +3423,7 @@
                 END IF
               END DO
               rayleigh = DOT_PRODUCT( data%U( : n ), data%Y( : n ) )
-              IF ( printd ) WRITE( out, "( A, ' rayleigh ', ES22.15 )" )       &
+              IF ( printd ) WRITE( out, "( A, ' rayleigh ', ES23.15 )" )       &
                 prefix, rayleigh
 
 !  adjust lambda_l to account for the Rayleigh quotient
@@ -3555,8 +3467,8 @@
         ELSE
           IF ( printt .OR. ( printi .AND. it == 1 ) ) WRITE( out, 2020 ) prefix
           region = 'N'
-          IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )            &
-            prefix,  bad_eval, region, it, lambda_l, lambda, lambda_u
+          IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" )                &
+            prefix, region, it, lambda_l, lambda, lambda_u
           try_zero = .FALSE.
           lambda_s_l = MAX( lambda_s_l, lambda )
           lambda_l = lambda_s_l
@@ -3599,18 +3511,14 @@
 !  - - - - -
 
         IF ( inform%x_norm < target ) THEN
-!write(6,"( ' ------------ width = ', ES22.15 )" ) lambda_u - lambda_s_l
-!         IF ( lambda_u - lambda_s_l < data%control%stop_hard *                &
-!              MAX( one, ABS( lambda_l ), ABS( lambda_u ) ) ) THEN
-          IF ( MIN( lambda_u - lambda_s_l, lambda_u - lambda_l )               &
-                 < data%control%stop_hard *                                    &
-                   MAX( one, ABS( lambda_l ), ABS( lambda_u ) ) ) THEN
+          IF ( lambda_u - lambda_s_l < data%control%stop_hard *                &
+               MAX( one, ABS( lambda_l ), ABS( lambda_u ) ) ) THEN
             IF ( printi ) THEN
-              WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )                      &
-                prefix,  bad_eval, region, it + 1, lambda_l, lambda, lambda_u
+              WRITE( out, "( A, A2, I4, 3ES22.15 )" )                          &
+                prefix, region, it + 1, lambda_l, lambda, lambda_u
               WRITE( out, "( A,                                                &
             &    ' Hard-case stopping criteria satisfied.',                    &
-            &    ' Interval width =', ES22.15 )" ) prefix, lambda_u - lambda_l
+            &    ' Interval width =', ES11.4 )" ) prefix, lambda_u - lambda_l
             END IF
 
 !  build an estmate of the leftmost eigenvalue and its vector u using inverse
@@ -3687,7 +3595,7 @@
               inform%time%solve = inform%time%solve + time_now - time_record
               inform%time%clock_solve =                                      &
                 inform%time%clock_factorize + clock_now - clock_record
-              IF ( printt ) WRITE( out, 2040 ) prefix, clock_now -clock_record
+              IF ( printt ) WRITE( out, 2050 ) prefix, clock_now -clock_record
 
               IF ( unit_m ) THEN
                 u_norm = TWO_NORM( data%U( : n ) )
@@ -3729,7 +3637,7 @@
               inform%obj = f ; inform%obj_regularized = f
             END IF
             inform%x_norm = target
-            inform%status = GALAHAD_ok
+            inform%status = 0
             inform%hard_case = .TRUE.
             GO TO 900
           END IF
@@ -3738,22 +3646,23 @@
 !  Almost Hard case
 !  - - - - - - - - -
 
-!         IF ( lambda_u - lambda_l < data%control%stop_hard *                  &
-!              MAX( one, ABS( lambda_l ), ABS( lambda_u ) ) ) THEN
-!           IF ( printi ) THEN
-!             IF ( printt .AND. .NOT. phase_1 ) WRITE( out, 2020 ) prefix
-!             WRITE( out, "( A, A2, I4, 3ES22.15 )" )                          &
-!               prefix, region, it + 1, lambda_l, lambda, lambda_u
-!             WRITE( out, "( A,                                                &
-!           &    ' Almost hard-case stopping criteria satisfied.',             &
-!           &    ' Interval width =', ES22.15 )" ) prefix, lambda_u - lambda_l
-!             WRITE( out, "( A, 9X, 'lambda', 15X, 'x_norm', 17X, 'target', /, &
-!           &                A, 3ES22.15 )")                                   &
-!               prefix, prefix, lambda, inform%x_norm, target
-!           END IF
-!           inform%status = GALAHAD_ok
-!           EXIT
-!         END IF
+          IF ( lambda_u - lambda_l < data%control%stop_hard *                  &
+               MAX( one, ABS( lambda_l ), ABS( lambda_u ) ) ) THEN
+            IF ( printi ) THEN
+              IF ( printt .AND. .NOT. phase_1) WRITE( out, 2020 ) prefix
+              WRITE( out, "( A, A2, I4, 3ES22.15 )" )                          &
+                prefix, region, it + 1, lambda_l, lambda, lambda_u
+              WRITE( out, "( A,                                                &
+            &    ' Almost hard-case stopping criteria satisfied.',             &
+            &    ' Interval width =', ES11.4 )" ) prefix, lambda_u - lambda_l
+              WRITE( out, "( A, 8X, 'lambda', 13X, 'x_norm', 15X, 'target', /, &
+            &                A, 3ES20.12 )")                                   &
+                prefix, prefix, lambda, inform%x_norm, target
+            END IF
+
+            inform%status = 0
+            EXIT
+          END IF
         END IF
 
 !  End of main iteration loop
@@ -3840,7 +3749,6 @@
                  '              lambda_u' )
  2030 FORMAT( A, '    it    ||x||-target              lambda ',                &
                  '              d_lambda' )
- 2040 FORMAT( A, ' time( IR_solve ) = ', F0.2 )
  2050 FORMAT( A, ' time( SLS_solve ) = ', F0.2 )
 
 !  End of subroutine RQS_solve_main

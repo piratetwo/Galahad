@@ -86,7 +86,6 @@
 !          x: a first-order criticl point that is usually a local minimizer.
 !
 !  Optional Output -
-!    control: see above. Returned values are the defaults
 !     inform: a structure containing information parameters
 !             The components are of the form inform.value, where
 !             value is the name of the corresponding component of the
@@ -116,7 +115,6 @@
 !     USE GALAHAD_TRANSFER_MATLAB
       USE GALAHAD_TRU_MATLAB_TYPES
       USE GALAHAD_TRU_double
-      USE GALAHAD_USERDATA_double
       IMPLICIT NONE
       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
 
@@ -132,6 +130,7 @@
       LOGICAL :: mxIsChar, mxIsStruct
       mwSize :: mxGetString, mxIsNumeric
       mwPointer :: mxGetPr, mxGetM, mxGetN, mxCreateDoubleMatrix
+      mwPointer :: mxGetDimensions
       INTEGER :: mexCallMATLABWithTrap
 
       INTEGER ::  mexPrintf
@@ -143,33 +142,35 @@
 
       INTEGER :: i, info
       INTEGER * 4 :: i4, n, alloc_stat
-      INTEGER, PARAMETER :: int4 = KIND( i4 )
-
       mwSize :: x0_arg, ef_arg, eg_arg, eh_arg, pat_arg, con_arg, c_arg
       mwSize :: x_arg, i_arg, s_len
 
-      mwPointer :: x0_in, pat_in, con_in, x0_pr, pat_pr
+      mwPointer :: x0_in, ef_in, eg_in, eh_in, pat_in, con_in
+      mwPointer :: x0_pr, ef_pr, eg_pr, eh_pr, pat_pr, con_pr
 
       mwPointer input_x( 1 ), output_f( 2 ), output_g( 2 ), output_h( 2 )
       mwPointer :: x_pr, s_in, s_pr, f_in, f_pr, g_in, g_pr, h_in, h_pr
       mwSize :: status
-      mwSize :: m_mwsize, n_mwsize
+      mwSize :: m_mwsize, n_nwsize, nn
 
       CHARACTER ( len = 80 ) :: output_unit, filename
-!     CHARACTER ( len = 80 ) :: debug = REPEAT( ' ', 80 )
+      CHARACTER ( len = 80 ) :: debug = REPEAT( ' ', 80 )
       CHARACTER ( len = 80 ) :: eval_f = REPEAT( ' ', 80 )
       CHARACTER ( len = 80 ) :: eval_g = REPEAT( ' ', 80 )
       CHARACTER ( len = 80 ) :: eval_h = REPEAT( ' ', 80 )
-      LOGICAL :: opened, file_exists, initial_set = .FALSE.
+      LOGICAL :: filexx, opened, file_exists, initial_set = .FALSE.
       INTEGER :: iores
       CHARACTER ( len = 8 ) :: mode
       TYPE ( TRU_pointer_type ) :: TRU_pointer
+!     mwPointer :: IW
+!     INTEGER * 8, ALLOCATABLE, DIMENSION( : ) :: IW
+!     mwSize, ALLOCATABLE, DIMENSION( : ) :: IW
       REAL( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: IW
 
 !  arguments for TRU
 
       TYPE ( NLPT_problem_type ) :: nlp
-      TYPE ( GALAHAD_userdata_type ) :: userdata
+      TYPE ( NLPT_userdata_type ) :: userdata
       TYPE ( TRU_data_type ), SAVE :: data
       TYPE ( TRU_control_type ), SAVE :: control
       TYPE ( TRU_inform_type ) :: inform
@@ -325,7 +326,7 @@
 !  find the number of variables
 
         x0_in = prhs( x0_arg )
-        n = INT( mxGetN( x0_in ), KIND = int4 ) ; nlp%n = n
+        n = mxGetN( x0_in ) ; nlp%n = n
 
 !  allocate space for the solution
 
@@ -341,7 +342,7 @@
 
         IF ( pat_arg > 0 ) THEN
           pat_in = prhs( pat_arg )
-          nlp%H%ne = INT( mxGetM( pat_in ), KIND = int4 )
+          nlp%H%ne = mxGetM( pat_in )
           IF ( mxIsNumeric( pat_in ) == 0 )                                    &
             CALL mexErrMsgTxt( ' There must be a matrix H ' )
 
@@ -359,8 +360,9 @@
           ALLOCATE( nlp%H%row( nlp%H%ne ), nlp%H%col( nlp%H%ne ),              &
                     STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' allocation failure ' )
-          nlp%H%row( : nlp%H%ne ) = INT( IW( : nlp%H%ne ), KIND = int4 )
-          nlp%H%col( : nlp%H%ne ) = INT( IW( nlp%H%ne + 1 : ), KIND = int4 )
+          nlp%H%row( : nlp%H%ne ) = INT( IW( : nlp%H%ne ) )
+          nlp%H%col( : nlp%H%ne ) = INT( IW( nlp%H%ne + 1 : ) )
+!         DEALLOCATE( IW, STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' deallocation failure ' )
           ALLOCATE( nlp%H%val( nlp%H%ne ), STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' allocation failure ' )
@@ -368,7 +370,7 @@
 !  the Hessian is dense
 
         ELSE
-          nlp%H%ne = INT( ( n * ( n + 1 ) ) / 2, KIND = int4 )
+          nlp%H%ne = ( n * ( n + 1 ) ) / 2
           CALL SMT_put( nlp%H%type, 'DENSE', alloc_stat )
           ALLOCATE( nlp%H%val( nlp%H%ne ), STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' allocation failure ' )
@@ -377,8 +379,8 @@
 !  set for initial entry
 
         inform%status = 1
-        m_mwsize = 1 ; n_mwsize = n
-        input_x( 1 ) = mxCreateDoubleMatrix( m_mwsize, n_mwsize, 0 )
+        m_mwsize = 1 ; n_nwsize = n
+        input_x( 1 ) = mxCreateDoubleMatrix( m_mwsize, n_nwsize, 0 )
 
 !  loop to solve problem
 
@@ -518,7 +520,6 @@
         IF ( ALLOCATED( nlp%H%val ) ) DEALLOCATE( nlp%H%val, STAT = info )
         IF ( ALLOCATED( nlp%G ) ) DEALLOCATE( nlp%G, STAT = info )
         IF ( ALLOCATED( nlp%X ) ) DEALLOCATE( nlp%X, STAT = info )
-        IF ( ALLOCATED( IW ) ) DEALLOCATE( IW, STAT = alloc_stat )
         CALL TRU_terminate( data, control, inform )
       END IF
 

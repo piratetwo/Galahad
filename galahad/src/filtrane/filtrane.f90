@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 28/01/2020 AT 08:30 GMT.
+! THIS VERSION: GALAHAD 2.4 - 15/05/2010 AT 14:40 GMT.
 
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -359,15 +359,13 @@
 
       USE GALAHAD_NORMS_double    ! norm functions
 
+      USE GALAHAD_TOOLS_double    ! the GALAHAD toolbox
+
       USE GALAHAD_SORT_double     ! the sorting procedures
 
       USE GALAHAD_GLTR_double     ! the GLTR truncated CG procedure
 
       USE GALAHAD_COPYRIGHT       ! copyright statement
-
-      USE GALAHAD_TOOLS           ! the GALAHAD toolbox
-
-      USE GALAHAD_BLAS_interface, ONLY: SWAP ! interfaces to the blas
 
 !     Print levels
 
@@ -1378,7 +1376,7 @@
 
          TYPE ( GLTR_data_type )    :: GLTR_data
          TYPE ( GLTR_control_type ) :: GLTR_control
-         TYPE ( GLTR_inform_type )  :: GLTR_info
+         TYPE ( GLTR_info_type )    :: GLTR_info
 
 !        ----------------------------------------------
 !        The value of the controls at the previous call
@@ -2538,23 +2536,23 @@
 !
 !     END INTERFACE
 
-!     INTERFACE SWAP
+     INTERFACE SWAP
 
-!       SUBROUTINE SSWAP( n, x, incx, y, incy )
-!         INTEGER, INTENT( IN ) :: n, incx, incy
-!         REAL, INTENT( INOUT ), DIMENSION( incx * ( n - 1 ) + 1 ) :: x
-!         REAL, INTENT( INOUT ), DIMENSION( incy * ( n - 1 ) + 1 ) :: y
-!       END SUBROUTINE SSWAP
+        SUBROUTINE SSWAP( n, x, incx, y, incy )
+          INTEGER, INTENT( IN ) :: n, incx, incy
+          REAL, INTENT( INOUT ), DIMENSION( incx * ( n - 1 ) + 1 ) :: x
+          REAL, INTENT( INOUT ), DIMENSION( incy * ( n - 1 ) + 1 ) :: y
+        END SUBROUTINE SSWAP
 
-!       SUBROUTINE DSWAP( n, x, incx, y, incy )
-!         INTEGER, INTENT( IN ) :: n, incx, incy
-!         DOUBLE PRECISION, INTENT( INOUT ),                                   &
-!                           DIMENSION( incx * ( n - 1 ) + 1 ) :: x
-!         DOUBLE PRECISION, INTENT( INOUT ),                                   &
-!                           DIMENSION( incy * ( n - 1 ) + 1 ) :: y
-!       END SUBROUTINE DSWAP
+        SUBROUTINE DSWAP( n, x, incx, y, incy )
+          INTEGER, INTENT( IN ) :: n, incx, incy
+          DOUBLE PRECISION, INTENT( INOUT ),                                   &
+                            DIMENSION( incx * ( n - 1 ) + 1 ) :: x
+          DOUBLE PRECISION, INTENT( INOUT ),                                   &
+                            DIMENSION( incy * ( n - 1 ) + 1 ) :: y
+        END SUBROUTINE DSWAP
 
-!    END INTERFACE
+     END INTERFACE
 
 !==============================================================================
 
@@ -3197,7 +3195,7 @@
 
 !           Sort the violations in ascending order.
 
-            CALL SORT_quicksort( s%n_items, s%v, SORT_exitcode, ix = s%iw )
+            CALL SORT_quicksort( s%n_items, s%v, SORT_exitcode, ivector = s%iw )
             IF ( SORT_exitcode /= 0 ) THEN
                inform%status = SORT_TOO_LONG
                WRITE( inform%message( 1 ), 1076 )
@@ -8309,7 +8307,7 @@ fpt11:         DO k = 1, s%filter_size
          rs = ie - is
          IF ( rs > 1 ) THEN
             ie = ie - 1
-            CALL SORT_quicksort( rs, s%row(is:ie), ec, ix = s%perm(is:ie) )
+            CALL SORT_quicksort( rs, s%row(is:ie), ec, ivector = s%perm(is:ie) )
             IF ( ec /= OK ) THEN
                inform%status = SORT_TOO_LONG
                WRITE( inform%message( 1 ), 1000 )
@@ -8716,7 +8714,7 @@ fpt11:         DO k = 1, s%filter_size
                END IF
             END DO
          END IF
-!        WRITE( s%out, 1002 )
+         WRITE( s%out, 1002 )
       END IF
 
       RETURN
@@ -8724,7 +8722,7 @@ fpt11:         DO k = 1, s%filter_size
 !     Formats
 
 1000  FORMAT(/,1x,'Problem successfully set up.')
-!1002  FORMAT(/,14x,'*********************** Bye **********************',/)
+1002  FORMAT(/,14x,'*********************** Bye **********************',/)
 1003  FORMAT(/,a)
 1004  FORMAT(4x,'GLTR terminated')
 

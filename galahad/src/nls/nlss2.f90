@@ -1,4 +1,4 @@
-   PROGRAM GALAHAD_NLS_EXAMPLE2 !  GALAHAD 3.3 - 05/05/2021 AT 14:15 GMT
+   PROGRAM GALAHAD_NLS_EXAMPLE  !  GALAHAD 3.0 - 25/11/2016 AT 09:15 GMT
    USE GALAHAD_NLS_double                     ! double precision version
    IMPLICIT NONE
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )    ! set precision
@@ -6,7 +6,7 @@
    TYPE ( NLS_control_type ) :: control
    TYPE ( NLS_inform_type ) :: inform
    TYPE ( NLS_data_type ) :: data
-   TYPE ( GALAHAD_userdata_type ) :: userdata
+   TYPE ( NLPT_userdata_type ) :: userdata
    EXTERNAL :: EVALC, EVALJ, EVALHPROD
    INTEGER :: s
    INTEGER, PARAMETER :: m = 2, n = 3, j_ne = 4, h_ne = 3, p_ne = 3
@@ -24,7 +24,6 @@
    userdata%real( 1 ) = p                       ! Record parameter, p
 ! problem data complete ; solve using a Newton model
    CALL NLS_initialize( data, control, inform ) ! Initialize control params
-   control%jacobian_available = 2               ! Jacobian is available
    control%hessian_available = 1                ! only Hessian-vector products
    control%model = 4                            ! use the Newton model
    inform%status = 1                            ! set for initial entry
@@ -40,15 +39,15 @@
    END IF
    CALL NLS_terminate( data, control, inform )  ! delete internal workspace
    DEALLOCATE( nlp%X, nlp%G, nlp%J%val, nlp%J%row, nlp%J%col, userdata%real )
-   END PROGRAM GALAHAD_NLS_EXAMPLE2
+   END PROGRAM GALAHAD_NLS_EXAMPLE
 
    SUBROUTINE EVALC( status, X, userdata, C )   ! residual
-   USE GALAHAD_USERDATA_double
+   USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
    INTEGER, INTENT( OUT ) :: status
    REAL ( KIND = wp ), DIMENSION( : ),INTENT( IN ) :: X
    REAL ( KIND = wp ), DIMENSION( : ),INTENT( OUT ) :: C
-   TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+   TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
    REAL ( KIND = wp ) :: p
    p = userdata%real( 1 )
    C( 1 ) = X( 3 ) * X( 1 ) ** 2 + P
@@ -58,12 +57,12 @@
    END SUBROUTINE EVALC
 
    SUBROUTINE EVALJ( status, X, userdata, J_val )    ! Jacobian
-   USE GALAHAD_USERDATA_double
+   USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
    INTEGER, INTENT( OUT ) :: status
    REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: X
    REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: J_val
-   TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+   TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
    REAL ( KIND = wp ) :: p
    p = userdata%real( 1 )
    J_val( 1 ) = 2.0_wp * X( 1 ) * X( 3 )
@@ -75,13 +74,13 @@
    END SUBROUTINE EVALJ
 
    SUBROUTINE EVALHPROD( status, X, Y, userdata, U, V, got_h ) ! Hessian product
-   USE GALAHAD_USERDATA_double
+   USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
    INTEGER, INTENT( OUT ) :: status
    REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: X, Y
    REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: U
    REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: V
-   TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+   TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
    LOGICAL, OPTIONAL, INTENT( IN ) :: got_h
    U( 1 ) = U( 1 ) + 2.0_wp * Y( 1 ) * ( X( 3 ) * V( 1 ) + X( 1 ) * V( 3 ) )
    U( 2 ) = U( 2 ) + 2.0_wp * Y( 2 ) * V( 2 )
@@ -89,3 +88,4 @@
    status = 0
    RETURN
    END SUBROUTINE EVALHPROD
+

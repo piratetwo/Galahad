@@ -14,7 +14,7 @@
 %%%%%%%%%%%%%%%%%%%%%% SUMMARY %%%%%%%%%%%%%%%%%%%%%%%%
 
 \galsummary
-This package uses a primal-dual interior-point method
+This package uses an primal-dual interior-point method
 to solve the {\bf convex quadratic programming problem}
 \eqn{qp}{\mbox{minimize}\;\; q(\bmx) = \half \bmx^T \bmH \bmx + \bmg^T \bmx + f}
 or the {\bf shifted least-distance problem}
@@ -175,14 +175,14 @@ no explicit entries needs be stored.
 
 %%%%%%%%%%%%%%%%%%%%%% long integers %%%%%%%%%%%%%%%%%%%%%%
 
-\galintkinds
+\subsection{Integer kinds}\label{Integer kinds}
 We use the term
 long \integer\ to denote {\tt INTEGER\-(kind=long)}, where
 {\tt long = selected\_int\_kind(18))}.
 
 %%%%%%%%%%%%%%%%%%%%%% OpenMP usage %%%%%%%%%%%%%%%%%%%%%%%%
 
-\galopenmp
+\subsection{OpenMP}
 OpenMP may be used by the {\tt \fullpackagename} package to provide
 parallelism for some solver options in shared memory environments.
 See the documentation for the \galahad\ package {\tt SLS} for more details.
@@ -709,7 +709,7 @@ It is used to hold data about the problem being solved.
 The user must allocate all the array components,
 and set values for all components except {\tt prob\%C}.
 
-The components {\tt prob\%X}, {\tt prob\%Y} and {\tt prob\%Z}
+The components {\tt prob\%X} , {\tt prob\%Y} and {\tt prob\%Z}
 must be set to initial estimates of the primal variables, $\bmx$,
 Lagrange multipliers, $\bmy$, for the general constraints
 and dual variables for the bound constraints, $\bmz$, respectively.
@@ -730,8 +730,7 @@ and dual variables for the bound constraints $\bmz$, respectively.
  {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_\-ROWS'} $\}$,
               and (if $\bmH$ is provided) {\tt prob\%H\%ne} $\geq -2$.
  {\tt prob\%H\_type} $\in \{${\tt 'DENSE'},
- {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_\-ROWS'}, {\tt 'DIAGONAL'},
- {\tt 'SCALED\_IDENTITY'}, {\tt 'IDENTITY'}, {\tt 'ZERO'} $\}$.
+ {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_\-ROWS'}, {\tt 'DIAGONAL'} $\}$.
 
 \itt{data} is a scalar \intentinout\ argument of type
 {\tt \packagename\_data\_type}
@@ -754,10 +753,10 @@ is indicated when the  component {\tt status} has the value 0.
 For other return values of {\tt status}, see Section~\ref{galerrors}.
 
 \itt{C\_stat} is an \optional\ rank-one \intentout\ array argument of
-dimension {\tt prob\%m}
+dimension {\tt p\%m}
 and type default \integer, that indicates which of the general linear
 constraints are in the optimal active set. Possible values for
-{\tt C\_stat(i)}, {\tt i}$=1, \ldots ,$ {\tt prob\%m}, and their meanings are
+{\tt C\_stat(i)}, {\tt i}$=1, \ldots ,$ {\tt p\%m}, and their meanings are
 \begin{description}
 \itt{<0} the $i$-th general constraint
 is in the active set, on its lower bound,
@@ -779,10 +778,10 @@ is on its upper bound but linearly dependent on others, and
 \end{description}
 
 \itt{B\_stat} is an \optional\ rank-one \intentout\ array argument of
-dimension {\tt prob\%n}
+dimension {\tt p\%n}
 and type default \integer, that indicates which of the simple bound
 constraints are in the current active set. Possible values for
-{\tt B\_stat(j)}, {\tt j}$=1, \ldots ,$ {\tt prob\%n}, and their meanings are
+{\tt B\_stat(j)}, {\tt j}$=1, \ldots ,$ {\tt p\%n}, and their meanings are
 \begin{description}
 \itt{<0} the $j$-th simple bound constraint
 is in the active set, on its lower bound,
@@ -875,9 +874,9 @@ and {\tt inform\%bad\_alloc} respectively.
     {\tt 'DENSE'}, {\tt 'COORDINATE'} or {\tt 'SPARSE\_BY\_ROWS'},
     or the requirement that
     {\tt prob\%H\_type} contain its relevant string
-    {\tt 'DENSE'}, {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_ROWS'},
-    {\tt 'DIAGONAL'}  {\tt SCALED\_IDENTITY}, {\tt IDENTITY} or {\tt ZERO},
-    when $\bmH$ is available, has been violated.
+    {\tt 'DENSE'}, {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_ROWS'}
+    or {\tt 'DIAGONAL'} when $\bmH$ is available,
+    has been violated.
 
 %\itt{-3.} At least one of the arrays
 % {\tt prob\%A\_val}, {\tt prob\%A\_row}, {\tt prob\%A\_col},
@@ -1145,8 +1144,7 @@ and
  {\tt control\%error}, {\tt control\%out} and {\tt control\%print\_level}.
 \galrestrictions {\tt prob\%n} $> 0$, {\tt prob\%m} $\geq  0$,
 {\tt prob\%A\_type} and {\tt prob\%H\_type} $\in \{${\tt 'DENSE'},
- {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_\-ROWS'}, {\tt 'DIAGONAL'},
- {\tt 'SCALED\_IDENTITY'}, {\tt 'IDENTITY'}, {\tt 'ZERO'} $\}$.
+ {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_\-ROWS'}, {\tt 'DIAGONAL'} $\}$.
 (if $\bmH$ and $\bmA$ are explicit).
 \galportability ISO Fortran~95 + TR 15581 or Fortran~2003.
 The package is thread-safe.
@@ -1169,7 +1167,7 @@ the dual optimality conditions
 where
 \eqn{4.2b}{
  \bmy = \bmy^{l} + \bmy^{u}, \;\;
- \bmz = \bmz^{l} + \bmz^{u}, \,\,
+ \bmz = \bmz^{l} + \bmz^{u}\,\,
  \bmy^{l} \geq 0 , \;\;
  \bmy^{u} \leq 0 , \;\;
  \bmz^{l} \geq 0 \;\; \mbox{and} \;\;

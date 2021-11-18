@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 15/10/2014 AT 13:20 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ W C P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -31,7 +31,7 @@
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
       USE GALAHAD_SPACE_double
-      USE GALAHAD_STRING
+      USE GALAHAD_STRING_double
       USE GALAHAD_SPECFILE_double
       USE GALAHAD_QPT_double
       USE GALAHAD_QPP_double, WCP_dims_type => QPP_dims_type
@@ -7165,7 +7165,7 @@
 
 !  Now use heapsort to arrange the breakpoints in increasing order.
 
-      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, ix = IBREAK )
+      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, INDA = IBREAK )
       IF ( details ) WRITE( control%out,                                       &
        "(  I8, ' breakpoints, interval is [0,', ES12.4, ']' )" )               &
           nbreak, alpha_max
@@ -7213,7 +7213,7 @@
             COEF2( l ) = - COEF2( l )
             c0 = c0 + two * COEF0( l ) ; c1 = c1 + two * COEF1( l )
             c2 = c2 + two * COEF2( l )
-            CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
+            CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
             nbreak = nbreak - 1
             CYCLE
           END IF
@@ -7307,7 +7307,7 @@
         COEF2( l ) = - COEF2( l )
         c0 = c0 + two * COEF0( l ) ; c1 = c1 + two * COEF1( l )
         c2 = c2 + two * COEF2( l )
-        CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
+        CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
         nbreak = nbreak - 1
       END DO
 
@@ -7533,7 +7533,7 @@
 
 !  Now use heapsort to arrange the breakpoints in increasing order.
 
-      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, ix = IBREAK )
+      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, INDA = IBREAK )
       IF ( details ) WRITE( control%out,                                       &
        "(  I8, ' breakpoints, interval is [0,', ES12.4, ']' )" )               &
           nbreak, alpha_max
@@ -7583,7 +7583,7 @@
             COEF3( l ) = - COEF3( l ) ; COEF4( l ) = - COEF4( l ) ;
             c0 = c0 + two * COEF0( l ) ; c1 = c1 + two * COEF1( l )
             c3 = c3 + two * COEF3( l ) ; c4 = c4 + two * COEF4( l )
-            CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
+            CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
             nbreak = nbreak - 1
             CYCLE
           END IF
@@ -7696,7 +7696,7 @@
         COEF3( l ) = - COEF3( l ) ; COEF4( l ) = - COEF4( l )
         c0 = c0 + two * COEF0( l ) ; c1 = c1 + two * COEF1( l )
         c3 = c3 + two * COEF3( l ) ; c4 = c4 + two * COEF4( l )
-        CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
+        CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
         nbreak = nbreak - 1
 
       END DO

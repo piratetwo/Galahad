@@ -1,7 +1,3 @@
-! *****************************************************************************
-! ************************* BROKEN ** DO NOT USE ******************************
-! *****************************************************************************
-
 ! THIS VERSION: GALAHAD 2.4 - 19/05/2010 AT 09:00 GMT.
 
 !-*-*-*-*-*-*-*-*-*-*-  G A L A H A D _ P Q P   M O D U L E  -*-*-*-*-*-*-*-*-*-
@@ -32,7 +28,6 @@
 !      ---------------------------------------------------------------------
 
 !NOT95USE GALAHAD_CPU_time
-      USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
       USE GALAHAD_QPT_double
       USE GALAHAD_RAND_double
@@ -924,8 +919,6 @@
 !     INTEGER, DIMENSION( 1 ) :: initial_seed
       REAL ( KIND = wp ) :: a_x, a_norms
       REAL :: time, time_start, time_inner_start, dum
-      REAL ( KIND = WP ) :: clock_start, clock_record
-      REAL ( KIND = WP ) :: clock_now, clock_inner_start
       LOGICAL :: reallocate, printe, printi, printt
       CHARACTER ( LEN = 30 ) :: bad_alloc
 
@@ -952,7 +945,7 @@
 
 !  Initialize time
 
-      CALL CPU_TIME( time_start ) ; CALL CLOCK_time( clock_start )
+      CALL CPU_TIME( time_start )
 
 !  Set initial timing breakdowns
 
@@ -1916,7 +1909,7 @@
       IF ( printi )                                                           &
         WRITE( control%out, "( /, ' Check for optimality when theta = 0.0' )" )
 
-      CALL CPU_TIME( time_inner_start ) ; CALL CLOCK_TIME( clock_inner_start )
+      CALL CPU_TIME( time_inner_start )
       CALL QPA_solve_qp( data%dims, prob%n, prob%m,                            &
                          prob%H%val, prob%H%col, prob%H%ptr,                   &
                          prob%G, prob%f, prob%rho_g, prob%rho_b, prob%A%val,   &
@@ -1934,7 +1927,7 @@
                          data%P, data%SOL, data%D,                             &
                          data%SLS_data, data%SLS_control,                      &
                          data%SCU_mat, data%SCU_info, data%SCU_data, data%K,   &
-                         data%seed, time_inner_start, clock_inner_start,       &
+                         data%seed, time_inner_start,                          &
                          data%start_print, data%stop_print,                    &
                          data%prec_hist, data%auto_prec, data%auto_fact,       &
                          printi, prefix, control, inform )
@@ -2056,7 +2049,6 @@
                        data%S_row, data%S_col, data%S_colptr, data%IBREAK,     &
                        data%SC, data%REF, data%RES_print, data%DIAG,           &
                        data%C_up_or_low, data%X_up_or_low, data%PERM,          &
-                       data%P, data%SOL, data%D,                               &
                        data%SLS_data, data%SLS_control,                        &
                        data%SCU_mat, data%SCU_info, data%SCU_data, data%K,     &
                        interval%theta_l, interval%theta_u, interval%f,         &
@@ -2517,7 +2509,7 @@
                                   Abycol_val, Abycol_row, Abycol_ptr, S_val,   &
                                   S_row, S_col, S_colptr, IBREAK, SC, REF,     &
                                   RES_print, DIAG, C_up_or_low, X_up_or_low,   &
-                                  PERM, P, SOL, D, SLS_data, SLS_control,      &
+                                  PERM, SLS_data, SLS_control,                 &
                                   SCU_mat, SCU_info, SCU_data, K,              &
                                   theta_l, theta_u, f_int, g_int, h_int,       &
                                   X_int, Y_int, Z_int, DX_int,                 &
@@ -2829,9 +2821,6 @@
       INTEGER, INTENT( OUT ), DIMENSION( k_n_max + control%max_sc ) :: PERM
       INTEGER, ALLOCATABLE, DIMENSION( : ) :: Abycol_row, Abycol_ptr
       INTEGER, ALLOCATABLE, DIMENSION( : )  :: S_row, S_col, S_colptr
-      INTEGER, ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: P
-      REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: SOL
-      REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( :, : ) :: D
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( m ) :: A_dx
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: H_dx
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: GRAD
@@ -2847,7 +2836,7 @@
       TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( INOUT ) :: K
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
@@ -3200,8 +3189,7 @@
                                       SCU_mat, out, m_link, pcount, printd,    &
                                       warmer_start, check_dependent, C_stat,   &
                                       B_stat, SC, REF, IBREAK, A_ptr,          &
-                                      A_col, A_val, K, P, SOL, D,              &
-                                      SLS_data, SLS_control )
+                                      A_col, A_val, K, SLS_data, SLS_control )
           GO TO 5
         END IF
 !       WRITE(6,*) ' factors formed '
@@ -3225,7 +3213,7 @@
 !                                   SCU_mat, out, m_link, pcount, printd,      &
 !                                   warmer_start, check_dependent, C_stat,     &
 !                                   B_stat, SC, REF, IBREAK, A_ptr,            &
-!                                   A_col, A_val, K, P, SOL, D, CNTL, FACTORS )
+!                                   A_col, A_val, K, CNTL, FACTORS )
 !       GO TO 5
 !     END IF
 
@@ -3816,8 +3804,7 @@
                                    SCU_mat, out, m_link, pcount, printd,       &
                                    warmer_start, check_dependent, C_stat,      &
                                    B_stat, SC, REF, IBREAK, A_ptr,             &
-                                   A_col, A_val, K, P, SOL, D,                 &
-                                   SLS_data, SLS_control )
+                                   A_col, A_val, K, SLS_data, SLS_control )
 
 !  Set automatic choices for the factorizations and preconditioner
 
@@ -4021,8 +4008,5 @@
 
    END MODULE GALAHAD_PQP_double
 
-! *****************************************************************************
-! ************************* BROKEN ** DO NOT USE ******************************
-! *****************************************************************************
 
 

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.5 - 08/02/2013 AT 10:00 GMT.
 
 !-*-*-*-*-*-*-  G A L A H A D _ S U P E R B   M O D U L E  *-*-*-*-*-*-*-*
 
@@ -41,7 +41,7 @@
 !    USE GALAHAD_QPT_double
      USE GALAHAD_WCP_double
      USE GALAHAD_SPECFILE_double
-     USE GALAHAD_STRING, ONLY: STRING_pleural
+     USE GALAHAD_STRING_double, ONLY: STRING_pleural
      USE GALAHAD_SORT_double
      USE GALAHAD_GLTR_double
      USE GALAHAD_PTRANS_double
@@ -223,7 +223,7 @@
        LOGICAL :: newsol
        CHARACTER ( LEN = 10 ) :: pname
        CHARACTER ( LEN = 80 ) :: bad_alloc
-       TYPE ( GLTR_inform_type ) :: gltr_inform
+       TYPE ( GLTR_info_type ) :: gltr_inform
        TYPE ( PTRANS_inform_type ) :: ptrans_inform
        TYPE ( SUPERB_time_type ) :: time
        TYPE ( WCP_inform_type ) :: WCP_info

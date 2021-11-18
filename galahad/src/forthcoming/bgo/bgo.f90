@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 07/07/2021 AT 09:45 GMT.
+! THIS VERSION: GALAHAD 2.8 - 20/06/2016 AT 15:15 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D _ B G O   M O D U L E  *-*-*-*-*-*-*-*-*-*-
 
@@ -37,24 +37,8 @@
 
      PRIVATE
      PUBLIC :: BGO_initialize, BGO_read_specfile, BGO_solve,                   &
-               BGO_terminate, NLPT_problem_type,                               &
-               NLPT_userdata_type, SMT_type, SMT_put,                          &
-               BGO_import, BGO_solve_with_mat, BGO_solve_without_mat,          &
-               BGO_solve_reverse_with_mat, BGO_solve_reverse_without_mat,      &
-               BGO_full_initialize, BGO_full_terminate, BGO_reset_control,     &
-               BGO_information
-
-!----------------------
-!   I n t e r f a c e s
-!----------------------
-
-      INTERFACE BGO_initialize
-        MODULE PROCEDURE BGO_initialize, BGO_full_initialize
-      END INTERFACE BGO_initialize
-
-      INTERFACE BGO_terminate
-        MODULE PROCEDURE BGO_terminate, BGO_full_terminate
-      END INTERFACE BGO_terminate
+               BGO_terminate, NLPT_problem_type, NLPT_userdata_type,           &
+               SMT_type, SMT_put
 
 !--------------------
 !   P r e c i s i o n
@@ -116,7 +100,7 @@
 
 !   the maximum number of function evaluations made
 
-       INTEGER :: max_evals = 10000
+       INTEGER :: max_eval = 10000
 
 !   sampling strategy used, 1=uniform,2=Latin hyper-cube,3=2+1
 
@@ -345,15 +329,6 @@
 
      END TYPE BGO_data_type
 
-     TYPE, PUBLIC :: BGO_full_data_type
-       LOGICAL :: f_indexing
-       TYPE ( BGO_data_type ) :: BGO_data
-       TYPE ( BGO_control_type ) :: BGO_control
-       TYPE ( BGO_inform_type ) :: BGO_inform
-       TYPE ( NLPT_problem_type ) :: nlp
-       TYPE ( NLPT_userdata_type ) :: userdata
-     END TYPE BGO_full_data_type
-
    CONTAINS
 
 !-*-*-  G A L A H A D -  B G O _ I N I T I A L I Z E  S U B R O U T I N E  -*-
@@ -418,38 +393,6 @@
 
      END SUBROUTINE BGO_initialize
 
-!- G A L A H A D -  B G O _ F U L L _ I N I T I A L I Z E  S U B R O U T I N E -
-
-     SUBROUTINE BGO_full_initialize( data, control, inform )
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!   Provide default values for BGO controls
-
-!   Arguments:
-
-!   data     private internal data
-!   control  a structure containing control information. See preamble
-!   inform   a structure containing output information. See preamble
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( BGO_control_type ), INTENT( OUT ) :: control
-     TYPE ( BGO_inform_type ), INTENT( OUT ) :: inform
-
-     CALL BGO_initialize( data%bgo_data, control, inform )
-
-     RETURN
-
-!  End of subroutine BGO_full_initialize
-
-     END SUBROUTINE BGO_full_initialize
-
 !-*-*-*-*-   B G O _ R E A D _ S P E C F I L E  S U B R O U T I N E  -*-*-*-*-
 
      SUBROUTINE BGO_read_specfile( control, device, alt_specname )
@@ -498,8 +441,8 @@
      INTEGER, PARAMETER :: out = error + 1
      INTEGER, PARAMETER :: print_level = out + 1
      INTEGER, PARAMETER :: attempts_max = print_level + 1
-     INTEGER, PARAMETER :: max_evals = attempts_max + 1
-     INTEGER, PARAMETER :: sampling_strategy = max_evals + 1
+     INTEGER, PARAMETER :: max_eval = attempts_max + 1
+     INTEGER, PARAMETER :: sampling_strategy = max_eval + 1
      INTEGER, PARAMETER :: hypercube_discretization = sampling_strategy + 1
      INTEGER, PARAMETER :: alive_unit = hypercube_discretization + 1
      INTEGER, PARAMETER :: infinity = alive_unit + 1
@@ -526,7 +469,7 @@
      spec( out )%keyword = 'printout-device'
      spec( print_level )%keyword = 'print-level'
      spec( attempts_max )%keyword = 'maximum-current-random-searches'
-     spec( max_evals )%keyword = 'maximum-number-of-evaluations'
+     spec( max_eval )%keyword = 'maximum-number-of-evaluations'
      spec( sampling_strategy )%keyword = 'sampling-strategy'
      spec( hypercube_discretization )%keyword = 'hypercube-discretization'
      spec( alive_unit )%keyword = 'alive-device'
@@ -572,11 +515,11 @@
      CALL SPECFILE_assign_value( spec( print_level ),                          &
                                  control%print_level,                          &
                                  control%error )
-     CALL SPECFILE_assign_value( spec( attempts_max ),                         &
-                                 control%attempts_max,                         &
+     CALL SPECFILE_assign_value( spec( attempts_max ),                       &
+                                 control%attempts_max,                       &
                                  control%error )
-     CALL SPECFILE_assign_value( spec( max_evals ),                            &
-                                 control%max_evals,                            &
+     CALL SPECFILE_assign_value( spec( max_eval ),                             &
+                                 control%max_eval,                             &
                                  control%error )
      CALL SPECFILE_assign_value( spec( sampling_strategy ),                    &
                                  control%sampling_strategy,                    &
@@ -1095,7 +1038,6 @@
      REAL ( KIND = wp ) :: p, x, x_l, x_u, d, f_best
      LOGICAL :: alive
      CHARACTER ( LEN = 80 ) :: array_name
-     TYPE ( BGO_inform_type ) :: inform_initialize
 
 !  prefix for all output
 
@@ -1120,12 +1062,12 @@
        GO TO 10
      CASE ( 20 )  ! re-entry without initialization
        GO TO 20
+     CASE ( 60 )  ! function and derivative evaluations
+       GO TO 60
      CASE ( 120 )  ! function and derivative evaluations
        GO TO 120
      CASE ( 230 )  ! function and derivative evaluations
        GO TO 230
-     CASE ( 420 )  ! function and derivative evaluations
-       GO TO 420
      CASE ( 550 )  ! function and derivative evaluations
        GO TO 550
      END SELECT
@@ -1137,10 +1079,6 @@
   10 CONTINUE
      CALL CPU_time( data%time_start ) ; CALL CLOCK_time( data%clock_start )
      data%out = control%out
-
-!  initialize components of inform 
-
-     inform = inform_initialize
 
 !  ensure that input parameters are within allowed ranges
 
@@ -1299,16 +1237,154 @@
   20 CONTINUE
      data%pass = 1
 
-!  check whether multistart is preferred
+!  ===================
+!  special case: n = 1
+!  ===================
 
+     IF ( nlp%n > 1 ) GO TO 90
+
+!  -----------------------------------------------------------
+!  implicit loop to perform the global univariate minimization
+!  -----------------------------------------------------------
+
+     inform%UGO_inform%status = 1
+  50 CONTINUE
+
+!  find the global minimizer of the univariate function f(x) in the interval
+!  [x_l,x_u]
+
+       CALL UGO_solve( nlp%X_l( 1 ), nlp%X_u( 1 ), nlp%X( 1 ),                 &
+                       data%phi, data%phi1, data%phi2,                         &
+                       data%control%UGO_control, inform%UGO_inform,            &
+                       data%UGO_data, userdata )
+
+!  evaluate f and its derivatives as required
+
+       IF ( inform%UGO_inform%status >= 2 ) THEN
+         data%branch = 0
+
+!  obtain the objective function value
+
+         IF ( data%present_eval_f ) THEN
+           CALL eval_F( data%eval_status, nlp%X( : nlp%n ), userdata, nlp%f )
+         ELSE
+           data%branch = data%branch + 1
+         END IF
+
+!  obtain the gradient value
+
+         IF ( inform%UGO_inform%status >= 3 ) THEN
+           IF ( data%present_eval_g ) THEN
+             CALL eval_G( data%eval_status, nlp%X( : nlp%n ), userdata,        &
+                          nlp%G( : nlp%n ) )
+           ELSE
+             data%branch = data%branch + 2
+           END IF
+
+!  obtain a Hessian-vector product
+
+           IF ( inform%UGO_inform%status >= 4 ) THEN
+!            data%U => data%U1 ; data%P => data%P1
+             data%U = zero ; data%P = one
+             IF ( data%present_eval_hprod ) THEN
+               CALL eval_HPROD( data%eval_status, nlp%X( : nlp%n ),            &
+                                userdata, data%U( : nlp%n ),                   &
+                                data%P( : nlp%n ) )
+             ELSE
+               data%got_h = .FALSE.
+!              data%V => data%V1
+               data%V = one
+               data%branch = data%branch + 5
+             END IF
+           END IF
+         END IF
+
+!  reverse communication is required for at least f or one of its derivatives
+
+         IF ( data%branch > 0 ) THEN
+           SELECT CASE( data%branch )
+           CASE ( 1 )
+             inform%status = 2
+           CASE ( 2 )
+             inform%status = 3
+           CASE ( 3 )
+             inform%status = 23
+           CASE ( 5 )
+             inform%status = 5
+           CASE ( 6 )
+             inform%status = 25
+           CASE ( 7 )
+             inform%status = 35
+           CASE ( 8 )
+             inform%status = 235
+           END SELECT
+           data%branch = 60 ; RETURN
+         END IF
+       END IF
+
+!  return from reverse communication
+
+  60 CONTINUE
+     IF ( inform%UGO_inform%status >= 2 ) THEN
+       data%phi = nlp%f
+       IF ( inform%UGO_inform%status >= 3 ) THEN
+         data%phi1 = DOT_PRODUCT( data%P, nlp%G )
+         IF ( inform%UGO_inform%status >= 4 )                                  &
+           data%phi2 = DOT_PRODUCT( data%P, data%U )
+       END IF
+       GO TO 50
+     END IF
+
+     IF ( data%printm )                                                        &
+       WRITE( data%out, "( A, ' minimizer', ES12.4, ' in [', ES11.4,           &
+    &     ',', ES10.4, '] has f =', ES12.4, ', st = ', I0 )" )                 &
+         prefix, nlp%X( 1 ), nlp%X_l( 1 ), nlp%X_u( 1 ), data%phi,             &
+         inform%UGO_inform%status
+
+     IF ( inform%UGO_inform%status < 0 .AND. data%printe ) THEN
+       IF ( inform%UGO_inform%status /= GALAHAD_error_max_iterations )         &
+         WRITE( data%error, "( ' Help! exit from UGO status = ', I0 )" )       &
+           inform%UGO_inform%status
+     END IF
+
+!  record the global minimizer
+
+     inform%f_eval = inform%f_eval + inform%UGO_inform%f_eval
+     inform%g_eval = inform%h_eval + inform%UGO_inform%g_eval
+     inform%h_eval = inform%h_eval + inform%UGO_inform%h_eval
+     inform%obj = data%phi
+     inform%norm_pg = TWO_NORM( nlp%X -                                        &
+          TRB_projection( nlp%n, nlp%X - nlp%G, nlp%X_l, nlp%X_u ) )
+
+!  record the clock time
+
+       CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
+       data%time_now = data%time_now - data%time_start
+       data%clock_now = data%clock_now - data%clock_start
+
+!  control printing
+
+     data%print_iteration_header = data%printt .OR. data%TRB_data%printi
+
+!  print one-line summary
+
+     IF ( data%printi ) THEN
+       IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
+         WRITE( data%out, 2030 )
+         data%print_1st_header = .FALSE.
+       END IF
+       WRITE( data%out, 2020 ) prefix, data%pass, 0, inform%obj,               &
+         inform%norm_pg, inform%f_eval, inform%g_eval, data%clock_now
+     END IF
+     GO TO 900
+
+!  general case: n > 1
+
+  90 CONTINUE
      IF ( data%control%random_multistart ) GO TO 500
 
-!  check for special case for which n = 1
-
-     IF ( nlp%n == 1 ) GO TO 400
-
 !  ============================================================================
-!  Start of main local minimization and probe iteration (n > 1)
+!  Start of main local minimization and probe iteration
 !  ============================================================================
 
  100 CONTINUE
@@ -1331,12 +1407,6 @@
        inform%TRB_inform%f_eval = 0
        inform%TRB_inform%g_eval = 0
        inform%TRB_inform%h_eval = 0
-       data%control%TRB_control%error = 0
-       data%control%TRB_control%hessian_available = control%hessian_available
-       data%control%TRB_control%maxit = MIN( control%TRB_control%maxit,        &
-           control%max_evals - inform%f_eval )
-
-       CALL CPU_time( data%time_record ) ; CALL CLOCK_time( data%clock_record )
  110   CONTINUE
 
 !  call the bound-constrained local minimizer
@@ -1459,20 +1529,10 @@
 
  190   CONTINUE
 
-!  record the time taken in the local minimization
-
-       CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
-       inform%time%multivariate_local =                                        &
-         inform%time%multivariate_local +                                      &
-           data%time_now - data%time_record
-       inform%time%clock_multivariate_local =                                  &
-         inform%time%clock_multivariate_local +                                &
-           data%clock_now - data%clock_record
-
 !  record details about the critical point found
 
        inform%f_eval = inform%f_eval + inform%TRB_inform%f_eval
-       inform%g_eval = inform%g_eval + inform%TRB_inform%g_eval
+       inform%g_eval = inform%h_eval + inform%TRB_inform%g_eval
        inform%h_eval = inform%h_eval + inform%TRB_inform%h_eval
        inform%obj = inform%TRB_inform%obj
        inform%norm_pg = inform%TRB_inform%norm_pg
@@ -1480,7 +1540,7 @@
        data%X_best = nlp%X
        data%G_best = nlp%G
        data%P => data%TRB_data%P
-!write(6,*) ' data%P associated '
+write(6,*) ' data%P associated '
        IF ( inform%TRB_inform%status < 0 .AND. data%printe ) THEN
          IF ( inform%TRB_inform%status /= GALAHAD_error_max_iterations )       &
            WRITE( data%error, "( ' Help! exit from TRB status = ', I0 )" )     &
@@ -1504,7 +1564,7 @@
            WRITE( data%out, 2010 )
            data%print_1st_header = .FALSE.
          END IF
-         WRITE( data%out, 2020 ) prefix, data%pass, 'T', 0, inform%obj,        &
+         WRITE( data%out, 2020 ) prefix, data%pass, 0, inform%obj,             &
            inform%norm_pg, inform%f_eval, inform%g_eval, data%clock_now
        END IF
 !write(6,"( ' x ', /, ( 5ES12.4 ) )") data%X_best( : nlp%n )
@@ -1592,13 +1652,12 @@
 !  find the smallest and largest values alpha_l, alpha_u of alpha for which
 !    x_l <= x_k + alpha p <= x_u
 
-!        WRITE( data%out,                                   &
          IF ( data%printw ) WRITE( data%out,                                   &
            "( '    x_l            x         x_u            p' )" )
-         data%alpha_l = - infinity ; data%alpha_u = infinity
          DO i = 1, nlp%n
            x = data%X_start( i ) ; x_l = nlp%X_l( i ) ; x_u = nlp%X_u( i )
            p = data%P( i )
+           data%alpha_l = - infinity ; data%alpha_u = infinity
            IF ( p > zero ) THEN
              data%alpha_l = MAX( data%alpha_l, ( x_l - x ) / p )
              data%alpha_u = MIN( data%alpha_u, ( x_u - x ) / p )
@@ -1607,9 +1666,7 @@
              data%alpha_u = MIN( data%alpha_u, ( x_l - x ) / p )
            END IF
            IF ( data%printw ) WRITE( data%out,"( 4ES12.4 )" ) x_l, x, x_u, p
-!          WRITE( data%out,"( 4ES12.4 )" ) x_l, x, x_u, p
          END DO
-!        WRITE( data%out,"( ' alpha_l, alpha_u ',           &
          IF ( data%printw ) WRITE( data%out,"( ' alpha_l, alpha_u ',           &
         &                          2ES12.4 )" )  data%alpha_l,  data%alpha_u
 
@@ -1626,11 +1683,7 @@
 
          inform%UGO_inform%status = 1
          data%control%UGO_control%obj_sufficient = data%f_best - 0.0001_wp
-         data%control%UGO_control%maxit = MIN( control%UGO_control%maxit,      &
-           control%max_evals - inform%f_eval )
-
 !write(6,"( ' suff ', ES22.14 )" ) data%control%UGO_control%obj_sufficient
-         CALL CPU_time( data%time_record ); CALL CLOCK_time( data%clock_record )
  220     CONTINUE
 
 !  find the global minimizer of phi(alpha) = f(x_k + alpha p ) within
@@ -1647,7 +1700,7 @@
                              data%control%UGO_control, inform%UGO_inform,      &
                              data%UGO_data, userdata )
            END IF
-!write(6,*) ' ugo status ', inform%UGO_inform%status
+
 !  evaluate phi(alpha) = f(x_k + alpha p) and its derivatives as required
 
            IF ( inform%UGO_inform%status >= 2 ) THEN
@@ -1738,17 +1791,8 @@
                  inform%UGO_inform%status
            END IF
 
-!  record the time taken in the univariate global minimization
-
-           CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
-           inform%time%univariate_global =                                     &
-             inform%time%univariate_global + data%time_now - data%time_record
-           inform%time%clock_univariate_global =                               &
-             inform%time%clock_univariate_global +                             &
-               data%clock_now - data%clock_record
-
            inform%f_eval = inform%f_eval + inform%UGO_inform%f_eval
-           inform%g_eval = inform%g_eval + inform%UGO_inform%g_eval
+           inform%g_eval = inform%h_eval + inform%UGO_inform%g_eval
            inform%h_eval = inform%h_eval + inform%UGO_inform%h_eval
 
 !   test to see whether a lower point has been found
@@ -1761,7 +1805,7 @@
 !              prefix, data%alpha, data%alpha_l, data%alpha_u, data%phi,       &
 !              inform%UGO_inform%status
 
-!write(6,*) ' better!, alpha = ', data%alpha
+!write(6,*) ' better!'
              nlp%X = data%X_start + data%alpha * data%P
 
 !CALL eval_F( data%eval_status, nlp%X( : nlp%n ), userdata, nlp%f )
@@ -1793,7 +1837,6 @@
 !  -------------------------------------------------
 
          data%attempts = data%attempts + 1
-         IF ( inform%f_eval > control%max_evals ) GO TO 290
          IF ( data%attempts <= data%control%attempts_max ) GO TO 210
 
 !  ------------------------------------------------
@@ -1823,7 +1866,7 @@
            WRITE( data%out, 2010 )
            data%print_1st_header = .FALSE.
          END IF
-         WRITE( data%out, 2020 ) prefix, data%pass, 'U', data%attempts,        &
+         WRITE( data%out, 2020 ) prefix, data%pass, data%attempts,             &
            inform%obj, inform%norm_pg, inform%f_eval, inform%g_eval,           &
            data%clock_now
        END IF
@@ -1833,7 +1876,7 @@
        inform%obj = data%f_best
        nlp%X = data%X_best
        nlp%G = data%G_best
-!write(6,*) ' x_best = ', nlp%X
+
 !  debug printing for X and G
 
        IF ( data%printw ) THEN
@@ -1875,8 +1918,8 @@
 
 !  check to see if the evaluation limit has been exceeded
 
-       IF ( data%control%max_evals >= 0 .AND.                                  &
-            inform%f_eval > data%control%max_evals ) THEN
+       IF ( data%control%max_eval >= 0 .AND.                                   &
+            inform%f_eval > data%control%max_eval ) THEN
          inform%status = GALAHAD_error_max_evaluations ; GO TO 900
        END IF
 
@@ -1884,170 +1927,11 @@
          inform%status = GALAHAD_error_max_iterations ; GO TO 900
        END IF
 
-!  check to see if we are still "alive"
-
-       IF ( data%control%alive_unit > 0 ) THEN
-         INQUIRE( FILE = data%control%alive_file, EXIST = alive )
-         IF ( .NOT. alive ) THEN
-           inform%status = GALAHAD_error_alive ; GO TO 900
-         END IF
-       END IF
-
        data%pass = data%pass + 1
      GO TO 100
 
 !  ============================================================================
-!  Special case of main local minimization and probe iteration (n = 1)
-!  ============================================================================
-
- 400 CONTINUE
-
-!  -----------------------------------------------------------
-!  implicit loop to perform the global univariate minimization
-!  -----------------------------------------------------------
-
-     inform%UGO_inform%status = 1
-     CALL CPU_time( data%time_record ); CALL CLOCK_time( data%clock_record )
- 410 CONTINUE
-
-!  find the global minimizer of the univariate function f(x) in the interval
-!  [x_l,x_u]
-
-       CALL UGO_solve( nlp%X_l( 1 ), nlp%X_u( 1 ), nlp%X( 1 ),                 &
-                       data%phi, data%phi1, data%phi2,                         &
-                       data%control%UGO_control, inform%UGO_inform,            &
-                       data%UGO_data, userdata )
-
-!  evaluate f and its derivatives as required
-
-       IF ( inform%UGO_inform%status >= 2 ) THEN
-         data%branch = 0
-
-!  obtain the objective function value
-
-         IF ( data%present_eval_f ) THEN
-           CALL eval_F( data%eval_status, nlp%X( : nlp%n ), userdata, nlp%f )
-         ELSE
-           data%branch = data%branch + 1
-         END IF
-
-!  obtain the gradient value
-
-         IF ( inform%UGO_inform%status >= 3 ) THEN
-           IF ( data%present_eval_g ) THEN
-             CALL eval_G( data%eval_status, nlp%X( : nlp%n ), userdata,        &
-                          nlp%G( : nlp%n ) )
-           ELSE
-             data%branch = data%branch + 2
-           END IF
-
-!  obtain a Hessian-vector product
-
-           IF ( inform%UGO_inform%status >= 4 ) THEN
-!            data%U => data%U1 ; data%P => data%P1
-             data%U = zero ; data%P = one
-             IF ( data%present_eval_hprod ) THEN
-               CALL eval_HPROD( data%eval_status, nlp%X( : nlp%n ),            &
-                                userdata, data%U( : nlp%n ),                   &
-                                data%P( : nlp%n ) )
-             ELSE
-               data%got_h = .FALSE.
-!              data%V => data%V1
-               data%V = one
-               data%branch = data%branch + 5
-             END IF
-           END IF
-         END IF
-
-!  reverse communication is required for at least f or one of its derivatives
-
-         IF ( data%branch > 0 ) THEN
-           SELECT CASE( data%branch )
-           CASE ( 1 )
-             inform%status = 2
-           CASE ( 2 )
-             inform%status = 3
-           CASE ( 3 )
-             inform%status = 23
-           CASE ( 5 )
-             inform%status = 5
-           CASE ( 6 )
-             inform%status = 25
-           CASE ( 7 )
-             inform%status = 35
-           CASE ( 8 )
-             inform%status = 235
-           END SELECT
-           data%branch = 420 ; RETURN
-         END IF
-       END IF
-
-!  return from reverse communication
-
- 420 CONTINUE
-     IF ( inform%UGO_inform%status >= 2 ) THEN
-       data%phi = nlp%f
-       IF ( inform%UGO_inform%status >= 3 ) THEN
-         data%phi1 = DOT_PRODUCT( data%P, nlp%G )
-         IF ( inform%UGO_inform%status >= 4 )                                  &
-           data%phi2 = DOT_PRODUCT( data%P, data%U )
-       END IF
-       GO TO 410
-     END IF
-
-     IF ( data%printm )                                                        &
-       WRITE( data%out, "( A, ' minimizer', ES12.4, ' in [', ES11.4,           &
-    &     ',', ES10.4, '] has f =', ES12.4, ', st = ', I0 )" )                 &
-         prefix, nlp%X( 1 ), nlp%X_l( 1 ), nlp%X_u( 1 ), data%phi,             &
-         inform%UGO_inform%status
-
-     IF ( inform%UGO_inform%status < 0 .AND. data%printe ) THEN
-       IF ( inform%UGO_inform%status /= GALAHAD_error_max_iterations )         &
-         WRITE( data%error, "( ' Help! exit from UGO status = ', I0 )" )       &
-           inform%UGO_inform%status
-     END IF
-
-!  record the time taken in the univariate global minimization
-
-     CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
-     inform%time%univariate_global =                                           &
-       inform%time%univariate_global + data%time_now - data%time_record
-     inform%time%clock_univariate_global =                                     &
-       inform%time%clock_univariate_global + data%clock_now - data%clock_record
-
-!  record the global minimizer
-
-     inform%f_eval = inform%f_eval + inform%UGO_inform%f_eval
-     inform%g_eval = inform%h_eval + inform%UGO_inform%g_eval
-     inform%h_eval = inform%h_eval + inform%UGO_inform%h_eval
-     inform%obj = data%phi
-     inform%norm_pg = TWO_NORM( nlp%X -                                        &
-          TRB_projection( nlp%n, nlp%X - nlp%G, nlp%X_l, nlp%X_u ) )
-
-!  record the clock time
-
-       CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
-       data%time_now = data%time_now - data%time_start
-       data%clock_now = data%clock_now - data%clock_start
-
-!  control printing
-
-     data%print_iteration_header = data%printt .OR. data%TRB_data%printi
-
-!  print one-line summary
-
-     IF ( data%printi ) THEN
-       IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
-         WRITE( data%out, 2010 )
-         data%print_1st_header = .FALSE.
-       END IF
-       WRITE( data%out, 2020 ) prefix, data%pass, 'U', 0, inform%obj,          &
-         inform%norm_pg, inform%f_eval, inform%g_eval, data%clock_now
-     END IF
-     GO TO 900
-
-!  ============================================================================
-!  Multistart iteration
+!  Start of main multistart iteration
 !  ============================================================================
 
  500 CONTINUE
@@ -2056,11 +1940,11 @@
      data%trb_maxit = data%control%TRB_control%maxit
      data%trb_maxit_large = 100 * data%trb_maxit
 
+ 510 CONTINUE
+
 !  ============================================================================
 !  Find a sequence of local minimizers of f(x) from random starting points
 !  ============================================================================
-
- 510 CONTINUE
 
 !  ------------------------------------------------
 !  implicit loop to generate random starting points
@@ -2140,12 +2024,6 @@
          inform%TRB_inform%f_eval = 0
          inform%TRB_inform%g_eval = 0
          inform%TRB_inform%h_eval = 0
-         data%control%TRB_control%error = 0
-         data%control%TRB_control%hessian_available = control%hessian_available
-         data%control%TRB_control%maxit = MIN( control%TRB_control%maxit,      &
-             control%max_evals - inform%f_eval )
-
-         CALL CPU_time( data%time_record ); CALL CLOCK_time( data%clock_record )
  540     CONTINUE
 
 !  call the bound-constrained local minimizer
@@ -2168,6 +2046,7 @@
              IF ( data%present_eval_f ) THEN
                CALL eval_F( data%eval_status, nlp%X( : nlp%n ), userdata,      &
                             inform%TRB_inform%obj )
+  !write(6,*) ' f ', nlp%f
              ELSE
                data%branch = 550 ; inform%status = 2 ; RETURN
              END IF
@@ -2266,16 +2145,6 @@
            GO TO 540
  590     CONTINUE
 
-!  record the time taken in the local minimization
-
-         CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
-         inform%time%multivariate_local =                                      &
-           inform%time%multivariate_local +                                    &
-             data%time_now - data%time_record
-         inform%time%clock_multivariate_local =                                &
-           inform%time%clock_multivariate_local +                              &
-             data%clock_now - data%clock_record
-
 !  record details about the critical point found
 
          inform%f_eval = inform%f_eval + inform%TRB_inform%f_eval
@@ -2312,10 +2181,10 @@
            data%accurate = .FALSE.
            IF ( data%printi ) THEN
              IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
-               WRITE( data%out, 2010 )
+               WRITE( data%out, 2030 )
                data%print_1st_header = .FALSE.
              END IF
-             WRITE( data%out, 2020 ) prefix, data%pass, 'T', data%attempts,    &
+             WRITE( data%out, 2020 ) prefix, data%pass, data%attempts,         &
                inform%TRB_inform%obj, inform%TRB_inform%norm_pg,               &
                inform%f_eval, inform%g_eval, data%clock_now
            END IF
@@ -2334,10 +2203,10 @@
          ELSE
            IF ( data%printm ) THEN
              IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
-               WRITE( data%out, 2010 )
+               WRITE( data%out, 2030 )
                data%print_1st_header = .FALSE.
              END IF
-             WRITE( data%out, 2020 ) prefix, data%pass, 'T', data%attempts,    &
+             WRITE( data%out, 2020 ) prefix, data%pass, data%attempts,         &
                inform%TRB_inform%obj, inform%TRB_inform%norm_pg,               &
                inform%f_eval, inform%g_eval, data%clock_now
            END IF
@@ -2351,14 +2220,12 @@
 !        END IF
 
          data%attempts = data%attempts + 1
-         IF ( inform%f_eval <= control%max_evals ) THEN
-           IF ( data%attempts <= data%control%attempts_max ) GO TO 520
-         END IF
+         IF ( data%attempts <= data%control%attempts_max ) GO TO 520
 
 !  check to see if the evaluation limit has been exceeded
 
-         IF ( data%control%max_evals >= 0 .AND.                                &
-              inform%f_eval > data%control%max_evals ) THEN
+         IF ( data%control%max_eval >= 0 .AND.                                 &
+              inform%f_eval > data%control%max_eval ) THEN
            inform%status = GALAHAD_error_max_evaluations ; GO TO 900
          END IF
 
@@ -2392,7 +2259,7 @@
            WRITE( data%out, 2010 )
            data%print_1st_header = .FALSE.
          END IF
-         WRITE( data%out, 2020 ) prefix, data%pass, 'M', data%attempts,        &
+         WRITE( data%out, 2020 ) prefix, data%pass, data%attempts,             &
            inform%obj, inform%norm_pg, inform%f_eval, inform%g_eval,           &
            data%clock_now
        END IF
@@ -2438,14 +2305,6 @@
 !  ============================================================================
 
  900 CONTINUE
-
-!  since the algorithm is only designed to stop when it reaches its 
-!  evaluation limit, flag this as a successful conclusion
-
-     IF ( inform%status == GALAHAD_error_max_evaluations .OR.                  &
-          inform%status == GALAHAD_error_max_iterations ) THEN
-       inform%status = GALAHAD_ok
-     END IF
 
 !  print details of solution
 
@@ -2504,9 +2363,12 @@
 !  Non-executable statements
 
  2000 FORMAT( /, A, ' Problem: ', A, ' n = ', I8 )
- 2010 FORMAT( '  pass        #d             f                g        ',       &
+ 2010 FORMAT( '  pass       #d             f                g        ',        &
               '  #f      #g        time' )
- 2020 FORMAT( A, I6, A1, I9, ES24.16, ES11.4, 2I8, F12.2 )
+ 2020 FORMAT( A, I6, I9, ES24.16, ES11.4, 2I8, F12.2 )
+ 2030 FORMAT( '  pass       #x             f                g        ',        &
+              '  #f      #g        time' )
+
  2200 FORMAT( /, A, ' # function evaluations  = ', I10,                        &
               /, A, ' # gradient evaluations  = ', I10,                        &
               /, A, ' # Hessian evaluations   = ', I10,                        &
@@ -2572,21 +2434,18 @@
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     data%P => NULL( )
      array_name = 'bgo: data%P'
      CALL SPACE_dealloc_pointer( data%P,                                       &
         inform%status, inform%alloc_status, point_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     data%U => NULL( )
      array_name = 'bgo: data%U'
      CALL SPACE_dealloc_pointer( data%U,                                       &
         inform%status, inform%alloc_status, point_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     data%V => NULL( )
      array_name = 'bgo: data%V'
      CALL SPACE_dealloc_pointer( data%V,                                       &
         inform%status, inform%alloc_status, point_name = array_name,           &
@@ -2632,719 +2491,6 @@
 !  End of subroutine BGO_terminate
 
      END SUBROUTINE BGO_terminate
-
-! -  G A L A H A D -  B G O _ f u l l _ t e r m i n a t e  S U B R O U T I N E -
-
-     SUBROUTINE BGO_full_terminate( data, control, inform )
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!   Deallocate all private storage
-
-!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( BGO_control_type ), INTENT( IN ) :: control
-     TYPE ( BGO_inform_type ), INTENT( INOUT ) :: inform
-
-!-----------------------------------------------
-!   L o c a l   V a r i a b l e s
-!-----------------------------------------------
-
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  deallocate workspace
-
-     CALL BGO_terminate( data%bgo_data, control, inform )
-
-!  deallocate any internal problem arrays
-
-     array_name = 'bgo: data%nlp%X'
-     CALL SPACE_dealloc_array( data%nlp%X,                                     &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%G'
-     CALL SPACE_dealloc_array( data%nlp%G,                                     &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%X_l'
-     CALL SPACE_dealloc_array( data%nlp%X_l,                                   &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%X_u'
-     CALL SPACE_dealloc_array( data%nlp%X_u,                                   &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%H%row'
-     CALL SPACE_dealloc_array( data%nlp%H%row,                                 &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%H%col'
-     CALL SPACE_dealloc_array( data%nlp%H%col,                                 &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%H%ptr'
-     CALL SPACE_dealloc_array( data%nlp%H%ptr,                                 &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%H%val'
-     CALL SPACE_dealloc_array( data%nlp%H%val,                                 &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     array_name = 'bgo: data%nlp%H%type'
-     CALL SPACE_dealloc_array( data%nlp%H%type,                                &
-        inform%status, inform%alloc_status, array_name = array_name,           &
-        bad_alloc = inform%bad_alloc, out = control%error )
-     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
-
-     RETURN
-
-!  End of subroutine BGO_full_terminate
-
-     END SUBROUTINE BGO_full_terminate
-
-! -----------------------------------------------------------------------------
-! =============================================================================
-! -----------------------------------------------------------------------------
-!              specific interfaces to make calls from C easier
-! -----------------------------------------------------------------------------
-! =============================================================================
-! -----------------------------------------------------------------------------
-
-!-*-*-*-*-  G A L A H A D -  B G O _ i m p o r t _ S U B R O U T I N E -*-*-*-*-
-
-     SUBROUTINE BGO_import( control, data, status, n, X_l, X_u,                &
-                            H_type, ne, H_row, H_col, H_ptr )
-
-!  import problem data into internal storage prior to solution. 
-!  Arguments are as follows:
-
-!  control is a derived type whose components are described in the leading 
-!   comments to BGO_solve
-!
-!  data is a scalar variable of type BGO_full_data_type used for internal data
-!
-!  status is a scalar variable of type default intege that indicates the
-!   success or otherwise of the import. Possible values are:
-!
-!    1. The import was succesful, and the package is ready for the solve phase
-!
-!   -1. An allocation error occurred. A message indicating the offending
-!       array is written on unit control.error, and the returned allocation
-!       status and a string containing the name of the offending array
-!       are held in inform.alloc_status and inform.bad_alloc respectively.
-!   -2. A deallocation error occurred.  A message indicating the offending
-!       array is written on unit control.error and the returned allocation
-!       status and a string containing the name of the offending array
-!       are held in inform.alloc_status and inform.bad_alloc respectively.
-!   -3. The restriction n > 0 or requirement that type contains
-!       its relevant string 'DENSE', 'COORDINATE', 'SPARSE_BY_ROWS',
-!       'DIAGONAL' or 'ABSENT' has been violated.
-!
-!  n is a scalar variable of type default integer, that holds the number of
-!   variables
-!
-!  X_l is a rank-one array of dimension n and type default real,
-!   that holds the values x_l of the lower bounds on the optimization
-!   variables x. The j-th component of X_l, j = 1, ... , n, contains (x_l)j.
-!
-!  X_u is a rank-one array of dimension n and type default real,
-!   that holds the values x_u of the upper bounds on the optimization
-!   variables x. The j-th component of X_u, j = 1, ... , n, contains (x_u)j.
-!
-!  H_type is a character string that specifies the Hessian storage scheme
-!   used. It should be one of 'coordinate', 'sparse_by_rows', 'dense'
-!   'diagonal' or 'absent', the latter if access to the Hessian is via
-!   matrix-vector products; lower or upper case variants are allowed
-!
-!  ne is a scalar variable of type default integer, that holds the number of
-!   entries in the  lower triangular part of H in the sparse co-ordinate
-!   storage scheme. It need not be set for any of the other three schemes.
-!
-!  H_row is a rank-one array of type default integer, that holds
-!   the row indices of the  lower triangular part of H in the sparse
-!   co-ordinate storage scheme. It need not be set for any of the other
-!   three schemes, and in this case can be of length 0
-!
-!  H_col is a rank-one array variable of type default integer,
-!   that holds the column indices of the  lower triangular part of H in either
-!   the sparse co-ordinate, or the sparse row-wise storage scheme. It need not
-!   be set when the dense or diagonal storage schemes are used, and in this 
-!   case can be of length 0
-!
-!  H_ptr is a rank-one array of dimension n+1 and type default
-!   integer, that holds the starting position of  each row of the  lower
-!   triangular part of H, as well as the total number of entries plus one,
-!   in the sparse row-wise storage scheme. It need not be set when the
-!   other schemes are used, and in this case can be of length 0
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( BGO_control_type ), INTENT( INOUT ) :: control
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( IN ) :: n, ne
-     INTEGER, INTENT( OUT ) :: status
-     CHARACTER ( LEN = * ), INTENT( IN ) :: H_type
-     INTEGER, DIMENSION( : ), INTENT( IN ) :: H_row, H_col, H_ptr
-     REAL ( KIND = wp ), INTENT( IN  ), DIMENSION( n ) :: X_l, X_u
-
-!  local variables
-
-     INTEGER :: error
-     LOGICAL :: deallocate_error_fatal, space_critical
-     CHARACTER ( LEN = 80 ) :: array_name
-
-!  copy control to data
-
-     data%bgo_control = control
-
-     error = data%bgo_control%error
-     space_critical = data%bgo_control%space_critical
-     deallocate_error_fatal = data%bgo_control%deallocate_error_fatal
-
-!  allocate space if required
-
-     array_name = 'bgo: data%nlp%X'
-     CALL SPACE_resize_array( n, data%nlp%X,                                   &
-            data%bgo_inform%status, data%bgo_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%bgo_inform%bad_alloc, out = error )
-     IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-     array_name = 'bgo: data%nlp%G'
-     CALL SPACE_resize_array( n, data%nlp%G,                                   &
-            data%bgo_inform%status, data%bgo_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%bgo_inform%bad_alloc, out = error )
-     IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-     array_name = 'bgo: data%nlp%X_l'
-     CALL SPACE_resize_array( n, data%nlp%X_l,                                 &
-            data%bgo_inform%status, data%bgo_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%bgo_inform%bad_alloc, out = error )
-     IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-     array_name = 'bgo: data%nlp%X_u'
-     CALL SPACE_resize_array( n, data%nlp%X_u,                                 &
-            data%bgo_inform%status, data%bgo_inform%alloc_status,              &
-            array_name = array_name,                                           &
-            deallocate_error_fatal = deallocate_error_fatal,                   &
-            exact_size = space_critical,                                       &
-            bad_alloc = data%bgo_inform%bad_alloc, out = error )
-     IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-!  put data into the required components of the nlpt storage type
-
-     data%nlp%n = n
-     data%nlp%X_l( : n ) = X_l( : n )
-     data%nlp%X_u( : n ) = X_u( : n )
-
-!  set H appropriately in the nlpt storage type
-
-     SELECT CASE ( H_type )
-     CASE ( 'coordinate', 'COORDINATE' )
-       CALL SMT_put( data%nlp%H%type, 'COORDINATE',                            &
-                     data%bgo_inform%alloc_status )
-       data%nlp%H%n = n
-       data%nlp%H%ne = ne
-
-       array_name = 'bgo: data%nlp%H%row'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%row,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-       array_name = 'bgo: data%nlp%H%col'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%col,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-       array_name = 'bgo: data%nlp%H%val'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-       data%nlp%H%row( : data%nlp%H%ne ) = H_row( : data%nlp%H%ne )
-       data%nlp%H%col( : data%nlp%H%ne ) = H_col( : data%nlp%H%ne )
-     CASE ( 'sparse_by_rows', 'SPARSE_BY_ROWS' )
-       CALL SMT_put( data%nlp%H%type, 'SPARSE_BY_ROWS',                        &
-                     data%bgo_inform%alloc_status )
-       data%nlp%H%n = n
-       data%nlp%H%ne = H_ptr( n + 1 ) - 1
-
-       array_name = 'bgo: data%nlp%H%ptr'
-       CALL SPACE_resize_array( n + 1, data%nlp%H%ptr,                         &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-       array_name = 'bgo: data%nlp%H%col'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%col,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-       array_name = 'bgo: data%nlp%H%val'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-
-       data%nlp%H%ptr( : n + 1 ) = H_ptr( : n + 1 )
-       data%nlp%H%col( : data%nlp%H%ne ) = H_col( : data%nlp%H%ne )
-     CASE ( 'dense', 'DENSE' )
-       CALL SMT_put( data%nlp%H%type, 'DENSE',                                 &
-                     data%bgo_inform%alloc_status )
-       data%nlp%H%n = n
-       data%nlp%H%ne = ( n * ( n + 1 ) ) / 2
-
-       array_name = 'bgo: data%nlp%H%val'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-     CASE ( 'diagonal', 'DIAGONAL' )
-       CALL SMT_put( data%nlp%H%type, 'DIAGONAL',                              &
-                     data%bgo_inform%alloc_status )
-       data%nlp%H%n = n
-       data%nlp%H%ne = n
-
-       array_name = 'bgo: data%nlp%H%val'
-       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
-              data%bgo_inform%status, data%bgo_inform%alloc_status,            &
-              array_name = array_name,                                         &
-              deallocate_error_fatal = deallocate_error_fatal,                 &
-              exact_size = space_critical,                                     &
-              bad_alloc = data%bgo_inform%bad_alloc, out = error )
-       IF ( data%bgo_inform%status /= 0 ) GO TO 900
-     CASE ( 'absent', 'ABSENT' )
-       data%bgo_control%hessian_available = .FALSE.
-     CASE DEFAULT
-       data%bgo_inform%status = GALAHAD_error_unknown_storage
-       GO TO 900
-     END SELECT       
-
-     status = GALAHAD_ready_to_solve
-     RETURN
-
-!  error returns
-
- 900 CONTINUE
-     status = data%bgo_inform%status
-     RETURN
-
-!  End of subroutine BGO_import
-
-     END SUBROUTINE BGO_import
-
-!-  G A L A H A D -  B G O _ r e s e t _ c o n t r o l   S U B R O U T I N E  -
-
-     SUBROUTINE BGO_reset_control( control, data, status )
-
-!  reset control parameters after import if required.
-!  See BGO_solve for a description of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( BGO_control_type ), INTENT( IN ) :: control
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( OUT ) :: status
-
-!  set control in internal data
-
-     data%bgo_control = control
-     
-!  flag a successful call
-
-     status = GALAHAD_ready_to_solve
-     RETURN
-
-!  end of subroutine BGO_reset_control
-
-     END SUBROUTINE BGO_reset_control
-
-!-  G A L A H A D -  B G O _ s o l v e _ w i t h _ m a t   S U B R O U T I N E 
-
-     SUBROUTINE BGO_solve_with_mat( data, userdata, status, X, G, eval_F,      &
-                                    eval_G, eval_H, eval_HPROD, eval_PREC )
-
-!  solve the bound-constrained problem previously imported when access
-!  to function, gradient, Hessian and preconditioning operations are
-!  available via subroutine calls. See BGO_solve for a description of 
-!  the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( INOUT ) :: status
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: G
-     EXTERNAL :: eval_F, eval_G, eval_H, eval_HPROD, eval_PREC
-
-     data%bgo_inform%status = status
-     IF ( data%bgo_inform%status == 1 )                                        &
-       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
-
-!  call the solver
-
-     CALL BGO_solve( data%nlp, data%bgo_control, data%bgo_inform,              &
-                     data%bgo_data, userdata, eval_F = eval_F,                 &
-                     eval_G = eval_G, eval_H = eval_H,                         &
-                     eval_HPROD = eval_HPROD, eval_PREC = eval_PREC )
-
-     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
-     IF ( data%bgo_inform%status == GALAHAD_ok )                               &
-       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
-
-     status = data%bgo_inform%status
-     RETURN
-
-     END SUBROUTINE BGO_solve_with_mat
-
-!  G A L A H A D -  B G O _ s o l v e _ w i t h o u t _mat  S U B R O U T I N E 
-
-     SUBROUTINE BGO_solve_without_mat( data, userdata, status, X, G,           &
-                                       eval_F, eval_G, eval_HPROD,             &
-                                       eval_SHPROD, eval_PREC )
-
-!  solve the bound-constrained problem previously imported when access
-!  to function, gradient, Hessian-vector and preconditioning operations 
-!  are available via subroutine calls. See BGO_solve for a description 
-!  of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( INOUT ) :: status
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: G
-     EXTERNAL :: eval_F, eval_G, eval_HPROD, eval_SHPROD, eval_PREC
-
-     data%bgo_inform%status = status
-     IF ( data%bgo_inform%status == 1 )                                        &
-       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
-
-!  call the solver
-
-     CALL BGO_solve( data%nlp, data%bgo_control, data%bgo_inform,              &
-                     data%bgo_data, userdata, eval_F = eval_F,                 &
-                     eval_G = eval_G, eval_HPROD = eval_HPROD,                 &
-                     eval_SHPROD = eval_SHPROD, eval_PREC = eval_PREC )
-
-     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
-     IF ( data%bgo_inform%status == GALAHAD_ok )                               &
-       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
-
-     status = data%bgo_inform%status
-     RETURN
-
-     END SUBROUTINE BGO_solve_without_mat
-
-!-  G A L A H A D -  B G O _ s o l v e _ reverse _ m a t  S U B R O U T I N E  -
-
-     SUBROUTINE BGO_solve_reverse_with_mat( data, status, eval_status,         &
-                                            X, f, G, H_val, U, V )
-
-!  solve the bound-constrained problem previously imported when access
-!  to function, gradient, Hessian and preconditioning operations are
-!  available via reverse communication. See BGO_solve for a description 
-!  of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( INOUT ) :: status, eval_status
-     REAL ( KIND = wp ), INTENT( IN ) :: f
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: G
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: H_val
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: U
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: V
-
-!  recover data from reverse communication
-
-     data%bgo_inform%status = status
-     data%bgo_data%eval_status = eval_status
-
-     SELECT CASE ( data%bgo_inform%status )
-     CASE ( 1 )
-       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
-     CASE ( 2 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-         data%nlp%f = f
-     CASE( 3 ) 
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-     CASE( 4 ) 
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-         data%nlp%H%val( : data%bgo_data%trb_data%h_ne ) =                     &
-           H_val( : data%bgo_data%trb_data%h_ne )
-     CASE( 5, 6 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-     CASE ( 23 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%f = f
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-       END IF
-     CASE ( 25 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%f = f
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-       END IF
-     CASE ( 35 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-       END IF
-     CASE ( 235 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%f = f
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-       END IF
-     END SELECT
-
-!  call the solver
-
-     CALL BGO_solve( data%nlp, data%bgo_control, data%bgo_inform,              &
-                     data%bgo_data, data%userdata )
-
-!  collect data for reverse communication
-
-     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
-     SELECT CASE ( data%bgo_inform%status )
-     CASE( 0 )
-       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
-     CASE( 5, 25, 35, 235 )
-       U( : data%nlp%n ) = data%bgo_data%U( : data%nlp%n )
-       V( : data%nlp%n ) = data%bgo_data%V( : data%nlp%n )
-    CASE( 6 )
-       V( : data%nlp%n ) = data%bgo_data%V( : data%nlp%n )
-     CASE( 7 ) 
-       WRITE( 6, "( ' there should not be a case ', I0, ' return' )" )         &
-         data%bgo_inform%status
-     END SELECT
-
-     status = data%bgo_inform%status
-     RETURN
-
-     END SUBROUTINE BGO_solve_reverse_with_mat
-
-!  G A L A H A D -  B G O _ s o l v e _ reverse _ no _mat  S U B R O U T I N E  
-
-     SUBROUTINE BGO_solve_reverse_without_mat( data, status, eval_status,      &
-                                               X, f, G, U, V,                  &
-                                               INDEX_nz_v, nnz_v,              &
-                                               INDEX_nz_u, nnz_u )
-
-!  solve the bound-constrained problem previously imported when access
-!  to function, gradient, Hessian-vector and preconditioning operations 
-!  are available via reverse communication. See BGO_solve for a description 
-!  of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( INOUT ) :: status, eval_status
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     INTEGER, INTENT( OUT ) :: nnz_v
-     INTEGER, INTENT( IN ) :: nnz_u
-     REAL ( KIND = wp ), INTENT( IN ) :: f
-     INTEGER, DIMENSION( : ), INTENT( OUT ) :: INDEX_nz_v
-     INTEGER, DIMENSION( : ), INTENT( IN ) :: INDEX_nz_u 
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: G
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: U
-     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: V
-
-!  recover data from reverse communication
-
-     data%bgo_inform%status = status
-     data%bgo_data%eval_status = eval_status
-
-     SELECT CASE ( data%bgo_inform%status )
-     CASE ( 1 )
-       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
-     CASE ( 2 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-         data%nlp%f = f
-     CASE( 3 ) 
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-     CASE( 5, 6 ) 
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 )                                                 &
-          data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-     CASE( 7 ) 
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%bgo_data%nnz_hp = nnz_u
-         data%bgo_data%INDEX_nz_hp( : nnz_u ) = INDEX_nz_u( : nnz_u )
-         data%bgo_data%HP( INDEX_nz_u( 1 : nnz_u ) )                           &
-            = U( INDEX_nz_u( 1 : nnz_u ) ) 
-       END IF
-     CASE ( 23 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%f = f
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-       END IF
-     CASE ( 25 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%f = f
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-       END IF
-     CASE ( 35 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-       END IF
-     CASE ( 235 )
-       data%bgo_data%eval_status = eval_status
-       IF ( eval_status == 0 ) THEN
-         data%nlp%f = f
-         data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
-         data%bgo_data%U( : data%nlp%n ) = U( : data%nlp%n )
-       END IF
-     END SELECT
-
-!  call the solver
-
-     CALL BGO_solve( data%nlp, data%bgo_control, data%bgo_inform,              &
-                     data%bgo_data, data%userdata )
-
-!  collect data for reverse communication
-
-     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
-     SELECT CASE (  data%bgo_inform%status )
-     CASE( 0 )
-       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
-     CASE( 2, 3 ) 
-     CASE( 4 ) 
-       WRITE( 6, "( ' there should not be a case ', I0, ' return' )" )         &
-         data%bgo_inform%status
-     CASE( 5, 25, 35, 235 )
-       U( : data%nlp%n ) = data%bgo_data%U( : data%nlp%n )
-       V( : data%nlp%n ) = data%bgo_data%V( : data%nlp%n )
-     CASE( 6 )
-       V( : data%nlp%n ) = data%bgo_data%V( : data%nlp%n )
-     CASE( 7 )
-       nnz_v = data%bgo_data%nnz_p_u - data%bgo_data%nnz_p_l + 1
-       INDEX_nz_v( : nnz_v ) =                                                 &
-          data%bgo_data%INDEX_nz_p( data%bgo_data%nnz_p_l :                    &
-                                    data%bgo_data%nnz_p_u )
-       V( INDEX_nz_v( 1 : nnz_v ) )                                            &
-          = data%bgo_data%P( INDEX_nz_v( 1 : nnz_v ) )
-     END SELECT
-
-     status = data%bgo_inform%status
-     RETURN
-
-     END SUBROUTINE BGO_solve_reverse_without_mat
-
-!-  G A L A H A D -  B G O _ i n f o r m a t i o n   S U B R O U T I N E  -
-
-     SUBROUTINE BGO_information( data, inform, status )
-
-!  return solver information during or after solution by BGO
-!  See BGO_solve for a description of the required arguments
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     TYPE ( BGO_full_data_type ), INTENT( INOUT ) :: data
-     TYPE ( BGO_inform_type ), INTENT( OUT ) :: inform
-     INTEGER, INTENT( OUT ) :: status
-
-!  recover inform from internal data
-
-     inform = data%bgo_inform
-     
-!  flag a successful call
-
-     status = GALAHAD_ok
-     RETURN
-
-!  end of subroutine BGO_information
-
-     END SUBROUTINE BGO_information
 
 !  End of module GALAHAD_BGO
 

@@ -283,20 +283,6 @@ SPRAL=""
 
 PARDISO=""
 
-#  If there is a compiled, library version of the MKL version of the PARDISO 
-#  sparse factorization package (http://www.pardiso-project.org/) , set
-#  MKL_PARDISO to -lx, where the object library libx.so contains PARDISO. For
-#  instance if PARDISO is contained in the object library libmkl_intel_lp64.a
-#  MKL_PARDISO should be set to "-lmkl_intel_lp64". If the library is in a 
-#  "non-standard place", MKL_PARDISO should also point to the full path to the
-#  library. For example, if libmkl_intel_lp64.a is in the directory /mylibrary,
-#  MKL_PARDISO should be set to "-L/mylibrary -lmkl_intel_lp64"
-# If a compiled version of the MKL version of PARDISO is unavailable,
-#  MKL_PARDISO should be set to "-lgalahad_mkl_pardiso".
-#  N.B. MKL PARDISO is only optionally required but may improve performance.
-
-MKL_PARDISO=""
-
 #  If there is a compiled, library version of the WSMP sparse factorization
 #  package (http://www.wsmp-project.org/) , set WSMP to -lx,
 #  where the object library libx.so contains WSMP.  For instance if WSMP
@@ -310,10 +296,6 @@ MKL_PARDISO=""
 
 WSMP=""
 
-#  place-holder for future SuitSparse codes
-
-SUITESPARSE=""
-
 #  If the PLplot graphics library is available, some packages optionally
 #  produce grapical output for debugging purposes. The precise list of
 #  link options required may be obtained by executing the command
@@ -322,6 +304,7 @@ SUITESPARSE=""
 #  N.B. PLPLOT is only optionally required.
 
 PLPLOT=""
+
 
 #  ----------------------------------------------------------------------------
 #  -*- end of default values that may be overridden in $GALAHAD/bin/sys/$1 -*-
@@ -411,8 +394,7 @@ else
 fi
 PROBLIB=""
 
-#  libraries for BLAS, LAPACK, HSL, METIS, SPRAL, PARDISO, MKL_PARDISO, 
-#  WSMP and SUITESPARSE
+#  libraries for BLAS, LAPACK, HSL, METIS, SPRAL, PARDISO, WSMP and SUITESPARSE
 
 if [[ "$BLAS" == "" ]]; then
   BLASLIB="-lgalahad_blas"
@@ -448,12 +430,6 @@ if [[ "$PARDISO" == "" ]]; then
   PARDISOLIB="-lgalahad_pardiso"
 else
   PARDISOLIB="$PARDISO"
-fi
-
-if [[ "$MKL_PARDISO" == "" ]]; then
-  MKL_PARDISOLIB="-lgalahad_mkl_pardiso"
-else
-  MKL_PARDISOLIB="$MKL_PARDISO"
 fi
 
 if [[ "$WSMP" == "" ]]; then
@@ -498,7 +474,7 @@ for i  in  $NSUB; do
     if [[ $? != 0 ]]; then
       exit 1
     fi
-#    $RM ${j}.f90
+    $RM ${j}.f90
   fi
 done
 
@@ -551,14 +527,6 @@ elif [[ $2 == 'qpc' ]]; then
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec qpc update
   [[ ! -e RUNQPC.SPC ]] && ln -s ~/.galahad/specs/RUNQPC.SPC RUNQPC.SPC
 
-# qpe
-
-elif [[ $2 == 'qpe' ]]; then
-  RUNMAIN=$GALOBJ/runqpe_sif.o
-  [[ ! -e ~/.galahad/specs/RUNQPE.SPC ]] && $GALOBJ/buildspec qpe
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec qpe update
-  [[ ! -e RUNQPE.SPC ]] && ln -s ~/.galahad/specs/RUNQPE.SPC RUNQPE.SPC
-
 # cqp
 
 elif [[ $2 == 'cqp' ]]; then
@@ -566,14 +534,6 @@ elif [[ $2 == 'cqp' ]]; then
   [[ ! -e ~/.galahad/specs/RUNCQP.SPC ]] && $GALOBJ/buildspec cqp
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec cqp update
   [[ ! -e RUNCQP.SPC ]] && ln -s ~/.galahad/specs/RUNCQP.SPC RUNCQP.SPC
-
-# cqps
-
-elif [[ $2 == 'cqps' ]]; then
-  RUNMAIN=$GALOBJ/runcqps_sif.o
-  [[ ! -e ~/.galahad/specs/RUNCQPS.SPC ]] && $GALOBJ/buildspec cqps
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec cqps update
-  [[ ! -e RUNCQPS.SPC ]] && ln -s ~/.galahad/specs/RUNCQPS.SPC RUNCQPS.SPC
 
 # dqp
 
@@ -615,13 +575,13 @@ elif [[ $2 == 'ccqp' ]]; then
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec ccqp update
   [[ ! -e RUNCCQP.SPC ]] && ln -s ~/.galahad/specs/RUNCCQP.SPC RUNCCQP.SPC
 
-# pdqp
+# qpe
 
-elif [[ $2 == 'pdqp' ]]; then
-  RUNMAIN=$GALOBJ/runpdqp_sif.o
-  [[ ! -e ~/.galahad/specs/RUNPDQP.SPC ]] && $GALOBJ/buildspec pdqp
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec pdqp update
-  [[ ! -e RUNPDQP.SPC ]] && ln -s ~/.galahad/specs/RUNPDQP.SPC RUNPDQP.SPC
+elif [[ $2 == 'qpe' ]]; then
+  RUNMAIN=$GALOBJ/runqpe_sif.o
+  [[ ! -e ~/.galahad/specs/RUNQPE.SPC ]] && $GALOBJ/buildspec qpe
+  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec qpe update
+  [[ ! -e RUNQPE.SPC ]] && ln -s ~/.galahad/specs/RUNQPE.SPC RUNQPE.SPC
 
 # lpa
 
@@ -650,34 +610,10 @@ elif [[ $2 == 'dlp' ]]; then
 # lpqp
 
 elif [[ $2 == 'lpqp' ]]; then
-  RUNMAIN=$GALOBJ/runlpqp_sif.o
+  RUNMAIN=$GALOBJ/runlpqp.o
   [[ ! -e ~/.galahad/specs/RUNLPQP.SPC ]] && $GALOBJ/buildspec lpqp
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec lpqp update
   [[ ! -e RUNLPQP.SPC ]] && ln -s ~/.galahad/specs/RUNLPQP.SPC RUNLPQP.SPC
-
-# lpqpa
-
-elif [[ $2 == 'lpqpa' ]]; then
-  RUNMAIN=$GALOBJ/runlpqpa_sif.o
-  [[ ! -e ~/.galahad/specs/RUNLPQPA.SPC ]] && $GALOBJ/buildspec lpqpa
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec lpqpa update
-  [[ ! -e RUNLPQPA.SPC ]] && ln -s ~/.galahad/specs/RUNLPQPA.SPC RUNLPQPA.SPC
-
-# lpqpb
-
-elif [[ $2 == 'lpqpb' ]]; then
-  RUNMAIN=$GALOBJ/runlpqpb_sif.o
-  [[ ! -e ~/.galahad/specs/RUNLPQPB.SPC ]] && $GALOBJ/buildspec lpqpb
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec lpqpb update
-  [[ ! -e RUNLPQPB.SPC ]] && ln -s ~/.galahad/specs/RUNLPQPB.SPC RUNLPQPB.SPC
-
-# lpsqp
-
-elif [[ $2 == 'lpsqp' ]]; then
-  RUNMAIN=$GALOBJ/runlpsqp_sif.o
-  [[ ! -e ~/.galahad/specs/RUNLPSQP.SPC ]] && $GALOBJ/buildspec lpsqp
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec lpsqp update
-  [[ ! -e RUNLPSQP.SPC ]] && ln -s ~/.galahad/specs/RUNLPSQP.SPC RUNLPSQP.SPC
 
 # eqp
 
@@ -694,14 +630,6 @@ elif [[ $2 == 'lls' ]]; then
   [[ ! -e ~/.galahad/specs/RUNLLS.SPC ]] && $GALOBJ/buildspec lls
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec lls update
   [[ ! -e RUNLLS.SPC ]] && ln -s ~/.galahad/specs/RUNLLS.SPC RUNLLS.SPC
-
-# pqp
-
-elif [[ $2 == 'pqp' ]]; then
-  RUNMAIN=$GALOBJ/runpqp_sif.o
-  [[ ! -e ~/.galahad/specs/RUNPQP.SPC ]] && $GALOBJ/buildspec pqp
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec pqp update
-  [[ ! -e RUNPQP.SPC ]] && ln -s ~/.galahad/specs/RUNPQP.SPC RUNPQP.SPC
 
 # warm
 
@@ -780,7 +708,7 @@ elif [[ $2 == 'nllstr_sparse_fix' ]]; then
 elif [[ $2 == 'nllsrt' ]]; then
   RUNMAIN=$GALOBJ/nllsrtma.o
 
-# filtrane
+# filt
 
 elif [[ $2 == 'filtrane' ]]; then
   RUNMAIN=$GALOBJ/runfiltrane_sif.o
@@ -788,15 +716,6 @@ elif [[ $2 == 'filtrane' ]]; then
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec filtrane update
   [[ ! -e RUNFILTRANE.SPC ]] && \
     ln -s ~/.galahad/specs/RUNFILTRANE.SPC RUNFILTRANE.SPC
-
-# presolve
-
-elif [[ $2 == 'presolve' ]]; then
-  RUNMAIN=$GALOBJ/runpresolve_sif.o
-  [[ ! -e ~/.galahad/specs/RUNPRESOLVE.SPC ]] && $GALOBJ/buildspec presolve
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec presolve update
-  [[ ! -e RUNPRESOLVE.SPC ]] && \
-    ln -s ~/.galahad/specs/RUNPRESOLVE.SPC RUNPRESOLVE.SPC
 
 # superb
 
@@ -841,24 +760,6 @@ elif [[ $2 == 'bgo' ]]; then
   [[ ! -e ~/.galahad/specs/RUNBGO.SPC ]] && $GALOBJ/buildspec bgo
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec bgo update
   [[ ! -e RUNBGO.SPC ]] && ln -s ~/.galahad/specs/RUNBGO.SPC RUNBGO.SPC
-
-# dgo
-
-elif [[ $2 == 'dgo' ]]; then
-  RUNMAIN=$GALOBJ/rundgo_sif.o
-  PROBLIB="-lgalahad_problem"
-  [[ ! -e ~/.galahad/specs/RUNDGO.SPC ]] && $GALOBJ/buildspec dgo
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec dgo update
-  [[ ! -e RUNDGO.SPC ]] && ln -s ~/.galahad/specs/RUNDGO.SPC RUNDGO.SPC
-
-# tral
-
-elif [[ $2 == 'tral' ]]; then
-  RUNMAIN=$GALOBJ/runtral_sif.o
-  PROBLIB="-lgalahad_problem"
-  [[ ! -e ~/.galahad/specs/RUNTRAL.SPC ]] && $GALOBJ/buildspec tral
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec tral update
-  [[ ! -e RUNTRAL.SPC ]] && ln -s ~/.galahad/specs/RUNTRAL.SPC RUNTRAL.SPC
 
 # trb
 
@@ -911,14 +812,6 @@ elif [[ $2 == 'sls' ]]; then
   [[ ! -e ~/.galahad/specs/RUNSLS.SPC ]] && $GALOBJ/buildspec sls
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec sls update
   [[ ! -e RUNSLS.SPC ]] && ln -s ~/.galahad/specs/RUNSLS.SPC RUNSLS.SPC
-
-# sils
-
-elif [[ $2 == 'sils' ]]; then
-  RUNMAIN=$GALOBJ/runsils_sif.o
-  [[ ! -e ~/.galahad/specs/RUNSILS.SPC ]] && $GALOBJ/buildspec sils
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec sils update
-  [[ ! -e RUNSILS.SPC ]] && ln -s ~/.galahad/specs/RUNSILS.SPC RUNSILS.SPC
 
 # ermo
 
@@ -981,17 +874,6 @@ elif [[ $2 == 'funnel' ]]; then
   [[ ! -e ~/.galahad/specs/RUNFUNNEL.SPC ]] && $GALOBJ/buildspec funnel
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec funnel update
   [[ ! -e RUNFUNNEL.SPC ]] && ln -s ~/.galahad/specs/RUNFUNNEL.SPC RUNFUNNEL.SPC
-
-# funnel_equality
-
-elif [[ $2 == 'funnel_equality' ]]; then
-  RUNMAIN=$GALOBJ/runfunnel_equality_sif.o
-  PROBLIB="-lgalahad_problem"
-  [[ ! -e ~/.galahad/specs/RUNFUNNEL_EQUALITY.SPC ]] && \
-      $GALOBJ/buildspec funnel_equality
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec funnel_equality update
-  [[ ! -e RUNFUNNEL_EQUALITY.SPC ]] && \
-     ln -s ~/.galahad/specs/RUNFUNNEL_EQUALITY.SPC RUNFUNNEL_EQUALITY.SPC
 
 # sqp
 
@@ -1100,22 +982,6 @@ elif [[ $2 == 'glrt' ]]; then
   [[ $UPDATE == '1' ]] && $GALOBJ/buildspec glrt update
   [[ ! -e RUNGLRT.SPC ]] && ln -s ~/.galahad/specs/RUNGLRT.SPC RUNGLRT.SPC
 
-# blls
-
-elif [[ $2 == 'blls' ]]; then
-  RUNMAIN=$GALOBJ/runblls_sif.o
-  [[ ! -e ~/.galahad/specs/RUNBLLS.SPC ]] && $GALOBJ/buildspec blls
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec blls update
-  [[ ! -e RUNBLLS.SPC ]] && ln -s ~/.galahad/specs/RUNBLLS.SPC RUNBLLS.SPC
-
-# demo
-
-elif [[ $2 == 'demo' ]]; then
-  RUNMAIN=$GALOBJ/rundemo_sif.o
-  [[ ! -e ~/.galahad/specs/RUNDEMO.SPC ]] && $GALOBJ/buildspec demo
-  [[ $UPDATE == '1' ]] && $GALOBJ/buildspec demo update
-  [[ ! -e RUNDEMO.SPC ]] && ln -s ~/.galahad/specs/RUNDEMO.SPC RUNDEMO.SPC
-
 #  lancelot_steering
 
 elif [[ $2 == 'lancelot_steering' ]]; then
@@ -1125,7 +991,7 @@ elif [[ $2 == 'lancelot_steering' ]]; then
   [[ ! -e RUNLANCELOT.SPC ]] && \
     ln -s ~/.galahad/specs/RUNLANCELOT.SPC RUNLANCELOT.SPC
   CUTESTLIB=""
-#  LAPACKLIB=""
+  LAPACKLIB=""
 
 #  lancelot b
 
@@ -1138,7 +1004,7 @@ else
   [[ ! -e RUNLANCELOT.SPC ]] && \
      ln -s ~/.galahad/specs/RUNLANCELOT.SPC RUNLANCELOT.SPC
   CUTESTLIB=""
-#  LAPACKLIB=""
+  LAPACKLIB=""
 fi
 
 # See if there already is a decoded problem in the current directory
@@ -1168,13 +1034,13 @@ fi
 
 #EXECUTABLE="$FORTRAN $FFLAGS -o $galmin $RUNMAIN $NSUB\
 # -L$GALOBJ -lgalahad $PROBLIB $CUTESTLIB -lgalahad\
-# $HSLLIB $SPRALLIB $PARDISOLIB $MKL_PARDISOLIB $WSMPLIB $SUITESPARSELIB\
-# $METISLIB $LAPACKLIB $BLASLIB $PLPLOT"
+# $HSLLIB $SPRALLIB $PARDISOLIB $WSMPLIB $SUITESPARSELIB $METISLIB $LAPACKLIB\
+# $BLASLIB $PLPLOT"
 
 EXECUTABLE="$CUDACOMP $CUDAFLAGS -o $galmin $RUNMAIN $NSUB\
  -L$GALOBJ -lgalahad $PROBLIB $CUTESTLIB -lgalahad\
- $HSLLIB $SPRALLIB $PARDISOLIB $MKL_PARDISOLIB $WSMPLIB $SUITESPARSELIB\
- $METISLIB $LAPACKLIB $BLASLIB $PLPLOT $CUDALIBS"
+ $HSLLIB $SPRALLIB $PARDISOLIB $WSMPLIB $SUITESPARSELIB $METISLIB $LAPACKLIB\
+ $BLASLIB $PLPLOT $CUDALIBS"
 
 if [[ $OUTPUT == "1" ]]; then
   echo " $EXECUTABLE"
@@ -1198,7 +1064,7 @@ if [[ $PROFILE == "1" ]]; then
 #  which pixie > /dev/null 2>&1
   which gprof > /dev/null 2>&1
   if [[ $? == "0" ]]; then
-#   atom $EXEC/$galmin -tool pixie -w0 -toolargs="-quiet" >  2>1/dev/null 2>&1
+#   atom $EXEC/$galmin -tool pixie -w0 -toolargs="-quiet" >  2>&1/dev/null
 #    pixie -quiet $EXEC/$galmin > /dev/null 2>&1
 #    $EXEC/$galmin.pixie
 #    prof -pixie -lines $EXEC/$galmin > $EXEC/$galmin.pixie.out

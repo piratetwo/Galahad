@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 03/06/2021 AT 08:15 GMT.
+! THIS VERSION: GALAHAD 2.4 - 09/11/2009 AT 15:15 GMT.
    PROGRAM GALAHAD_BQP_SECOND_EXAMPLE
    USE GALAHAD_BQP_double         ! double precision version
    IMPLICIT NONE
@@ -9,7 +9,7 @@
    TYPE ( BQP_data_type ) :: data
    TYPE ( BQP_control_type ) :: control        
    TYPE ( BQP_inform_type ) :: inform
-   TYPE ( GALAHAD_userdata_type ) :: userdata
+   TYPE ( NLPT_userdata_type ) :: userdata
    INTEGER :: nflag, i, j, k, l
    REAL ( KIND = wp ) :: v_j
    INTEGER, PARAMETER :: n = 3, h_ne = 4, h_all = 5
@@ -31,9 +31,10 @@
    ROW = (/ 1, 2, 1, 2, 3 /)                   ! for matrix-vector products
    VAL = (/ 1.0_wp, 1.0_wp, 1.0_wp, 2.0_wp, 3.0_wp /)
 ! problem data complete   
-   CALL BQP_initialize( data, control, inform )  ! Initialize control parameters
+   CALL BQP_initialize( data, control )       ! Initialize control parameters
    control%infinity = infinity                ! Set infinity
-!  control%print_level = 1                    ! print one line/iteration
+!  control%print_level = 3                    ! print one line/iteration
+   control%print_level = 1                    ! print one line/iteration
    control%maxit = 40                         ! limit the # iterations
 !  control%print_gap = 100                    ! print every 100 terations
 !  control%exact_gcp = .FALSE.

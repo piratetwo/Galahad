@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 20/05/2021 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 23/06/2013 AT 13:00 GMT.
 
 !-*-*-*-*-*-*-*-  L A N C E L O T  -B-   PRECN   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -13,13 +13,13 @@
    MODULE LANCELOT_PRECN_double
 
 !   USE GLOBAL_ma27e,ONLY:SA%INFO(5),SA%INFO(6),SA%INFO(7),SA%INFO(9),SA%INFO(2)
-     USE GALAHAD_EXTEND_double, ONLY: EXTEND_arrays
+     USE LANCELOT_EXTEND_double, ONLY: EXTEND_arrays
 !NOT95USE GALAHAD_CPU_time
      USE LANCELOT_BAND_double
      USE GALAHAD_SMT_double
      USE GALAHAD_SILS_double
      USE GALAHAD_SCU_double, ONLY : SCU_matrix_type, SCU_data_type,            &
-       SCU_inform_type, SCU_restart_m_eq_0, SCU_solve, SCU_append
+       SCU_info_type, SCU_restart_m_eq_0, SCU_solve, SCU_append
      USE LANCELOT_HSL_routines, ONLY : MA61_initialize
      USE LANCELOT_ASMBL_double
      USE LANCELOT_MDCHL_double
@@ -113,7 +113,7 @@
      TYPE ( PRECN_save_type ), INTENT( INOUT ) :: S
      TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_matrix
      TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
-     TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
+     TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
      TYPE ( SMT_type ), INTENT( INOUT ) :: matrix
      TYPE ( SILS_factors ), INTENT( INOUT ) :: SILS_data
      TYPE ( SILS_control ), INTENT( INOUT ) :: SILS_cntl

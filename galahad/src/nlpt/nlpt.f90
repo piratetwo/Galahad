@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 28/01/2020 AT 08:30 GMT.
+! THIS VERSION: GALAHAD 2.1 - 13/02/2008 AT 09:20 GMT.
 
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -37,9 +37,8 @@
 !-------------------------
 
       USE GALAHAD_NORMS_double
+      USE GALAHAD_TOOLS_double
       USE GALAHAD_SMT_double
-      USE GALAHAD_USERDATA_double, NLPT_USERDATA_type => GALAHAD_userdata_type
-      USE GALAHAD_TOOLS
       USE GALAHAD_SYMBOLS,                                                     &
           SILENT              => GALAHAD_SILENT,                               &
           TRACE               => GALAHAD_TRACE,                                &
@@ -62,7 +61,7 @@
       PUBLIC :: NLPT_write_variables, NLPT_write_stats,                        &
                 NLPT_write_constraints, NLPT_write_problem,                    &
                 NLPT_J_perm_from_C_to_Srow, NLPT_J_perm_from_C_to_Scol,        &
-                NLPT_cleanup, SMT_type, SMT_put, SMT_get, NLPT_userdata_type
+                NLPT_cleanup, SMT_type, SMT_put, SMT_get
 
 !--------------------
 !   P r e c i s i o n
@@ -257,11 +256,50 @@
 
       END TYPE
 
+!  ===================================
+!  The NLPT_userdata_type derived type
+!  ===================================
+
+      TYPE, PUBLIC :: NLPT_userdata_type
+         INTEGER, ALLOCATABLE, DIMENSION( : ) :: integer
+         REAL( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: real
+         COMPLEX ( KIND = wcp ), ALLOCATABLE, DIMENSION( : ) :: complex
+         CHARACTER, ALLOCATABLE, DIMENSION( : ) :: character
+         LOGICAL, ALLOCATABLE, DIMENSION( : ) :: logical
+         INTEGER, POINTER, DIMENSION( : ) :: integer_pointer => null( )
+         REAL( KIND = wp ), POINTER, DIMENSION( : ) :: real_pointer => null( )
+         COMPLEX ( KIND = wcp ), POINTER,                                      &
+           DIMENSION( : ) :: complex_pointer => null( )
+         CHARACTER, POINTER, DIMENSION( : ) :: character_pointer => null( )
+         LOGICAL, POINTER, DIMENSION( : ) :: logical_pointer => null( )
+      END TYPE NLPT_userdata_type
+
 !  ----------------
 !  Other parameters
 !  ----------------
 
       REAL ( KIND = wp ), PRIVATE, PARAMETER :: ZERO = 0.0_wp
+
+!  ----------------------------------------------------------------------------
+!  Interface blocks for the single and double precision BLAS routines
+!  giving the two-norm.
+!  ----------------------------------------------------------------------------
+
+!     INTERFACE TWO_NORM
+!
+!        FUNCTION SNRM2( n, x, incx )
+!          REAL  :: SNRM2
+!          INTEGER, INTENT( IN ) :: n, incx
+!          REAL, INTENT( IN ), DIMENSION( incx * ( n - 1 ) + 1 ) :: x
+!        END FUNCTION SNRM2
+!
+!        FUNCTION DNRM2( n, x, incx )
+!          DOUBLE PRECISION  :: DNRM2
+!          INTEGER, INTENT( IN ) :: n, incx
+!          DOUBLE PRECISION, INTENT( IN ), DIMENSION( incx * ( n - 1 ) + 1 ) :: x
+!        END FUNCTION DNRM2
+!
+!     END INTERFACE
 
    CONTAINS
 

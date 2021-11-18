@@ -17,7 +17,6 @@
    INTEGER, PARAMETER :: errout = 6
    INTEGER, PARAMETER :: insif = 55
    CHARACTER ( LEN = 16 ) :: prbdat = 'OUTSDIF.d'
-   INTEGER :: iostat
 
 !  Open the data input file
 

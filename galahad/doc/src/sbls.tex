@@ -172,10 +172,6 @@ If $\bmH$ is the identity matrix, $\bmI$,
 no numerical data need be stored. The same applies to $\bmC$, but
 once again there is no sensible equivalent for the non-square $\bmA$.
 
-\subsubsection{Zero storage format}\label{zero}
-Finally, if $\bmH$ is the zero matrix, $\bmzero$,
-no numerical data need be stored. The same applies to both $\bmA$ and $\bmC$.
-
 \subsection{Integer kinds}\label{Integer kinds}
 We use the term
 long \integer\ to denote {\tt INTEGER\-(kind=long)}, where
@@ -1000,8 +996,7 @@ and {\tt inform\%bad\_alloc} respectively.
     or requirements that {\tt prob\%A\_type}, {\tt prob\%H\_type} and
     {\tt prob\%C\_type} contain its relevant string
     {\tt 'DENSE'}, {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_ROWS'},
-    {\tt 'DIAGONAL'}, {\tt 'SCALED\_IDENTITY'}, {\tt 'IDENTITY'},
-    {\tt ZERO} or {\tt NONE}
+    {\tt 'DIAGONAL'}, {\tt 'SCALED\_IDENTITY'} or {\tt 'IDENTITY'}
     has been violated.
 
 %\itt{-3.} At least one of the arrays
@@ -1283,8 +1278,7 @@ interest to the general user, may be returned.
 {\tt prob\%H\_type}, {\tt prob\%A\_type}
 and {\tt prob\%C\_type} $\in \{${\tt 'DENSE'},
  {\tt 'COORDINATE'}, {\tt 'SPARSE\_BY\_ROWS'}, {\tt 'DIAGONAL'},
- {\tt 'SCALED\_IDENTITY'}, {\tt 'IDENTITY'} $\}$,
- {\tt ZERO}, {\tt NONE}.
+ {\tt 'SCALED\_IDENTITY'}, {\tt 'IDENTITY'} $\}$.
 \galportability ISO Fortran~95 + TR 15581 or Fortran~2003.
 The package is thread-safe.
 
@@ -1445,3 +1439,4 @@ might be used for $\bmH$, and in this case we would instead
 Notice here that zero diagonal entries are stored.
 
 \end{document}
+

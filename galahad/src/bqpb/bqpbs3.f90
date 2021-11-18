@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 03/06/2021 AT 11:45 GMT.
+! THIS VERSION: GALAHAD 2.4 - 18/01/2010 AT 09:00 GMT.
    PROGRAM GALAHAD_BQPB_THIRD_EXAMPLE
    USE GALAHAD_BQPB_double         ! double precision version
    IMPLICIT NONE
@@ -9,7 +9,7 @@
    TYPE ( BQPB_data_type ) :: data
    TYPE ( BQPB_control_type ) :: control        
    TYPE ( BQPB_inform_type ) :: inform
-   TYPE ( GALAHAD_userdata_type ) :: userdata
+   TYPE ( NLPT_userdata_type ) :: userdata
    INTEGER, PARAMETER :: n = 3, h_ne = 4, h_all = 5
    INTEGER, PARAMETER :: len_integer = 2 * n + 3 + h_all, len_real = h_all
    INTEGER, PARAMETER :: nflag = 2, st_flag = 2, st_ptr = st_flag + n
@@ -33,8 +33,9 @@
    userdata%real( st_val + 1 : st_val + h_all )                                &
      = (/ 1.0_wp, 1.0_wp, 1.0_wp, 2.0_wp, 3.0_wp /)
 ! problem data complete   
-   CALL BQPB_initialize( data, control, inform ) ! Initialize control parameters
-   control%infinity = 0.1_wp * infinity       ! Set infinity
+   CALL BQPB_initialize( data, control )       ! Initialize control parameters
+   control%infinity = infinity                ! Set infinity
+!  control%print_level = 3                    ! print one line/iteration
    control%print_level = 1                    ! print one line/iteration
    control%maxit = 40                         ! limit the # iterations
 !  control%print_gap = 100                    ! print every 100 terations
@@ -44,7 +45,7 @@
    userdata%integer( st_flag + 1 : st_flag + n ) = 0
    inform%status = 1
    CALL BQPB_solve( p,  B_stat, data, control, inform, userdata,               &
-                    eval_HPROD = HPROD )
+                   eval_HPROD = HPROD )
    IF ( inform%status == 0 ) THEN             !  Successful return
      WRITE( 6, "( ' BQPB: ', I0, ' iterations  ', /,                           &
     &     ' Optimal objective value =',                                        &
@@ -58,7 +59,8 @@
    DEALLOCATE( userdata%integer, userdata%real )
    END PROGRAM GALAHAD_BQPB_THIRD_EXAMPLE
 
-     SUBROUTINE HPROD( status, userdata, V, PROD )
+     SUBROUTINE HPROD( status, userdata, V, PROD, NZ_v, nz_v_start, nz_v_end,  &
+                       NZ_prod, nz_prod_end )
 ! compute the matrix-vector product H * v
      USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
      INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
@@ -66,6 +68,10 @@
      TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
      REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: V
      REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: PROD
+     INTEGER, OPTIONAL, INTENT( IN ) :: nz_v_start, nz_v_end
+     INTEGER, OPTIONAL, INTENT( INOUT ) :: nz_prod_end
+     INTEGER, DIMENSION( : ), OPTIONAL, INTENT( INOUT ) :: NZ_v
+     INTEGER, DIMENSION( : ), OPTIONAL, INTENT( INOUT ) :: NZ_prod
      INTEGER :: i, j, k, l, n, nflag, st_flag, st_ptr, st_row, st_val
      REAL ( KIND = wp ) :: v_j
      n = userdata%integer( 1 )
@@ -74,15 +80,49 @@
      st_ptr = st_flag + n
      st_row = st_ptr + n + 1
      st_val = 0
-! compute H * v
-     PROD = 0.0_wp
-     DO j = 1, n
-       v_j = V( j )
-       DO k = userdata%integer( st_ptr + j ),                                &
-              userdata%integer( st_ptr + j + 1 ) - 1
-         i = userdata%integer( st_row + k )
-         PROD( i ) = PROD( i ) + userdata%real( st_val + k ) * v_j
+! compute H * v for very sparse v and record nonzeros
+     IF ( PRESENT( NZ_prod ) .AND. PRESENT( nz_prod_end ) ) THEN
+       userdata%integer( nflag ) = userdata%integer( nflag ) + 1
+       nz_prod = 0
+       DO l = nz_v_start, nz_v_end
+         j = NZ_v( l ) ; v_j = V( j )
+         DO k = userdata%integer( st_ptr + j ),                                &
+                userdata%integer( st_ptr + j + 1 ) - 1
+           i = userdata%integer( st_row + k )
+           IF ( userdata%integer( st_flag + i ) <                              &
+                userdata%integer( nflag ) ) THEN
+             userdata%integer( st_flag + i ) = userdata%integer( nflag )
+             PROD( i ) = userdata%real( st_val + k ) * v_j
+             nz_prod_end = nz_prod_end + 1
+             NZ_prod( nz_prod_end ) = i
+           ELSE
+             PROD( i ) = PROD( i ) + userdata%real( st_val + k ) * v_j
+           END IF
+         END DO
        END DO
-     END DO
+! compute H * v for sparse v
+     ELSE IF ( PRESENT( NZ_v ) .AND. PRESENT( nz_v_start ) .AND.               &
+               PRESENT( nz_v_end ) ) THEN 
+       PROD = 0.0_wp
+       DO l = nz_v_start, nz_v_end
+         j = NZ_v( l ) ; v_j = V( j )
+         DO k = userdata%integer( st_ptr + j ),                                &
+                userdata%integer( st_ptr + j + 1 ) - 1
+           i = userdata%integer( st_row + k )
+           PROD( i ) = PROD( i ) + userdata%real( st_val + k ) * v_j
+         END DO
+       END DO
+! compute H * v
+     ELSE
+       PROD = 0.0_wp
+       DO j = 1, n
+         v_j = V( j )
+         DO k = userdata%integer( st_ptr + j ),                                &
+                userdata%integer( st_ptr + j + 1 ) - 1
+           i = userdata%integer( st_row + k )
+           PROD( i ) = PROD( i ) + userdata%real( st_val + k ) * v_j
+         END DO
+       END DO
+     END IF
      status = 0
      END SUBROUTINE HPROD

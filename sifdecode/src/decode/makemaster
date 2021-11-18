@@ -1,7 +1,7 @@
 #  Main body of the installation makefile for the SIFDECODE decode package
 
 #  N. Gould, D. Orban and Ph. L. Toint.
-#  This version: 03 XII 2021
+#  This version: 05 XIII 2012
 
 SHELL = /bin/$(BINSHELL)
 
@@ -59,23 +59,19 @@ sifdecode_double: $(SIFDECODED)
 
 # run spec-sheet example tests
 
-test: test_unconstrained test_constrained
-
 test_unconstrained: test_unconstrained_$(PRECIS)
 
 test_unconstrained_double: $(SIFDECODED) $(OBJD)/sifdecode_main.o
 	echo ""
 	echo " Decode unconstrained SIF file"
-	cd $(SIFDECODE)/sif/ ; sifdecoder ALLINITU
+	cd $(SIFDECODE)/sif/ ; sifdecode ALLINITU
 	echo ""
 	echo " Tests for unconstrained sifdecode complete"
-
-test_constrained: test_constrained_$(PRECIS)
 
 test_constrained_double: $(SIFDECODED) $(OBJD)/sifdecode_main.o
 	echo ""
 	echo " Decode unconstrained SIF file"
-	cd $(SIFDECODE)/sif/ ; sifdecoder ALLINITC
+	cd $(SIFDECODE)/sif/ ; sifdecode ALLINITC
 	echo ""
 	echo " Tests for constrained sifdecode complete"
 

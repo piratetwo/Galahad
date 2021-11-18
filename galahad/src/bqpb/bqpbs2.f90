@@ -1,49 +1,94 @@
-! THIS VERSION: GALAHAD 3.3 - 20/07/2021 AT 15:45 GMT.
+! THIS VERSION: GALAHAD 2.4 - 18/01/2010 AT 09:00 GMT.
    PROGRAM GALAHAD_BQPB_SECOND_EXAMPLE
    USE GALAHAD_BQPB_double         ! double precision version
    IMPLICIT NONE
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 ) ! set precision
    REAL ( KIND = wp ), PARAMETER :: infinity = 10.0_wp ** 20
    TYPE ( QPT_problem_type ) :: p
+   TYPE ( BQPB_reverse_type ) :: reverse
    TYPE ( BQPB_data_type ) :: data
    TYPE ( BQPB_control_type ) :: control        
    TYPE ( BQPB_inform_type ) :: inform
-   INTEGER :: s
-   INTEGER, PARAMETER :: n = 3, h_ne = 4
-   INTEGER, ALLOCATABLE, DIMENSION( : ) :: X_stat
+   TYPE ( NLPT_userdata_type ) :: userdata
+   INTEGER :: nflag, i, j, k, l
+   REAL ( KIND = wp ) :: v_j
+   INTEGER, PARAMETER :: n = 3, h_ne = 4, h_all = 5
+!  INTEGER, PARAMETER :: n = 3, h_ne = 3, h_all = 3
+   INTEGER, ALLOCATABLE, DIMENSION( : ) :: B_stat, FLAG, ROW, PTR
+   REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: VAL
 ! start problem data
    ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ) )
    ALLOCATE( p%X( n ), p%Z( n ) )
-   ALLOCATE( X_stat( n ) )
+   ALLOCATE( B_stat( n ), FLAG( n ) )
+   ALLOCATE( VAL( h_all ), ROW( h_all ), PTR( n + 1 ) )
    p%new_problem_structure = .TRUE.           ! new structure
    p%n = n ; p%f = 1.0_wp                     ! dimensions & objective constant
    p%G = (/ 0.0_wp, 2.0_wp, 1.0_wp /)         ! objective gradient
    p%X_l = (/ - 1.0_wp, - infinity, 0.0_wp /) ! variable lower bound
    p%X_u = (/ infinity, 1.0_wp, 2.0_wp /)     ! variable upper bound
    p%X = 0.0_wp ; p%Z = 0.0_wp ! start from zero
-!  sparse co-ordinate storage format
-   CALL SMT_put( p%H%type, 'COORDINATE', s )     ! Co-ordinate  storage for H
-   ALLOCATE( p%H%val( h_ne ), p%H%row( h_ne ), p%H%col( h_ne ) )
-   p%H%val = (/ 1.0_wp, 2.0_wp, 1.0_wp, 3.0_wp /) ! Hessian H
-   p%H%row = (/ 1, 2, 2, 3 /)                     ! NB lower triangle
-   p%H%col = (/ 1, 2, 1, 3 /) ; p%H%ne = h_ne
+   PTR = (/ 1, 3, 5, 6 /)                      ! whole Hessian by rows
+   ROW = (/ 1, 2, 1, 2, 3 /)                   ! for matrix-vector products
+   VAL = (/ 1.0_wp, 1.0_wp, 1.0_wp, 2.0_wp, 3.0_wp /)
 ! problem data complete   
-   CALL BQPB_initialize( data, control, inform ) ! Initialize control parameters
-   control%infinity = 0.1_wp * infinity       ! Set infinity
+   CALL BQPB_initialize( data, control )       ! Initialize control parameters
+   control%infinity = infinity                ! Set infinity
+!  control%print_level = 3                    ! print one line/iteration
    control%print_level = 1                    ! print one line/iteration
-   control%maxit = 100                        ! limit the # iterations
+   control%maxit = 40                         ! limit the # iterations
+!  control%print_gap = 100                    ! print every 100 terations
+!  control%exact_gcp = .FALSE.
+   nflag = 0 ; FLAG = 0
    inform%status = 1
-   CALL BQPB_solve( p,  data, control, inform, X_stat )  
-   IF ( inform%status == 0 ) THEN             !  Successful return
-     WRITE( 6, "( ' BQPB: ', I0, ' iterations  ', /,                           &
-    &     ' Optimal objective value =',                                        &
-    &       ES12.4, /, ' Optimal solution = ', ( 5ES12.4 ) )" )                &
-     inform%iter, inform%obj, p%X
-   ELSE                                       ! Error returns
-     WRITE( 6, "( ' BQPB_solve exit status = ', I0 ) " ) inform%status
-     WRITE( 6, * ) inform%alloc_status, inform%bad_alloc
-   END IF
-   CALL BQPB_terminate( data, control, inform )  !  delete workspace
-   DEALLOCATE( p%G, p%X, p%X_l, p%X_u, p%Z, X_stat )
-   DEALLOCATE( p%H%val, p%H%row, p%H%col, p%H%type )
+10 CONTINUE            ! Solve problem - reverse commmunication loop
+     CALL BQPB_solve( p,  B_stat, data, control, inform, userdata, reverse )  
+     SELECT CASE ( inform%status )
+     CASE ( 0 )          !  Successful return
+       WRITE( 6, "( ' BQPB: ', I0, ' iterations  ', /,                         &
+      &     ' Optimal objective value =',                                      &
+      &       ES12.4, /, ' Optimal solution = ', ( 5ES12.4 ) )" )              &
+       inform%iter, inform%obj, p%X
+     CASE ( 2 )          ! compute H * v
+       reverse%PROD = 0.0_wp
+       DO j = 1, p%n
+         v_j = reverse%V( j )
+         DO k = PTR( j ), PTR( j + 1 ) - 1
+           i = ROW( k )
+           reverse%PROD( i ) = reverse%PROD( i ) + VAL( k ) * v_j
+         END DO
+       END DO
+       GO TO 10
+     CASE ( 3 )          ! compute H * v for sparse v
+       reverse%PROD = 0.0_wp
+       DO l = reverse%nz_v_start, reverse%nz_v_end
+         j = reverse%NZ_v( l ) ; v_j = reverse%V( j )
+         DO k = PTR( j ), PTR( j + 1 ) - 1
+           i = ROW( k )
+           reverse%PROD( i ) = reverse%PROD( i ) + VAL( k ) * v_j
+         END DO
+       END DO
+       GO TO 10
+     CASE ( 4 )          ! compute H * v for very sparse v and record nonzeros
+       nflag = nflag + 1
+       reverse%nz_prod = 0
+       DO l = reverse%nz_v_start, reverse%nz_v_end
+         j = reverse%NZ_v( l ) ; v_j = reverse%V( j )
+         DO k = PTR( j ), PTR( j + 1 ) - 1
+           i = ROW( k )
+           IF ( FLAG( i ) < nflag ) THEN
+             FLAG( i ) = nflag
+             reverse%PROD( i ) = VAL( k ) * v_j
+             reverse%nz_prod_end = reverse%nz_prod_end + 1
+             reverse%NZ_prod( reverse%nz_prod_end ) = i
+           ELSE
+             reverse%PROD( i ) = reverse%PROD( i ) + VAL( k ) * v_j
+           END IF
+         END DO
+       END DO
+       GO TO 10
+     CASE DEFAULT        ! Error returns
+       WRITE( 6, "( ' BQPB_solve exit status = ', I6 ) " ) inform%status
+     END SELECT
+   CALL BQPB_terminate( data, control, inform, reverse )  !  delete workspace
+   DEALLOCATE( p%G, p%X, p%X_l, p%X_u, p%Z, B_stat, FLAG, PTR, ROW, VAL )
    END PROGRAM GALAHAD_BQPB_SECOND_EXAMPLE

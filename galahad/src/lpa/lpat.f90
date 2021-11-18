@@ -193,7 +193,6 @@
 
 !  DO data_storage_type = - 2, - 2
 !  DO data_storage_type = - 1, - 1
-!  DO data_storage_type = 0, 0
    DO data_storage_type = - 2, 0
      CALL LPA_initialize( data, control, inform )
      control%infinity = 0.1_wp * infty
@@ -217,7 +216,7 @@
        p%A%ptr = (/ 1, 3, 5, 7, 9, 11, 13, 15 /)
      ELSE IF ( data_storage_type == - 2 ) THEN    ! dense storage
        st = 'D'
-       ALLOCATE( p%A%val( m * n ) )
+       ALLOCATE( p%A%val( n * m ) )
        p%A%val = (/ 1.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp,    &
                     1.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp,    &
                     0.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp,    &
@@ -237,8 +236,8 @@
 
 !  test with solves via the primal and dual
 
-     DO dual = 0, 0
-!    DO dual = 0, 1
+!    DO dual = 0, 0
+     DO dual = 0, 1
        IF ( dual == 0 ) THEN
          control%dual = .FALSE.
          du = 'P'
@@ -258,7 +257,7 @@
            control%warm_start = .TRUE.
            wa = 'W'
          END IF
-!        control%print_level = 1
+!        control%print_level = 101
          CALL LPA_solve( p, data, control, inform, C_stat, X_stat )
          IF ( inform%status == 0 ) THEN
            WRITE( 6, "( 3A1, ':', I6,' iterations. Optimal objective value',   &
@@ -268,8 +267,6 @@
            WRITE( 6, "( 3A1, ': LPA_solve exit status = ', I4 ) " )            &
              st, du, wa, inform%status
          END IF
-!write(6,"( ' xstat ', 15I3 )" ) x_stat
-!write(6,"( ' cstat ', 15I3 )" ) c_stat
        END DO
 !      STOP
      END DO

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 29/10/2020 AT 08:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 13/05/2014 AT 09:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*- G A L A H A D _ M I Q R    M O D U L E -*-*-*-*-*-*-*-*-
 
@@ -644,7 +644,7 @@
 !  Local variables
 
       INTEGER :: i, level, m, n, min_unprocessed_columns
-      REAL :: time_start, time_record, time_now
+      REAL ( KIND = wp ) :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       CHARACTER ( LEN = 80 ) :: array_name
 
@@ -726,11 +726,11 @@
 
       data%control%CONVERT_control%order = .TRUE.
       data%control%CONVERT_control%transpose = data%control%transpose
-      CALL CONVERT_to_sparse_column_format( A, data%A_by_cols,                 &
-                                            data%control%CONVERT_control,      &
-                                            inform%CONVERT_inform,             &
-                                            data%workspace%ind_m,              &
-                                            data%workspace%val_m )
+      CALL CONVERT_to_column_format( A, data%A_by_cols,                        &
+                                     data%control%CONVERT_control,             &
+                                     inform%CONVERT_inform,                    &
+                                     data%workspace%ind_m, m,                  &
+                                     data%workspace%val_m, m )
       IF ( inform%CONVERT_inform%status /= GALAHAD_ok ) THEN
         inform%status = inform%CONVERT_inform%status
         GO TO 900
@@ -892,7 +892,7 @@
 !  record the total time taken
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%form = inform%time%form + REAL( time_now - time_start, wp )
+      inform%time%form = inform%time%form + time_now - time_start
       inform%time%clock_form = inform%time%clock_form + clock_now - clock_start
 
       inform%status = GALAHAD_ok
@@ -902,7 +902,7 @@
 
  900  CONTINUE
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%form = inform%time%form + REAL( time_now - time_start, wp )
+      inform%time%form = inform%time%form + time_now - time_start
       inform%time%clock_form = inform%time%clock_form + clock_now - clock_start
 
       IF ( control%error > 0 .AND. control%print_level > 0 )                   &
@@ -932,15 +932,13 @@
         TYPE ( MIQR_data_global_type ), INTENT( INOUT ) :: global
         TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control
         TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-        REAL, INTENT( IN ) :: start_time
-        REAL ( KIND = wp ), INTENT( IN ) :: start_clock
+        REAL ( KIND = wp ), INTENT( IN ) :: start_time, start_clock
 
 !  Local variables
 
         INTEGER :: i, j, l, m, n, order, col, id, in, array_size
         REAL ( KIND = wp ) :: alpha, diag, val
-        REAL :: time_start, time_now
-        REAL ( KIND = wp ) :: clock_start, clock_now
+        REAL ( KIND = wp ) :: time_start, time_now, clock_start, clock_now
         CHARACTER ( LEN = 80 ) :: array_name
         TYPE ( MIQR_sparse_vector_type ) :: F_i, A_i
 
@@ -1217,10 +1215,10 @@
 !  record the time forming the multi-level part of the preconditioner
 
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%levels                                                     &
-          = inform%time%levels + REAL( time_now - time_start, wp )
+        inform%time%levels = inform%time%levels + time_now - time_start
         inform%time%clock_levels                                               &
           = inform%time%clock_levels + clock_now - clock_start
+
         inform%entries_in_factors                                              &
           = inform%entries_in_factors + level%order + level%F%ne
         inform%status = GALAHAD_ok
@@ -1230,8 +1228,7 @@
 
  900    CONTINUE
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%levels                                                     &
-          = inform%time%levels + REAL( time_now - time_start, wp )
+        inform%time%levels = inform%time%levels + time_now - time_start
         inform%time%clock_levels                                               &
           = inform%time%clock_levels + clock_now - clock_start
         RETURN
@@ -1342,9 +1339,8 @@
 !  store A row-wise in A_by_rows
 
         CALL CONVERT_transpose( A%m, A%n, A%ne, A%ptr, A%row, A%val,           &
-                                workspace%A_by_rows%ptr,                       &
-                                workspace%A_by_rows%col,                       &
-                                workspace%A_by_rows%val )
+                             workspace%A_by_rows%ptr, workspace%A_by_rows%col, &
+                             workspace%A_by_rows%val )
 
 !  store the degree of each vertex of the column interesction graph of A,
 !  that is the adjacency graph defined by the nonzero pattern of C
@@ -1561,8 +1557,7 @@
         TYPE ( MIQR_data_workspace_type ), INTENT( INOUT ) :: workspace
         TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control
         TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-        REAL, INTENT( IN ) :: start_time
-        REAL ( KIND = wp ), INTENT( IN ) :: start_clock
+        REAL ( KIND = wp ), INTENT( IN ) :: start_time, start_clock
 
 !  Local variables
 
@@ -1571,8 +1566,7 @@
         INTEGER :: new_length, old_length, used_length, min_length
         INTEGER :: max_fill, max_fill_q
         REAL ( KIND = wp ) :: r_val_inverse, one_norm, val
-        REAL :: time_start, time_now
-        REAL ( KIND = wp ) :: clock_start, clock_now
+        REAL ( KIND = wp ) :: time_start, time_now, clock_start, clock_now
         CHARACTER ( LEN = 80 ) :: array_name
         TYPE ( MIQR_sparse_vector_type ) :: Q_i, R_i
 
@@ -1949,7 +1943,7 @@
 
  800    CONTINUE
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%iqr = inform%time%iqr + REAL( time_now - time_start, wp )
+        inform%time%iqr = inform%time%iqr + time_now - time_start
         inform%time%clock_iqr = inform%time%clock_iqr + clock_now - clock_start
 
         inform%entries_in_factors = inform%entries_in_factors + R%ne
@@ -1960,7 +1954,7 @@
 
  900    CONTINUE
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%iqr = inform%time%iqr + REAL( time_now - time_start, wp )
+        inform%time%iqr = inform%time%iqr + time_now - time_start
         inform%time%clock_iqr = inform%time%clock_iqr + clock_now - clock_start
         RETURN
 
@@ -2333,8 +2327,7 @@
 !  Local variables
 
       INTEGER :: i, j, k, l, pos_r, pos_i, pos_i1
-      REAL :: time_start, time_now
-      REAL ( KIND = wp ) :: val, clock_start, clock_now
+      REAL ( KIND = wp ) :: val, time_start, time_now, clock_start, clock_now
       REAL ( KIND = wp ), POINTER, DIMENSION( : ) :: WORK
 
 !  initialize time
@@ -2467,7 +2460,7 @@
 !  record the time taken applying the preconditioner
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%apply = inform%time%apply + REAL( time_now - time_start, wp )
+      inform%time%apply = inform%time%apply + time_now - time_start
       inform%time%clock_apply                                                  &
         = inform%time%clock_apply + clock_now - clock_start
 
@@ -2672,3 +2665,4 @@
 !  end of module GALAHAD_MIQR_double
 
     END MODULE GALAHAD_MIQR_double
+

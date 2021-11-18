@@ -16,7 +16,6 @@
     MODULE GALAHAD_TRANSFER_MATLAB
 
       USE GALAHAD_SMT_double
-      USE GALAHAD_SPACE_double
       USE GALAHAD_MATLAB
 
       IMPLICIT NONE
@@ -30,8 +29,6 @@
 
       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
       INTEGER, PARAMETER :: long = SELECTED_INT_KIND( 18 )
-      INTEGER * 4, PARAMETER :: i4_1 = 1
-      INTEGER, PARAMETER :: int4 = KIND( i4_1 )
 
     CONTAINS
 
@@ -60,7 +57,7 @@
 !  local variables
 
       INTEGER :: i, j, k, l, info
-      INTEGER * 4 :: stat, np1, status, alloc_status
+      INTEGER * 4 :: stat, np1
       mwPointer :: a_cpr_pr, a_row_pr, val_pr
       mwPointer :: mxGetPr
       mwSize :: mxGetM, mxGetN, mxGetNzmax
@@ -76,8 +73,8 @@
 
 !  Get the row and column dimensions
 
-      A%m = INT( mxGetM( a_in ), KIND = int4 )
-      A%n = INT( mxGetN( a_in ), KIND = int4 )
+      A%m = mxGetM( a_in )
+      A%n = mxGetN( a_in )
 
       IF ( symmetric .AND. A%m /= A%n )                                        &
         CALL mexErrMsgTxt( ' The matrix must be square ' )
@@ -85,7 +82,7 @@
 !  Set up the structure to hold A in co-ordinate form
 
       IF ( mxIsSparse( a_in ) ) THEN
-        A%ne = INT( mxGetNzmax( a_in ), KIND = int4 )
+        A%ne = mxGetNzmax( a_in )
       ELSE
         A%ne = A%m * A%n
       END IF
@@ -93,18 +90,18 @@
 
 !  Allocate space for the input matrix A
 
-      CALL SPACE_resize_array( A%ne, A%row, status, alloc_status )
-      IF ( status /= 0 ) CALL mexErrMsgTxt( ' allocate error A%row' )
-      CALL SPACE_resize_array( A%ne, A%col, status, alloc_status )
-      IF ( status /= 0 ) CALL mexErrMsgTxt( ' allocate error A%col' )
-      CALL SPACE_resize_array( A%ne, A%val, status, alloc_status )
-      IF ( status /= 0 ) CALL mexErrMsgTxt( ' allocate error A%val' )
+      ALLOCATE( A%row( A%ne ), STAT = info )
+      IF ( info /= 0 ) CALL mexErrMsgTxt( ' allocate error A%row' )
+      ALLOCATE( A%col( A%ne ), STAT = info )
+      IF ( info /= 0 ) CALL mexErrMsgTxt( ' allocate error A%col' )
+      ALLOCATE( A%val( A%ne ), STAT = info )
+      IF ( info /= 0 ) CALL mexErrMsgTxt( ' allocate error A%val' )
 
       IF ( mxIsSparse( a_in ) ) THEN
 
 !  allocate temporary workspace
 
-        np1 = A%n + i4_1
+        np1 = A%n + 1
         IF ( ALLOCATED( col_ptr ) ) THEN
           IF ( SIZE( col_ptr ) < np1 ) THEN
             DEALLOCATE( col_ptr, STAT = info )
@@ -141,7 +138,7 @@
         CALL galmxCopyPtrToInteger84( a_cpr_pr, col_ptr, np1, .TRUE. )
 
         col_ptr = col_ptr + 1
-        A%row = A%row + i4_1
+        A%row = A%row + 1
 
 !WRITE(88, "(' n ', I0 )" ) A%n
 !WRITE(88, "(' a_row ', /, 6( 1X,  I11 ) )" ) A%row( :  A%ne )
@@ -158,10 +155,10 @@
 
         DO i = 1, A%n
           DO j = col_ptr( i ), col_ptr( i + 1 ) - 1
-            A%col( j ) = INT( i, KIND = int4 )
+            A%col( j ) = i
           END DO
         END DO
-        A%ne = INT( col_ptr( A%n + 1 ) - 1, KIND = int4 )
+        A%ne = col_ptr( A%n + 1 ) - 1
 
 !  Set the row and column indices if the matrix is dense
 
@@ -170,11 +167,11 @@
         DO j = 1, A%n
           DO i = 1, A%m
             l = l + 1
-            A%row( l ) = INT( i, KIND = int4 )
-            A%col( l ) = INT( j, KIND = int4 )
+            A%row( l ) = i
+            A%col( l ) = j
           END DO
         END DO
-        A%ne = INT( l, KIND = int4 )
+        A%ne = l
       END IF
 
 !  copy the real components of A
@@ -191,12 +188,12 @@
           j = A%col( k )
           IF ( i <= j ) THEN
             l = l + 1
-            A%row( l ) = INT( i, KIND = int4 )
-            A%col( l ) = INT( j, KIND = int4 )
+            A%row( l ) = i
+            A%col( l ) = j
             A%val( l ) = A%val( k )
           END IF
         END DO
-        A%ne = INT( l, KIND = int4 )
+        A%ne = l
       END IF
 
 !  remove zeros
@@ -210,7 +207,7 @@
           A%val( l ) = A%val( k )
         END IF
       END DO
-      A%ne = INT( l, KIND = int4 )
+      A%ne = l
 
 !-------------- more print---------------
 !BACKSPACE(88)

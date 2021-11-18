@@ -45,9 +45,7 @@
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: half = 0.5_wp
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: one = 1.0_wp
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: two = 2.0_wp
-     REAL ( KIND = wp ), PRIVATE, PARAMETER :: ten = 10.0_wp
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: eps = EPSILON( one )
-     REAL ( KIND = wp ), PRIVATE, PARAMETER :: alternative_tol = ten ** ( - 10 )
 
 !-------------------------------------------------
 !  D e r i v e d   t y p e   d e f i n i t i o n s
@@ -1489,14 +1487,14 @@
                     FACTORS%A, FACTORS%licn,                                   &
                     FACTORS%LENR, FACTORS%LENRL, FACTORS%LENOFF,               &
                     FACTORS%IDISP, FACTORS%IP, FACTORS%IQ, X,                  &
-                    FACTORS%W, FACTORS%RINFO, alternative_tol, alternative )
+                    FACTORS%W, FACTORS%RINFO, 1.0D-10, alternative )
      ELSE
        FACTORS%R = RHS
        CALL GLS_fredholm_alternative_main( FACTORS%n, FACTORS%ICN,             &
                     FACTORS%A, FACTORS%licn,                                   &
                     FACTORS%LENR, FACTORS%LENRL, FACTORS%LENOFF,               &
                     FACTORS%IDISP, FACTORS%IP, FACTORS%IQ, FACTORS%R,          &
-                    FACTORS%W, FACTORS%RINFO, alternative_tol, alternative )
+                    FACTORS%W, FACTORS%RINFO, 1.0D-10, alternative )
        IF ( alternative ) THEN
          X( : MATRIX%m ) = FACTORS%R( : MATRIX%m )
        ELSE
@@ -2423,3 +2421,8 @@
 !  IW( : 6 ) -> LASTC
 !  IW( : 7 ) -> NEXTC
 !  IW( : 8 ) -> IPTR
+
+
+
+
+

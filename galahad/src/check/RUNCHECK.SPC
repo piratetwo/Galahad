@@ -1,1 +1,0 @@
-./RUNCHECK.distrib

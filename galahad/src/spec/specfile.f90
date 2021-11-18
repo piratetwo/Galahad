@@ -17,7 +17,7 @@
 !   originally released pre GALAHAD Version 1.0. July 16th 2002
 !   update released with GALAHAD Version 2.0. August 25th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
 !
@@ -29,8 +29,8 @@
 !             |  Spring 2002                                  |
 !             +-----------------------------------------------+
 !
-!  Several programs or routines of the GALAHAD library feature a number of 
-!  "control parameters", that is parameters that condition the various 
+!  Several programs or routines of the GALAHAD library feature a number of
+!  "control parameters", that is parameters that condition the various
 !  algorithmic, printing and other options of the program/routine. All these
 !  parameters have default values, but it is often useful to overide these
 !  default values for specific purposes.  Two mechanisms are possible:
@@ -47,24 +47,24 @@
 !  The syntax of a specfile
 !  ------------------------
 !
-!  A specification file, or specfile, is assumed to consist of a number of 
-!  "specification commands",  each of these being decomposed into 
+!  A specification file, or specfile, is assumed to consist of a number of
+!  "specification commands",  each of these being decomposed into
 !  - a "keyword", which is a string (in a close-to-natural language) that will
 !    be used to identify a control parameter in the specfile, and
 !  - an (optional) "value", which is the value to be attributed to the
 !    said control parameter (overiding its default).
 !  A specific algorithmic control parameter is associated to each such
-!  keyword, and the effect of interpreting the specification file is to assign 
-!  the value associated with the keyword (in each specification command) to 
+!  keyword, and the effect of interpreting the specification file is to assign
+!  the value associated with the keyword (in each specification command) to
 !  the corresponding algorithmic parameter.  A specification file must start
-!  with a "BEGIN (program/routine name)" command and ends with an 
+!  with a "BEGIN (program/routine name)" command and ends with an
 !  "END" command.  The syntax of the specfile is thus defined as follows:
 !
 !      BEGIN (program/routine name)
 !         keyword            value
 !         .......            .....
 !         keyword            value
-!      END 
+!      END
 !
 !  where keyword and value are two strings separated by (at least) one blank.
 !  The BEGIN and END delimiter commands may be completed after a blank, so
@@ -78,14 +78,14 @@
 !
 !  are acceptable. Furthermore, the specification commands (between the
 !  BEGIN and END delimiters) may be specified in any order.  Blank lines and
-!  lines whose first non-blank character is ! or * are ignored. The content 
-!  of a line after a ! or * character is also ignored (as is the ! or * 
-!  character itself). This provides an easy manner to "comment off" some 
-!  specification commands or to add comments associated to specific values 
-!  of certain control parameters.  The specification file must be open for 
-!  input when SPECFILE_read is called, and the associated device number 
-!  passed to the routine in device (see below). Note that the corresponding 
-!  file is REWINDed, which make it possible to combine the specifications 
+!  lines whose first non-blank character is ! or * are ignored. The content
+!  of a line after a ! or * character is also ignored (as is the ! or *
+!  character itself). This provides an easy manner to "comment off" some
+!  specification commands or to add comments associated to specific values
+!  of certain control parameters.  The specification file must be open for
+!  input when SPECFILE_read is called, and the associated device number
+!  passed to the routine in device (see below). Note that the corresponding
+!  file is REWINDed, which make it possible to combine the specifications
 !  for more than one program/routine.  For the same reason, the file is not
 !  closed by SPECFILE_read.
 !
@@ -96,16 +96,16 @@
 !  - character string,
 !  - symbolic.
 !  A symbolic value is a special, predefined (in the SYMBOLS module) string,
-!  which may help to express an (integer) control parameter for an algorithm 
+!  which may help to express an (integer) control parameter for an algorithm
 !  in a "language" that is close to natural.  The possible values for logical
 !  parameters are "ON", "TRUE", ".TRUE.", "T", "YES", "Y", or "OFF", "NO",
-!  "N", "FALSE", ".FALSE." and "F". Empty values are also addmitted for 
+!  "N", "FALSE", ".FALSE." and "F". Empty values are also addmitted for
 !  logical control parameters, and interpreted as "TRUE".  Note that the
 !  keywords, as well as symbol and logical values in specification commands
 !  are case insensitive. The keywords must not contain more than 50
 !  characters, and the value not more than 30 characters.  Furthermore, each
 !  line of the specfile is limited to 80 characters, including the blanks
-!  separating keyword and value. 
+!  separating keyword and value.
 !
 !
 !  How to use this module
@@ -114,7 +114,7 @@
 !  This module provides tools to read the specfile and to interpret its
 !  specfication commands. A typical use consists of three successive steps:
 !
-!              +--------------------------------------------------+ 
+!              +--------------------------------------------------+
 !              |            define the content and type           |
 !              |          of the specifications commands          |
 !              |                                                  |
@@ -122,30 +122,30 @@
 !              +--------------------------------------------------+
 !                                      |
 !                                      V
-!              +--------------------------------------------------+ 
+!              +--------------------------------------------------+
 !              |               parse the specfile                 |
 !              |                                                  |
 !              | (using the SPECFILE_read routine of this module) |
-!              +--------------------------------------------------+ 
+!              +--------------------------------------------------+
 !                                      |
 !                                      V
-!              +--------------------------------------------------+ 
+!              +--------------------------------------------------+
 !              |       interpret the specifications commands      |
 !              |                                                  |
 !              |    (using the SPECFILE_assign_* functions of     |
 !              |                  this module)                    |
-!              +--------------------------------------------------+ 
-!   
-!  The data structure to initialize at step one is an array of 
+!              +--------------------------------------------------+
+!
+!  The data structure to initialize at step one is an array of
 !  TYPE( SPECFILE_item_type ) (see TYPE definition below), whose length
 !  is equal to the number of possible different specifications commands
 !  in the considered specfile.
 !
 !  The details are best shown by an example. Assume that one has the routine
 !  called "mystuff" whose associated specifications commands are used to specify
-!  the print level (either SILENT or VERBOSE), an output device number (an 
-!  integer), an output file name (a string) and a final accuracy (a real).  The 
-!  code in charge of reading the specfile must thus first use the SPECFILE 
+!  the print level (either SILENT or VERBOSE), an output device number (an
+!  integer), an output file name (a string) and a final accuracy (a real).  The
+!  code in charge of reading the specfile must thus first use the SPECFILE
 !  module:
 !
 !     USE GALAHAD_SPECFILE_double
@@ -185,7 +185,7 @@
 !     CALL SPECFILE_assign_real   ( specs( 4 ), accuracy    , errout )
 !
 !  (In these calls, errout is the device number on which error messages should
-!  be output.) Note that no assignment is performed for a control parameter 
+!  be output.) Note that no assignment is performed for a control parameter
 !  if no value is specified for this control parameter in the specfile. Thus,
 !  if the file named MYSTUFF.SPC contains
 !
@@ -218,7 +218,7 @@
       USE GALAHAD_SYMBOLS  ! to make the symbols known for translation
 
 !-------------------------------------------------------------------------------
-!   A c c e s s 
+!   A c c e s s
 !-------------------------------------------------------------------------------
 
       IMPLICIT NONE
@@ -262,9 +262,9 @@
 !-------------------------------------------------------------------------------
 
 !     The following data type is intended to contain the information related
-!     to a single control parameter assignment.  The specfile itself consists 
-!     of a series of such assignments, preceded by a BEGIN statement and 
-!     closed by a CLOSE statement. Reading a datafile thus requires specifying 
+!     to a single control parameter assignment.  The specfile itself consists
+!     of a series of such assignments, preceded by a BEGIN statement and
+!     closed by a CLOSE statement. Reading a datafile thus requires specifying
 !     an array of SPECFILE_item_type whose length is equal to the number of
 !     parameters that can be assigned in the specfile (see above).
 
@@ -272,18 +272,18 @@
 
          CHARACTER( LEN = 50 ) :: keyword
 
-!              the string that specifies the control parameter whose value 
+!              the string that specifies the control parameter whose value
 !              is to be assigned.
 
          CHARACTER( LEN = 30 ) :: value
 
-!              the value assigned to the control parameter, expressed as 
+!              the value assigned to the control parameter, expressed as
 !              a string.
 
          INTEGER :: line
 
 !              0   : if no specfile command has been read so far that assigns a
-!                    value to the considered control parameter 
+!                    value to the considered control parameter
 !                    (in which case no assignment is made for the control
 !                    parameter in the SPECFILE module),
 !              > 0 : the line number of the specfile at which the value of the
@@ -438,7 +438,7 @@
             RETURN
          ELSE IF ( lvalue < 10 ) THEN
              WRITE( fmt, '( ''(I'',I1, '')'' )' ) lvalue
-         ELSE 
+         ELSE
              WRITE( fmt, '( ''(I'',I2, '')'' )' ) lvalue
          END IF
          READ( specitem%value, fmt, IOSTAT = ios ) itmp
@@ -456,7 +456,7 @@
       RETURN
 
       END SUBROUTINE SPECFILE_assign_integer
-                   
+
 !==============================================================================
 !==============================================================================
 
@@ -498,7 +498,7 @@
             RETURN
          ELSE IF ( lvalue < 10 ) THEN
              WRITE( fmt, '( ''(I'',I1, '')'' )' ) lvalue
-         ELSE 
+         ELSE
              WRITE( fmt, '( ''(I'',I2, '')'' )' ) lvalue
          END IF
          READ( specitem%value, fmt, IOSTAT = ios ) itmp
@@ -516,7 +516,7 @@
       RETURN
 
       END SUBROUTINE SPECFILE_assign_long
-                   
+
 !==============================================================================
 !==============================================================================
 
@@ -561,7 +561,7 @@
       RETURN
 
       END SUBROUTINE SPECFILE_assign_string
-                   
+
 !==============================================================================
 !==============================================================================
 
@@ -622,7 +622,7 @@
       RETURN
 
       END SUBROUTINE SPECFILE_assign_real
-                   
+
 !==============================================================================
 !==============================================================================
 
@@ -679,7 +679,7 @@
       RETURN
 
       END SUBROUTINE SPECFILE_assign_logical
-                   
+
 !==============================================================================
 !==============================================================================
 
@@ -738,13 +738,13 @@
          ELSE IF ( TRIM( upper_value ) == 'NONE'                  ) THEN
             param = GALAHAD_NONE
          ELSE IF ( TRIM( upper_value ) == 'BASIC'                 ) THEN
-            param = GALAHAD_BASIC 
+            param = GALAHAD_BASIC
          ELSE IF ( TRIM( upper_value ) == 'SEVERE'                ) THEN
             param = GALAHAD_SEVERE
          ELSE IF ( TRIM( upper_value ) == 'REDUCED_SIZE'          ) THEN
             param = GALAHAD_REDUCED_SIZE
          ELSE IF ( TRIM( upper_value ) == 'FULL_PRESOLVE'         ) THEN
-            param = GALAHAD_FULL_PRESOLVE  
+            param = GALAHAD_FULL_PRESOLVE
          ELSE IF ( TRIM( upper_value ) == 'ALL_ZEROS'             ) THEN
             param = GALAHAD_ALL_ZEROS
          ELSE IF ( TRIM( upper_value ) == 'ALL_ONES'              ) THEN
@@ -756,7 +756,7 @@
          ELSE IF ( TRIM( upper_value ) == 'NEGATIVE'              ) THEN
             param = GALAHAD_NEGATIVE
          ELSE IF ( TRIM( upper_value ) == 'LEAVE_AS_IS'           ) THEN
-            param = GALAHAD_LEAVE_AS_IS 
+            param = GALAHAD_LEAVE_AS_IS
          ELSE IF ( TRIM( upper_value ) == 'FORCE_TO_ZERO'         ) THEN
             param = GALAHAD_FORCE_TO_ZERO
          ELSE IF ( TRIM( upper_value ) == 'TIGHTEST'              ) THEN
@@ -768,7 +768,7 @@
          ELSE IF ( TRIM( upper_value ) == 'DENSE'                 ) THEN
             param = GALAHAD_DENSE
          ELSE IF ( TRIM( upper_value ) == 'SPARSE'                ) THEN
-            param = GALAHAD_SPARSE_BY_ROWS 
+            param = GALAHAD_SPARSE_BY_ROWS
          ELSE IF ( TRIM( upper_value ) == 'COORDINATE'            ) THEN
             param = GALAHAD_COORDINATE
          ELSE IF ( TRIM( upper_value ) == 'ELEMENTAL'             ) THEN
@@ -895,17 +895,17 @@
             param = GALAHAD_12
          ELSE
             WRITE( errout, * )                                                 &
-                 ' *** SPECFILE WARNING: symbol value ', TRIM( upper_value ) 
+                 ' *** SPECFILE WARNING: symbol value ', TRIM( upper_value )
             WRITE( errout, * ) '     not recognized at line ', specitem%line,  &
                 'in the specification file.'
             WRITE( errout, * ) '     Corresponding assignment skipped.'
          END IF
       END IF
-         
+
       RETURN
 
       END SUBROUTINE SPECFILE_assign_symbol
-                   
+
 !==============================================================================
 !==============================================================================
 
@@ -1023,19 +1023,19 @@
 
       REWIND device
 
-!     Make sure all keywords are in upper case 
+!     Make sure all keywords are in upper case
 !     (in order to make keyword matching case insensitive)
 
       DO ikey = 1, lspec
          len_trim_spec = LEN_TRIM( spec( ikey )%keyword )
          CALL SPECFILE_upper_case( spec( ikey )%keyword, len_trim_spec )
-                                   
+
       END DO
 
 !     Loop over the file lines
 
       nline = 0
-      DO 
+      DO
 
 !        Read the next line
 
@@ -1049,7 +1049,7 @@
 !        Remove the unnecessary blanks and compute the position of the
 !        second keyword
 
-         CALL SPECFILE_squeeze( line, lenline, break ) 
+         CALL SPECFILE_squeeze( line, lenline, break )
 !        If the line is commented out or blank, ignore it
 
          IF ( line( 1:1 ) == '!' .OR. line( 1:1 ) == '*' .OR. &
@@ -1076,9 +1076,9 @@
             IF ( break > lenline ) THEN
                value = ''
             ELSE
-               IF ( line( break:break ) == "'" ) THEN 
+               IF ( line( break:break ) == "'" ) THEN
                  endvalue = INDEX( line( break+1:lenline ), "'" ) + 1
-               ELSE IF ( line( break:break ) == '"' ) THEN 
+               ELSE IF ( line( break:break ) == '"' ) THEN
                  endvalue = INDEX( line( break+1:lenline ), '"' ) + 1
                ELSE
                  endvalue = INDEX( line( break:lenline ), ' ' )
@@ -1101,7 +1101,7 @@
                   EXIT
                END IF
             END DO
-            
+
             IF ( .NOT. found ) THEN
                WRITE( errout, * )                                              &
                     ' *** SPECFILE WARNING: keyword ', TRIM( keyword )

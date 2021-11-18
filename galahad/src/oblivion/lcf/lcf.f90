@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.4 - 3/05/2010 AT 12:00 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ L C F    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -40,7 +40,7 @@
       USE GALAHAD_ROOTS_double
 !     USE GALAHAD_LSQP_double, ONLY:
       USE GALAHAD_FDC_double
-      USE GALAHAD_STRING
+      USE GALAHAD_STRING_double
 
       IMPLICIT NONE
 
@@ -3024,7 +3024,7 @@
 
 !  Order the breakpoints in increasing size using a heapsort. Build the heap
 
-      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, ix = IBREAK )
+      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, INDA = IBREAK )
       cluster_start = 1
       cluster_end = 0
       cluster = '      0      0'
@@ -3065,7 +3065,7 @@
         t_old = t_break
         IF ( nbreak > 0 ) THEN
           t_break = BREAKP( 1 ) * ( one + epsmch )
-          CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
+          CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
           cluster_end = cluster_end + 1
           cluster_start = cluster_end
         ELSE
@@ -3228,7 +3228,7 @@
             IF ( BREAKP( 1 ) >= feasep ) EXIT
             t_break = BREAKP( 1 ) * ( one + pert_eps )
             CALL SORT_heapsort_smallest( nbreak, BREAKP( : nbreak ), inheap,   &
-                                         ix = IBREAK )
+                                         INDA = IBREAK )
             cluster_end = cluster_end + 1
           END DO
 

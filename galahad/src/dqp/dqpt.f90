@@ -329,7 +329,6 @@
    control%restore_problem = 2
 !  control%out = 6 ; control%print_level = 1
    control%dual_starting_point = 3
-!  DO i = 1, 1
    DO i = 1, 4
 !  DO i = 3, 3
      p%new_problem_structure = .TRUE.
@@ -482,7 +481,6 @@
 !      control%print_level = 1
        control%exact_arc_search = .TRUE.
        control%subspace_direct = .TRUE.
-       control%subspace_arc_search = .TRUE.
      ELSE IF ( i == 10 ) THEN
        control%max_sc = 0
      ELSE IF ( i == 11 ) THEN
@@ -553,7 +551,7 @@
 !20 CONTINUE
    p%X_l = (/ 0.5_wp, 0.5_wp, 0.5_wp /)
    p%X_u = (/ 0.5_wp, 0.5_wp, 0.5_wp /)
-   p%C_l = (/ 1.0_wp, 1.0_wp /)
+   p%C_l = (/ 1.0_wp, 0.0_wp /)
    p%C_u = (/ 2.0_wp, infty /)
    p%new_problem_structure = .TRUE.
    IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )

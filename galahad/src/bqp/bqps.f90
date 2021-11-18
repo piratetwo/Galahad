@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 03/06/2021 AT 08:15 GMT.
+! THIS VERSION: GALAHAD 2.4 - 09/11/2009 AT 15:15 GMT.
    PROGRAM GALAHAD_BQP_EXAMPLE
    USE GALAHAD_BQP_double         ! double precision version
    IMPLICIT NONE
@@ -9,7 +9,7 @@
    TYPE ( BQP_data_type ) :: data
    TYPE ( BQP_control_type ) :: control        
    TYPE ( BQP_inform_type ) :: inform
-   TYPE ( GALAHAD_userdata_type ) :: userdata
+   TYPE ( NLPT_userdata_type ) :: userdata
    INTEGER :: s
    REAL ( KIND = wp ) :: t1, t2
    INTEGER, PARAMETER :: n = 3, h_ne = 4
@@ -33,7 +33,7 @@
 ! problem data complete   
    CALL BQP_initialize( data, control, inform ) ! Initialize control parameters
    control%infinity = infinity                  ! Set infinity
-!  control%print_level = 1                      ! print one line/iteration
+   control%print_level = 1                      ! print one line/iteration
    inform%status = 1
    CALL BQP_solve( p,  B_stat, data, control, inform, userdata )  
    IF ( inform%status == 0 ) THEN             !  Successful return

@@ -394,7 +394,7 @@
 !
 !   S%ptr is a rank-one allocatable array of type default integer, whose ith
 !    component gives the positions in S%row (etc) of the first entry of column
-!    i of S, and S%ptr(n + 1) = S%ne+1, when control%s_also_by_column has been
+!    i of S, and S%ptr(m + 1) = S%ne+1, when control%s_also_by_column has been
 !    set .TRUE. It will not have been set if control%s_also_by_column = .FALSE.
 !
 !  control is a scalar variable of type BSC_control_type. See BSC_initialize
@@ -457,8 +457,7 @@
 
       INTEGER :: i, ii, j, k, kk, l, out, new_a, max_col
       INTEGER :: nnz_col_j, nnz_adat_old, nnz_adat, new_pos, a_ne
-      REAL :: time_start, time_end
-      REAL ( KIND = wp ) :: clock_start, clock_end
+      REAL ( KIND = wp ) :: time_start, time_end, clock_start, clock_end
       REAL ( KIND = wp ) :: al
       LOGICAL :: printi, got_d
       CHARACTER ( LEN = 80 ) :: array_name
@@ -1113,10 +1112,7 @@
 !     WRITE( out, "( A, /, ( 10I7) )" ) ' cols =', ( S%col )
 !     WRITE( out, "( A, /, ( F7.2) )" ) ' vals =', ( S%val )
 
-     CALL CPU_TIME( time_end ) ; inform%time = REAL( time_end - time_start, wp )
-     CALL CLOCK_time( clock_end ) ; inform%clock_time = clock_end - clock_start
-
-     IF ( printi ) WRITE( out,                                                &
+      IF ( printi ) WRITE( out,                                                &
          "( A, ' time to form matrix ', F6.2 )") prefix, time_end - time_start
 
       inform%status = GALAHAD_ok
@@ -1127,13 +1123,12 @@
 !  -------------
 
  980 CONTINUE
-     CALL CPU_TIME( time_end ) ; inform%time = REAL( time_end - time_start, wp )
      CALL CPU_TIME( time_end ) ; inform%time = time_end - time_start
      CALL CLOCK_time( clock_end ) ; inform%clock_time = clock_end - clock_start
      RETURN
 
  990 CONTINUE
-     CALL CPU_TIME( time_end ) ; inform%time = REAL( time_end - time_start, wp )
+     CALL CPU_TIME( time_end ) ; inform%time = time_end - time_start
      CALL CLOCK_time( clock_end ) ; inform%clock_time = clock_end - clock_start
      IF ( printi ) WRITE( out, "( A, ' Inform = ', I0, ' Stopping ' )" )       &
        prefix, inform%status

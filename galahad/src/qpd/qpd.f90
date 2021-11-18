@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 12/09/2013 AT 14:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ Q P D  M O D U L E  -*-*-*-*-*-*-*-*-*-*-
 
@@ -19,7 +19,7 @@
 
    MODULE GALAHAD_QPD_double
 
-     USE GALAHAD_STRING, ONLY: STRING_real_12
+     USE GALAHAD_STRING_double, ONLY: STRING_real_12
      USE GALAHAD_SYMBOLS
      USE GALAHAD_RAND_double, ONLY: RAND_seed
      USE GALAHAD_SMT_double, ONLY: SMT_put, SMT_get
@@ -34,10 +34,12 @@
      USE GALAHAD_LPQP_double, ONLY: LPQP_data_type, LPQP_control_type
      USE GALAHAD_FIT_double, ONLY: FIT_data_type
      USE GALAHAD_ROOTS_double, ONLY: ROOTS_data_type
-     USE GALAHAD_SCU_double, ONLY: SCU_matrix_type, SCU_inform_type,           &
+     USE GALAHAD_SCU_double, ONLY: SCU_matrix_type, SCU_info_type,             &
                                    SCU_data_type
      USE GALAHAD_LMS_double, ONLY: LMS_control_type, LMS_inform_type,          &
                                    LMS_apply_lbfgs
+!    USE GALAHAD_LMT_double, LMS_control_type => LMT_control_type,             &
+!                            LMS_inform_type => LMT_inform_type
      USE GALAHAD_QPP_double, QPD_dims_type => QPP_dims_type
      USE GALAHAD_SCALE_double, ONLY: SCALE_trans_type, SCALE_data_type
      USE GALAHAD_PRESOLVE_double, ONLY: PRESOLVE_data_type,                    &
@@ -111,7 +113,7 @@
        INTEGER :: m_ref = 0
        LOGICAL :: refactor = .TRUE.
        LOGICAL :: subspace_direct = .FALSE.
-       REAL :: cpu_total = 0.0
+       REAL ( KIND = wp ) :: cpu_total = 0.0_wp
        REAL ( KIND = wp ) :: clock_total = 0.0_wp
 
 ! -----------------------
@@ -380,7 +382,7 @@
        TYPE ( SILS_ainfo ) :: AINFO
        TYPE ( SILS_finfo ) :: FINFO
        TYPE ( SCU_matrix_type ) :: SCU_mat
-       TYPE ( SCU_inform_type ) :: SCU_info
+       TYPE ( SCU_info_type ) :: SCU_info
        TYPE ( SCU_data_type ) :: SCU_data
 
 !  EQP derived type components

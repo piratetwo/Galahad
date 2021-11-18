@@ -8,7 +8,7 @@
 !  History -
 !   originally released pre GALAHAD Version 2.0. May 22nd 2004
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_COPYRIGHT
@@ -40,22 +40,22 @@
       CALL date_and_time( date = currentdate )
 
       IF ( startyear == currentdate( 1 : 4 ) ) THEN
-        WRITE( out, "(                                                          &
-     &      /, ' Copyright GALAHAD productions, ', A4,                          &
-     &     //, ' - Use of this code is restricted to those who agree to abide', &
-     &     /,  ' - by the conditions-of-use described in the  README.cou file', &
-     &     /,  ' - distributed with the source of the  GALAHAD  codes or from', &
-     &     /,  ' - the  WWW  at  http://galahad.rl.ac.uk/galahad-www/cou.html', &
+        WRITE( out, "(                                                         &
+     &      /, ' Copyright GALAHAD productions, ', A4,                         &
+     &     //, ' - Use of this code is restricted to those who agree to abide',&
+     &     /,  ' - by the conditions-of-use described in the  README.cou file',&
+     &     /,  ' - distributed with the source of the  GALAHAD  codes or from',&
+     &     /,  ' - the  WWW  at  http://galahad.rl.ac.uk/galahad-www/cou.html',&
      &     / )" ) currentdate( 1 : 4 )
       ELSE
-        WRITE( out, "(                                                          &
-     &      /, ' Copyright GALAHAD productions, ', A4, '-', A4                  &
-     &     //, ' - Use of this code is restricted to those who agree to abide', &
-     &     /,  ' - by the conditions-of-use described in the  README.cou file', &
-     &     /,  ' - distributed with the source of the  GALAHAD  codes or from', &
-     &     /,  ' - the  WWW  at  http://galahad.rl.ac.uk/galahad-www/cou.html', &
+        WRITE( out, "(                                                         &
+     &      /, ' Copyright GALAHAD productions, ', A4, '-', A4                 &
+     &     //, ' - Use of this code is restricted to those who agree to abide',&
+     &     /,  ' - by the conditions-of-use described in the  README.cou file',&
+     &     /,  ' - distributed with the source of the  GALAHAD  codes or from',&
+     &     /,  ' - the  WWW  at  http://galahad.rl.ac.uk/galahad-www/cou.html',&
      &     / )" ) startyear, currentdate( 1 : 4 )
-      END IF 
+      END IF
 
 !  End of subroutine COPYRIGHT
 

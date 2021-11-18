@@ -50,9 +50,9 @@
       USE GALAHAD_CRO_double
       USE GALAHAD_LPQP_double
       USE GALAHAD_CQP_double
+      USE GALAHAD_DLP_double
       USE GALAHAD_DQP_double
-      USE GALAHAD_DLP_double, ONLY: DLP_control_type, DLP_next_perturbation,   &
-                                    DLP_read_specfile
+      USE GALAHAD_DLP_double, ONLY: DLP_control_type
       USE GALAHAD_RPD_double, ONLY: RPD_inform_type, RPD_write_qp_problem_data
       USE GALAHAD_ROOTS_double, ONLY: ROOTS_terminate
       USE GALAHAD_FIT_double, ONLY: FIT_terminate
@@ -144,17 +144,17 @@
 
 !   the required absolute and relative accuracies for the primal infeasibility
 
-        REAL ( KIND = wp ) :: stop_abs_p = ten ** ( - 5 )
+        REAL ( KIND = wp ) :: stop_abs_p = epsmch
         REAL ( KIND = wp ) :: stop_rel_p = epsmch
 
 !   the required absolute and relative accuracies for the dual infeasibility
 
-        REAL ( KIND = wp ) :: stop_abs_d = ten ** ( - 5 )
+        REAL ( KIND = wp ) :: stop_abs_d = epsmch
         REAL ( KIND = wp ) :: stop_rel_d = epsmch
 
 !   the required absolute and relative accuracies for the complementarity
 
-        REAL ( KIND = wp ) :: stop_abs_c = ten ** ( - 5 )
+        REAL ( KIND = wp ) :: stop_abs_c = epsmch
         REAL ( KIND = wp ) :: stop_rel_c = epsmch
 
 !   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than
@@ -190,7 +190,7 @@
 !  if %refine is true, apply the dual projected-gradient method to refine
 !   the solution
 !
-        LOGICAL :: refine = .FALSE.
+        LOGICAL :: refine = .TRUE.
 
 !   if %space_critical true, every effort will be made to use as little
 !     space as possible. This may result in longer computation time
@@ -429,6 +429,12 @@
       TYPE ( L1QP_control_type ), INTENT( OUT ) :: control
       TYPE ( L1QP_inform_type ), INTENT( OUT ) :: inform
 
+!  Set real control parameters
+
+      control%stop_rel_p = epsmch ** 0.33
+      control%stop_rel_c = epsmch ** 0.33
+      control%stop_rel_d = epsmch ** 0.33
+
 !  Set control parameters
 
       CALL LPQP_initialize( control%LPQP_control )
@@ -617,7 +623,7 @@
       spec( converted_qplib_file_name )%keyword = 'converted_qplib-file-name'
       spec( prefix )%keyword = 'output-line-prefix'
 
-!     IF ( PRESENT( alt_specname ) ) WRITE(6,*) ' liqp: ', alt_specname
+      IF ( PRESENT( alt_specname ) ) WRITE(6,*) ' liqp: ', alt_specname
 
 !  Read the specfile
 
@@ -1088,9 +1094,9 @@
 !   set on exit to indicate the likely ultimate status of the constraints.
 !   Possible values are
 !   C_stat( i ) < 0, the i-th constraint is likely in the active set,
-!                    on its lower bound (-1 on bound, < -1 violated below bound)
+!                    on its lower bound,
 !               > 0, the i-th constraint is likely in the active set
-!                    on its upper bound (1 on bound, > 1 violated above bound)
+!                    on its upper bound, and
 !               = 0, the i-th constraint is likely not in the active set
 !
 !  X_stat is an optional INTEGER array of length n, which if present will be
@@ -1117,7 +1123,7 @@
 
       INTEGER :: i, j, l, nv, lbd
       INTEGER :: a_ne, h_ne, dual_starting_point
-      REAL :: time_start, time_record, time_now
+      REAL ( KIND = wp ) :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: time_analyse, time_factorize, time_solve
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now, clock_solve
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize, cro_clock_matrix
@@ -1127,7 +1133,7 @@
       REAL ( KIND = wp ) :: H_val( 1 )
       LOGICAL :: printi, printa, printe, reset_bnd, stat_required
       LOGICAL :: composite_g, diagonal_h, identity_h, scaled_identity_h
-      LOGICAL :: separable_bqp, lbfgs, extrapolation_ok, initial
+      LOGICAL :: separable_bqp, lbfgs, extrapolation_ok, initial, refine
       CHARACTER ( LEN = 80 ) :: array_name
       TYPE ( CQP_control_type ) :: CQP_control
       TYPE ( DQP_control_type ) :: DQP_control
@@ -1503,8 +1509,7 @@
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
 
@@ -1568,7 +1573,7 @@
                           prob, get_all = .TRUE. )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
-            inform%time%preprocess + REAL( time_now - time_record, wp )
+            inform%time%preprocess + time_now - time_record
           inform%time%clock_preprocess =                                       &
             inform%time%clock_preprocess + clock_now - clock_record
 
@@ -1597,77 +1602,7 @@
         CALL L1QP_AX( prob%m, prob%C( : prob%m ), prob%m,                      &
                       prob%A%ptr( prob%m + 1 ) - 1, prob%A%val,                &
                       prob%A%col, prob%A%ptr, prob%n, prob%X, '+ ')
-
-!  restore the original L1QP formulation from the preprocessed version
-
-        data%trans = data%trans - 1
-        IF ( data%trans == 0 ) THEN
-          CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
-
-!  full restore
-
-          IF ( control%restore_problem >= 2 ) THEN
-            CALL QPP_restore( data%QPP_map, data%QPP_inform, prob,             &
-                              get_all = .TRUE. )
-
-!  restore vectors and scalars
-
-          ELSE IF ( control%restore_problem == 1 ) THEN
-            CALL QPP_restore( data%QPP_map, data%QPP_inform, prob,             &
-                              get_f = .TRUE., get_g = .TRUE.,                  &
-                              get_x = .TRUE., get_x_bounds = .TRUE.,           &
-                              get_y = .TRUE., get_z = .TRUE.,                  &
-                              get_c = .TRUE., get_c_bounds = .TRUE. )
-
-!  recover solution
-
-          ELSE
-            CALL QPP_restore( data%QPP_map, data%QPP_inform, prob,             &
-                              get_x = .TRUE., get_y = .TRUE.,                  &
-                              get_z = .TRUE., get_c = .TRUE. )
-          END IF
-
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%preprocess =                                             &
-            inform%time%preprocess + REAL( time_now - time_record, wp )
-          inform%time%clock_preprocess =                                       &
-            inform%time%clock_preprocess + clock_now - clock_record
-          prob%new_problem_structure = data%new_problem_structure
-          data%save_structure = .TRUE.
-        END IF
-
-!  assign the output status if required 
-
-        IF ( stat_required ) THEN
-          DO i = 1, prob%n
-            IF ( prob%X( i ) < prob%X_l( i ) - control%stop_abs_p ) THEN
-              X_stat( i ) = - 2
-            ELSE IF ( prob%X( i ) > prob%X_u( i ) + control%stop_abs_p ) THEN
-               X_stat( i ) = 2
-            ELSE IF ( prob%X( i ) < prob%X_l( i ) + control%stop_abs_p ) THEN
-               X_stat( i ) = - 1
-            ELSE IF ( prob%X( i ) > prob%X_u( i ) - control%stop_abs_p ) THEN
-               X_stat( i ) = 1
-            ELSE
-               X_stat( i ) = 0
-            END IF
-          END DO
-
-          DO i = 1, prob%m
-            IF ( prob%C( i ) < prob%C_l( i ) - control%stop_abs_p ) THEN
-              C_stat( i ) = - 2
-            ELSE IF ( prob%C( i ) > prob%C_u( i ) + control%stop_abs_p ) THEN
-               C_stat( i ) = 2
-            ELSE IF ( prob%C( i ) < prob%C_l( i ) + control%stop_abs_p ) THEN
-               C_stat( i ) = - 1
-            ELSE IF ( prob%C( i ) > prob%C_u( i ) - control%stop_abs_p ) THEN
-               C_stat( i ) = 1
-            ELSE
-               C_stat( i ) = 0
-            END IF
-          END DO
-        END IF
-        GO TO 800
+        GO TO 700
       END IF
 
 !  compute the dimension of the KKT system
@@ -1725,7 +1660,7 @@
 !  allocate integer workspace
 
       array_name = 'l1qp: data%X_stat'
-      CALL SPACE_resize_array( data%QPP_map%n, data%X_stat,                    &
+      CALL SPACE_resize_array( prob%n, data%X_stat,                            &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
@@ -1733,7 +1668,7 @@
       IF ( inform%status /= GALAHAD_ok ) GO TO 900
 
       array_name = 'l1qp: data%C_stat'
-      CALL SPACE_resize_array( data%QPP_map%m, data%C_stat,                    &
+      CALL SPACE_resize_array( prob%m, data%C_stat,                            &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
@@ -1752,7 +1687,7 @@
           CQP_control%cpu_time_limit = control%cpu_time_limit - time_record
         ELSE
           CQP_control%cpu_time_limit = MIN( CQP_control%cpu_time_limit,        &
-            control%cpu_time_limit ) - REAL( time_record, wp )
+                                         control%cpu_time_limit ) - time_record
         END IF
       END IF
       CALL CLOCK_time( clock_now ) ; clock_record = clock_now - clock_start
@@ -1816,7 +1751,7 @@
                                  data%OPT_alpha, data%OPT_merit,               &
                                  data%SBLS_data, prefix,                       &
                                  CQP_control, inform%CQP_inform,               &
-!                                prob%Hessian_kind, prob%gradient_kind,        &
+  !                              prob%Hessian_kind, prob%gradient_kind,        &
                                  - 1, prob%gradient_kind, H_val = prob%H%val,  &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
@@ -1844,7 +1779,7 @@
                                  data%OPT_alpha, data%OPT_merit,               &
                                  data%SBLS_data, prefix,                       &
                                  CQP_control, inform%CQP_inform,               &
-!                                prob%Hessian_kind, prob%gradient_kind,        &
+  !                              prob%Hessian_kind, prob%gradient_kind,        &
                                  - 1, prob%gradient_kind, H_val = prob%H%val,  &
                                  G = prob%G,                                   &
                                  C_last = data%A_s, X_last = data%H_s,         &
@@ -1875,7 +1810,7 @@
                                  data%OPT_alpha, data%OPT_merit,               &
                                  data%SBLS_data, prefix,                       &
                                  CQP_control, inform%CQP_inform,               &
-!                                prob%Hessian_kind, prob%gradient_kind,        &
+  !                              prob%Hessian_kind, prob%gradient_kind,        &
                                  0, prob%gradient_kind,                        &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
@@ -1903,7 +1838,7 @@
                                  data%OPT_alpha, data%OPT_merit,               &
                                  data%SBLS_data, prefix,                       &
                                  CQP_control, inform%CQP_inform,               &
-!                                prob%Hessian_kind, prob%gradient_kind,        &
+  !                              prob%Hessian_kind, prob%gradient_kind,        &
                                  0, prob%gradient_kind,                        &
                                  G = prob%G,                                   &
                                  C_last = data%A_s, X_last = data%H_s,         &
@@ -2155,7 +2090,7 @@
       END IF
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%CQP_inform%time%total = REAL( time_now - time_record, wp )
+      inform%CQP_inform%time%total = time_now - time_record
       inform%CQP_inform%time%clock_total = clock_now - clock_record
 
 !  record output statistics
@@ -2205,7 +2140,7 @@
                             get_all = .TRUE. )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
-            inform%time%preprocess + REAL( time_now - time_record, wp )
+            inform%time%preprocess + time_now - time_record
           inform%time%clock_preprocess =                                       &
             inform%time%clock_preprocess + clock_now - clock_record
 !         prob%new_problem_structure = data%new_problem_structure
@@ -2214,8 +2149,7 @@
 
 !  ... and restore the original problem and solution from the L1QP formulation
 
-        IF ( control%rho > zero ) CALL LPQP_restore( prob, data%LPQP_data,     &
-                                                     C_stat = data%C_stat )
+        IF ( control%rho > zero ) CALL LPQP_restore( prob, data%LPQP_data )
         GO TO 600
       END IF
 
@@ -2257,7 +2191,6 @@
         ELSE
           data%CRO_control%feasibility_tolerance = infinity
         END IF
-!data%CRO_control%print_level = 101
         IF ( printi ) WRITE( control%out,                                      &
           "( /, A, ' compute crossover solution' )" ) prefix
         time_analyse = inform%CRO_inform%time%analyse
@@ -2271,13 +2204,6 @@
                               prob%C_u, prob%X_l, prob%X_u, prob%C, prob%X,    &
                               prob%Y, prob%Z, data%C_stat, data%X_stat,        &
                               data%CRO_data, data%CRO_control,                 &
-                              inform%CRO_inform )
-        ELSE IF ( prob%Hessian_kind == 0 ) THEN
-          CALL CRO_crossover( prob%n, prob%m, data%dims%c_equality,            &
-                              prob%A%val, prob%A%col, prob%A%ptr, prob%G,      &
-                              prob%C_l, prob%C_u, prob%X_l, prob%X_u, prob%C,  &
-                              prob%X, prob%Y, prob%Z, data%C_stat,             &
-                              data%X_stat, data%CRO_data, data%CRO_control,    &
                               inform%CRO_inform )
         ELSE
           CALL CRO_crossover( prob%n, prob%m, data%dims%c_equality,            &
@@ -2300,7 +2226,7 @@
           inform%CRO_inform%time%clock_analyse - clock_analyse +               &
           inform%CRO_inform%time%clock_factorize - clock_factorize
 
-       IF ( printa ) THEN
+        IF ( printa ) THEN
           WRITE( control%out, "( A, ' After crossover:' )" ) prefix
           WRITE( control%out, "( /, A, '      i       X_l             X   ',   &
          &   '          X_u            Z        st' )" ) prefix
@@ -2337,8 +2263,7 @@
         CALL QPP_restore( data%QPP_map, data%QPP_inform, prob,                 &
                           get_all = .TRUE. )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
 !       prob%new_problem_structure = data%new_problem_structure
@@ -2347,8 +2272,7 @@
 
 !  restore the original problem and solution from the L1QP formulation
 
-      IF ( control%rho > zero ) CALL LPQP_restore( prob, data%LPQP_data,       &
-                                                   C_stat = data%C_stat )
+      IF ( control%rho > zero ) CALL LPQP_restore( prob, data%LPQP_data )
 
 !  ==============================================================
 !  refine solution by applying a dual gradient projection method
@@ -2411,8 +2335,7 @@
                           data%QPP_inform, data%dims_dqp, prob,                &
                           .FALSE., .FALSE., .FALSE. )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
 
@@ -2477,7 +2400,7 @@
                           prob, get_all = .TRUE. )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
-            inform%time%preprocess + REAL( time_now - time_record, wp )
+            inform%time%preprocess + time_now - time_record
           inform%time%clock_preprocess =                                       &
             inform%time%clock_preprocess + clock_now - clock_record
 
@@ -2573,11 +2496,10 @@ H_loop: DO i = 1, prob%n
       CALL CPU_TIME( time_now ) ; time_record = time_now - time_start
       IF ( control%cpu_time_limit >= zero ) THEN
         IF ( DQP_control%cpu_time_limit < zero ) THEN
-          DQP_control%cpu_time_limit =                                         &
-            control%cpu_time_limit - REAL( time_record, wp )
+          DQP_control%cpu_time_limit = control%cpu_time_limit - time_record
         ELSE
           DQP_control%cpu_time_limit = MIN( DQP_control%cpu_time_limit,        &
-            control%cpu_time_limit ) - REAL( time_record, wp )
+                                         control%cpu_time_limit ) - time_record
         END IF
       END IF
       CALL CLOCK_time( clock_now ) ; clock_record = clock_now - clock_start
@@ -3104,7 +3026,7 @@ H_loop: DO i = 1, prob%n
       END IF
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%DQP_inform%time%total = REAL( time_now - time_record, wp )
+      inform%DQP_inform%time%total = time_now - time_record
       inform%DQP_inform%time%clock_total = clock_now - clock_record
 
 !  record output statistics
@@ -3167,6 +3089,7 @@ H_loop: DO i = 1, prob%n
 
 !  retore the problem to its original form
 
+  700 CONTINUE
       data%trans = data%trans - 1
       IF ( data%trans == 0 ) THEN
 !       data%IW( : prob%n + 1 ) = 0
@@ -3202,8 +3125,7 @@ H_loop: DO i = 1, prob%n
         END IF
 
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%preprocess =                                               &
-          inform%time%preprocess + REAL( time_now - time_record, wp )
+        inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         prob%new_problem_structure = data%new_problem_structure_dqp
@@ -3221,7 +3143,7 @@ H_loop: DO i = 1, prob%n
 
   800 CONTINUE
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
 
@@ -3250,7 +3172,7 @@ H_loop: DO i = 1, prob%n
   900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 26/07/2021 AT 14:45 GMT.
+! THIS VERSION: GALAHAD 2.6 - 27/05/2015 AT 13:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ P S L S   M O D U L E  -*-*-*-*-*-*-*-*-*-
 
@@ -30,9 +30,9 @@
       USE GALAHAD_QPT_double, ONLY : QPT_keyword_H
       USE GALAHAD_SLS_double
       USE GALAHAD_SCU_double, ONLY : SCU_matrix_type, SCU_data_type,           &
-        SCU_inform_type, SCU_factorize, SCU_solve, SCU_append, SCU_terminate
+        SCU_info_type, SCU_factorize, SCU_solve, SCU_append, SCU_terminate
       USE GALAHAD_SORT_double, ONLY : SORT_reorder_by_cols
-      USE GALAHAD_EXTEND_double, ONLY : EXTEND_arrays
+      USE LANCELOT_EXTEND_double, ONLY : EXTEND_arrays
       USE LANCELOT_BAND_double
       USE HSL_MI28_double
       USE GALAHAD_SPECFILE_double
@@ -398,7 +398,7 @@
         TYPE ( SLS_data_type ) :: SLS_data
         TYPE ( SCU_matrix_type ) :: SCU_matrix
         TYPE ( SCU_data_type ) :: SCU_data
-        TYPE ( SCU_inform_type ) :: SCU_inform
+        TYPE ( SCU_info_type ) :: SCU_inform
         TYPE ( MI28_control ) :: MI28_control
         TYPE ( MI28_keep ) ::  MI28_keep
       END TYPE PSLS_data_type
@@ -829,10 +829,7 @@
         GO TO 930
       END IF
 
-      data%sub_matrix = PRESENT( SUB )
-
-      IF ( control%new_structure .OR. data%sub_matrix ) THEN
-!     IF ( control%new_structure ) THEN
+      IF ( control%new_structure ) THEN
         data%n_update = 0
         data%max_col = control%max_col
         IF ( data%max_col <= 0 ) data%max_col = 100
@@ -840,6 +837,8 @@
 !  Record if a variable is contained in the submatrix
 
         data%n = A%n
+
+        data%sub_matrix = PRESENT( SUB )
         IF ( data%sub_matrix ) THEN
           data%n_sub = SIZE( SUB )
           array_name = 'psls: data%SUB'
@@ -935,8 +934,7 @@
 
 !  allocate space to hold the diagonal
 
- !      IF ( control%new_structure ) THEN
-        IF ( control%new_structure .OR. data%sub_matrix ) THEN
+        IF ( control%new_structure ) THEN
           array_name = 'psls: data%DIAG'
           CALL SPACE_resize_array( data%n_sub, data%DIAG,                      &
               inform%status, inform%alloc_status, array_name = array_name,     &
@@ -951,10 +949,7 @@
         SELECT CASE ( SMT_get( A%type ) )
         CASE ( 'DIAGONAL' )
           IF ( data%sub_matrix ) THEN
-            DO l = 1, data%n_sub
-              data%DIAG( l ) = A%val( SUB( l ) )
-            END DO
-!           data%DIAG( : data%n_sub ) = A%val( SUB( : data%n_sub ) )
+            data%DIAG = A%val( SUB( : data%n_sub ) )
           ELSE
             data%DIAG = A%val( : data%n )
           END IF
@@ -971,7 +966,7 @@
             l = 0
             DO i = 1, data%n
               l = l + i
-              data%DIAG( i ) = A%val( l )
+              data%DIAG( i ) = data%DIAG( i ) + A%val( l )
             END DO
           END IF
         CASE ( 'SPARSE_BY_ROWS' )
@@ -2110,7 +2105,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
+        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
           control%preconditioner
         inform%status = GALAHAD_preconditioner_unknown
         RETURN
@@ -2715,7 +2710,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
+        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
           control%preconditioner
         inform%status = GALAHAD_preconditioner_unknown
         RETURN
@@ -3088,7 +3083,7 @@
             inform%status = - 1 ; GO TO 910 ; END IF
         END IF
 
-!  fit the data into the diagonal and ensure that the diagonal is
+!  fit the data into the diagonal and ensure that the diaginal is
 !  sufficiently positive
 
         P%val = MAX( A%val( : data%n ), control%min_diagonal )
@@ -3302,10 +3297,10 @@
 
       CASE ( preconditioner_reordered_band )
 
-!       WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
-!         control%preconditioner
-!       inform%status = GALAHAD_preconditioner_unknown
-!       RETURN
+        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
+          control%preconditioner
+        inform%status = GALAHAD_preconditioner_unknown
+        RETURN
 
         IF ( control%new_structure ) THEN
 
@@ -3543,7 +3538,7 @@
                 ELSE
                   P%ne = P%ne + 1
                   IF ( control%new_structure ) THEN
-                    P%row( P%ne ) = i ; P%col( P%ne ) = j
+                    P%row( P%ne ) = ii ; P%col( P%ne ) = jj
                   END IF
                   P%val( P%ne ) = A%val( l )
                 END IF
@@ -3563,7 +3558,7 @@
                 ELSE
                   P%ne = P%ne + 1
                   IF ( control%new_structure ) THEN
-                    P%row( P%ne ) = i ; P%col( P%ne ) = j
+                    P%row( P%ne ) = ii ; P%col( P%ne ) = jj
                   END IF
                   P%val( P%ne ) = A%val( l )
                 END IF
@@ -3581,7 +3576,7 @@
               ELSE
                 P%ne = P%ne + 1
                 IF ( control%new_structure ) THEN
-                  P%row( P%ne ) = i ; P%col( P%ne ) = j
+                  P%row( P%ne ) = ii ; P%col( P%ne ) = jj
                 END IF
                 P%val( P%ne ) = A%val( l )
               END IF
@@ -3721,7 +3716,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
+        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
           control%preconditioner
         inform%status = GALAHAD_preconditioner_unknown
         RETURN
@@ -3960,7 +3955,7 @@
 !  P is one of the other cases ... eventually
 
             CASE DEFAULT
-              WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )     &
+              WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )    &
                 control%preconditioner
               inform%status = GALAHAD_preconditioner_unknown
               RETURN
@@ -4153,7 +4148,7 @@
 !  P is one of the other cases ... eventually
 
         CASE DEFAULT
-          WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )         &
+          WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )        &
             control%preconditioner
           inform%status = GALAHAD_preconditioner_unknown
           RETURN
@@ -4192,7 +4187,7 @@
 !  - - - - - - - - - - - - - - - - - - - - - - - - -
 
       ELSE
-!       WRITE( 6, "( ' update not yet implemented ' )" )
+!       WRITE( 6, "( ' update not implemented yet ' )" )
 !       inform%status = GALAHAD_not_yet_implemented
 
 !  Solve for the preconditioned gradient using the Schur complement update.
@@ -4273,7 +4268,7 @@
 !  P is one of the other cases ... eventually
 
           CASE DEFAULT
-            WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )       &
+            WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )      &
               control%preconditioner
             inform%status = GALAHAD_preconditioner_unknown
             RETURN
@@ -4548,7 +4543,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS_norm: case ', I0, ' not yet implemented' )" )      &
+        WRITE( 6, "( ' PSLS_norm: case ', I0, ' not implemented yet ' )" )     &
           control%preconditioner
         inform%status = GALAHAD_not_yet_implemented
         GO TO 910
@@ -5042,3 +5037,4 @@
 !  End of module GALAHAD_PSLS_double
 
    END MODULE GALAHAD_PSLS_double
+

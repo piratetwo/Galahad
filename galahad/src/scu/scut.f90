@@ -4,7 +4,7 @@
    IMPLICIT NONE 
    TYPE ( SCU_matrix_type ) :: mat, mat2 
    TYPE ( SCU_data_type ) :: data
-   TYPE ( SCU_inform_type ) :: info
+   TYPE ( SCU_info_type ) :: info
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 ) ! set precision
    INTEGER, PARAMETER :: n = 5, m = 2, mmax = m + 1
    INTEGER, PARAMETER :: lcd = 10, lbd = 11, lcd2 = 13, lbd2 = 14
@@ -32,6 +32,9 @@
    RHS1 = (/ 2.0_wp, 3.0_wp, 4.0_wp, 5.0_wp, 7.0_wp, 16.0_wp, 6.0_wp /)
    RHS2 = (/ 2.0_wp, 4.0_wp, 4.0_wp, 5.0_wp, 7.0_wp, 16.0_wp, 6.0_wp, 13.0_wp /)
    RHS3 = (/ 2.0_wp, 4.0_wp, 4.0_wp, 5.0_wp, 6.0_wp, 5.0_wp, 13.0_wp/)
+
+   NULLIFY( mat2%BD_val, mat2%BD_row, mat2%BD_col_start )
+   NULLIFY( mat2%CD_val, mat2%CD_col, mat2%CD_row_start )
 
    epsqrt = SQRT( EPSILON( 1.0_wp ) )
 

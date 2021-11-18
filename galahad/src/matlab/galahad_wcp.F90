@@ -132,7 +132,7 @@
 
 !     CHARACTER ( len = 80 ) :: message
       CHARACTER ( len = 80 ) :: output_unit, filename
-      LOGICAL :: opened, initial_set = .FALSE.
+      LOGICAL :: filexx, opened, initial_set = .FALSE.
       INTEGER :: iores
 
       CHARACTER ( len = 8 ) :: mode

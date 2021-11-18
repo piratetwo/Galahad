@@ -36,7 +36,7 @@
 !
 !  Usual Input -
 !    A: the symmetric matrix A
-!    b: a column vector b or matrix of right-hand sides B
+!    b a column vector b or matrix of right-hand sides B
 !
 !  Optional Input -
 !    control, a structure containing control parameters.
@@ -87,7 +87,7 @@
       INTEGER * 4 :: nlhs, nrhs
       mwPointer :: plhs( * ), prhs( * )
 
-!     INTEGER, PARAMETER :: slen = 30
+      INTEGER, PARAMETER :: slen = 30
       LOGICAL :: mxIsStruct, mxIsChar
       mwSize :: mxGetString
       mwSize :: mxGetM, mxGetN
@@ -101,10 +101,10 @@
 
 !  local variables
 
-      INTEGER * 4 :: n, nb, info
+      INTEGER * 4 :: n, nb, info, i4
       mwSize :: a_arg, b_arg, c_arg, x_arg, i_arg, k
       mwPointer :: a_in, b_in, c_in, rhs_in, x_pr
-!     mwSize :: s_len
+      mwSize :: s_len
 
       CHARACTER ( len = 80 ) :: output_unit, filename
       LOGICAL :: filexx, opened, initial_set = .FALSE.
@@ -133,7 +133,7 @@
 
       IF ( mxIsChar( prhs( 1 ) ) ) THEN
         k = 7
-        info = INT( mxGetString( prhs( 1 ), mode, k ), KIND = KIND( info ) )
+        info = mxGetString( prhs( 1 ), mode, k )
         IF ( .NOT. ( TRIM( mode ) == 'initial' .OR.                            &
                      TRIM( mode ) == 'final' ) ) THEN
           IF ( nrhs < 2 )                                                      &
@@ -147,6 +147,7 @@
             c_arg = 3
             x_arg = 1
             i_arg = 2
+!         ELSE IF ( TRIM( mode ) == 'all' ) THEN
           ELSE
             a_arg = 2
             b_arg = 3
@@ -175,7 +176,8 @@
 
 !  Initialize the internal structures for sils
 
-      IF ( TRIM( mode ) == 'initial' .OR. TRIM( mode ) == 'all' ) THEN
+      IF ( TRIM( mode ) == 'initial' .OR.    &
+           TRIM( mode ) == 'all' ) THEN
         initial_set = .TRUE.
         CALL SILS_INITIALIZE( FACTORS, CONTROL )
         IF ( TRIM( mode ) == 'initial' ) THEN
@@ -200,13 +202,12 @@
 
 !  If the third argument is present, extract the input control data
 
-!       s_len = slen
+        s_len = slen
         IF ( nrhs == c_arg ) THEN
           c_in = prhs( c_arg )
           IF ( .NOT. mxIsStruct( c_in ) )                                      &
             CALL mexErrMsgTxt( ' last input argument must be a structure' )
-!         CALL SILS_matlab_control_set( c_in, control, s_len )
-          CALL SILS_matlab_control_set( c_in, control )
+          CALL SILS_matlab_control_set( c_in, control, s_len )
         END IF
 
 !  Open i/o units
@@ -275,7 +276,7 @@
             CALL mexErrMsgTxt( ' There must be a matrix A ' )
           CALL MATLAB_transfer_matrix( a_in, A, col_ptr, .TRUE. )
 
-          IF ( ALLOCATED( col_ptr ) ) DEALLOCATE( col_ptr, STAT = info )
+        IF ( ALLOCATED( col_ptr ) ) DEALLOCATE( col_ptr, STAT = info )
 
 !  Analyse
 
@@ -321,11 +322,11 @@
 
  !  Allocate space for the right-hand side and solution
 
-          n = INT( mxGetM( b_in ), KIND = KIND( n ) )
+          n = mxGetM( b_in )
           IF ( A%n /= n )                                                      &
             CALL mexErrMsgTxt( ' A and b/B must have compatible dimensions ' )
 
-          nb = INT( mxGetN( b_in ), KIND = KIND( nb ) )
+          nb = mxGetN( b_in )
           rhs_in = mxGetPr( b_in )
 
 !  one right-hand side
@@ -366,8 +367,7 @@
            REWIND( control%mp, err = 500 )
             DO
               READ( control%mp, "( A )", end = 500 ) str
-              info = INT( mexPrintf( TRIM( str ) // ACHAR( 10 ) ),             &
-                          KIND = KIND( info ) )
+              info = mexPrintf( TRIM( str ) // ACHAR( 10 ) )
             END DO
           END IF
    500   CONTINUE

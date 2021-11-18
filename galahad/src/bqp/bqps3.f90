@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 3.3 - 03/06/2021 AT 08:15 GMT.
+! THIS VERSION: GALAHAD 2.4 - 30/11/2009 AT 10:15 GMT.
    PROGRAM GALAHAD_BQP_THIRD_EXAMPLE
    USE GALAHAD_BQP_double         ! double precision version
    IMPLICIT NONE
@@ -9,7 +9,7 @@
    TYPE ( BQP_data_type ) :: data
    TYPE ( BQP_control_type ) :: control        
    TYPE ( BQP_inform_type ) :: inform
-   TYPE ( GALAHAD_userdata_type ) :: userdata
+   TYPE ( NLPT_userdata_type ) :: userdata
    INTEGER, PARAMETER :: n = 3, h_ne = 4, h_all = 5
    INTEGER, PARAMETER :: len_integer = 2 * n + 3 + h_all, len_real = h_all
    INTEGER, PARAMETER :: nflag = 2, st_flag = 2, st_ptr = st_flag + n
@@ -33,9 +33,10 @@
    userdata%real( st_val + 1 : st_val + h_all )                                &
      = (/ 1.0_wp, 1.0_wp, 1.0_wp, 2.0_wp, 3.0_wp /)
 ! problem data complete   
-   CALL BQP_initialize( data, control, inform ) ! Initialize control parameters
+   CALL BQP_initialize( data, control )       ! Initialize control parameters
    control%infinity = infinity                ! Set infinity
-!  control%print_level = 1                    ! print one line/iteration
+!  control%print_level = 3                    ! print one line/iteration
+   control%print_level = 1                    ! print one line/iteration
    control%maxit = 40                         ! limit the # iterations
 !  control%print_gap = 100                    ! print every 100 terations
 !  control%exact_gcp = .FALSE.
@@ -61,10 +62,10 @@
      SUBROUTINE HPROD( status, userdata, V, PROD, NZ_v, nz_v_start, nz_v_end,  &
                        NZ_prod, nz_prod_end )
 ! compute the matrix-vector product H * v
-     USE GALAHAD_USERDATA_double
+     USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
      INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
      INTEGER, INTENT( OUT ) :: status
-     TYPE ( GALAHAD_userdata_type ), INTENT( INOUT ) :: userdata
+     TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
      REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: V
      REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: PROD
      INTEGER, OPTIONAL, INTENT( IN ) :: nz_v_start, nz_v_end

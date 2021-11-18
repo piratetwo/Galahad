@@ -1,5 +1,3 @@
-  MODULE GALAHAD_NLLSRT_double
-  CONTAINS
   SUBROUTINE NLLSRT(N,M, X, MAXIT,TOL, OUTPUT,IERR, iter, iter_int, iter_int_tot, iprint)
   ! Version 9 July 2008
     USE GALAHAD_LSRT_DOUBLE                                                
@@ -95,7 +93,7 @@
      !using the GALAHAD module  GALAHAD_LSRT_DOUBLE   
      
      
-     CALL LSRT_initialize(data,control,inform)      ! initialize control parameters
+     CALL LSRT_initialize(data,control)      ! initialize control parameters
    
 	if (NC.le.ten**(-1)) then
              control%fraction_opt = one               
@@ -289,4 +287,3 @@
    RETURN
  END SUBROUTINE ABSV
  
-  END MODULE GALAHAD_NLLSRT_double

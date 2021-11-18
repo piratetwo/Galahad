@@ -1,7 +1,7 @@
 % test galahad_sbls
 % Nick Gould for GALAHAD productions 15/February/2010
 
-clear A H C SA SH SC b d control inform
+clear A H C SA SH SC control inform
 
 m = 4 ;
 n = 10 ;
@@ -46,7 +46,7 @@ end
 
  [ x, y, inform ] = galahad_sbls( 'solve', b, d, control ) ;
 disp( sprintf( '%s %13.6e %s %2.0f', ...
-  ' - sbls: ||Kx-r|| =', norm([ H * x + A' * y - b' ;  A * x + C * y - d ]), ...
+  ' - |||Kx-r|| =', norm([ H * x + A' * y - b' ;  A * x + C * y - d ]), ...
   '- status =', inform.status ) )
 [ inform ] = galahad_sbls( 'final' ) ;
 
@@ -69,6 +69,6 @@ control.get_norm_residual = 1 ;
                            ) ;
 [ x, y, inform ] = galahad_sbls( 'solve', b, d, control ) ;
 disp( sprintf( '%s %13.6e %s %2.0f', ...
-  ' - sbls: ||Kx-r|| =', norm([ H * x + A' * y - b' ;  A * x + C * y - d ]), ...
+  ' - |||Kx-r|| =', norm([ H * x + A' * y - b' ;  A * x + C * y - d ]), ...
   '- status =', inform.status ) )
 [ inform ] = galahad_sbls( 'final' ) ;

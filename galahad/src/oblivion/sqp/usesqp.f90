@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.5 - 31/05/2021 AT 09:30 GMT.
+! THIS VERSION: GALAHAD 2.5 - 08/02/2013 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D   U S E _ S Q P  -*-*-*-*-*-*-*-*-*-*-
 
@@ -8,14 +8,13 @@
 
    MODULE GALAHAD_USESQP_double
 
-     USE GALAHAD_CUTEST_FUNCTIONS_double
+     USE CUTEst_interface_double
      USE GALAHAD_COPYRIGHT
      USE GALAHAD_SMT_double
      USE GALAHAD_SBLS_double
      USE GALAHAD_SPACE_double
      USE GALAHAD_QPC_double
      USE GALAHAD_NLPT_double, ONLY: NLPT_problem_type
-     USE GALAHAD_SYMBOLS
 
      IMPLICIT NONE
      PRIVATE
@@ -252,8 +251,8 @@
        IF ( status /= 0 ) GO TO 990
 
        prob%X = nlp%X
-       prob%Z = zero ; nlp%Y = prob%Y
-       prob%Y = zero ; nlp%Z = prob%Z
+       prob%Z = zero
+       prob%Y = zero
        prob%new_problem_structure = .TRUE.     
        prob%n = n
        prob%m = m
@@ -273,7 +272,7 @@
 
 !  Evaluate the function and constraint values
 
-       CALL CUTEST_cfn( cutest_status, n, m, nlp%X, nlp%f, nlp%C )
+       CALL CUTEST_cfn( cutest_status,  n, m, nlp%X, nlp%f, nlp%C )
        IF ( cutest_status /= 0 ) GO TO 910
 
        pr_feas = MAX( MAXVAL( MAX( nlp%X_l - nlp%X, zero ) ),                  &
@@ -299,7 +298,7 @@
 !  Evaluate the Jacobian and Hessian
 
          grlagf = .FALSE. ; J_len = J_ne ; H_len = H_ne
-         CALL CUTEST_csgrsh( cutest_status, n, m, nlp%X, - nlp%Y, grlagf,      &
+         CALL CUTEST_csgrsh( cutest_status,  n, m, nlp%X, - nlp%Y, grlagf,     &
                              J_ne, J_len, A%val, A%col, A%row,                 &
                              H%ne, H_len, H%val, H%row, H%col )
          IF ( cutest_status /= 0 ) GO TO 910
@@ -322,9 +321,6 @@
 
 !  Compute the gradient of the Lagrangian
 
-!write(6,*) ' g ', nlp%G 
-!write(6,*) ' z ', nlp%Z
-
          nlp%gL = nlp%G - nlp%Z
          DO l = 1, A%ne
            i = A%col( l )
@@ -340,16 +336,9 @@
             iter, pr_feas, du_feas, dx, dy, nlp%f
          END IF
 
-         IF ( pr_feas < pr_opt .AND. du_feas < du_opt ) THEN
-           status = GALAHAD_ok
-           EXIT
-         END IF
-
          iter = iter + 1
-         IF ( iter > it_max ) THEN
-           status = GALAHAD_error_max_iterations
-           EXIT
-         END IF
+         IF ( pr_feas < pr_opt .AND. du_feas < du_opt ) EXIT
+         IF ( iter > it_max ) EXIT
 
          prob%f = nlp%f
          prob%G = nlp%gL
@@ -365,15 +354,7 @@
          C_stat = 0 ; B_stat = 0
 
 !        QPC_control%print_level = 1
-!        QPC_control%QPB_control%print_level = 1
-!        QPC_control%QPB_control%maxit = 1
-!        QPC_control%QPB_control%SBLS_control%preconditioner = 1
          CALL QPC_solve( prob, C_stat, B_stat, data, QPC_control, QPC_inform )
-
-         IF ( QPC_inform% status < 0 ) THEN
-           status = GALAHAD_error_qpc
-           EXIT
-         END IF
 
          dx = MAXVAL( ABS( prob%X ) )
          IF ( m > 0 ) THEN ; dy = MAXVAL( ABS( prob%Y ) )
@@ -520,16 +501,9 @@
             iter, pert, pr_feas, du_feas, dx, dy
          END IF
 
-         IF ( pr_feas < pr_opt .AND. du_feas < du_opt ) THEN
-           status = GALAHAD_ok
-           EXIT
-         END IF
-
          iter = iter + 1
-         IF ( iter > it_max ) THEN
-           status = GALAHAD_error_max_iterations
-           EXIT
-         END IF
+         IF ( pr_feas < pr_opt .AND. du_feas < du_opt ) EXIT
+         IF ( iter > it_max ) EXIT
 
          pert = ' '
 
@@ -543,10 +517,9 @@
                                        SBLS_control, SBLS_inform )
 
          IF ( SBLS_inform%status /= 0 ) THEN
-           status = GALAHAD_error_factorization
            WRITE( out, "( ' factorization error: status = ', I0 )" )           &
              SBLS_inform%status
-           EXIT
+           RETURN
          END IF
          IF ( SBLS_inform%perturbed ) pert = 'm'
 
@@ -559,9 +532,8 @@
 !write(6,*) ' sol ', RHS(:npm)
 
          IF ( SBLS_inform%status /= 0 ) THEN
-           status = GALAHAD_error_factorization
            WRITE( out, "( ' solve error: status = ', I0 )" ) SBLS_inform%status
-           EXIT
+           RETURN
          END IF
 
 !  Update the solution estimate
@@ -617,26 +589,19 @@
      WRITE( sfiledevice, "( /, ' XL Solution  ', 10X, ES12.5 )" ) obj
      CLOSE( sfiledevice ) 
 
-     IF ( status == GALAHAD_ok ) THEN
-       WRITE( 6, "( /, ' SQP successful termination, objective =', ES12.4 )" ) &
-         obj
-     ELSE
-       WRITE( 6, "( /, ' SQP unsuccessful termination, status = ', I0 )" )     &
-         status
-     END IF
+     WRITE( 6, "( ' SQP termination ' )" )
      CALL CUTEST_cterminate( cutest_status )
      RETURN
 
  910 CONTINUE
      WRITE( out, "( ' CUTEst error, status = ', i0, ', stopping' )")           &
         cutest_status
-     status = GALAHAD_error_evaluation
+     status = - 98
      RETURN
 
  990 CONTINUE
      WRITE( out, "( ' allocation error ', I0, ' status ', I0 )" )              &
        status, alloc_status
-     status = GALAHAD_error_allocate
      RETURN
 
      END SUBROUTINE USE_SQP_DPR

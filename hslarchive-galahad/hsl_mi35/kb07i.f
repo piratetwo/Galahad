@@ -1,0 +1,151 @@
+* COPYRIGHT (c) 1980 AEA Technology
+* Original date 1 December 1993
+C       Toolpack tool decs employed.
+C       Arg dimensions changed to *.
+C 1/4/99 Size of MARK increased to 100.
+C 13/3/02 Cosmetic changes applied to reduce single/double differences
+C
+C 12th July 2004 Version 1.0.0. Version numbering added.
+
+      SUBROUTINE KB07AI(COUNT,N,INDEX)
+C
+C             KB07AI      HANDLES INTEGER VARIABLES
+C  THE WORK-SPACE 'MARK' OF LENGTH 100 PERMITS UP TO 2**50 NUMBERS
+C  TO BE SORTED.
+
+C     .. Scalar Arguments ..
+      INTEGER N
+C     ..
+C     .. Array Arguments ..
+      INTEGER COUNT(*)
+      INTEGER INDEX(*)
+C     ..
+C     .. Local Scalars ..
+      INTEGER AV,X
+      INTEGER I,IF,IFK,IFKA,INT,INTEST,IP,IS,IS1,IY,J,K,K1,LA,LNGTH,M,
+     +        MLOOP
+C     ..
+C     .. Local Arrays ..
+      INTEGER MARK(100)
+C     ..
+C     .. Executable Statements ..
+C  SET INDEX ARRAY TO ORIGINAL ORDER .
+      DO 10 I = 1,N
+        INDEX(I) = I
+   10 CONTINUE
+C  CHECK THAT A TRIVIAL CASE HAS NOT BEEN ENTERED .
+      IF (N.EQ.1) GO TO 200
+      IF (N.GE.1) GO TO 30
+      WRITE (6,FMT=20)
+
+   20 FORMAT (/,/,/,20X,' ***KB07AI** NO NUMBERS TO BE SORTED ** ',
+     + 'RETURN TO CALLING PROGRAM')
+
+      GO TO 200
+C  'M' IS THE LENGTH OF SEGMENT WHICH IS SHORT ENOUGH TO ENTER
+C  THE FINAL SORTING ROUTINE. IT MAY BE EASILY CHANGED.
+   30 M = 12
+C  SET UP INITIAL VALUES.
+      LA = 2
+      IS = 1
+      IF = N
+      DO 190 MLOOP = 1,N
+C  IF SEGMENT IS SHORT ENOUGH SORT WITH FINAL SORTING ROUTINE .
+        IFKA = IF - IS
+        IF ((IFKA+1).GT.M) GO TO 70
+C********* FINAL SORTING ***
+C  ( A SIMPLE BUBBLE SORT )
+        IS1 = IS + 1
+        DO 60 J = IS1,IF
+          I = J
+   40     IF (COUNT(I-1).LT.COUNT(I)) GO TO 60
+          IF (COUNT(I-1).GT.COUNT(I)) GO TO 50
+          IF (INDEX(I-1).LT.INDEX(I)) GO TO 60
+   50     AV = COUNT(I-1)
+          COUNT(I-1) = COUNT(I)
+          COUNT(I) = AV
+          INT = INDEX(I-1)
+          INDEX(I-1) = INDEX(I)
+          INDEX(I) = INT
+          I = I - 1
+          IF (I.GT.IS) GO TO 40
+   60   CONTINUE
+        LA = LA - 2
+        GO TO 170
+C             *******  QUICKSORT  ********
+C  SELECT THE NUMBER IN THE CENTRAL POSITION IN THE SEGMENT AS
+C  THE TEST NUMBER.REPLACE IT WITH THE NUMBER FROM THE SEGMENT'S
+C  HIGHEST ADDRESS.
+   70   IY = (IS+IF)/2
+        X = COUNT(IY)
+        INTEST = INDEX(IY)
+        COUNT(IY) = COUNT(IF)
+        INDEX(IY) = INDEX(IF)
+C  THE MARKERS 'I' AND 'IFK' ARE USED FOR THE BEGINNING AND END
+C  OF THE SECTION NOT SO FAR TESTED AGAINST THE PRESENT VALUE
+C  OF X .
+        K = 1
+        IFK = IF
+C  WE ALTERNATE BETWEEN THE OUTER LOOP THAT INCREASES I AND THE
+C  INNER LOOP THAT REDUCES IFK, MOVING NUMBERS AND INDICES AS
+C  NECESSARY, UNTIL THEY MEET .
+        DO 110 I = IS,IF
+          IF (X.GT.COUNT(I)) GO TO 110
+          IF (X.LT.COUNT(I)) GO TO 80
+          IF (INTEST.GT.INDEX(I)) GO TO 110
+   80     IF (I.GE.IFK) GO TO 120
+          COUNT(IFK) = COUNT(I)
+          INDEX(IFK) = INDEX(I)
+          K1 = K
+          DO 100 K = K1,IFKA
+            IFK = IF - K
+            IF (COUNT(IFK).GT.X) GO TO 100
+            IF (COUNT(IFK).LT.X) GO TO 90
+            IF (INTEST.LE.INDEX(IFK)) GO TO 100
+   90       IF (I.GE.IFK) GO TO 130
+            COUNT(I) = COUNT(IFK)
+            INDEX(I) = INDEX(IFK)
+            GO TO 110
+
+  100     CONTINUE
+          GO TO 120
+
+  110   CONTINUE
+C  RETURN THE TEST NUMBER TO THE POSITION MARKED BY THE MARKER
+C  WHICH DID NOT MOVE LAST. IT DIVIDES THE INITIAL SEGMENT INTO
+C  2 PARTS. ANY ELEMENT IN THE FIRST PART IS LESS THAN OR EQUAL
+C  TO ANY ELEMENT IN THE SECOND PART, AND THEY MAY NOW BE SORTED
+C  INDEPENDENTLY .
+  120   COUNT(IFK) = X
+        INDEX(IFK) = INTEST
+        IP = IFK
+        GO TO 140
+
+  130   COUNT(I) = X
+        INDEX(I) = INTEST
+        IP = I
+C  STORE THE LONGER SUBDIVISION IN WORKSPACE.
+  140   IF ((IP-IS).GT. (IF-IP)) GO TO 150
+        MARK(LA) = IF
+        MARK(LA-1) = IP + 1
+        IF = IP - 1
+        GO TO 160
+
+  150   MARK(LA) = IP - 1
+        MARK(LA-1) = IS
+        IS = IP + 1
+C  FIND THE LENGTH OF THE SHORTER SUBDIVISION.
+  160   LNGTH = IF - IS
+        IF (LNGTH.LE.0) GO TO 180
+C  IF IT CONTAINS MORE THAN ONE ELEMENT SUPPLY IT WITH WORKSPACE .
+        LA = LA + 2
+        GO TO 190
+
+  170   IF (LA.LE.0) GO TO 200
+C  OBTAIN THE ADDRESS OF THE SHORTEST SEGMENT AWAITING QUICKSORT
+  180   IF = MARK(LA)
+        IS = MARK(LA-1)
+  190 CONTINUE
+  200 RETURN
+
+      END

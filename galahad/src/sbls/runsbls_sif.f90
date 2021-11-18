@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.4 - 18/01/2011 AT 15:30 GMT.
+! THIS VERSION: GALAHAD 2.8 - 24/08/2016 AT 12:40 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D   R U N S B L S _ S I F  *-*-*-*-*-*-*-*-*-*-
 
@@ -23,20 +23,16 @@
 !  Problem input characteristics
 
    INTEGER, PARAMETER :: input = 55
-   CHARACTER ( LEN = 16 ) :: prbdat = 'OUTSDIF.d'
+   CHARACTER ( LEN = 16 ) :: prbdat = 'OUTSDIF.d       '
 
 !  Open the data input file
 
    OPEN( input, FILE = prbdat, FORM = 'FORMATTED', STATUS = 'OLD'  )
    REWIND input
 
-!  Call the CUTEr interface
+!  Call the CUTEst interface
 
-   CALL USE_SBLS( input )
-
-!  Close the data input file 
-
-   CLOSE( input  )
+   CALL USE_SBLS( input, close_input = .TRUE. )
    STOP
 
 !  End of RUNSBLS_SIF

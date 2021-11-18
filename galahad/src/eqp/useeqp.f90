@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.5 - 09/02/2013 AT 17:15 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D   U S E E Q P  *-*-*-*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 
     MODULE GALAHAD_USEEQP_double
 
-!  CUTEst/AMPL interface to GALAHAD_EQP, an algorithm for solving 
+!  CUTEst/AMPL interface to GALAHAD_EQP, an algorithm for solving
 !  equality-constrained quadratic program using a projected conjugate
 !  gradient method
 
@@ -17,8 +17,8 @@
       USE GALAHAD_CLOCK
       USE GALAHAD_QPT_double
       USE GALAHAD_EQP_double
-      USE GALAHAD_SPECFILE_double 
-      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
+      USE GALAHAD_SPECFILE_double
+      USE GALAHAD_STRING, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
 
       IMPLICIT NONE
@@ -69,7 +69,7 @@
       INTEGER :: ntotal, natotal, nhtotal, nb, ni
       REAL ( KIND = wp ) :: objf, h_max
       LOGICAL :: filexx, is_specfile
-            
+
 !  Functions
 
 !$    INTEGER :: OMP_GET_MAX_THREADS
@@ -116,7 +116,7 @@
 !     CHARACTER ( LEN = 30 ) :: lfilename = 'EQPRES_1line.d'
       CHARACTER ( LEN = 36 ) :: lfilename ='../results/EQP_IMPLICIT_fact_1line.d'
       CHARACTER ( LEN = 30 ) :: sfilename = 'EQPSOL.d'
-      LOGICAL :: fulsol = .FALSE. 
+      LOGICAL :: fulsol = .FALSE.
       LOGICAL :: printo = .TRUE.
 
 !  Output file characteristics
@@ -124,12 +124,13 @@
       INTEGER, PARAMETER :: out  = 6
       INTEGER, PARAMETER :: io_buffer = 11
       INTEGER :: errout = 6
-      CHARACTER ( LEN = 30 ) :: pname, sls_solv
+      CHARACTER ( LEN = 10 ) :: pname
+      CHARACTER ( LEN = 30 ) :: sls_solv
 
 !  Arrays
 
       TYPE ( EQP_data_type ) :: data
-      TYPE ( EQP_control_type ) :: EQP_control        
+      TYPE ( EQP_control_type ) :: EQP_control
       TYPE ( EQP_inform_type ) :: EQP_inform
       TYPE ( QPT_problem_type ) :: prob
 
@@ -191,7 +192,7 @@
       IF ( cutest_status /= 0 ) GO TO 910
       ALLOCATE( prob%name( 10 ) )
       prob%name = TRANSFER( pname, prob%name )
-      WRITE( out, "( /, ' Problem: ', A )" ) pname 
+      WRITE( out, "( /, ' Problem: ', A )" ) pname
 
 !  Set up the initial estimate of the solution and
 !  right-hand-side of the Kuhn-Tucker system.
@@ -203,9 +204,9 @@
 
 !  Set X0 to zero to determine the constant terms for the problem functions
 
-      X0 = zero 
+      X0 = zero
 
-!  Evaluate the constant terms of the objective (objf) and constraint 
+!  Evaluate the constant terms of the objective (objf) and constraint
 !  functions (C)
 
       CALL CUTEST_cfn( cutest_status, n, m, X0, objf, prob%C( : m ) )
@@ -233,7 +234,7 @@
                         prob%A%row( : la ) )
       IF ( cutest_status /= 0 ) GO TO 910
       DEALLOCATE( X0 )
-      
+
 !  Exclude zeros; set the linear term for the objective function
 
       A_ne = 0
@@ -242,12 +243,12 @@
         IF ( prob%A%val( l ) /= zero ) THEN
           IF ( prob%A%row( l ) > 0 ) THEN
             A_ne = A_ne + 1
-            prob%A%row( A_ne ) = prob%A%row( l ) 
+            prob%A%row( A_ne ) = prob%A%row( l )
             prob%A%col( A_ne ) = prob%A%col( l )
             prob%A%val( A_ne ) = prob%A%val( l )
           ELSE
             prob%G( prob%A%col( l ) ) = prob%A%val( l )
-          END IF  
+          END IF
         END IF
       END DO
 
@@ -281,7 +282,7 @@
 
       h_max = one
       H_ne = 0
-      DO l = 1, neh    
+      DO l = 1, neh
         IF ( prob%H%val( l ) == zero ) CYCLE
         i = prob%H%row( l ) ; j = prob%H%col( l )
         IF ( i < 1 .OR. i > n .OR. j < 1 .OR. j > n ) CYCLE
@@ -311,8 +312,8 @@
 !  Add penalty terms for inequality constraints
 
       ni = 0
-      DO i = 1, m 
-        IF ( .NOT. EQUATN( i ) ) THEN 
+      DO i = 1, m
+        IF ( .NOT. EQUATN( i ) ) THEN
           ni = ni + 1
           A_ne = A_ne + 1
           prob%A%row( A_ne ) = i
@@ -322,7 +323,7 @@
           prob%H%row( H_ne ) = n + ni
           prob%H%col( H_ne ) = n + ni
           prob%H%val( H_ne ) = h_max
-        END IF 
+        END IF
       END DO
 
 !   ldummy = .TRUE.
@@ -346,7 +347,7 @@
       prob%f    = objf
 
 !  Print details
-        
+
       WRITE( out, "( /, ' m    = ', I10, '  n    = ', I10,                     &
      &               ' (n_slack = ', I7, ')', /,                               &
      &               ' A_ne = ', I10, '  H_ne = ', I10 )" )                    &
@@ -355,7 +356,7 @@
 !    &                ' maximum element of H = ', ES12.4 )" )                  &
 !      MAXVAL( ABS( prob%A%val( : A_ne ) ) ),                                  &
 !      MAXVAL( ABS( prob%H%val( : H_ne ) ) )
-!   END IF  
+!   END IF
 
 !  ------------------- problem set-up complete ----------------------
 
@@ -414,7 +415,7 @@
            OPEN( dfiledevice, FILE = dfilename, FORM = 'FORMATTED',            &
                   STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2160 ) iores, dfilename
           STOP
         END IF
@@ -446,7 +447,7 @@
            OPEN( rfiledevice, FILE = rfilename, FORM = 'FORMATTED',            &
                  STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           WRITE( out,                                                          &
             "( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )" ) &
             iores, rfilename
@@ -466,7 +467,7 @@
            OPEN( lfiledevice, FILE = lfilename, FORM = 'FORMATTED',            &
                  STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           WRITE( out,                                                          &
             "( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )" ) &
             iores, lfilename
@@ -476,7 +477,7 @@
       END IF
 
 !  Set all default values, and override defaults if requested
- 
+
       CALL EQP_initialize( data, EQP_control, EQP_inform )
       IF ( is_specfile )                                                       &
         CALL EQP_read_specfile( EQP_control, input_specfile )
@@ -492,9 +493,9 @@
       CALL EQP_solve( prob, data, EQP_control, EQP_inform )
 
       IF ( printo ) WRITE( out, " ( /, ' Exit from EQP solver' ) " )
-  
+
       status = EQP_inform%status
-!     factorization_integer = EQP_inform%factorization_integer 
+!     factorization_integer = EQP_inform%factorization_integer
 !     factorization_real = EQP_inform%factorization_real
       CALL EQP_terminate( data, EQP_control, EQP_inform )
 
@@ -504,22 +505,22 @@
 
       IF ( status == 0 .AND. write_solution ) THEN
         l = 4
-        IF ( fulsol ) l = n 
+        IF ( fulsol ) l = n
 
 !  Print details of the primal and dual variables
 
-        WRITE( out, 2090 ) 
-        DO j = 1, 2 
-          IF ( j == 1 ) THEN 
-            ir = 1 ; ic = MIN( l, n ) 
-          ELSE 
-            IF ( ic < n - l ) WRITE( out, 2060 ) 
-            ir = MAX( ic + 1, n - ic + 1 ) ; ic = n 
-          END IF 
-          DO i = ir, ic 
+        WRITE( out, 2090 )
+        DO j = 1, 2
+          IF ( j == 1 ) THEN
+            ir = 1 ; ic = MIN( l, n )
+          ELSE
+            IF ( ic < n - l ) WRITE( out, 2060 )
+            ir = MAX( ic + 1, n - ic + 1 ) ; ic = n
+          END IF
+          DO i = ir, ic
             WRITE( out, 2030 ) i, VNAME( i ), prob%X( i )
-          END DO 
-        END DO 
+          END DO
+        END DO
 
 !  Print details of the constraints.
 
@@ -530,20 +531,20 @@
             prob%C_l( i ) + prob%A%val( k ) * prob%X( prob%A%col( k ) )
         END DO
 
-        IF ( m > 0 ) THEN 
-          WRITE( out, 2040 ) 
-          l = 2  ; IF ( fulsol ) l = m 
-          DO j = 1, 2 
-            IF ( j == 1 ) THEN 
-              ir = 1 ; ic = MIN( l, m ) 
-            ELSE 
-              IF ( ic < m - l ) WRITE( out, 2010 ) 
-              ir = MAX( ic + 1, m - ic + 1 ) ; ic = m 
-            END IF 
-            DO i = ir, ic 
-              WRITE( out, 2050 ) i, CNAME( i ), prob%C_l( i ), prob%Y( i ) 
-            END DO 
-          END DO 
+        IF ( m > 0 ) THEN
+          WRITE( out, 2040 )
+          l = 2  ; IF ( fulsol ) l = m
+          DO j = 1, 2
+            IF ( j == 1 ) THEN
+              ir = 1 ; ic = MIN( l, m )
+            ELSE
+              IF ( ic < m - l ) WRITE( out, 2010 )
+              ir = MAX( ic + 1, m - ic + 1 ) ; ic = m
+            END IF
+            DO i = ir, ic
+              WRITE( out, 2050 ) i, CNAME( i ), prob%C_l( i ), prob%Y( i )
+            END DO
+          END DO
         END IF
       END IF
 
@@ -629,13 +630,13 @@
                  '              cg its    time   reduction', /,                &
 !                ' intermediate ', I6, 0P, F8.2, ES12.4, /,                    &
                  ' total        ', I6, 0P, F8.2, ES12.4 )
- 2010 FORMAT( '      . .           ..........  .......... ' ) 
+ 2010 FORMAT( '      . .           ..........  .......... ' )
  2020 FORMAT( A10, '       -       -', 2( '     -       -' ), I6 )
- 2030 FORMAT( I7, 1X, A10, ES12.4 ) 
+ 2030 FORMAT( I7, 1X, A10, ES12.4 )
  2040 FORMAT( /, ' Constraints: ', /,                                          &
-                 '      # name          value     Multiplier ' ) 
- 2050 FORMAT( I7, 1X, A10, 2ES12.4 ) 
- 2060 FORMAT( '      . .           .......... ' ) 
+                 '      # name          value     Multiplier ' )
+ 2050 FORMAT( I7, 1X, A10, 2ES12.4 )
+ 2060 FORMAT( '      . .           .......... ' )
  2090 FORMAT( /, ' Solution: ', /,                                             &
                  '      # name          value   ' )
  2110 FORMAT( A10, 2( 0P, F8.2 ), 1( I6, 0P, F8.2 ), I6, 2ES8.1, I3 )

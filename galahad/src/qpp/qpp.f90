@@ -9,7 +9,7 @@
 !   originally released pre GALAHAD Version 1.0. July 29th 1999
 !   update released with GALAHAD Version 2.0. February 16th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_QPP_double
@@ -85,21 +85,21 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: QPP_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
-!   any bound larger than infinity in modulus will be regarded as infinite 
+!   any bound larger than infinity in modulus will be regarded as infinite
 
         REAL ( KIND = wp ) :: infinity = infinity
 
-!    any problem bound with the value zero will be treated as if it were a 
+!    any problem bound with the value zero will be treated as if it were a
 !     general value if true
 
         LOGICAL :: treat_zero_bounds_as_general = .FALSE.
@@ -110,9 +110,9 @@
         LOGICAL :: deallocate_error_fatal = .FALSE.
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: QPP_inform_type
 
@@ -146,13 +146,13 @@
       END TYPE
 
       TYPE, PUBLIC :: QPP_dims_type
-        INTEGER :: nc = -1 , x_s = - 1, x_e = - 1, c_b = - 1, c_s = - 1 
+        INTEGER :: nc = -1 , x_s = - 1, x_e = - 1, c_b = - 1, c_s = - 1
         INTEGER :: c_e = - 1, y_s = - 1, y_i = - 1, y_e = - 1, v_e = - 1
         INTEGER :: x_free = - 1, x_l_start = - 1, x_l_end = - 1
         INTEGER :: x_u_start = - 1, x_u_end = - 1
         INTEGER :: c_equality = - 1, c_l_start = - 1, c_l_end = - 1
         INTEGER :: c_u_start = - 1, c_u_end = - 1
-        INTEGER :: h_diag_end_free = - 1, h_diag_end_nonneg = - 1 
+        INTEGER :: h_diag_end_free = - 1, h_diag_end_nonneg = - 1
         INTEGER :: h_diag_end_lower = - 1, h_diag_end_range = - 1
         INTEGER :: h_diag_end_upper = - 1, h_diag_end_nonpos = - 1
         REAL ( KIND = wp ) :: f = HUGE( 1.0_wp )
@@ -166,9 +166,9 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Default control data for QPP. This routine should be called 
+!  Default control data for QPP. This routine should be called
 !  before QPP_reorder
-! 
+!
 !  --------------------------------------------------------------------
 !
 !  Arguments:
@@ -178,11 +178,11 @@
 !
 !  INTEGER control parameter:
 !
-!   error. Error and warning diagnostics occur on stream error 
-!   
+!   error. Error and warning diagnostics occur on stream error
+!
 !  REAL control parameter:
 !
-!   infinity. Any bound larger or equal to infinity in abolute value 
+!   infinity. Any bound larger or equal to infinity in abolute value
 !    will be considered to be infinite
 !
 !  LOGICAL control parameter:
@@ -195,7 +195,7 @@
 !  Dummy arguments
 
       TYPE ( QPP_map_type ), INTENT( OUT ) :: map
-      TYPE ( QPP_control_type ), INTENT( OUT ) :: control        
+      TYPE ( QPP_control_type ), INTENT( OUT ) :: control
 
 !  Real parameter
 
@@ -203,7 +203,7 @@
 
       map%set = .FALSE.
 
-      RETURN  
+      RETURN
 
 !  End of QPP_initialize
 
@@ -218,13 +218,13 @@
 !
 !  Find a reordering of the data for the problem
 !
-!     minimize          q(x) = 1/2 x(T) H x + g(T) x 
+!     minimize          q(x) = 1/2 x(T) H x + g(T) x
 !
 !     subject to the bounds  x_l <=  x  <= x_u
 !     and constraints        c_l <= A x <= c_u ,
 !
-!  where x is a vector of n components ( x_1, .... , x_n ), 
-!  H is a symmetric matrix, A is an m by n matrix, 
+!  where x is a vector of n components ( x_1, .... , x_n ),
+!  H is a symmetric matrix, A is an m by n matrix,
 !  and any of the bounds x_l, x_u, c_l, c_u may be infinite.
 !
 !  The reordered problem has the following properties:
@@ -238,8 +238,8 @@
 !    upper                     x <= x_u
 !    non-positivity            x <=  0
 !
-!    Fixed variables will be removed. Within each category, the variables 
-!    are further ordered so that those with non-zero diagonal Hessian 
+!    Fixed variables will be removed. Within each category, the variables
+!    are further ordered so that those with non-zero diagonal Hessian
 !    entries occur before the remainder
 !
 !  * the constraints are ordered so that their bounds appear in the order
@@ -249,7 +249,7 @@
 !    range              c_l <= A x <= c_u
 !    upper                     A x <= c_u
 !
-!    Free constraints will be removed. 
+!    Free constraints will be removed.
 
 !  * additional constraints may be added, bounds tightened,
 !    to reduce the size of the feasible region if this is
@@ -260,7 +260,7 @@
 !  Arguments:
 !
 !  dims is a structure of type QPP_dims_type, whose components hold SCALAR
-!   information about the transformed problem on output. 
+!   information about the transformed problem on output.
 !
 !  prob is a structure of type QPT_type, whose components hold the
 !   details of the problem. The following components must be set
@@ -271,23 +271,23 @@
 !
 !   n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: n >= 1
-!                  
+!
 !   m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m.  RESTRICTION: m >= 0
 !
 !   Hessian_kind is an INTEGER variable which defines the type of objective
 !    function to be used. Possible values are
 !
-!     0  all the weights will be zero, and the analytic centre of the 
+!     0  all the weights will be zero, and the analytic centre of the
 !        feasible region will be found. WEIGHT (see below) need not be set
 !
 !     1  all the weights will be one. WEIGHT (see below) need not be set
 !
 !     2  the weights will be those given by WEIGHT (see below)
 !
-!    <0  the Hessian H will be used 
+!    <0  the Hessian H will be used
 !
-!   H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of H (except for the L-BFGS case). Eight storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -298,7 +298,7 @@
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
 !       H%col( : )   the column indices of the components of H
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !
 !    ii) sparse, by rows
@@ -317,7 +317,7 @@
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -354,22 +354,22 @@
 !
 !       The Hessian in this case is available via the component H_lm below
 !
-!    On exit, the components will most likely have been reordered. 
+!    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above,
-!    except for scheme (viii), for which a permutation will be set within H_lm. 
+!    except for scheme (viii), for which a permutation will be set within H_lm.
 !    However, if scheme (i) is used for input, the output H%row will contain
 !    the row numbers corresponding to the values in H%val, and thus in this
 !    case the output matrix will be available in both formats (i) and (ii).
-!    
+!
 !   H_lm is a structure of type LMS_data_type, whose components hold the
 !     L-BFGS Hessian. Access to this structure is via the module GALAHAD_LMS,
 !     and this component needs only be set if %H%type( 1 : 5 ) = 'LBFGS.'
 !
 !   WEIGHT is a REAL array, which need only be set if %Hessian_kind is larger
 !    than 1. If this is so, it must be of length at least %n, and contain the
-!    weights W for the objective function. 
-!  
-!   target_kind is an INTEGER variable that defines possible special 
+!    weights W for the objective function.
+!
+!   target_kind is an INTEGER variable that defines possible special
 !     targets X0. Possible values are
 !
 !     0  X0 will be a vector of zeros.
@@ -381,17 +381,17 @@
 !     any other value - the values of X0 will be those given by X0 (see below)
 !
 !   X0 is a REAL array, which need only be set if %Hessian_kind is larger
-!    that 0 and %target_kind /= 0,1. If this is so, it must be of length at 
-!    least %n, and contain the targets X^0 for the objective function. 
+!    that 0 and %target_kind /= 0,1. If this is so, it must be of length at
+!    least %n, and contain the targets X^0 for the objective function.
 !
 !   gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term g will be zero, and the analytic centre of the 
+!     0  the linear term g will be zero, and the analytic centre of the
 !        feasible region will be found if in addition %Hessian_kind is 0.
 !        %G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        %G (see below) need not be set
 !
 !     any other value - the gradients will be those given by G (see below)
@@ -399,15 +399,15 @@
 !   G is a REAL array of length n, which must be set by
 !    the user to the value of the gradient, g, of the linear term of the
 !    quadratic objective function. The i-th component of G, i = 1, ....,
-!    n, should contain the value of g_i.  
+!    n, should contain the value of g_i.
 !    On exit, G will most likely have been reordered.
-!   
+!
 !   DG is a REAL array of length n, which, if allocated, must
-!    be set by the user to the values of the array dg of the parametric 
-!    linear term of the quadratic objective function. 
+!    be set by the user to the values of the array dg of the parametric
+!    linear term of the quadratic objective function.
 !    On exit, present DG will most likely have been reordered.
-!   
-!   A is a structure of type SMT_type used to hold the matrix A. 
+!
+!   A is a structure of type SMT_type used to hold the matrix A.
 !    Three storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -436,90 +436,90 @@
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
 !    However, if scheme (i) is used for input, the output A%row will contain
 !    the row numbers corresponding to the values in A%val, and thus in this
-!    case the output matrix will be available in both formats (i) and (ii).   
-! 
-!   C is a REAL array of length m, which is used to store the values of 
+!    case the output matrix will be available in both formats (i) and (ii).
+!
+!   C is a REAL array of length m, which is used to store the values of
 !    A x. On exit, it will have been filled with appropriate values.
 !
 !   get_x is a LOGICAL variable. See X.
 !
-!   X is a REAL array of length n, which is used to store the values of 
+!   X is a REAL array of length n, which is used to store the values of
 !   the variables x. If the user has assigned values to X, get_x must be .FALSE.
-!   on entry, and X filled with the values of x. In this case, on exit, 
+!   on entry, and X filled with the values of x. In this case, on exit,
 !   X will most likely have been reordered, and any fixed variables moved
-!   to their bounds. If the user does not wish to provide values for X, 
-!   get_x must be .TRUE. on entry. On exit it will have been filled with 
+!   to their bounds. If the user does not wish to provide values for X,
+!   get_x must be .TRUE. on entry. On exit it will have been filled with
 !   appropriate values.
 !
 !   X_l, X_u are REAL arrays of length n, which must be set by the user
 !    to the values of the arrays x_l and x_u of lower and upper bounds on x.
 !    Any bound x_l_i or x_u_i larger than or equal to infinity in absolute value
 !    will be regarded as being infinite (see the entry control%infinity).
-!    Thus, an infinite lower bound may be specified by setting the appropriate 
-!    component of X_l to a value smaller than -infinity, while an infinite 
+!    Thus, an infinite lower bound may be specified by setting the appropriate
+!    component of X_l to a value smaller than -infinity, while an infinite
 !    upper bound can be specified by setting the appropriate element of X_u
-!    to a value larger than infinity. 
+!    to a value larger than infinity.
 !    On exit, X_l and X_u will most likely have been reordered.
-!   
+!
 !   DX_l, DX_u are REAL arrays of length n, which, if allocated, must
-!    be set by the user to the values of the arrays dx_l and dx_u of parametric 
-!    lower and upper bounds on x. 
+!    be set by the user to the values of the arrays dx_l and dx_u of parametric
+!    lower and upper bounds on x.
 !    On exit, present DX_l and DX_u will most likely have been reordered.
-!   
+!
 !   get_z is a LOGICAL variable. See Z
 !
 !   Z is a REAL array of length n, which are used to store the values
 !    of the dual variables (Lagrange multipliers) corresponding to the simple
-!    bound constraints x_l <= x and x <= x_u. If the 
+!    bound constraints x_l <= x and x <= x_u. If the
 !    user has assigned values to Z, get_z must be .FALSE. on entry.
-!    In this case, on exit, Z will most likely have been reordered. 
-!    If the user does not wish to provide values for Z, get_Z must be 
+!    In this case, on exit, Z will most likely have been reordered.
+!    If the user does not wish to provide values for Z, get_Z must be
 !    .TRUE.on entry. On exit it will have been filled with appropriate values.
 !
-!   C_l, C_u are REAL array of length m, which must be set by the user to 
+!   C_l, C_u are REAL array of length m, which must be set by the user to
 !    the values of the arrays c_l and c_u of lower and upper bounds on A x.
 !    Any bound c_l_i or c_u_i larger than or equal to infinity in absolute value
 !    will be regarded as being infinite (see the entry control%infinity).
-!    Thus, an infinite lower bound may be specified by setting the appropriate 
-!    component of C_l to a value smaller than -infinity, while an infinite 
+!    Thus, an infinite lower bound may be specified by setting the appropriate
+!    component of C_l to a value smaller than -infinity, while an infinite
 !    upper bound can be specified by setting the appropriate element of C_u
-!    to a value larger than infinity. 
+!    to a value larger than infinity.
 !    On exit, C_l and C_u will most likely have been reordered.
-!  
+!
 !   DC_l, DC_u are REAL arrays of length n, which, if allocated, must
-!    be set by the user to the values of the arrays dc_l and dc_u of parametric 
-!    lower and upper bounds on A x. 
+!    be set by the user to the values of the arrays dc_l and dc_u of parametric
+!    lower and upper bounds on A x.
 !    On exit, present DC_l and DC_u will most likely have been reordered
-!   
+!
 !   get_y is a LOGICAL variable. See Y.
 !
 !   Y is a REAL array of length m, which are used to store the values
-!    of the Lagrange multipliers corresponding to the general bound constraints 
-!    c_l <= A x and A x <= c_u. If the user has assigned values 
-!    to Y, get_y must be .FALSE. on entry. In this case, on exit, 
-!    Y will most likely have been reordered. If the user does not 
-!    wish to provide values for Y, get_y must be .TRUE. on entry. 
+!    of the Lagrange multipliers corresponding to the general bound constraints
+!    c_l <= A x and A x <= c_u. If the user has assigned values
+!    to Y, get_y must be .FALSE. on entry. In this case, on exit,
+!    Y will most likely have been reordered. If the user does not
+!    wish to provide values for Y, get_y must be .TRUE. on entry.
 !    On exit it will have been filled with appropriate values.
 !
-!  map is a structure of type QPP_data_type which holds internal 
+!  map is a structure of type QPP_data_type which holds internal
 !   mapping arrays and related data, and which need not be set by the user
 !
 !  control is a structure of type QPP_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
-!   the elements may be set by a call to QPP_initialize. See 
+!   the elements may be set by a call to QPP_initialize. See
 !   QPP_initialize for details
 !
-!  inform is a structure of type QPP_inform_type that provides 
-!    information on exit from QPP_reorder. The component status 
+!  inform is a structure of type QPP_inform_type that provides
+!    information on exit from QPP_reorder. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -528,11 +528,11 @@
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!    -3 one of the restrictions 
+!    -3 one of the restrictions
 !          prob%n     >=  1
 !          prob%m     >=  0
 !          prob%A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE' }
-!          prob%H%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE', 
+!          prob%H%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE',
 !                           'DIAGONAL', 'SCALED_IDENTITY', 'IDENTITY',
 !                           'NONE', 'ZERO', 'LBFGS' }
 !       has been violated
@@ -541,7 +541,7 @@
 !
 !   -23 an entry from the strict upper triangle of H has been input
 !
-!   -31 an attempt to use QPP_apply/QPP_restore is made prior to a 
+!   -31 an attempt to use QPP_apply/QPP_restore is made prior to a
 !        successful call to QPP_reorder
 !
 !   -32 the storage format has changed without recalling QPP_reorder
@@ -563,7 +563,7 @@
       TYPE ( QPP_dims_type ), INTENT( OUT ) :: dims
       LOGICAL, INTENT( IN ) :: get_x, get_y, get_z
       TYPE ( QPT_problem_type ), INTENT( INOUT ) :: prob
-      TYPE ( QPP_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPP_control_type ), INTENT( IN ) :: control
       TYPE ( QPP_inform_type ), INTENT( OUT ) :: inform
       LOGICAL, OPTIONAL :: parametric
 
@@ -672,7 +672,7 @@
           map%h_type = h_scaled_identity
           map%h_ne = prob%n
 
-!  diagonal 
+!  diagonal
 
         ELSE IF ( SMT_get( prob%H%type ) == 'DIAGONAL' ) THEN
           map%h_type = h_diagonal
@@ -782,7 +782,7 @@
         END DO
 
 !  original row-wise storage
-  
+
       ELSE IF ( map%a_type == a_sparse_by_rows ) THEN
         DO i = 1, map%m
           DO l = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1
@@ -822,9 +822,9 @@
 !                         Reorder variables
 !  =======================================================================
 
-!  run through the bounds to see how many fall into each of the 
+!  run through the bounds to see how many fall into each of the
 !  categories:  free(free), non-negativity(nonneg), lower(lower), range(range),
-!  upper(upper), non-positivity (nonpos) and fixed (fixed);  of these, 
+!  upper(upper), non-positivity (nonpos) and fixed (fixed);  of these,
 !  h_free, h_nonneg, h_lower, h_range, h_upper, h_nonpos and h_fixed have
 !  diagonal Hessian entries
 
@@ -866,7 +866,7 @@
 
             IF ( xu == zero .AND.                                              &
                 .NOT. control% treat_zero_bounds_as_general ) THEN
-              nonpos = nonpos + 1  
+              nonpos = nonpos + 1
               IF ( map%IW( i ) == 1 ) h_nonpos = h_nonpos + 1
               IF ( get_x ) prob%X( i ) = - one
               IF ( get_z ) THEN
@@ -915,7 +915,7 @@
 
             IF ( xl == zero .AND.                                              &
                 .NOT. control% treat_zero_bounds_as_general ) THEN
-              nonneg = nonneg + 1  
+              nonneg = nonneg + 1
               IF ( map%IW( i ) == 1 ) h_nonneg = h_nonneg + 1
               IF ( get_x ) prob%X( i ) = one
               IF ( get_z ) THEN
@@ -957,7 +957,7 @@
       d_fixed = d_nonpos + nonpos
       o_fixed = d_fixed + h_fixed
 
-!  also set the starting and ending addresses as required 
+!  also set the starting and ending addresses as required
 
       dims%h_diag_end_free = o_free
       dims%x_free = d_nonneg
@@ -983,7 +983,7 @@
              exact_size = .TRUE. )
       IF ( inform%status /= GALAHAD_ok ) GO TO 900
 
-!  run through the variable bounds for a second time, this time building 
+!  run through the variable bounds for a second time, this time building
 !  the mapping array
 
       DO i = 1, map%n
@@ -1163,8 +1163,8 @@
             END DO
           END IF
 
-!  permute the rows and columns for a general H. Start by counting how 
-!  many entries will be required for each row. map%IW(i) gives the number 
+!  permute the rows and columns for a general H. Start by counting how
+!  many entries will be required for each row. map%IW(i) gives the number
 !  of entries in row i
 
         ELSE
@@ -1189,7 +1189,7 @@
             END DO
 
 !  original row-wise storage
-  
+
           ELSE IF ( map%h_type == h_sparse_by_rows ) THEN
             map%IW( : map%n ) = 0
             DO k = 1, map%n
@@ -1329,7 +1329,7 @@
             END DO
 
 !  original row-wise storage
-  
+
           ELSE IF ( map%h_type == h_sparse_by_rows ) THEN
             DO k = 1, map%n
               i = map%x_map( k )
@@ -1407,14 +1407,14 @@
              bad_alloc = inform%bad_alloc, out = control%error )
       IF ( inform%status /= GALAHAD_ok ) GO TO 900
 
-!  count how many entries there are in each constraint. map%IW(i) gives 
+!  count how many entries there are in each constraint. map%IW(i) gives
 !  the number of entries in row i
 
 !  original dense storage; record the column indices
 
       IF ( map%a_type == a_dense ) THEN
         map%IW( : map%m ) = prob%n
-      ELSE 
+      ELSE
         map%IW( : map%m ) = 0
 
 !  original co-ordinate storage
@@ -1428,7 +1428,7 @@
           END DO
 
 !  original row-wise storage
-  
+
         ELSE
           DO i = 1, map%m
             DO l = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1
@@ -1439,7 +1439,7 @@
         END IF
       END IF
 
-!  run through the constraint bounds to see how many fall into each of the 
+!  run through the constraint bounds to see how many fall into each of the
 !  categories:  free, lower, range, upper and equality
 
       free = 0 ; lower = 0 ; range = 0 ; upper = 0 ; equality = 0
@@ -1588,7 +1588,7 @@
       a_upper = a_range + range
       a_free = a_upper + upper
 
-!  also set the starting and ending addresses as required 
+!  also set the starting and ending addresses as required
 
       dims%c_equality = equality
       dims%c_l_start = a_lower + 1
@@ -1708,7 +1708,7 @@
       IF ( map%a_type == a_dense ) THEN
         map%IW( : map%m ) = prob%n
         IF ( prob%n < map%n ) map%ptr_a_fixed( prob%n + 1 : map%n ) = map%m
-      ELSE 
+      ELSE
         map%IW( : map%m ) = 0
         IF ( prob%n < map%n ) map%ptr_a_fixed( prob%n + 1 : map%n ) = 0
 
@@ -1727,7 +1727,7 @@
         ELSE
 
 !  original row-wise storage
-  
+
           DO k = 1, map%m
             i = map%c_map( k )
             DO l = prob%A%ptr( k ), prob%A%ptr( k + 1 ) - 1
@@ -1755,7 +1755,7 @@
         k = j
         j = j + map%ptr_a_fixed( i )
         map%ptr_a_fixed( i ) = k
-      END DO      
+      END DO
 
 !  allocate the inverse mapping array for A
 
@@ -1768,7 +1768,7 @@
 
 !  reorder the rows; compute the mapping array for A and renumber its columns
 !  NB. Any columns corresponding to FIXED variables, will have been
-!  moved to the end of A, and will be stored by COLUMN not by row. In 
+!  moved to the end of A, and will be stored by COLUMN not by row. In
 !  particular, A_col for these entries gives the row and not the column
 !  number
 
@@ -1810,7 +1810,7 @@
 
 !  original co-ordinate storage
 
-      ELSE 
+      ELSE
         IF ( map%a_type == a_coordinate ) THEN
           DO l = 1, map%a_ne
             i = map%c_map( prob%A%row( l ) ) ; j = map%x_map( prob%A%col( l ) )
@@ -1855,8 +1855,8 @@
 
       IF ( prob%n < map%n ) THEN
         DO i = map%n, prob%n + 1, - 1
-          map%ptr_a_fixed( i + 1 ) = map%ptr_a_fixed( i ) 
-        END DO      
+          map%ptr_a_fixed( i + 1 ) = map%ptr_a_fixed( i )
+        END DO
         map%ptr_a_fixed( prob%n + 1 ) = prob%A%ptr( map%m + 1 )
       END IF
 
@@ -1907,7 +1907,7 @@
           prob%gradient_kind = 2
         END IF
 
-!  transform f, g and the bounds on the constraints to account for 
+!  transform f, g and the bounds on the constraints to account for
 !  fixed variables
 
         CALL QPP_remove_fixed( map, prob, f = .TRUE., g = .TRUE.,              &
@@ -1927,7 +1927,7 @@
       END IF
 
       inform%status = GALAHAD_ok
-      RETURN  
+      RETURN
 
 !  Error returns
 
@@ -1935,12 +1935,12 @@
       inform%status = GALAHAD_error_allocate
 !     IF ( control%error > 0 )                                                 &
 !       WRITE( control%error, 2900 ) inform%bad_alloc, inform%alloc_status
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
 !2900 FORMAT( ' ** Message from -QPP_reorder-', /,                             &
-!             ' Allocation error, for ', A20, /, ' status = ', I6 ) 
+!             ' Allocation error, for ', A20, /, ' status = ', I6 )
 
 !  End of QPP_reorder
 
@@ -1968,24 +1968,24 @@
 !   prob    see Subroutine QPP_reorder
 !   map     see Subroutine QPP_initialize
 !
-!   inform is a structure of type QPP_inform_type that provides 
-!    information on exit from QPP_apply. The component status 
+!   inform is a structure of type QPP_inform_type that provides
+!    information on exit from QPP_apply. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination.
 !
 !     1 The mapping arrays have not yet been set. Either QPP_reorder
 !       has not yet been called, or the call was unsuccessful.
 !
 !   get_all       LOGICAL, OPTIONAL. If present, process the entire problem
-!   get_all_parametric  LOGICAL, OPTIONAL. If present, process the entire 
+!   get_all_parametric  LOGICAL, OPTIONAL. If present, process the entire
 !                 problem including parametric parts
 !   get_f         LOGICAL, OPTIONAL. If present, process f
 !   get_g         LOGICAL, OPTIONAL. If present, process g
 !   get_dg        LOGICAL, OPTIONAL. If present, process dg
 !   get_c         LOGICAL, OPTIONAL. If present, process c
-!   get_x_bounds  LOGICAL, OPTIONAL. If present, process x_l and x_u 
-!   get_dx_bounds LOGICAL, OPTIONAL. If present, process dx_l and dx_u 
+!   get_x_bounds  LOGICAL, OPTIONAL. If present, process x_l and x_u
+!   get_dx_bounds LOGICAL, OPTIONAL. If present, process dx_l and dx_u
 !   get_c_bounds  LOGICAL, OPTIONAL. If present, process c_l and c_u
 !   get_dc_bounds LOGICAL, OPTIONAL. If present, process dc_l and dc_u
 !   get_x         LOGICAL, OPTIONAL. If present, process x
@@ -2086,8 +2086,8 @@
                    prob%A%ne /= map%a_ne ) ) ) THEN
           inform%status = GALAHAD_error_reformat
           RETURN
-        END IF  
-      END IF  
+        END IF
+      END IF
 
       IF ( ( PRESENT( get_all ) .OR. PRESENT( get_all_parametric ) .OR.        &
              PRESENT( get_H ) )                                                &
@@ -2107,8 +2107,8 @@
                    prob%H%ne /= map%h_ne ) ) ) THEN
           inform%status = GALAHAD_error_reformat
           RETURN
-        END IF  
-      END IF  
+        END IF
+      END IF
 
 !  pick up the correct dimensions
 
@@ -2136,7 +2136,7 @@
 
 !  compute the number of entries in each row of A, and renumber its columns.
 !  NB. Any columns corresponding to FIXED variables, will have been
-!  moved to the end of A, and will be stored by COLUMN not by row. In 
+!  moved to the end of A, and will be stored by COLUMN not by row. In
 !  particular, A_col for these entries gives the row and not the column
 !  number
 
@@ -2154,7 +2154,7 @@
                 END IF
               END DO
             END DO
-          ELSE 
+          ELSE
             map%IW( : map%m ) = 0
 
 !  original co-ordinate storage
@@ -2172,7 +2172,7 @@
               END DO
 
 !  original row-wise storage
-  
+
             ELSE
               DO k = 1, map%m
                 i = map%c_map( k )
@@ -2195,7 +2195,7 @@
           DO i = 1, map%m
             prob%A%ptr( i + 1 ) = prob%A%ptr( i ) + map%IW( i )
           END DO
-    
+
 !  apply the reordering to A
 
           CALL SORT_inverse_permute( map%a_ne, map%a_map_inverse,              &
@@ -2228,10 +2228,10 @@
         ELSE IF ( prob%Hessian_kind > 0 ) THEN
           IF (  prob%target_kind /= 0 .AND. prob%target_kind /= 1 )            &
             CALL SORT_inplace_permute( map%n, map%x_map, X = prob%X0 )
- 
+
 !  general Hessian
 
-        ELSE IF ( prob%Hessian_kind < 0 ) THEN  
+        ELSE IF ( prob%Hessian_kind < 0 ) THEN
 
 !  special case for the L-BFGS Hessian
 
@@ -2273,7 +2273,7 @@
                   prob%H%col( l ) = i
                 END DO
 
-!  record the nonzeros for the identity and scaled-identity schemes 
+!  record the nonzeros for the identity and scaled-identity schemes
 
                 IF ( map%h_type == h_identity )                                &
                   prob%H%val( : map%n ) = one
@@ -2285,7 +2285,7 @@
               ELSE IF ( map%h_type == h_dense ) THEN
                 l = 0
                 DO ll = 1, map%n
-                  i = map%x_map( ll ) 
+                  i = map%x_map( ll )
                   map%IW( ll ) = ll
                   DO k = 1, ll
                     l = l + 1
@@ -2294,7 +2294,7 @@
                 END DO
 
 !  original row-wise storage
-  
+
               ELSE IF ( map%h_type == h_sparse_by_rows ) THEN
                 map%IW( : map%n ) = 0
                 DO k = 1, map%n
@@ -2356,7 +2356,7 @@
         END IF
       END IF
 
-!  check to see if permuted A and H are available 
+!  check to see if permuted A and H are available
 
       IF ( ( ( PRESENT( get_g ) .OR. PRESENT( get_c_bounds ) )                 &
                .AND. prob%n < map%n ) .AND. .NOT. ( map%a_perm .AND.           &
@@ -2464,7 +2464,7 @@
 
       END IF
 
-!  transform f, g and the bounds on the constraints to account for 
+!  transform f, g and the bounds on the constraints to account for
 !  fixed variables
 
       IF ( ( PRESENT( get_all ) .OR. PRESENT( get_all_parametric ) ) .AND.     &
@@ -2479,7 +2479,7 @@
       END IF
 
       inform%status = GALAHAD_ok
-      RETURN  
+      RETURN
 
 !  End of QPP_apply
 
@@ -2533,7 +2533,7 @@
           Y_val( : map%m ) = prob%Y( map%c_map( : map%m ) )
         ELSE IF ( ALLOCATED( prob%Y_l ) .AND. ALLOCATED( prob%Y_u ) ) THEN
           Y_val( : map%m ) = prob%Y_l( map%c_map( : map%m ) ) +                &
-                             prob%Y_u( map%c_map( : map%m ) ) 
+                             prob%Y_u( map%c_map( : map%m ) )
         END IF
       END IF
       IF ( PRESENT( Z_val ) ) THEN
@@ -2541,11 +2541,11 @@
           Z_val( : map%n ) = prob%Z( map%x_map( : map%n ) )
         ELSE IF ( ALLOCATED( prob%Z_l ) .AND. ALLOCATED( prob%Z_u ) ) THEN
           Z_val( : map%n ) = prob%Z_l( map%x_map( : map%n ) ) +                &
-                             prob%Z_u( map%x_map( : map%n ) ) 
+                             prob%Z_u( map%x_map( : map%n ) )
         END IF
       END IF
       inform%status = GALAHAD_ok
-      RETURN  
+      RETURN
 
 !  End of QPP_get_values
 
@@ -2573,17 +2573,17 @@
 !   prob    see Subroutine QPP_reorder
 !   map     see Subroutine QPP_initialize
 !
-!  inform is a structure of type QPP_inform_type that provides 
-!    information on exit from QPP_apply. The component status 
+!  inform is a structure of type QPP_inform_type that provides
+!    information on exit from QPP_apply. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination.
 !
 !     1 The mapping arrays have not yet been set. Either QPP_reorder
 !      has not yet been called, or the call was unsuccessful.
 !
 !   get_all       LOGICAL, OPTIONAL. If present, process the entire problem
-!   get_all_parametric    LOGICAL, OPTIONAL. If present, process the entire 
+!   get_all_parametric    LOGICAL, OPTIONAL. If present, process the entire
 !                 problem including parametric parts
 !   get_f         LOGICAL, OPTIONAL. If present, process f
 !   get_g         LOGICAL, OPTIONAL. If present, process g
@@ -2662,7 +2662,7 @@
         RETURN
       END IF
 
-!  check to see if permuted A and H are available 
+!  check to see if permuted A and H are available
 
       IF ( ( ( PRESENT( get_all ) .OR. PRESENT( get_all_parametric ) .OR.      &
                PRESENT( get_c ) .OR. PRESENT( get_A ) )                        &
@@ -2704,7 +2704,7 @@
           ELSE
             prob%Z_l( map%n_reordered + 1 : map%n ) = one
           END IF
-        ELSE 
+        ELSE
           IF ( apz ) THEN
             prob%Z( map%n_reordered + 1 : map%n ) =                            &
               prob%G( map%n_reordered + 1 : map%n )
@@ -2751,29 +2751,29 @@
             IF (  prob%target_kind == 0 ) THEN
               prob%Z( prob%n + 1 : map%n ) = prob%Z( prob%n + 1 : map%n ) +    &
                 prob%X( prob%n + 1 : map%n )                                   &
-                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2 
+                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2
             ELSE IF (  prob%target_kind == 1 ) THEN
               prob%Z( prob%n + 1 : map%n ) = prob%Z( prob%n + 1 : map%n ) +    &
                ( prob%X( prob%n + 1 : map%n ) - one )                          &
-                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2 
+                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2
             ELSE
               prob%Z( prob%n + 1 : map%n ) = prob%Z( prob%n + 1 : map%n ) +    &
                ( prob%X( prob%n + 1 : map%n ) - prob%X0( prob%n + 1 : map%n ) )&
-                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2 
+                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2
             END IF
           ELSE
             IF (  prob%target_kind == 0 ) THEN
               prob%Z_l( prob%n + 1 : map%n ) = prob%Z_l( prob%n + 1 : map%n ) +&
                prob%X( prob%n + 1 : map%n )                                    &
-                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2 
+                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2
             ELSE IF (  prob%target_kind == 1 ) THEN
               prob%Z_l( prob%n + 1 : map%n ) = prob%Z_l( prob%n + 1 : map%n ) +&
                ( prob%X( prob%n + 1 : map%n ) - one )                          &
-                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2 
+                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2
             ELSE
               prob%Z_l( prob%n + 1 : map%n ) = prob%Z_l( prob%n + 1 : map%n ) +&
                ( prob%X( prob%n + 1 : map%n ) - prob%X0( prob%n + 1 : map%n ) )&
-                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2 
+                  * prob%WEIGHT( prob%n + 1 : map%n ) ** 2
             END IF
           END IF
         ELSE IF ( prob%Hessian_kind < 0 ) THEN
@@ -2892,7 +2892,7 @@
 
         IF ( apz ) THEN
           IF ( apzl .AND. apzu ) THEN
-            DO i = map%n_reordered + 1, map%n 
+            DO i = map%n_reordered + 1, map%n
               IF ( prob%Z( i ) > 0 ) THEN
                 prob%Z_l( i ) = prob%Z( i )
                 prob%Z_u( i ) = zero
@@ -2904,7 +2904,7 @@
           END IF
         ELSE
           IF ( apzl .AND. apzu ) THEN
-            DO i = map%n_reordered + 1, map%n 
+            DO i = map%n_reordered + 1, map%n
               IF ( prob%Z_l( i ) > 0 ) THEN
                 prob%Z_u( i ) = zero
               ELSE
@@ -2925,7 +2925,7 @@
                       map%m, prob%C( : map%m ) )
       END IF
 
-!  transform f, g and the bounds on the constraints to account for 
+!  transform f, g and the bounds on the constraints to account for
 !  fixed variables
 
       IF ( ( PRESENT( get_all ) .OR. PRESENT( get_all_parametric ) )           &
@@ -2965,10 +2965,10 @@
         ELSE IF ( prob%Hessian_kind > 0 ) THEN
           IF (  prob%target_kind /= 0 .AND. prob%target_kind /= 1 )            &
             CALL SORT_inverse_permute( map%n, map%x_map, X = prob%X0 )
- 
+
 !  general Hessian
 
-        ELSE IF ( prob%Hessian_kind < 0 ) THEN  
+        ELSE IF ( prob%Hessian_kind < 0 ) THEN
 
 !  special case for the L-BFGS Hessian
 
@@ -2988,7 +2988,7 @@
                                        X = prob%H%val )
 
 !  original row-wise storage
-   
+
           ELSE IF ( map%h_type == h_sparse_by_rows ) THEN
 
 !  compute the number of entries in each row of H, and renumber its columns
@@ -3064,12 +3064,12 @@
               map%a_ne, map%a_map_inverse, X = prob%A%val )
 
 !  original row-wise storage
-  
+
         ELSE IF ( map%a_type == a_sparse_by_rows ) THEN
 
 !  compute the number of entries in each row of A, and renumber its columns.
 !  NB. Any columns corresponding to FIXED variables, will have been
-!  moved to the end of A, and will be stored by COLUMN not by row. In 
+!  moved to the end of A, and will be stored by COLUMN not by row. In
 !  particular, A_col for these entries gives the row and not the column
 !  number
 
@@ -3097,7 +3097,7 @@
           DO i = 1, map%m
             prob%A%ptr( i + 1 ) = prob%A%ptr( i ) + map%IW( i )
           END DO
-    
+
 !  undo the reordering of A
 
           CALL SORT_inplace_permute( map%a_ne, map%a_map_inverse,              &
@@ -3105,7 +3105,7 @@
 
 !  original co-ordinate storage
 
-        ELSE 
+        ELSE
 
 !  renumber the rows and columns
 
@@ -3254,7 +3254,7 @@
          prob%A%ne = map%a_ne_original
 
       inform%status = GALAHAD_ok
-      RETURN  
+      RETURN
 
 !  End of QPP_restore
 
@@ -3281,7 +3281,7 @@
 !  Dummy arguments
 
       TYPE ( QPP_map_type ), INTENT( INOUT ) :: map
-      TYPE ( QPP_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPP_control_type ), INTENT( IN ) :: control
       TYPE ( QPP_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -3417,9 +3417,9 @@
             IF ( COL( current ) < COL( current - 1 ) ) THEN
               CALL SORT_quicksort( inrow, COL( row_start : row_end ),          &
                                    inform_quicksort,                           &
-                                   MAP_inverse( row_start : row_end ),         &
-                                   VAL( row_start : row_end ) )
-          
+                                   ix = MAP_inverse( row_start : row_end ),    &
+                                   rx = VAL( row_start : row_end ) )
+
               EXIT
             END IF
           END DO
@@ -3483,297 +3483,297 @@
 
       END SUBROUTINE QPP_order_rows
 
-!-*-*-*-*-   Q P P _ i n p l a c e _ p e r m u t e  S U B R O U T I N E  -*-*-*-
-
-      SUBROUTINE QPP_inplace_permute( n, MAP, X, IX, IY )
-
-!  Permute the entries of X so that x_i appears in position map_i
-!  Do this without resorting to extra vector storage. Optionally,
-!  permute the entries of IX and IY so that ixc_i and iy_i 
-!  appear in positions map_i
-
-!  Arguments:
-!  =========
+!!-*-*-*-*-   Q P P _ i n p l a c e _ p e r m u t e  S U B R O U T I N E  -*-*-*-
 !
-!   n           number of components of x
-!   X           the array x
-!   MAP         the permutation map
-!   IX          the array ix
-!   IY          the array iy
-
-!  Dummy arguments
-
-      INTEGER, INTENT( IN ) :: n
-      INTEGER, INTENT( INOUT ), DIMENSION( n ) :: MAP
-      INTEGER, INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: IX, IY
-      REAL ( KIND = wp ), INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: X
-
-!  Local variables
-
-      INTEGER :: i, mi, mi_old, iymi, iymi_old, ixmi, ixmi_old
-      REAL ( KIND = wp ) :: xmi, xmi_old
-
-!  for X, IX and IY:
-
-      IF ( PRESENT( IX ) .AND. PRESENT( IY ) ) THEN
-
-!  loop over the entries of X, IX and IY
-
-        DO i = 1, n
-          mi = MAP( i )
-
-!  skip any entry which is already in place
-
-          IF ( mi == i ) THEN
-            CYCLE
-
-!  skip any entry which has already been moved into place, remembering
-!  to un-negate the relevant entry in MAP
-
-          ELSE IF ( mi < 0 ) THEN
-            MAP( i ) = - mi
-
-!  the i-th entry is not in place. Chase through the list of entries
-!  i, MAP( i ), MAP( MAP( i ) ), ... until MAP( ... ( MAP( i ) ) ... ) = i
-!  moving entries into place. Negate the relevant entries in MAP so that
-!  these entries will not be moved again
-
-          ELSE 
-            xmi_old = X( i )
-            iymi_old = IY( i )
-            ixmi_old = IX( i )
-            DO 
-              xmi = X( mi )
-              iymi = IY( mi )
-              ixmi = IX( mi )
-              X( mi ) = xmi_old
-              IY( mi ) = iymi_old
-              IX( mi ) = ixmi_old
-              xmi_old = xmi
-              iymi_old = iymi
-              ixmi_old = ixmi
-              mi_old = mi
-              mi = MAP( mi_old )
-              MAP( mi_old ) = - mi
-              IF ( mi == i ) EXIT
-            END DO
-            X( i ) = xmi_old
-            IY( i ) = iymi_old
-            IX( i ) = ixmi_old
-          END IF
-        END DO
-
-!  for X and IX:
-
-      ELSE IF ( PRESENT( IX ) ) THEN
-
-!  loop over the entries of X and IX
-
-        DO i = 1, n
-          mi = MAP( i )
-
-!  skip any entry which is already in place
-
-          IF ( mi == i ) THEN
-            CYCLE
-
-!  skip any entry which has already been moved into place, remembering
-!  to un-negate the relevant entry in MAP
-
-          ELSE IF ( mi < 0 ) THEN
-            MAP( i ) = - mi
-
-!  the i-th entry is not in place. Chase through the list of entries
-!  i, MAP( i ), MAP( MAP( i ) ), ... until MAP( ... ( MAP( i ) ) ... ) = i
-!  moving entries into place. Negate the relevant entries in MAP so that
-!  these entries will not be moved again
-
-          ELSE 
-            xmi_old = X( i )
-            ixmi_old = IX( i )
-            DO 
-              xmi = X( mi )
-              ixmi = IX( mi )
-              X( mi ) = xmi_old
-              IX( mi ) = ixmi_old
-              xmi_old = xmi
-              ixmi_old = ixmi
-              mi_old = mi
-              mi = MAP( mi_old )
-              MAP( mi_old ) = - mi
-              IF ( mi == i ) EXIT
-            END DO
-            X( i ) = xmi_old
-            IX( i ) = ixmi_old
-          END IF
-        END DO
-
-!  for just X:
-
-      ELSE
-
-!  loop over the entries of X
-
-        DO i = 1, n
-          mi = MAP( i )
-
-!  skip any entry which is already in place
-
-          IF ( mi == i ) THEN
-            CYCLE
-
-!  skip any entry which has already been moved into place, remembering
-!  to un-negate the relevant entry in MAP
-
-          ELSE IF ( mi < 0 ) THEN
-            MAP( i ) = - mi
-
-!  the i-th entry is not in place. Chase through the list of entries
-!  i, MAP( i ), MAP( MAP( i ) ), ... until MAP( ... ( MAP( i ) ) ... ) = i
-!  moving entries into place. Negate the relevant entries in MAP so that
-!  these entries will not be moved again
-
-          ELSE 
-            xmi_old = X( i )
-            DO 
-              xmi = X( mi )
-              X( mi ) = xmi_old
-              xmi_old = xmi
-              mi_old = mi
-              mi = MAP( mi_old )
-              MAP( mi_old ) = - mi
-              IF ( mi == i ) EXIT
-            END DO
-            X( i ) = xmi_old
-          END IF
-        END DO
-
-      END IF
-
-      RETURN
-
-!  End of subroutine SORT_inplace_permute
-
-      END SUBROUTINE QPP_inplace_permute
-
-!-   Q P P _ i n v e r s e _ p e r m u t e  S U B R O U T I N E  -
-
-      SUBROUTINE QPP_inverse_permute( n, MAP_inverse, X, IX )
-
-!  Permute the entries of X so that x(map_i) appears in position i
-!  Do this without resorting to extra vector storage. Optionally,
-!  permute the entries of IX so that ix(map_i) appears in position i
-
-!  Arguments:
-!  =========
+!!      SUBROUTINE QPP_inplace_permute( n, MAP, X, IX, IY )
 !
-!   n           number of components of x
-!   X           the array x
-!   MAP_inverse the permutation map
-!   IX          the array IX
+!!  Permute the entries of X so that x_i appears in position map_i
+!!  Do this without resorting to extra vector storage. Optionally,
+!!  permute the entries of IX and IY so that ixc_i and iy_i
+!!  appear in positions map_i
+!
+!!  Arguments:
+!!  =========
+!!
+!!   n           number of components of x
+!!   X           the array x
+!!   MAP         the permutation map
+!!   IX          the array ix
+!!   IY          the array iy
+!
+!!  Dummy arguments
+!
+!      INTEGER, INTENT( IN ) :: n
+!      INTEGER, INTENT( INOUT ), DIMENSION( n ) :: MAP
+!      INTEGER, INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: IX, IY
+!      REAL ( KIND = wp ), INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: X
+!
+!!  Local variables
+!
+!      INTEGER :: i, mi, mi_old, iymi, iymi_old, ixmi, ixmi_old
+!      REAL ( KIND = wp ) :: xmi, xmi_old
+!
+!!  for X, IX and IY:
+!
+!      IF ( PRESENT( IX ) .AND. PRESENT( IY ) ) THEN
+!
+!!  loop over the entries of X, IX and IY
+!
+!        DO i = 1, n
+!          mi = MAP( i )
+!
+!!  skip any entry which is already in place
+!
+!          IF ( mi == i ) THEN
+!            CYCLE
+!
+!!  skip any entry which has already been moved into place, remembering
+!!  to un-negate the relevant entry in MAP
+!
+!          ELSE IF ( mi < 0 ) THEN
+!            MAP( i ) = - mi
+!
+!!  the i-th entry is not in place. Chase through the list of entries
+!!  i, MAP( i ), MAP( MAP( i ) ), ... until MAP( ... ( MAP( i ) ) ... ) = i
+!!  moving entries into place. Negate the relevant entries in MAP so that
+!!  these entries will not be moved again
+!
+!          ELSE
+!            xmi_old = X( i )
+!            iymi_old = IY( i )
+!            ixmi_old = IX( i )
+!            DO
+!              xmi = X( mi )
+!              iymi = IY( mi )
+!              ixmi = IX( mi )
+!              X( mi ) = xmi_old
+!              IY( mi ) = iymi_old
+!              IX( mi ) = ixmi_old
+!              xmi_old = xmi
+!              iymi_old = iymi
+!              ixmi_old = ixmi
+!              mi_old = mi
+!              mi = MAP( mi_old )
+!              MAP( mi_old ) = - mi
+!              IF ( mi == i ) EXIT
+!            END DO
+!            X( i ) = xmi_old
+!            IY( i ) = iymi_old
+!            IX( i ) = ixmi_old
+!          END IF
+!        END DO
+!
+!!  for X and IX:
+!
+!      ELSE IF ( PRESENT( IX ) ) THEN
+!
+!!  loop over the entries of X and IX
+!
+!        DO i = 1, n
+!          mi = MAP( i )
+!
+!!  skip any entry which is already in place
+!
+!          IF ( mi == i ) THEN
+!            CYCLE
+!
+!!  skip any entry which has already been moved into place, remembering
+!!  to un-negate the relevant entry in MAP
+!
+!          ELSE IF ( mi < 0 ) THEN
+!            MAP( i ) = - mi
+!
+!!  the i-th entry is not in place. Chase through the list of entries
+!!  i, MAP( i ), MAP( MAP( i ) ), ... until MAP( ... ( MAP( i ) ) ... ) = i
+!!  moving entries into place. Negate the relevant entries in MAP so that
+!!  these entries will not be moved again
+!
+!          ELSE
+!            xmi_old = X( i )
+!            ixmi_old = IX( i )
+!            DO
+!              xmi = X( mi )
+!              ixmi = IX( mi )
+!              X( mi ) = xmi_old
+!              IX( mi ) = ixmi_old
+!              xmi_old = xmi
+!              ixmi_old = ixmi
+!              mi_old = mi
+!              mi = MAP( mi_old )
+!              MAP( mi_old ) = - mi
+!              IF ( mi == i ) EXIT
+!            END DO
+!            X( i ) = xmi_old
+!            IX( i ) = ixmi_old
+!          END IF
+!        END DO
+!
+!!  for just X:
+!
+!      ELSE
+!
+!!  loop over the entries of X
+!
+!        DO i = 1, n
+!          mi = MAP( i )
+!
+!!  skip any entry which is already in place
+!
+!          IF ( mi == i ) THEN
+!            CYCLE
+!
+!!  skip any entry which has already been moved into place, remembering
+!!  to un-negate the relevant entry in MAP
+!
+!          ELSE IF ( mi < 0 ) THEN
+!            MAP( i ) = - mi
+!
+!!  the i-th entry is not in place. Chase through the list of entries
+!!  i, MAP( i ), MAP( MAP( i ) ), ... until MAP( ... ( MAP( i ) ) ... ) = i
+!!  moving entries into place. Negate the relevant entries in MAP so that
+!!  these entries will not be moved again
+!
+!          ELSE
+!            xmi_old = X( i )
+!            DO
+!              xmi = X( mi )
+!              X( mi ) = xmi_old
+!              xmi_old = xmi
+!              mi_old = mi
+!              mi = MAP( mi_old )
+!              MAP( mi_old ) = - mi
+!              IF ( mi == i ) EXIT
+!            END DO
+!            X( i ) = xmi_old
+!          END IF
+!        END DO
+!
+!      END IF
+!
+!      RETURN
+!
+!!  End of subroutine SORT_inplace_permute
+!
+!      END SUBROUTINE QPP_inplace_permute
 
-!  Dummy arguments
-
-      INTEGER, INTENT( IN ) :: n
-      INTEGER, INTENT( INOUT ), DIMENSION( n ) :: MAP_inverse
-      INTEGER, INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: IX
-      REAL ( KIND = wp ), INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: X
-
-!  Local variables
-
-      INTEGER :: i, mi, mi_old, ixi
-      REAL ( KIND = wp ) :: xi
-
-!  For both X and IX:
-
-      IF ( PRESENT( IX ) ) THEN
-
-!  loop over the entries of X and IX
-
-        DO i = 1, n
-          mi = MAP_inverse( i )
-
-!  skip any entry which is already in place
-
-          IF ( mi == i ) THEN
-            CYCLE
-
-!  skip any entry which has already been moved into place, remembering
-!  to un-negate the relevant entry in MAP_inverse
-
-          ELSE IF ( mi < 0 ) THEN
-            MAP_inverse( i ) = - mi
-
-!  the i-th entry is not in place. Chase through the list of entries
-!  i, MAP_inverse( i ), MAP_inverse( MAP_inverse( i ) ), ... until 
-!  MAP_inverse( ... ( MAP_inverse( i ) ) ... ) = i, moving entries into place. 
-!  Negate the relevant entries in MAP_inverse so that these entries will 
-!  not be moved again
-
-          ELSE 
-            xi = X( i )
-            ixi = IX( i )
-            mi_old = i
-            DO 
-              X( mi_old ) = X( mi )
-              IX( mi_old ) = IX( mi )
-              mi_old = mi
-              mi = MAP_inverse( mi_old )
-              MAP_inverse( mi_old ) = - mi
-              IF ( mi == i ) EXIT
-            END DO
-            X( mi_old ) = xi
-            IX( mi_old ) = ixi
-          END IF
-        END DO
-
-!  for just X:
-
-      ELSE
-
-!  loop over the entries of X
-
-        DO i = 1, n
-          mi = MAP_inverse( i )
-
-!  skip any entry which is already in place
-
-          IF ( mi == i ) THEN
-            CYCLE
-
-!  skip any entry which has already been moved into place, remembering
-!  to un-negate the relevant entry in MAP_inverse
-
-          ELSE IF ( mi < 0 ) THEN
-            MAP_inverse( i ) = - mi
-
-!  the i-th entry is not in place. Chase through the list of entries
-!  i, MAP_inverse( i ), MAP_inverse( MAP_inverse( i ) ), ... until 
-!  MAP_inverse( ... ( MAP_inverse( i ) ) ... ) = i, moving entries into place. 
-!  Negate the relevant entries in MAP_inverse so that these entries will 
-!  not be moved again
-
-          ELSE 
-            xi = X( i )
-            mi_old = i
-            DO 
-              X( mi_old ) = X( mi )
-              mi_old = mi
-              mi = MAP_inverse( mi_old )
-              MAP_inverse( mi_old ) = - mi
-              IF ( mi == i ) EXIT
-            END DO
-            X( mi_old ) = xi
-          END IF
-        END DO
-
-      END IF
-
-      RETURN
-
-!  End of subroutine QPP_inverse_permute
-
-      END SUBROUTINE QPP_inverse_permute
+!!-   Q P P _ i n v e r s e _ p e r m u t e  S U B R O U T I N E  -
+!
+!      SUBROUTINE QPP_inverse_permute( n, MAP_inverse, X, IX )
+!
+!!  Permute the entries of X so that x(map_i) appears in position i
+!!  Do this without resorting to extra vector storage. Optionally,
+!!  permute the entries of IX so that ix(map_i) appears in position i
+!
+!!  Arguments:
+!!  =========
+!
+!!   n           number of components of x
+!!   X           the array x
+!!   MAP_inverse the permutation map
+!!   IX          the array IX
+!
+!!  Dummy arguments
+!
+!      INTEGER, INTENT( IN ) :: n
+!      INTEGER, INTENT( INOUT ), DIMENSION( n ) :: MAP_inverse
+!      INTEGER, INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: IX
+!      REAL ( KIND = wp ), INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: X
+!
+!!  Local variables
+!
+!      INTEGER :: i, mi, mi_old, ixi
+!      REAL ( KIND = wp ) :: xi
+!
+!!  For both X and IX:
+!
+!      IF ( PRESENT( IX ) ) THEN
+!
+!!  loop over the entries of X and IX
+!
+!        DO i = 1, n
+!          mi = MAP_inverse( i )
+!
+!!  skip any entry which is already in place
+!
+!          IF ( mi == i ) THEN
+!            CYCLE
+!
+!!  skip any entry which has already been moved into place, remembering
+!!  to un-negate the relevant entry in MAP_inverse
+!
+!          ELSE IF ( mi < 0 ) THEN
+!            MAP_inverse( i ) = - mi
+!
+!!  the i-th entry is not in place. Chase through the list of entries
+!!  i, MAP_inverse( i ), MAP_inverse( MAP_inverse( i ) ), ... until
+!!  MAP_inverse( ... ( MAP_inverse( i ) ) ... ) = i, moving entries into place.
+!!  Negate the relevant entries in MAP_inverse so that these entries will
+!!  not be moved again
+!
+!          ELSE
+!            xi = X( i )
+!            ixi = IX( i )
+!            mi_old = i
+!            DO
+!              X( mi_old ) = X( mi )
+!              IX( mi_old ) = IX( mi )
+!              mi_old = mi
+!              mi = MAP_inverse( mi_old )
+!              MAP_inverse( mi_old ) = - mi
+!              IF ( mi == i ) EXIT
+!            END DO
+!            X( mi_old ) = xi
+!            IX( mi_old ) = ixi
+!          END IF
+!        END DO
+!
+!!  for just X:
+!
+!      ELSE
+!
+!!  loop over the entries of X
+!
+!        DO i = 1, n
+!          mi = MAP_inverse( i )
+!
+!!  skip any entry which is already in place
+!
+!          IF ( mi == i ) THEN
+!            CYCLE
+!
+!!  skip any entry which has already been moved into place, remembering
+!!  to un-negate the relevant entry in MAP_inverse
+!
+!          ELSE IF ( mi < 0 ) THEN
+!            MAP_inverse( i ) = - mi
+!
+!!  the i-th entry is not in place. Chase through the list of entries
+!!  i, MAP_inverse( i ), MAP_inverse( MAP_inverse( i ) ), ... until
+!!  MAP_inverse( ... ( MAP_inverse( i ) ) ... ) = i, moving entries into place.
+!!  Negate the relevant entries in MAP_inverse so that these entries will
+!!  not be moved again
+!
+!          ELSE
+!            xi = X( i )
+!            mi_old = i
+!            DO
+!              X( mi_old ) = X( mi )
+!              mi_old = mi
+!              mi = MAP_inverse( mi_old )
+!              MAP_inverse( mi_old ) = - mi
+!              IF ( mi == i ) EXIT
+!            END DO
+!            X( mi_old ) = xi
+!          END IF
+!        END DO
+!
+!      END IF
+!
+!      RETURN
+!
+!! End of subroutine QPP_inverse_permute
+!
+!      END SUBROUTINE QPP_inverse_permute
 
 !-*-*-*-*-   Q P P _ i n v e r t _ m a p p i n g  S U B R O U T I N E   -*-*-*-
 
@@ -3831,12 +3831,12 @@
 !   map      see Subroutine QPP_initialize
 !   prob%    see Subroutine QPP_reorder
 !   f        LOGICAL. If true, adjust f to account for fixed variables via
-!              f -> f + <g_x,x_x> + 1/2 <x_x,H_{xx} x_x> 
+!              f -> f + <g_x,x_x> + 1/2 <x_x,H_{xx} x_x>
 !            where x = (x_r,x_x ) (etc)
 !   g        LOGICAL. If true, adjust g to account for fixed variables via
 !              g_r -> g_r + H_{xr} x_x
-!   c_bounds LOGICAL. If true, adjust c_l and c_u to account for fixed 
-!            variables via 
+!   c_bounds LOGICAL. If true, adjust c_l and c_u to account for fixed
+!            variables via
 !              c_l <- c_l - A_x x_x and c_u <- c_u - A_x x_x
 
 !  Dummy arguments
@@ -3885,19 +3885,19 @@
       IF ( yes_f .AND. yes_g ) THEN
 
 !  least-distance Hessian
-        
+
         IF ( prob%Hessian_kind == 1 ) THEN
           IF (  prob%target_kind == 0 ) THEN
             DO i = prob%n + 1, map%n
-              prob%f = prob%f + half * prob%X( i ) - prob%X0( i ) ** 2 
+              prob%f = prob%f + half * prob%X( i ) - prob%X0( i ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = prob%n + 1, map%n
-              prob%f = prob%f + half * ( prob%X( i ) - one ) ** 2 
+              prob%f = prob%f + half * ( prob%X( i ) - one ) ** 2
             END DO
           ELSE
             DO i = prob%n + 1, map%n
-              prob%f = prob%f + half * ( prob%X( i ) - prob%X0( i ) ) ** 2 
+              prob%f = prob%f + half * ( prob%X( i ) - prob%X0( i ) ) ** 2
             END DO
           END IF
 
@@ -3907,17 +3907,17 @@
           IF (  prob%target_kind == 0 ) THEN
             DO i = prob%n + 1, map%n
               prob%f = prob%f + half *                                         &
-                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2 
+                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = prob%n + 1, map%n
               prob%f = prob%f + half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2
             END DO
           ELSE
             DO i = prob%n + 1, map%n
               prob%f = prob%f + half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2
             END DO
           END IF
 
@@ -3944,7 +3944,7 @@
               prob%G( j ) = prob%G( j ) + map%W( j )
             END DO
 
-! form f -> f + 1/2 <x_x,H_{xx} x_x> 
+! form f -> f + 1/2 <x_x,H_{xx} x_x>
 
             DO j = prob%n + 1, map%n
               prob%f = prob%f + half * prob%X( j ) * map%W( j )
@@ -3952,7 +3952,7 @@
 
 !  general Hessian
 
-          ELSE 
+          ELSE
 
 !  rows with a diagonal entry
 
@@ -3962,7 +3962,7 @@
                 IF ( j <= prob%n ) THEN
                   prob%G( j ) = prob%G( j ) + prob%H%val( l ) * prob%X( i )
                 ELSE
-                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
               l = prob%H%ptr( i + 1 ) - 1
@@ -3978,7 +3978,7 @@
                 IF ( j <= prob%n ) THEN
                   prob%G( j ) = prob%G( j ) + prob%H%val( l ) * prob%X( i )
                 ELSE
-                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
             END DO
@@ -4014,7 +4014,7 @@
 
 !  general Hessian
 
-          ELSE 
+          ELSE
 
 !  rows with a diagonal entry
 
@@ -4045,19 +4045,19 @@
       ELSE IF ( yes_f ) THEN
 
 !  least-distance Hessian
-        
+
         IF ( prob%Hessian_kind == 1 ) THEN
           IF (  prob%target_kind == 0 ) THEN
             DO i = prob%n + 1, map%n
-              prob%f = prob%f + half * prob%X( i ) ** 2 
+              prob%f = prob%f + half * prob%X( i ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = prob%n + 1, map%n
-              prob%f = prob%f + half * ( prob%X( i ) - one ) ** 2 
+              prob%f = prob%f + half * ( prob%X( i ) - one ) ** 2
             END DO
           ELSE
             DO i = prob%n + 1, map%n
-              prob%f = prob%f + half * ( prob%X( i ) - prob%X0( i ) ) ** 2 
+              prob%f = prob%f + half * ( prob%X( i ) - prob%X0( i ) ) ** 2
             END DO
           END IF
 
@@ -4067,17 +4067,17 @@
           IF (  prob%target_kind == 0 ) THEN
             DO i = prob%n + 1, map%n
               prob%f = prob%f + half *                                         &
-                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2 
+                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = prob%n + 1, map%n
               prob%f = prob%f + half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2
             END DO
           ELSE
             DO i = prob%n + 1, map%n
               prob%f = prob%f + half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2
             END DO
           END IF
 
@@ -4098,7 +4098,7 @@
 
             CALL LMS_apply_lbfgs( map%W, prob%H_lm, i )
 
-! form f -> f + 1/2 <x_x,H_{xx} x_x> 
+! form f -> f + 1/2 <x_x,H_{xx} x_x>
 
             DO j = prob%n + 1, map%n
               prob%f = prob%f + half * prob%X( j ) * map%W( j )
@@ -4106,7 +4106,7 @@
 
 !  general Hessian
 
-          ELSE 
+          ELSE
 
 !  rows with a diagonal entry
 
@@ -4114,7 +4114,7 @@
               DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 2
                 j = prob%H%col( l )
                 IF ( j > prob%n ) THEN
-                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
               l = prob%H%ptr( i + 1 ) - 1
@@ -4128,7 +4128,7 @@
               DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1
                 j = prob%H%col( l )
                 IF ( j > prob%n ) THEN
-                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f + prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
             END DO
@@ -4152,7 +4152,7 @@
         END DO
       END IF
 
-      RETURN  
+      RETURN
 
 !  End of QPP_remove_fixed
 
@@ -4175,14 +4175,14 @@
 !   map      see Subroutine QPP_initialize
 !   prob%    see Subroutine QPP_reorder
 !   f        LOGICAL. If true, adjust f to account for fixed variables via
-!              f -> f - <g_x,x_x> - 1/2 <x_x,H_{xx} x_x> 
+!              f -> f - <g_x,x_x> - 1/2 <x_x,H_{xx} x_x>
 !            where x = (x_r,x_x ) (etc)
 !   g        LOGICAL. If true, adjust g to account for fixed variables via
 !              g_r -> g_r - H_{xr} x_x
-!   c        LOGICAL. If true, adjust c to account for fixed variables via 
+!   c        LOGICAL. If true, adjust c to account for fixed variables via
 !              c <- c + A_x x_x
-!   c_bounds LOGICAL. If true, adjust c_l and c_u to account for fixed 
-!            variables via 
+!   c_bounds LOGICAL. If true, adjust c_l and c_u to account for fixed
+!            variables via
 !              c_l <- c_l + A_x x_x and c_u <- c_u + A_x x_x
 
 !  Dummy arguments
@@ -4228,19 +4228,19 @@
       IF ( yes_g .AND. yes_f ) THEN
 
 !  least-distance Hessian
-        
+
         IF ( prob%Hessian_kind == 1 ) THEN
           IF (  prob%target_kind == 0 ) THEN
             DO i = map%n_reordered + 1, map%n
-              prob%f = prob%f - half * prob%X( i ) ** 2 
+              prob%f = prob%f - half * prob%X( i ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = map%n_reordered + 1, map%n
-              prob%f = prob%f - half * ( prob%X( i ) - one ) ** 2 
+              prob%f = prob%f - half * ( prob%X( i ) - one ) ** 2
             END DO
           ELSE
             DO i = map%n_reordered + 1, map%n
-              prob%f = prob%f - half * ( prob%X( i ) - prob%X0( i ) ) ** 2 
+              prob%f = prob%f - half * ( prob%X( i ) - prob%X0( i ) ) ** 2
             END DO
           END IF
 
@@ -4250,17 +4250,17 @@
           IF (  prob%target_kind == 0 ) THEN
             DO i = map%n_reordered + 1, map%n
               prob%f = prob%f - half *                                         &
-                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2 
+                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = map%n_reordered + 1, map%n
               prob%f = prob%f - half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2
             END DO
           ELSE
             DO i = map%n_reordered + 1, map%n
               prob%f = prob%f - half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2
             END DO
           END IF
 
@@ -4287,7 +4287,7 @@
               prob%G( j ) = prob%G( j ) - map%W( j )
             END DO
 
-! form f -> f - 1/2 <x_x,H_{xx} x_x> 
+! form f -> f - 1/2 <x_x,H_{xx} x_x>
 
             DO j = prob%n + 1, map%n
               prob%f = prob%f - half * prob%X( j ) * map%W( j )
@@ -4305,7 +4305,7 @@
                 IF ( j <= map%n_reordered ) THEN
                   prob%G( j ) = prob%G( j ) - prob%H%val( l ) * prob%X( i )
                 ELSE
-                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
               l = prob%H%ptr( i + 1 ) - 1
@@ -4321,7 +4321,7 @@
                 IF ( j <= map%n_reordered ) THEN
                   prob%G( j ) = prob%G( j ) - prob%H%val( l ) * prob%X( i )
                 ELSE
-                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
             END DO
@@ -4331,7 +4331,7 @@
 !  process g separately
 
       ELSE IF ( yes_g ) THEN
-        
+
 !  non-least-distance Hessian
 
         IF ( prob%Hessian_kind < 0 ) THEN
@@ -4357,7 +4357,7 @@
 
 !  general Hessian
 
-          ELSE 
+          ELSE
 
 !  rows with a diagonal entry
 
@@ -4388,19 +4388,19 @@
       ELSE IF ( yes_f ) THEN
 
 !  least-distance Hessian
-        
+
         IF ( prob%Hessian_kind == 1 ) THEN
           IF (  prob%target_kind == 0 ) THEN
             DO i = map%n_reordered + 1, map%n
-              prob%f = prob%f - half * prob%X( i ) ** 2 
+              prob%f = prob%f - half * prob%X( i ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = map%n_reordered + 1, map%n
-              prob%f = prob%f - half * ( prob%X( i ) - one ) ** 2 
+              prob%f = prob%f - half * ( prob%X( i ) - one ) ** 2
             END DO
           ELSE
             DO i = map%n_reordered + 1, map%n
-              prob%f = prob%f - half * ( prob%X( i ) - prob%X0( i ) ) ** 2 
+              prob%f = prob%f - half * ( prob%X( i ) - prob%X0( i ) ) ** 2
             END DO
           END IF
 
@@ -4410,17 +4410,17 @@
           IF (  prob%target_kind == 0 ) THEN
             DO i = map%n_reordered + 1, map%n
               prob%f = prob%f - half *                                         &
-                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2 
+                ( prob%WEIGHT( i ) * prob%X( i ) ) ** 2
             END DO
           ELSE IF (  prob%target_kind == 1 ) THEN
             DO i = map%n_reordered + 1, map%n
               prob%f = prob%f - half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - one ) ) ** 2
             END DO
           ELSE
             DO i = map%n_reordered + 1, map%n
               prob%f = prob%f - half *                                         &
-                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2 
+                ( prob%WEIGHT( i ) * ( prob%X( i ) - prob%X0( i ) ) ) ** 2
             END DO
           END IF
 
@@ -4441,7 +4441,7 @@
 
             CALL LMS_apply_lbfgs( map%W, prob%H_lm, i )
 
-!  form f -> f - 1/2 <x_x,H_{xx} x_x> 
+!  form f -> f - 1/2 <x_x,H_{xx} x_x>
 
             DO j = prob%n + 1, map%n
               prob%f = prob%f - half * prob%X( j ) * map%W( j )
@@ -4457,7 +4457,7 @@
               DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 2
                 j = prob%H%col( l )
                 IF ( j > map%n_reordered ) THEN
-                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
               l = prob%H%ptr( i + 1 ) - 1
@@ -4471,7 +4471,7 @@
               DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1
                 j = prob%H%col( l )
                 IF ( j > map%n_reordered ) THEN
-                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i ) 
+                  prob%f = prob%f - prob%X( j ) * prob%H%val( l ) * prob%X( i )
                 END IF
               END DO
             END DO
@@ -4534,7 +4534,7 @@
         END DO
       END IF
 
-      RETURN  
+      RETURN
 
 !  End of QPP_add_fixed
 
@@ -4588,7 +4588,3 @@
 !  End of module QPP
 
    END MODULE GALAHAD_QPP_double
-
-
-
-

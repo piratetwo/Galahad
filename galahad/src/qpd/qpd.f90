@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 12/09/2013 AT 14:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ Q P D  M O D U L E  -*-*-*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.0. August 10th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
 !     -----------------------------------------------------
@@ -19,9 +19,10 @@
 
    MODULE GALAHAD_QPD_double
 
-     USE GALAHAD_STRING_double, ONLY: STRING_real_12
+     USE GALAHAD_STRING, ONLY: STRING_real_12
      USE GALAHAD_SYMBOLS
      USE GALAHAD_RAND_double, ONLY: RAND_seed
+     USE GALAHAD_SMT_double, ONLY: SMT_put, SMT_get
      USE GALAHAD_SILS_double, ONLY: SILS_factors, SILS_control,                &
                                     SILS_ainfo, SILS_finfo, SMT_type
      USE GALAHAD_ULS_double, ONLY: ULS_data_type, ULS_control_type
@@ -30,14 +31,13 @@
      USE GALAHAD_CRO_double, ONLY: CRO_data_type, CRO_control_type
      USE GALAHAD_FDC_double, ONLY: FDC_data_type, FDC_control_type
      USE GALAHAD_GLTR_double, ONLY: GLTR_data_type, GLTR_control_type
+     USE GALAHAD_LPQP_double, ONLY: LPQP_data_type, LPQP_control_type
      USE GALAHAD_FIT_double, ONLY: FIT_data_type
      USE GALAHAD_ROOTS_double, ONLY: ROOTS_data_type
-     USE GALAHAD_SCU_double, ONLY: SCU_matrix_type, SCU_info_type,             &
+     USE GALAHAD_SCU_double, ONLY: SCU_matrix_type, SCU_inform_type,           &
                                    SCU_data_type
      USE GALAHAD_LMS_double, ONLY: LMS_control_type, LMS_inform_type,          &
                                    LMS_apply_lbfgs
-!    USE GALAHAD_LMT_double, LMS_control_type => LMT_control_type,             &
-!                            LMS_inform_type => LMT_inform_type
      USE GALAHAD_QPP_double, QPD_dims_type => QPP_dims_type
      USE GALAHAD_SCALE_double, ONLY: SCALE_trans_type, SCALE_data_type
      USE GALAHAD_PRESOLVE_double, ONLY: PRESOLVE_data_type,                    &
@@ -91,6 +91,12 @@
        LOGICAL :: tried_to_remove_deps = .FALSE.
        LOGICAL :: save_structure = .TRUE.
 
+!  L1QP components
+
+       LOGICAL :: new_problem_structure_dqp
+       LOGICAL :: save_structure_dqp = .TRUE.
+       LOGICAL :: is_lp
+
 !  EQP scalar components
 
        INTEGER :: n_depen = 0
@@ -104,8 +110,9 @@
        INTEGER :: n_active = 0
        INTEGER :: m_ref = 0
        LOGICAL :: refactor = .TRUE.
-       REAL ( KIND = wp ) :: cpu_total = 0.0
-       REAL ( KIND = wp ) :: clock_total = 0.0
+       LOGICAL :: subspace_direct = .FALSE.
+       REAL :: cpu_total = 0.0
+       REAL ( KIND = wp ) :: clock_total = 0.0_wp
 
 ! -----------------------
 !  Allocatable components
@@ -115,6 +122,7 @@
 
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_stat
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: B_stat
+       INTEGER, ALLOCATABLE, DIMENSION( : ) :: X_stat
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: Abycol_row
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: Abycol_ptr
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_status
@@ -237,7 +245,7 @@
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: S_col
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: S_colptr
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: S_row
-       INTEGER, ALLOCATABLE, DIMENSION( : ) :: X_up_or_low 
+       INTEGER, ALLOCATABLE, DIMENSION( : ) :: X_up_or_low
 
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: A_norms
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: B
@@ -338,6 +346,7 @@
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: GV
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: G
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: PV
+       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: HPV
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: DV
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: U
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: H
@@ -371,12 +380,17 @@
        TYPE ( SILS_ainfo ) :: AINFO
        TYPE ( SILS_finfo ) :: FINFO
        TYPE ( SCU_matrix_type ) :: SCU_mat
-       TYPE ( SCU_info_type ) :: SCU_info
+       TYPE ( SCU_inform_type ) :: SCU_info
        TYPE ( SCU_data_type ) :: SCU_data
 
 !  EQP derived type components
 
         TYPE ( SMT_type ) :: C0
+
+!  L1QP derived type components
+
+       TYPE ( QPP_map_type ) :: QPP_map_dqp
+       TYPE ( QPD_dims_type ) :: dims_dqp
 
 !  SCALE derived type components
 
@@ -387,6 +401,11 @@
 
        TYPE ( PRESOLVE_data_type ) :: PRESOLVE_data
        TYPE ( PRESOLVE_control_type ) :: PRESOLVE_control
+
+!  LPQP derived type components
+
+       TYPE ( LPQP_data_type ) :: LPQP_data
+       TYPE ( LPQP_control_type ) :: LPQP_control
 
 !  ULS derived type components
 
@@ -496,58 +515,58 @@
       IF ( PRESENT( semibw ) ) THEN
 
         IF ( op( 1 : 1 ) == '+' ) THEN
-  
+
 !  r <- r + H * x (commented out since it is not used at present)
-  
+
 !         DO type = 1, 6
-    
+
 !           SELECT CASE( type )
 !           CASE ( 1 )
-    
+
 !             hd_start  = 1
 !             hd_end    = dims%h_diag_end_free
 !             hnd_start = hd_end + 1
 !             hnd_end   = dims%x_free
-    
+
 !           CASE ( 2 )
-    
+
 !             hd_start  = dims%x_free + 1
 !             hd_end    = dims%h_diag_end_nonneg
 !             hnd_start = hd_end + 1
 !             hnd_end   = dims%x_l_start - 1
-    
+
 !           CASE ( 3 )
-    
+
 !             hd_start  = dims%x_l_start
 !             hd_end    = dims%h_diag_end_lower
 !             hnd_start = hd_end + 1
 !             hnd_end   = dims%x_u_start - 1
-    
+
 !           CASE ( 4 )
-    
+
 !             hd_start  = dims%x_u_start
 !             hd_end    = dims%h_diag_end_range
 !             hnd_start = hd_end + 1
 !             hnd_end   = dims%x_l_end
-    
+
 !           CASE ( 5 )
-    
+
 !             hd_start  = dims%x_l_end + 1
 !             hd_end    = dims%h_diag_end_upper
 !             hnd_start = hd_end + 1
 !             hnd_end   = dims%x_u_end
-    
+
 !           CASE ( 6 )
-    
+
 !             hd_start  = dims%x_u_end + 1
 !             hd_end    = dims%h_diag_end_nonpos
 !             hnd_start = hd_end + 1
 !             hnd_end   = n
-    
+
 !           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
 !           hd_end = MIN( hd_end, n )
 !           DO i = hd_start, hd_end
 !             DO l = H_band_ptr( i ), H_ptr( i + 1 ) - 2
@@ -558,9 +577,9 @@
 !             R( i ) = R( i ) + H_val( H_ptr( i + 1 ) - 1 ) * X( i )
 !           END DO
 !           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
 !           hnd_end = MIN( hnd_end, n )
 !           DO i = hnd_start, hnd_end
 !             DO l = H_band_ptr( i ), H_ptr( i + 1 ) - 1
@@ -570,61 +589,61 @@
 !             END DO
 !           END DO
 !           IF ( hnd_end == n ) EXIT
-    
+
 !         END DO
         ELSE
-  
+
 !  r <- r - H * x
 
           DO type = 1, 6
-    
+
             SELECT CASE( type )
             CASE ( 1 )
-    
+
               hd_start  = 1
               hd_end    = dims%h_diag_end_free
               hnd_start = hd_end + 1
               hnd_end   = dims%x_free
-    
+
             CASE ( 2 )
-    
+
               hd_start  = dims%x_free + 1
               hd_end    = dims%h_diag_end_nonneg
               hnd_start = hd_end + 1
               hnd_end   = dims%x_l_start - 1
-    
+
             CASE ( 3 )
-    
+
               hd_start  = dims%x_l_start
               hd_end    = dims%h_diag_end_lower
               hnd_start = hd_end + 1
               hnd_end   = dims%x_u_start - 1
-    
+
             CASE ( 4 )
-    
+
               hd_start  = dims%x_u_start
               hd_end    = dims%h_diag_end_range
               hnd_start = hd_end + 1
               hnd_end   = dims%x_l_end
-    
+
             CASE ( 5 )
-    
+
               hd_start  = dims%x_l_end + 1
               hd_end    = dims%h_diag_end_upper
               hnd_start = hd_end + 1
               hnd_end   = dims%x_u_end
-    
+
             CASE ( 6 )
-    
+
               hd_start  = dims%x_u_end + 1
               hd_end    = dims%h_diag_end_nonpos
               hnd_start = hd_end + 1
               hnd_end   = n
-    
+
             END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
             hd_end = MIN( hd_end, n )
             DO i = hd_start, hd_end
               xi = X( i )
@@ -637,9 +656,9 @@
               R( i ) = ri - H_val( H_ptr( i + 1 ) - 1 ) * xi
             END DO
             IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
             hnd_end = MIN( hnd_end, n )
             DO i = hnd_start, hnd_end
               xi = X( i )
@@ -652,7 +671,7 @@
               R( i ) = ri
             END DO
             IF ( hnd_end == n ) EXIT
-    
+
           END DO
         END IF
 
@@ -660,58 +679,58 @@
 
       ELSE
         IF ( op( 1 : 1 ) == '+' ) THEN
-  
+
 !  r <- r + H * x
-  
+
           DO type = 1, 6
-    
+
             SELECT CASE( type )
             CASE ( 1 )
-    
+
               hd_start  = 1
               hd_end    = dims%h_diag_end_free
               hnd_start = hd_end + 1
               hnd_end   = dims%x_free
-    
+
             CASE ( 2 )
-    
+
               hd_start  = dims%x_free + 1
               hd_end    = dims%h_diag_end_nonneg
               hnd_start = hd_end + 1
               hnd_end   = dims%x_l_start - 1
-    
+
             CASE ( 3 )
-    
+
               hd_start  = dims%x_l_start
               hd_end    = dims%h_diag_end_lower
               hnd_start = hd_end + 1
               hnd_end   = dims%x_u_start - 1
-    
+
             CASE ( 4 )
-    
+
               hd_start  = dims%x_u_start
               hd_end    = dims%h_diag_end_range
               hnd_start = hd_end + 1
               hnd_end   = dims%x_l_end
-    
+
             CASE ( 5 )
-    
+
               hd_start  = dims%x_l_end + 1
               hd_end    = dims%h_diag_end_upper
               hnd_start = hd_end + 1
               hnd_end   = dims%x_u_end
-    
+
             CASE ( 6 )
-    
+
               hd_start  = dims%x_u_end + 1
               hd_end    = dims%h_diag_end_nonpos
               hnd_start = hd_end + 1
               hnd_end   = n
-    
+
             END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
             hd_end = MIN( hd_end, n )
             DO i = hd_start, hd_end
               xi = X( i )
@@ -724,9 +743,9 @@
               R( i ) = ri + H_val( H_ptr( i + 1 ) - 1 ) * xi
             END DO
             IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
             hnd_end = MIN( hnd_end, n )
             DO i = hnd_start, hnd_end
               xi = X( i )
@@ -739,61 +758,61 @@
               R( i ) = ri
             END DO
             IF ( hnd_end == n ) EXIT
-    
+
           END DO
         ELSE
-  
+
 !  r <- r - H * x
-  
+
           DO type = 1, 6
-    
+
             SELECT CASE( type )
             CASE ( 1 )
-    
+
               hd_start  = 1
               hd_end    = dims%h_diag_end_free
               hnd_start = hd_end + 1
               hnd_end   = dims%x_free
-    
+
             CASE ( 2 )
-    
+
               hd_start  = dims%x_free + 1
               hd_end    = dims%h_diag_end_nonneg
               hnd_start = hd_end + 1
               hnd_end   = dims%x_l_start - 1
-    
+
             CASE ( 3 )
-    
+
               hd_start  = dims%x_l_start
               hd_end    = dims%h_diag_end_lower
               hnd_start = hd_end + 1
               hnd_end   = dims%x_u_start - 1
-    
+
             CASE ( 4 )
-    
+
               hd_start  = dims%x_u_start
               hd_end    = dims%h_diag_end_range
               hnd_start = hd_end + 1
               hnd_end   = dims%x_l_end
-    
+
             CASE ( 5 )
-    
+
               hd_start  = dims%x_l_end + 1
               hd_end    = dims%h_diag_end_upper
               hnd_start = hd_end + 1
               hnd_end   = dims%x_u_end
-    
+
             CASE ( 6 )
-    
+
               hd_start  = dims%x_u_end + 1
               hd_end    = dims%h_diag_end_nonpos
               hnd_start = hd_end + 1
               hnd_end   = n
-    
+
             END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
             hd_end = MIN( hd_end, n )
             DO i = hd_start, hd_end
               xi = X( i )
@@ -806,9 +825,9 @@
               R( i ) = ri - H_val( H_ptr( i + 1 ) - 1 ) * xi
             END DO
             IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
             hnd_end = MIN( hnd_end, n )
             DO i = hnd_start, hnd_end
               xi = X( i )
@@ -821,7 +840,7 @@
               R( i ) = ri
             END DO
             IF ( hnd_end == n ) EXIT
-    
+
           END DO
         END IF
       END IF
@@ -854,7 +873,7 @@
 !          '+T'   r <- r + A^T * x
 !          '- '   r <- r - A * x
 !          '-T'   r <- r - A^T * x
- 
+
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
@@ -971,58 +990,58 @@
 !  For a banded portion of H
 
       IF ( PRESENT( semibw ) ) THEN
-  
+
 !  r <- r + | H * x |
 
         DO type = 1, 6
-  
+
           SELECT CASE( type )
           CASE ( 1 )
-  
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-  
+
           CASE ( 2 )
-  
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-  
+
           CASE ( 3 )
-  
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-  
+
           CASE ( 4 )
-  
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-  
+
           CASE ( 5 )
-  
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-  
+
           CASE ( 6 )
-  
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-  
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             xi = X( i )
@@ -1035,9 +1054,9 @@
             R( i ) = ri + ABS( H_val( H_ptr( i + 1 ) - 1 ) * xi )
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             xi = X( i )
@@ -1050,64 +1069,64 @@
             R( i ) = ri
           END DO
           IF ( hnd_end == n ) EXIT
-  
+
         END DO
 
 !  For the whole of H
 
       ELSE
-  
+
 !  r <- r + | H * x |
-  
+
         DO type = 1, 6
-    
+
           SELECT CASE( type )
           CASE ( 1 )
-    
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-    
+
           CASE ( 2 )
-    
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-    
+
           CASE ( 3 )
-    
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-    
+
           CASE ( 4 )
-    
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-    
+
           CASE ( 5 )
-    
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-    
+
           CASE ( 6 )
-    
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-    
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             xi = X( i )
@@ -1120,9 +1139,9 @@
             R( i ) = ri + H_val( H_ptr( i + 1 ) - 1 ) * xi
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             xi = X( i )
@@ -1135,7 +1154,7 @@
             R( i ) = ri
           END DO
           IF ( hnd_end == n ) EXIT
-    
+
         END DO
       END IF
       RETURN
@@ -1166,7 +1185,7 @@
 !   op     1 string character: possible values are
 !          ' '   r <- r + | A | * | x |
 !          'T'   r <- r + | A^T | * | x |
- 
+
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
@@ -1218,7 +1237,7 @@
       SUBROUTINE QPD_SIF( prob, file_name, sif, infinity, qp,                  &
                           no_linear, no_bounds, just_equality )
 
-!  Write a SIF to the file file_name on unit sif for the input 
+!  Write a SIF to the file file_name on unit sif for the input
 !  linear (qp = .false.) or quadratic program (qp = .true.) from data
 !  in prob (see QPP for details on the required data for prob).
 !  problem bounds larger than infinity are regarded as infinite, while
@@ -1230,7 +1249,7 @@
       TYPE ( QPT_problem_type ), INTENT( INOUT ) :: prob
       INTEGER, INTENT( IN ) :: sif
       CHARACTER ( LEN = 30 ) :: file_name
-      REAL ( KIND = wp ), INTENT( IN ) :: infinity 
+      REAL ( KIND = wp ), INTENT( IN ) :: infinity
       LOGICAL, INTENT( IN ) :: qp
       LOGICAL, OPTIONAL, INTENT( IN ) :: no_linear, no_bounds, just_equality
 
@@ -1596,13 +1615,13 @@
 
       IF ( prob%Hessian_kind < 0 ) THEN
         SELECT CASE ( SMT_get( prob%H%type ) )
-        CASE ( 'IDENTITY' ) 
+        CASE ( 'IDENTITY' )
           prob%X( : prob%n ) = one
-        CASE ( 'SCALED_IDENTITY' ) 
+        CASE ( 'SCALED_IDENTITY' )
           prob%X( : prob%n ) = prob%H%val( 1 )
-        CASE ( 'DIAGONAL' ) 
+        CASE ( 'DIAGONAL' )
           prob%X( : prob%n ) = prob%H%val( : prob%n )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, prob%n
             DO j = 1, i
@@ -1656,7 +1675,7 @@
       DO i = 1, prob%n
         x_l = prob%X_l( i ) ; x_u = prob%X_u( i )
         IF ( x_l > x_u ) THEN
-          feasible = .FALSE. 
+          feasible = .FALSE.
           status = GALAHAD_error_primal_infeasible ; RETURN
         END IF
         IF ( prob%gradient_kind == 0 ) THEN
@@ -1712,7 +1731,7 @@
 
         ELSE IF ( h < zero ) THEN
 
-!  The objective is unbounded 
+!  The objective is unbounded
 
           IF ( x_l < - infinity ) THEN
             status = GALAHAD_error_unbounded
@@ -1749,7 +1768,7 @@
           IF ( g > zero ) THEN
             prob%X( i ) = x_l
 
-!  The objective is unbounded 
+!  The objective is unbounded
 
             IF ( x_l < - infinity ) THEN
               status = GALAHAD_error_unbounded
@@ -1765,7 +1784,7 @@
           ELSE IF ( g < zero ) THEN
             prob%X( i ) = x_u
 
-!  The objective is unbounded 
+!  The objective is unbounded
 
             IF ( x_u > infinity ) THEN
               status = GALAHAD_error_unbounded

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.3 - 30/06/2008 AT 14:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 03/02/2020 AT 11:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ I R   M O D U L E  -*-*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   originally released GALAHAD Version 2.3. June 30th 2008
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_IR_double
@@ -27,7 +27,7 @@
       USE GALAHAD_SLS_double
       USE GALAHAD_SPECFILE_double
       IMPLICIT NONE
-     
+
       PRIVATE
       PUBLIC :: IR_initialize, IR_read_specfile, IR_terminate,                 &
                 IR_solve, SMT_type, SMT_put, SMT_get
@@ -51,9 +51,9 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: IR_control_type
 
@@ -73,11 +73,18 @@
 
         INTEGER :: itref_max = 1
 
-!  refinement will cease as soon as the residual ||Ax-b|| falls below 
+!  refinement will cease as soon as the residual ||Ax-b|| falls below
 !    max( acceptable_residual_relative * ||b||, acceptable_residual_absolute )
 
         REAL ( KIND = wp ) :: acceptable_residual_relative  = ten * epsmch
         REAL ( KIND = wp ) :: acceptable_residual_absolute  = ten * epsmch
+
+!  refinement will be judged to have failed if the residual
+!   ||Ax-b|| >= required_residual_relative * ||b||
+!  No checking if required_residual_relative < 0
+
+!       REAL ( KIND = wp ) :: required_residual_relative = epsmch ** 0.2
+        REAL ( KIND = wp ) :: required_residual_relative = ten ** ( - 3 )
 
 !  record the initial and final residual
 
@@ -91,16 +98,16 @@
 
         LOGICAL :: deallocate_error_fatal  = .FALSE.
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix  = '""                            '
       END TYPE
 
 !  - - - - - - - - - -
-!   data derived type 
+!   data derived type
 !  - - - - - - - - - -
 
       TYPE, PUBLIC :: IR_data_type
@@ -108,9 +115,9 @@
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: B, RES
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: IR_inform_type
 
@@ -160,15 +167,18 @@
 
       TYPE ( IR_data_type ), INTENT( INOUT ) :: data
       TYPE ( IR_control_type ), INTENT( OUT ) :: control
-      TYPE ( IR_inform_type ), INTENT( OUT ) :: inform        
+      TYPE ( IR_inform_type ), INTENT( OUT ) :: inform
 
+!  revise control parameters (not all compilers currently support fortran 2013)
+
+      control%required_residual_relative = epsmch ** 0.2
       inform%status = GALAHAD_ok
 
 !  Set initial data value
 
       data%n = 0
 
-      RETURN  
+      RETURN
 
 !  End of IR_initialize
 
@@ -178,10 +188,10 @@
 
       SUBROUTINE IR_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by IR_initialize could (roughly) 
+!  The defauly values as given by IR_initialize could (roughly)
 !  have been set as:
 
 !  BEGIN IR SPECIFICATIONS (DEFAULT)
@@ -191,6 +201,7 @@
 !   maximum-refinements                            1
 !   acceptable-residual-relative                   2.0D-15
 !   acceptable-residual-absolute                   2.0D-15
+!   required-residual-relative                     1.0D-3
 !   record-residuals                               F
 !   space-critical                                 F
 !   deallocate-error-fatal                         F
@@ -199,7 +210,7 @@
 
 !  Dummy arguments
 
-      TYPE ( IR_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( IR_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -214,7 +225,9 @@
       INTEGER, PARAMETER :: acceptable_residual_relative = itref_max + 1
       INTEGER, PARAMETER :: acceptable_residual_absolute                       &
                               = acceptable_residual_relative + 1
-      INTEGER, PARAMETER :: record_residuals = acceptable_residual_absolute + 1
+      INTEGER, PARAMETER :: required_residual_relative                         &
+                              = acceptable_residual_absolute + 1
+      INTEGER, PARAMETER :: record_residuals = required_residual_relative + 1
       INTEGER, PARAMETER :: space_critical = record_residuals + 1
       INTEGER, PARAMETER :: deallocate_error_fatal = space_critical + 1
       INTEGER, PARAMETER :: prefix = deallocate_error_fatal + 1
@@ -230,15 +243,17 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
       spec( itref_max )%keyword = 'maximum-refinements'
 
 !  Real key-words
 
-      spec( acceptable_residual_relative )%keyword                            &
+      spec( acceptable_residual_relative )%keyword                             &
         = 'acceptable-residual-relative'
-      spec( acceptable_residual_absolute )%keyword                            &
+      spec( acceptable_residual_absolute )%keyword                             &
         = 'acceptable-residual-absolute'
+      spec( required_residual_relative )%keyword                               &
+        = 'required-residual-relative'
 
 !  Logical key-words
 
@@ -308,7 +323,7 @@
       SUBROUTINE IR_solve( A, X, data, SLS_data, control, SLS_control,         &
                            inform, SLS_inform )
 
-!  Given a symmetric matrix A and its SLS factors, solve the system 
+!  Given a symmetric matrix A and its SLS factors, solve the system
 !  A x = b. b is input in X, and the solution x overwrites X
 
 !  Dummy arguments
@@ -326,9 +341,10 @@
 
       INTEGER :: i, j, l, iter, n
       REAL ( KIND = wp ) :: residual, residual_zero, val
+      LOGICAL :: print_more
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
@@ -358,6 +374,7 @@
         END IF
         data%B( : n ) = X( : n )
       END IF
+      print_more = control%print_level > 1 .AND. control%out > 0
 
 !  No refinement is required
 !  -------------------------
@@ -366,8 +383,12 @@
 
 !  record the initial residuals if required
 
-        IF ( control%record_residuals )                                        &
+        IF ( control%record_residuals .OR. print_more ) THEN
           residual_zero = MAXVAL( ABS( data%B( : n ) ) )
+          IF ( print_more )                                                    &
+            WRITE( control%out, "( A, ' maximum residual, sol ', 2ES24.16 )" ) &
+              prefix, residual_zero, zero
+        END IF
 
 !  Solve A x = b
 
@@ -390,7 +411,8 @@
 
 !  record the final residuals if required
 
-        IF ( control%record_residuals ) THEN
+        IF ( control%record_residuals .OR. print_more .OR.                     &
+             control%required_residual_relative >= zero ) THEN
           data%RES = data%B
           DO l = 1, A%ne
             i = A%row( l ) ; j = A%col( l )
@@ -400,6 +422,15 @@
               data%RES( j ) = data%RES( j ) - val * X( i )
           END DO
           residual = MAXVAL( ABS( data%RES( : n ) ) )
+
+          IF ( print_more )                                                    &
+            WRITE( control%out, "( A, ' maximum residual, sol ', 2ES24.16 )")  &
+              prefix, residual, MAXVAL( ABS( X( : n ) ) )
+
+!  check that sufficient reduction occured
+
+          IF ( residual > control%required_residual_relative * residual_zero ) &
+            inform%status = GALAHAD_error_solve
         END IF
 
 !  Iterative refinement is required
@@ -416,9 +447,9 @@
 
 !  Solve the system with iterative refinement
 
-        IF ( control%print_level > 1 .AND. control%out > 0 )                   &
+        IF ( print_more )                                                      &
           WRITE( control%out, "( A, ' maximum residual, sol ', 2ES24.16 )" )   &
-            prefix, MAXVAL( ABS( data%RES( : n ) ) ), zero
+            prefix, residual_zero, zero
 
         DO iter = 0, control%itref_max
 
@@ -445,7 +476,8 @@
 
 !  Form the residuals
 
-          IF ( iter < control%itref_max .OR. control%record_residuals ) THEN
+          IF ( iter < control%itref_max .OR. control%record_residuals .OR.     &
+                 control%required_residual_relative >= zero ) THEN
             data%RES = data%B
             DO l = 1, A%ne
               i = A%row( l ) ; j = A%col( l )
@@ -456,17 +488,26 @@
             END DO
             residual = MAXVAL( ABS( data%RES( : n ) ) )
 
-            IF ( control%print_level > 1 .AND. control%out > 0 )               &
+            IF ( print_more )                                                  &
               WRITE( control%out, "( A, ' maximum residual, sol ', 2ES24.16 )")&
                 prefix, residual, MAXVAL( ABS( X( : n ) ) )
 
             IF ( residual < MAX( control%acceptable_residual_absolute,         &
                    control%acceptable_residual_relative * residual_zero ) ) EXIT
+
+!  check that sufficient reduction occured
+
+            IF ( residual <=                                                   &
+                control%required_residual_relative * residual_zero ) THEN
+              inform%status = GALAHAD_ok
+            ELSE
+              inform%status = GALAHAD_error_solve
+            END IF
           END IF
         END DO
       END IF
 
-      IF ( control%record_residuals ) THEN 
+      IF ( control%record_residuals ) THEN
         inform%norm_initial_residual = residual_zero
         inform%norm_final_residual = residual
       END IF
@@ -501,7 +542,7 @@
 
 !  Dummy arguments
 
-      TYPE ( IR_control_type ), INTENT( IN ) :: control        
+      TYPE ( IR_control_type ), INTENT( IN ) :: control
       TYPE ( IR_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( IR_data_type ), INTENT( INOUT ) :: data
 

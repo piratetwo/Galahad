@@ -5,14 +5,14 @@
    IMPLICIT NONE
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 ) ! set precision
    REAL ( KIND = wp ), PARAMETER :: one = 1.0_wp, two = 2.0_wp
-   REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one ) 
+   REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one )
    INTEGER :: i, smt_stat, n, nn, pass, h_ne, m_ne, a_ne, data_storage_type
    INTEGER :: ia, im, ifa
    REAL ( KIND = wp ) :: f, sigma, p
    REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: X, C
    TYPE ( SMT_type ) :: H, M, A
    TYPE ( RQS_data_type ) :: data
-   TYPE ( RQS_control_type ) :: control        
+   TYPE ( RQS_control_type ) :: control
    TYPE ( RQS_inform_type ) :: inform
 
    CHARACTER ( len = 1 ) :: st, afa
@@ -42,10 +42,10 @@
    H%ne = 2 * n - 1
    ALLOCATE( H%val( H%ne ), H%row( H%ne ), H%col( H%ne ) )
    DO i = 1, n
-    H%row( i ) = i ; H%col( i ) = i ; H%val( i ) = - 2.0_wp 
+    H%row( i ) = i ; H%col( i ) = i ; H%val( i ) = - 2.0_wp
    END DO
    DO i = 1, n - 1
-    H%row( n + i ) = i + 1 ; H%col( n + i ) = i ; H%val( n + i ) = 1.0_wp 
+    H%row( n + i ) = i + 1 ; H%col( n + i ) = i ; H%val( n + i ) = 1.0_wp
    END DO
    CALL SMT_put( M%type, 'DIAGONAL', smt_stat )        ! Specify diagonal for M
    ALLOCATE( M%val( n ) ) ; M%val = 2.0_wp
@@ -68,7 +68,7 @@
        ELSE IF ( i == 2 ) THEN
          sigma = - one
        ELSE
-         p = 2.0_wp
+         p = 1.99_wp
        END IF
      ELSE IF ( pass == GALAHAD_error_preconditioner ) THEN
        M%val( 1 ) = - one
@@ -260,9 +260,9 @@
    DO pass = 1, 13
      C = (/ 5.0_wp, 0.0_wp, 4.0_wp /)
      CALL RQS_initialize( data, control, inform )
-     control%definite_linear_solver = 'ma57'
+!    control%definite_linear_solver = 'ma57'
      control%error = 23 ; control%out = 23 ; control%print_level = 10
-!     IF ( pass == 13 ) THEN 
+!     IF ( pass == 13 ) THEN
 !       control%error = 6 ; control%out = 6 ; control%print_level = 10 ; END IF
      sigma = one
      p = 3.0_wp

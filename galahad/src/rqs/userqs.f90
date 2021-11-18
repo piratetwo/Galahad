@@ -8,14 +8,14 @@
 
    MODULE GALAHAD_USERQS_double
 
-!  This is the driver program for running RQS for a variety of computing 
-!  systems. It opens and closes all the files, allocate arrays, reads and 
+!  This is the driver program for running RQS for a variety of computing
+!  systems. It opens and closes all the files, allocate arrays, reads and
 !  checks data, and calls the appropriate minimizers
 
      USE CUTEst_interface_double
      USE GALAHAD_SYMBOLS
      USE GALAHAD_RQS_double
-     USE GALAHAD_SPECFILE_double 
+     USE GALAHAD_SPECFILE_double
      USE GALAHAD_COPYRIGHT
      USE GALAHAD_SPACE_double
      IMPLICIT NONE
@@ -61,6 +61,7 @@
 !  Problem characteristics
 
      INTEGER :: n, nnzh
+     INTEGER :: n_threads = 1
      REAL ( KIND = wp ) ::  f
      CHARACTER ( LEN = 10 ) :: pname
      REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: X, X0, X_l, X_u, G
@@ -85,6 +86,10 @@
      REAL ( KIND = wp ) ::  order = 3.0_wp
      REAL ( KIND = wp ) ::  weight = 1.0_wp
 !    LOGICAL :: one_norm = .RQSE.
+
+!  Functions
+
+!$    INTEGER :: OMP_GET_MAX_THREADS
 
 !  Output file characteristics
 
@@ -137,8 +142,8 @@
        CALL SPECFILE_assign_real( spec( 12 ), order, errout )
        CALL SPECFILE_assign_real( spec( 13 ), weight, errout )
      END IF
-    
-!  Set copyright 
+
+!  Set copyright
 
      IF ( out > 0 ) CALL COPYRIGHT( out, '2008' )
 
@@ -169,7 +174,7 @@
 
 !  Evaluate the gradient
 
-     CALL CUTEST_ugr( cutest_status, n, X0, G )     
+     CALL CUTEST_ugr( cutest_status, n, X0, G )
      IF ( cutest_status /= 0 ) GO TO 910
 
 !  Use RQS
@@ -197,7 +202,7 @@
           OPEN( rqs_rfiledevice, FILE = rqs_rfilename, FORM = 'FORMATTED',     &
                 STATUS = 'NEW', IOSTAT = iores )
        END IF
-       IF ( iores /= 0 ) THEN 
+       IF ( iores /= 0 ) THEN
          write( errout, 2030 ) iores, rqs_rfilename
          STOP
        END IF
@@ -216,8 +221,14 @@
      CALL RQS_solve( n, order, weight, f, G, H, X, data, control, inform )
      IF ( control%print_level > 0 .AND. control%out > 0 )                      &
        WRITE( control%out, "( /, ' RQS used ' )" )
+     IF ( control%print_level > 0 .AND. control%out > 0 )                      &
+       WRITE( control%out, "( /, ' non-zeros and fill-in ', I0, 1X, I0,        &
+      &    ', solver: ', A )" ) nnzh, inform%SLS_inform%entries_in_factors,    &
+         TRIM( control%definite_linear_solver )
+!$    n_threads = OMP_GET_MAX_THREADS( )
+      WRITE( out, "( ' number of threads = ', I0 )" ) n_threads
 
-!  If required, append results to a file, 
+!  If required, append results to a file,
 
      IF ( write_result_summary ) THEN
        BACKSPACE( rqs_rfiledevice )
@@ -236,18 +247,18 @@
 
      IF ( control%print_level > 0 .AND. control%out > 0 ) THEN
        l = 2
-       IF ( fulsol ) l = n 
+       IF ( fulsol ) l = n
        IF ( control%print_level >= 10 ) l = n
 
        WRITE( errout, 2000 )
-       DO j = 1, 2 
-         IF ( j == 1 ) THEN 
-           ir = 1 ; ic = MIN( l, n ) 
-         ELSE 
-           IF ( ic < n - l ) WRITE( errout, 2010 ) 
+       DO j = 1, 2
+         IF ( j == 1 ) THEN
+           ir = 1 ; ic = MIN( l, n )
+         ELSE
+           IF ( ic < n - l ) WRITE( errout, 2010 )
            ir = MAX( ic + 1, n - ic + 1 ) ; ic = n
-         END IF 
-         DO i = ir, ic 
+         END IF
+         DO i = ir, ic
            WRITE( errout, 2020 ) i, VNAMES( i ), X( i )
          END DO
        END DO
@@ -274,7 +285,7 @@
           OPEN( rqs_sfiledevice, FILE = rqs_sfilename, FORM = 'FORMATTED',     &
                STATUS = 'NEW', IOSTAT = iores )
        END IF
-       IF ( iores /= 0 ) THEN 
+       IF ( iores /= 0 ) THEN
          write( out, 2030 ) iores, rqs_sfilename ; STOP ; END IF
        WRITE( rqs_sfiledevice, "( /, ' Problem:    ', A10, /, ' Solver :   ',  &
       &       A, /, ' Objective:', ES24.16 )" ) pname, solv, inform%obj
@@ -301,7 +312,7 @@
 
  2000 FORMAT( /, ' Solution: ', /, '      # name          value   ' )
  2010 FORMAT( 6X, '. .', 9X, ( 2X, 10( '.' ) ) )
- 2020 FORMAT( I7, 1X, A10, ES12.4 ) 
+ 2020 FORMAT( I7, 1X, A10, ES12.4 )
  2030 FORMAT( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )
  2040 FORMAT( A10, I6, 2ES16.8, I4, F9.2, I5 )
  2050 FORMAT( A10, I6, 2ES16.8, I4, F9.2, I5, 1X, A )

@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.4. February 16th, 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_GLTR_MATLAB_TYPES
@@ -48,8 +48,8 @@
         mwPointer :: status, alloc_status, bad_alloc
         mwPointer :: iter, iter_pass2
         mwPointer :: multiplier, mnormx, piv, curv, rayleigh, leftmost
-        mwPointer :: negative_curvature
-      END TYPE 
+        mwPointer :: negative_curvature, hard_case
+      END TYPE
     CONTAINS
 
 !-*-  G L T R _ M A T L A B _ C O N T R O L _ S E T  S U B R O U T I N E   -*-
@@ -134,7 +134,7 @@
         CASE( 'deallocate_error_fatal' )
           CALL MATLAB_get_value( ps, 'deallocate_error_fatal',                 &
                                  pc, GLTR_control%deallocate_error_fatal )
-        CASE( 'prefix' )                                           
+        CASE( 'prefix' )
           CALL galmxGetCharacter( ps, 'prefix',                                &
                                   pc, GLTR_control%prefix, len )
         END SELECT
@@ -263,14 +263,15 @@
 
       mwPointer :: mxCreateStructMatrix
 
-      INTEGER * 4, PARAMETER :: ninform = 12
+      INTEGER * 4, PARAMETER :: ninform = 13
       CHARACTER ( LEN = 21 ), PARAMETER :: finform( ninform ) = (/             &
            'status               ', 'alloc_status         ',                   &
            'bad_alloc            ', 'iter                 ',                   &
            'iter_pass2           ', 'multiplier           ',                   &
            'mnormx               ', 'piv                  ',                   &
            'curv                 ', 'rayleigh             ',                   &
-           'leftmost             ', 'negative_curvature   ' /)
+           'leftmost             ', 'negative_curvature   ',                   &
+           'hard_case            '                              /)
 
 !  create the structure
 
@@ -296,6 +297,8 @@
         'iter_pass2', GLTR_pointer%iter_pass2 )
       CALL MATLAB_create_logical_component( GLTR_pointer%pointer,              &
         'negative_curvature', GLTR_pointer%negative_curvature )
+      CALL MATLAB_create_logical_component( GLTR_pointer%pointer,              &
+        'hard_case', GLTR_pointer%hard_case )
       CALL MATLAB_create_real_component( GLTR_pointer%pointer,                 &
         'multiplier',  GLTR_pointer%multiplier )
       CALL MATLAB_create_real_component( GLTR_pointer%pointer,                 &
@@ -330,7 +333,7 @@
 
 !  --------------------------------------------------------------
 
-      TYPE ( GLTR_info_type ) :: GLTR_inform
+      TYPE ( GLTR_inform_type ) :: GLTR_inform
       TYPE ( GLTR_pointer_type ) :: GLTR_pointer
 
 !  local variables
@@ -361,6 +364,8 @@
                                mxGetPr( GLTR_pointer%leftmost ) )
       CALL MATLAB_copy_to_ptr( GLTR_inform%negative_curvature,                 &
                                mxGetPr( GLTR_pointer%negative_curvature ) )
+      CALL MATLAB_copy_to_ptr( GLTR_inform%hard_case,                          &
+                               mxGetPr( GLTR_pointer%hard_case ) )
 
       RETURN
 

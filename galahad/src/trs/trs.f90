@@ -12,7 +12,7 @@
 !   modified to allow dense factorization, October 25th, 2011
 !   modified to include TRACE contract, October 26th, 2014
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_TRS_double
@@ -40,14 +40,15 @@
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
       USE GALAHAD_SLS_double
       USE GALAHAD_IR_double
-      USE GALAHAD_MOP_double
+      USE GALAHAD_MOP_double, ONLY: mop_AX
       USE GALAHAD_LAPACK_interface, ONLY : SYEV, SYGV
 
       IMPLICIT NONE
 
       PRIVATE
       PUBLIC :: TRS_initialize, TRS_read_specfile, TRS_solve, TRS_terminate,   &
-                TRS_contract, SMT_type, SMT_put, SMT_get
+                TRS_contract, TRS_solve_diagonal, TRS_orthogonal_solve,        &
+                SMT_type, SMT_put, SMT_get
 
 !--------------------
 !   P r e c i s i o n
@@ -63,6 +64,7 @@
       INTEGER, PARAMETER :: history_max = 100
       INTEGER, PARAMETER :: max_degree = 3
       INTEGER, PARAMETER :: n_dense = 100
+      INTEGER, PARAMETER :: it_stalled = 100
       REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
       REAL ( KIND = wp ), PARAMETER :: point1 = 0.1_wp
       REAL ( KIND = wp ), PARAMETER :: point01 = 0.01_wp
@@ -77,12 +79,14 @@
       REAL ( KIND = wp ), PARAMETER :: twothirds = two /three
       REAL ( KIND = wp ), PARAMETER :: ten = 10.0_wp
       REAL ( KIND = wp ), PARAMETER :: twentyfour = 24.0_wp
-      REAL ( KIND = wp ), PARAMETER :: infinity = half * HUGE( one ) 
-      REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one ) 
+      REAL ( KIND = wp ), PARAMETER :: infinity = half * HUGE( one )
+      REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one )
       REAL ( KIND = wp ), PARAMETER :: teneps = ten * epsmch
 
+      REAL ( KIND = wp ), PARAMETER :: lambda_pert = epsmch ** 0.75
       REAL ( KIND = wp ), PARAMETER :: theta_ii = one
       REAL ( KIND = wp ), PARAMETER :: theta_eps = point01
+      REAL ( KIND = wp ), PARAMETER :: theta_eps5 = point1
       REAL ( KIND = wp ), PARAMETER :: theta_g = half
       REAL ( KIND = wp ), PARAMETER :: theta_n = half
       REAL ( KIND = wp ), PARAMETER :: theta_n_small = ten ** ( - 1 )
@@ -97,9 +101,9 @@
 !  Derived type definitions
 !--------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: TRS_control_type
 
@@ -168,7 +172,7 @@
         REAL ( KIND = wp ) :: lower = - half * HUGE( one )
         REAL ( KIND = wp ) :: upper =  HUGE( one )
 
-!  stop when | ||x|| - radius | <= 
+!  stop when | ||x|| - radius | <=
 !     max( stop_normal * radius, stop_absolute_normal )
 
         REAL ( KIND = wp ) :: stop_normal = epsmch
@@ -178,17 +182,17 @@
 
         REAL ( KIND = wp ) :: stop_hard  = epsmch
 
-!  start inverse iteration when bracket on optimal multiplier <= 
+!  start inverse iteration when bracket on optimal multiplier <=
 !    stop_start_invit_tol * max( bracket ends )
 
         REAL ( KIND = wp ) :: start_invit_tol = half
 
-!  start full inverse iteration when bracket on multiplier <= 
+!  start full inverse iteration when bracket on multiplier <=
 !    stop_start_invitmax_tol * max( bracket ends)
 
         REAL ( KIND = wp ) :: start_invitmax_tol = point1
 
-!  is the solution is REQUIRED to lie on the boundary (i.e., is the constraint 
+!  is the solution is REQUIRED to lie on the boundary (i.e., is the constraint
 !  an equality)?
 
         LOGICAL :: equality_problem= .FALSE.
@@ -229,9 +233,9 @@
         CHARACTER ( LEN = 30 ) :: definite_linear_solver =                     &
            "sils" // REPEAT( ' ', 26 )
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix  = '""                            '
@@ -247,7 +251,7 @@
       END TYPE
 
 !  - - - - - - - - - -
-!   data derived type 
+!   data derived type
 !  - - - - - - - - - -
 
       TYPE, PUBLIC :: TRS_data_type
@@ -331,9 +335,9 @@
         REAL ( KIND = wp ) :: x_norm = zero
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: TRS_inform_type
 
@@ -377,7 +381,7 @@
 
         REAL ( KIND = wp ) :: multiplier = zero
 
-!  a lower bound max(0,-lambda_1), where lambda_1 is the left-most 
+!  a lower bound max(0,-lambda_1), where lambda_1 is the left-most
 !  eigenvalue of (H,M)
 
         REAL ( KIND = wp ) :: pole = zero
@@ -390,7 +394,7 @@
 
         LOGICAL :: hard_case = .FALSE.
 
-!  name of array which provoked an allocate failure
+!  name of array that provoked an allocate failure
 
         CHARACTER ( LEN = 80 ) :: bad_alloc = REPEAT( ' ', 80 )
 
@@ -411,7 +415,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 !
 !  .  Set initial values for the TRS control parameters  .
-!   
+!
 !  Arguments:
 !  =========
 !
@@ -426,8 +430,8 @@
 !-----------------------------------------------
 
       TYPE ( TRS_DATA_TYPE ), INTENT( INOUT ) :: data
-      TYPE ( TRS_CONTROL_TYPE ), INTENT( OUT ) :: control        
-      TYPE ( TRS_inform_type ), INTENT( OUT ) :: inform    
+      TYPE ( TRS_CONTROL_TYPE ), INTENT( OUT ) :: control
+      TYPE ( TRS_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
 
@@ -479,10 +483,10 @@
 
       SUBROUTINE TRS_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by TRS_initialize could (roughly) 
+!  The defauly values as given by TRS_initialize could (roughly)
 !  have been set as:
 
 !  BEGIN TRS SPECIFICATIONS (DEFAULT)
@@ -518,7 +522,7 @@
 
 !  Dummy arguments
 
-      TYPE ( TRS_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( TRS_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -740,13 +744,13 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Solve the trust-region subproblem 
-!                                             
+!  Solve the trust-region subproblem
+!
 !      minimize     1/2 <x, H x> + <c, x> + f
 !      subject to    ||x||_M <= radius  or ||x||_M = radius
 !      and optionally  A x = 0
 !
-!  where ||x||_M^2 = <x, Mx> and M is diagonally dominant, using a sparse 
+!  where ||x||_M^2 = <x, Mx> and M is diagonally dominant, using a sparse
 !  or dense matrix factorization
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -769,7 +773,7 @@
       TYPE ( SMT_type ), INTENT( IN ) :: H
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: X
       TYPE ( TRS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( TRS_control_type ), INTENT( IN ) :: control        
+      TYPE ( TRS_control_type ), INTENT( IN ) :: control
       TYPE ( TRS_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( SMT_type ), OPTIONAL, INTENT( INOUT ) :: M
       TYPE ( SMT_type ), OPTIONAL, INTENT( INOUT ) :: A
@@ -787,7 +791,7 @@
       INTEGER :: ILAENV
       EXTERNAL :: ILAENV
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -873,7 +877,7 @@
           CALL SMT_put( data%H_dense%type, 'DIAGONAL', i )
           data%H_dense%n = n
 
-!  allocate space to hold the required matrices H_dense and Q_dense 
+!  allocate space to hold the required matrices H_dense and Q_dense
 
           array_name = 'trs: H_dense%val'
           CALL SPACE_resize_array( n, data%H_dense%val,                        &
@@ -891,7 +895,7 @@
               bad_alloc = inform%bad_alloc, out = control%error )
           IF ( inform%status /= 0 ) GO TO 910
 
-!  allocate space to hold the vectors X_dense and C_dense 
+!  allocate space to hold the vectors X_dense and C_dense
 
           array_name = 'trs: X_dense'
           CALL SPACE_resize_array( n, data%X_dense,                            &
@@ -913,11 +917,11 @@
 
           data%Q_dense( : n, : n ) = zero
           SELECT CASE ( SMT_get( H%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             DO i = 1, n
               data%Q_dense( i, i ) = H%val( i )
             END DO
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO i = 1, n
               DO j = 1, i
@@ -928,12 +932,14 @@
           CASE ( 'SPARSE_BY_ROWS' )
             DO i = 1, n
               DO l = H%ptr( i ), H%ptr( i + 1 ) - 1
-                data%Q_dense( i, H%col( l ) ) = H%val( l )
+                data%Q_dense( i, H%col( l ) ) =                                &
+                  data%Q_dense( i, H%col( l ) ) + H%val( l )
               END DO
             END DO
           CASE ( 'COORDINATE' )
             DO l = 1, H%ne
-              data%Q_dense(  H%row( l ), H%col( l ) ) = H%val( l )
+              data%Q_dense(  H%row( l ), H%col( l ) ) =                        &
+                data%Q_dense(  H%row( l ), H%col( l ) ) + H%val( l )
             END DO
           END SELECT
 
@@ -966,11 +972,11 @@
 
             data%M_dense( : n, : n ) = zero
             SELECT CASE ( SMT_get( M%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               DO i = 1, n
                 data%M_dense( i, i ) = M%val( i )
               END DO
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               l = 0
               DO i = 1, n
                 DO j = 1, i
@@ -981,12 +987,14 @@
             CASE ( 'SPARSE_BY_ROWS' )
               DO i = 1, n
                 DO l = M%ptr( i ), M%ptr( i + 1 ) - 1
-                  data%M_dense( i, M%col( l ) ) = M%val( l )
+                  data%M_dense( i, M%col( l ) ) =                              &
+                    data%M_dense( i, M%col( l ) ) + M%val( l )
                 END DO
               END DO
             CASE ( 'COORDINATE' )
               DO l = 1, M%ne
-                data%M_dense(  M%row( l ), M%col( l ) ) = M%val( l )
+                data%M_dense(  M%row( l ), M%col( l ) ) =                      &
+                  data%M_dense(  M%row( l ), M%col( l ) ) + M%val( l )
               END DO
             END SELECT
 
@@ -1021,7 +1029,7 @@
           DO i = 1, n
             data%C_dense( i ) = DOT_PRODUCT( data%Q_dense( : n , i ),  C( : n ))
           END DO
-        END IF 
+        END IF
 
         IF ( PRESENT( A ) ) THEN
 
@@ -1044,7 +1052,7 @@
           data%A_dense%val = zero
 
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO i = 1, m_dim
               nim1 = n * ( i - 1 )
@@ -1090,6 +1098,13 @@
 
         X( : n ) = MATMUL( data%Q_dense( : n , : n ), data%X_dense( : n ) )
 
+!  record the overall time when a dense factorization is used
+
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%total = inform%time%total + time_now - time_start
+        inform%time%clock_total =                                              &
+          inform%time%clock_total + clock_now - clock_start
+
 !  a sparse factorization will be used
 
       ELSE
@@ -1111,9 +1126,9 @@
 !  -------------
 
   910 CONTINUE
-      IF ( control%out > 0 .AND. control%print_level > 0 )                    &
-        WRITE( control%out, "( A, '   **  Error return ', I0,                 &
-       & ' from TRS ' )" ) control%prefix, inform%status 
+      IF ( control%out > 0 .AND. control%print_level > 0 )                     &
+        WRITE( control%out, "( A, '   **  Error return ', I0,                  &
+       & ' from TRS ' )" ) control%prefix, inform%status
       RETURN
 
 !  ---------------------
@@ -1123,7 +1138,7 @@
   920 CONTINUE
       IF ( control%out > 0 .AND. control%print_level > 1 ) WRITE( control%out, &
        "( A, ' error return from SYSV/SYGV: status = ', I0 )") prefix, sy_status
-      inform%status = GALAHAD_error_factorization 
+      inform%status = GALAHAD_error_factorization
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
@@ -1145,13 +1160,13 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Solve the trust-region subproblem 
-!                                             
+!  Solve the trust-region subproblem
+!
 !      minimize     1/2 <x, H x> + <c, x> + f
 !      subject to    ||x||_M <= radius  or ||x||_M = radius
 !      and optionally  A x = 0
 !
-!  where ||x||_M^2 = <x, Mx> and M is diagonally dominant, using a sparse 
+!  where ||x||_M^2 = <x, Mx> and M is diagonally dominant, using a sparse
 !  matrix factorization and secular iteration
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -1167,7 +1182,7 @@
 !
 !   C - a vector of values for the linear term c
 !
-!   H -  a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   H -  a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of the symmetric matrix H. Four storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -1175,7 +1190,7 @@
 !       In this case, the following must be set:
 !
 !       H%type( 1 : 10 ) = TRANSFER( 'COORDINATE', H%type )
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
@@ -1197,7 +1212,7 @@
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with the entries in each row in order of increasing 
+!                    with the entries in each row in order of increasing
 !                    column indicies.
 !
 !    iv) diagonal
@@ -1216,7 +1231,7 @@
 !   inform - a structure containing information. See TRS_inform_type
 !
 !   M - an optional structure of type SMT_type used to hold the LOWER TRIANGULAR
-!    part of the symmetric, DIAGONALLY DOMINANT matrix M. Four storage formats 
+!    part of the symmetric, DIAGONALLY DOMINANT matrix M. Four storage formats
 !    are permitted:
 !
 !    i) sparse, co-ordinate
@@ -1224,7 +1239,7 @@
 !       In this case, the following must be set:
 !
 !       M%type( 1 : 10 ) = TRANSFER( 'COORDINATE', M%type )
-!       M%ne         the number of nonzeros used to store 
+!       M%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of M
 !       M%val( : )   the values of the components of M
 !       M%row( : )   the row indices of the components of M
@@ -1246,7 +1261,7 @@
 !
 !       M%type( 1 : 5 ) = TRANSFER( 'DENSE', M%type )
 !       M%val( : )   the values of the components of M, stored row by row,
-!                    with the entries in each row in order of increasing 
+!                    with the entries in each row in order of increasing
 !                    column indicies.
 !
 !    iv) diagonal
@@ -1291,10 +1306,10 @@
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%m          the number of rows of A
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with the entries in each row in order of increasing 
+!                    with the entries in each row in order of increasing
 !                    column indicies.
 !
-!    If the argument A is absent, no linear constraints Ax = 0 will be imposed 
+!    If the argument A is absent, no linear constraints Ax = 0 will be imposed
 !
 !  Y - an optional array of dimension at least A%m that will be filled
 !    with Lagrange multipliers for the constraints A x = 0, if present
@@ -1312,7 +1327,7 @@
       TYPE ( SMT_type ), INTENT( IN ) :: H
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: X
       TYPE ( TRS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( TRS_control_type ), INTENT( IN ) :: control        
+      TYPE ( TRS_control_type ), INTENT( IN ) :: control
       TYPE ( TRS_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( SMT_type ), OPTIONAL, INTENT( INOUT ) :: M
       TYPE ( SMT_type ), OPTIONAL, INTENT( INOUT ) :: A
@@ -1322,8 +1337,8 @@
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
 
-      INTEGER :: i, j, l, it, i_max, j_max, out, nroots, n_invit, print_level
-      INTEGER :: max_order, n_lambda, in_n
+      INTEGER :: i, j, l, it, itt, i_max, j_max, out, nroots, n_invit
+      INTEGER :: print_level, max_order, n_lambda, in_n
       REAL :: time_start, time_now, time_record
       REAL ( KIND = wp ) :: clock_start, clock_now, clock_record
       REAL ( KIND = wp ) :: lambda, lambda_l, lambda_u, delta_lambda, root_eps
@@ -1337,11 +1352,11 @@
       REAL ( KIND = wp ), DIMENSION( 0 : max_degree ) :: x_norm2, pi_beta
       LOGICAL :: printi, printt, printd, psdef, try_zero, dummy, unit_m
       LOGICAL :: problem_file_exists, phase_1, constrained, set_y
-      CHARACTER ( LEN = 1 ) :: region
+      CHARACTER ( LEN = 1 ) :: region, bad_eval
       CHARACTER ( LEN = 80 ) :: array_name
       LOGICAL :: u_set = .FALSE.
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -1364,8 +1379,8 @@
 
       inform%hard_case = .FALSE.
       inform%pole = zero
-      inform%IR_inform%status = 0 
-      inform%IR_inform%alloc_status = 0 
+      inform%IR_inform%status = 0
+      inform%IR_inform%alloc_status = 0
       inform%IR_inform%bad_alloc = ''
 
       IF ( constrained ) THEN
@@ -1378,7 +1393,7 @@
       END IF
       phase_1 = .TRUE.
       X = zero ; inform%x_norm = zero ; inform%obj = f
-      
+
       data%control = control
       data%control%IR_control%record_residuals = .TRUE.
       IF ( data%control%initialize_approx_eigenvector )                        &
@@ -1417,7 +1432,7 @@
         SELECT CASE ( SMT_get( H%type ) )
         CASE ( 'DIAGONAL' )
           data%h_ne = n
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           data%h_ne = ( n * ( n + 1 ) ) / 2
         CASE ( 'SPARSE_BY_ROWS' )
           data%h_ne = H%ptr( n + 1 ) - 1
@@ -1432,16 +1447,16 @@
         M%n = n ; M%m = n
         IF ( data%control%new_m >= 2 ) THEN
           SELECT CASE ( SMT_get( M%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%m_ne = n
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%m_ne = ( n * ( n + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             data%m_ne = M%ptr( n + 1 ) - 1
           CASE ( 'COORDINATE' )
             data%m_ne = M%ne
           END SELECT
-        END IF        
+        END IF
       ELSE
         data%m_ne = n
       END IF
@@ -1452,14 +1467,14 @@
         IF ( data%control%new_a >= 2 ) THEN
           data%m = A%m ; data%npm = n + data%m
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%a_ne = data%m * n
           CASE ( 'SPARSE_BY_ROWS' )
             data%a_ne = A%ptr( data%m + 1 ) - 1
           CASE ( 'COORDINATE' )
             data%a_ne = A%ne
           END SELECT
-        END IF        
+        END IF
       ELSE
         data%m = 0 ; data%npm = n ; data%a_ne = 0
       END IF
@@ -1473,7 +1488,8 @@
         IF ( constrained ) WRITE( out, "( A, ' ||A|| = ', ES10.4 )" )          &
           prefix, MAXVAL( ABS( A%val( : data%a_ne ) ) )
       END IF
-
+!write(6,*)  H%val( : data%h_ne )
+!stop
       IF ( data%control%new_h >= 2 .OR.                                        &
            ( .NOT. unit_m .AND. data%control%new_m >= 2 ) .OR.                 &
            ( constrained .AND. data%control%new_a >= 2 ) ) THEN
@@ -1512,17 +1528,17 @@
         CALL SMT_put( data%H_lambda%type, 'COORDINATE', inform%alloc_status )
         IF ( inform%alloc_status /= 0 ) THEN
           inform%status = GALAHAD_error_allocate
-          GO TO 910 
+          GO TO 910
         END IF
 
 !  fit the data from H into the coordinate storage scheme provided
 
         SELECT CASE ( SMT_get( H%type ) )
-        CASE ( 'DIAGONAL' ) 
+        CASE ( 'DIAGONAL' )
           DO i = 1, n
             data%H_lambda%row( i ) = i ; data%H_lambda%col( i ) = i
           END DO
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, n
             DO j = 1, i
@@ -1533,7 +1549,7 @@
         CASE ( 'SPARSE_BY_ROWS' )
           DO i = 1, n
             DO l = H%ptr( i ), H%ptr( i + 1 ) - 1
-              data%H_lambda%row( l ) = i 
+              data%H_lambda%row( l ) = i
               data%H_lambda%col( l ) = H%col( l )
             END DO
           END DO
@@ -1547,12 +1563,12 @@
 !  fit the data from M into the coordinate storage scheme provided if required
 
           SELECT CASE ( SMT_get( M%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             DO i = 1, n
-              data%H_lambda%row( data%h_ne + i ) = i 
+              data%H_lambda%row( data%h_ne + i ) = i
               data%H_lambda%col( data%h_ne + i ) = i
             END DO
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = data%h_ne
             DO i = 1, n
               DO j = 1, i
@@ -1563,7 +1579,7 @@
           CASE ( 'SPARSE_BY_ROWS' )
             DO i = 1, n
               DO l = M%ptr( i ), M%ptr( i + 1 ) - 1
-                data%H_lambda%row( data%h_ne + l ) = i 
+                data%H_lambda%row( data%h_ne + l ) = i
                 data%H_lambda%col( data%h_ne + l ) = M%col( l )
               END DO
             END DO
@@ -1587,7 +1603,7 @@
 
         IF ( constrained ) THEN
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = data%m_end
             DO i = 1, data%m
               DO j = 1, n
@@ -1598,7 +1614,7 @@
           CASE ( 'SPARSE_BY_ROWS' )
             DO i = 1, data%m
               DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
-                data%H_lambda%row( data%m_end + l ) = n + i 
+                data%H_lambda%row( data%m_end + l ) = n + i
                 data%H_lambda%col( data%m_end + l ) = A%col( l )
               END DO
             END DO
@@ -1676,7 +1692,7 @@
         inform%time%clock_analyse =                                            &
           inform%time%clock_analyse + clock_now - clock_record
         IF ( printt ) WRITE( out, 2000 ) prefix, clock_now - clock_record
-           
+
 !  test that the analysis succeeded
 
         IF ( inform%SLS_inform%status < 0 ) THEN
@@ -1725,19 +1741,19 @@
 
 !  compute the sums of the absolute values of off-diagonal terms of H (in Y),
 !  its diagonal terms (in Z) and the square of its Frobenius norm. Also, compute
-!  H u or H c (in V) and the largest off-diagonal (h_max) in row/column 
+!  H u or H c (in V) and the largest off-diagonal (h_max) in row/column
 !  i_max/j_max
 
       IF ( unit_m ) THEN
         data%Y( : n ) = zero ; data%Z( : n ) = zero ; H_f2 = zero
-        data%V( : n ) = zero 
+        data%V( : n ) = zero
         i_max = 0 ; j_max = 0 ; h_max = zero
         DO l = 1, data%h_ne
           i = data%H_lambda%row( l ) ; j = data%H_lambda%col( l )
           val = H%val( l )
           IF ( i == j ) THEN
-            data%Z( i ) = val
-            H_f2 = H_f2 + val ** 2
+            data%Z( i ) = data%Z( i ) + val
+!           H_f2 = H_f2 + val ** 2
             IF ( data%get_initial_u ) THEN
               data%V( i ) = data%V( i ) + val * C( i )
             ELSE
@@ -1759,13 +1775,14 @@
             END IF
           END IF
         END DO
+        H_f2 = H_f2 + DOT_PRODUCT( data%Z( : n ), data%Z( : n ) )
 
 !  compute the Frobenius and infinity norms of H
 
         H_f = SQRT( H_f2 )
         H_inf = MAXVAL( ABS( data%Z( : n ) ) + data%Y( : n ) )
 
-!  compute the two-norm of c and the Rayleigh quotient u^T H u / u^T u or 
+!  compute the two-norm of c and the Rayleigh quotient u^T H u / u^T u or
 !  c^T H c / c^T c as required
 
         c_norm = TWO_NORM( C )
@@ -1781,7 +1798,7 @@
 
 !  compute the leftmost eigenvalue of the 2 by 2 sub-matrix in rows/columns
 !  i_max and j_max
-      
+
         IF ( n > 1 .AND. i_max /= 0 ) THEN
           a_0 = data%Z( i_max ) *  data%Z( j_max ) - h_max** 2
           a_1 = - data%Z( i_max ) -  data%Z( j_max )
@@ -1803,7 +1820,7 @@
                 a_2 = one
                 CALL ROOTS_quadratic( a_0, a_1, a_2, roots_tol, nroots,        &
                                       root1, root2, roots_debug )
-                rayleigh = MIN( rayleigh, data%Z( i ) + root1 ) 
+                rayleigh = MIN( rayleigh, data%Z( i ) + root1 )
               END IF
             END DO
           END IF
@@ -1822,14 +1839,13 @@
 !  compute the sums of the absolute values of off-diagonal terms of H (in Y),
 !  its diagonal terms (in Z) and H u or H c (in V)
 
-        data%Y( : n ) = zero ; data%Z( : n ) = zero
-        data%V( : n ) = zero 
+        data%Y( : n ) = zero ; data%Z( : n ) = zero ; data%V( : n ) = zero
         i_max = 0 ; j_max = 0 ; h_max = zero
         DO l = 1, data%h_ne
           i = data%H_lambda%row( l ) ; j = data%H_lambda%col( l )
           val = H%val( l )
           IF ( i == j ) THEN
-            data%Z( i ) = val
+            data%Z( i ) = data%Z( i ) + val
             IF ( data%get_initial_u ) THEN
               data%V( i ) = data%V( i ) + val * C( i )
             ELSE
@@ -1876,7 +1892,7 @@
 
 !  test that the factorization succeeded
 
-        IF ( inform%SLS_inform%status == 0 ) THEN
+        IF ( inform%SLS_inform%status == GALAHAD_ok ) THEN
           psdef = .TRUE.
         ELSE IF ( inform%SLS_inform%status == GALAHAD_error_inertia ) THEN
           IF ( printd ) WRITE( out, "( A, ' error return from ',               &
@@ -1888,7 +1904,7 @@
         END IF
 
 !  compute M^{-1} c (in V)
-      
+
         CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
         data%V( : n ) = C ; data%V( n + 1 : data%npm ) = zero
         CALL IR_solve( data%H_lambda, data%V( : data%npm ),                    &
@@ -1901,6 +1917,16 @@
           inform%time%clock_factorize + clock_now - clock_record
         IF ( printt ) WRITE( out, 2050 ) prefix, clock_now - clock_record
 
+!  warning that the residual may be inaccurate
+
+          IF ( inform%IR_inform%norm_final_residual >                          &
+               inform%IR_inform%norm_initial_residual ) THEN
+! write(out, "( ' *********** WARNING 1 - initial and final residuals are ',   &
+!& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
+!               inform%IR_inform%norm_final_residual
+            bad_eval = '1'
+          END IF
+
 !  compute the M^-1 norm of c, while checking that M is positive definite
 
         c_norm = DOT_PRODUCT( data%V( : n ), C )
@@ -1911,7 +1937,7 @@
         END IF
         c_norm = SQRT( c_norm )
 
-!  allocate space to hold the diagonals and sums of absolute values of the 
+!  allocate space to hold the diagonals and sums of absolute values of the
 !  off diagonals of M
 
         array_name = 'trs: M_diag'
@@ -1930,17 +1956,17 @@
             bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= 0 ) GO TO 910
 
-!  compute the sums of the absolute values of off-diagonal terms of M 
+!  compute the sums of the absolute values of off-diagonal terms of M
 !  (in M_offd), its diagonal terms (in M_diag) and M u or M c (in V)
 
         data%M_offd( : n ) = zero ; data%M_diag( : n ) = zero
-        data%V( : n ) = zero 
+        data%V( : n ) = zero
         i_max = 0 ; j_max = 0 ; h_max = zero
         DO l = data%h_ne + 1, data%h_ne + data%m_ne
           i = data%H_lambda%row( l ) ; j = data%H_lambda%col( l )
           val = data%H_lambda%val( l )
           IF ( i == j ) THEN
-            data%M_diag( i ) = val
+            data%M_diag( i ) = data%M_diag( i ) + val
             IF ( data%get_initial_u ) THEN
               data%V( i ) = data%V( i ) + val * C( i )
             ELSE
@@ -1991,8 +2017,8 @@
 
 !  find Gershgorin-like bounds on the generalised eigenvalues of H - lambda M
 
-          hp = data%Z( i ) + data%Y( i ) 
-          hm = data%Z( i ) - data%Y( i ) 
+          hp = data%Z( i ) + data%Y( i )
+          hm = data%Z( i ) - data%Y( i )
           mp = data%M_diag( i ) + data%M_offd( i )
           lambda_min = MIN( lambda_min, hm / mp, hm / mm )
           lambda_max = MAX( lambda_max, hp / mp, hp / mm )
@@ -2009,12 +2035,12 @@
 !     L = { lambda: max(0, -lambda_1(H)) < lambda <= lambda_optimal } and
 !     G = { lambda: lambda > lambda_optimal };
 !  for the equality problem, 0 plays no role in N and L.
-!  The aim is to find a lambda in L, as generally then Newton's method 
+!  The aim is to find a lambda in L, as generally then Newton's method
 !  will converge both globally and ultimately quadratically. We also let
 !     F = L union G
 !
-!  Construct values lambda_l and lambda_u for which lambda_l <= lambda_optimal 
-!   <= lambda_u, and ensure that all iterates satisfy lambda_l <= lambda 
+!  Construct values lambda_l and lambda_u for which lambda_l <= lambda_optimal
+!   <= lambda_u, and ensure that all iterates satisfy lambda_l <= lambda
 !   <= lambda_u
 
       IF ( c_norm > zero ) THEN
@@ -2125,7 +2151,7 @@
 !         = A%val( : data%a_ne )
 
       try_zero = lambda > zero .AND. lambda_l == zero
-      region = ' '
+      region = ' ' ; bad_eval = ' '
       max_order = MAX( 1, MIN( max_degree, control%taylor_max_degree ) )
       root_eps = SQRT( epsmch )
 
@@ -2141,15 +2167,32 @@
       DO
         it = it + 1
 
+!  exit if the iteration has stalled
+
+        IF ( it > it_stalled ) THEN
+          inform%status = GALAHAD_error_ill_conditioned
+          RETURN
+        END IF
+
 !  add lambda * M to H to form H(lambda)
 
+        itt = 0
  100    CONTINUE
+
+!  precaution to stop infinite loop
+
+        itt = itt + 1
+        IF ( itt > 100 ) THEN
+          inform%status = GALAHAD_error_ill_conditioned
+          RETURN
+        END IF
+
         IF ( unit_m ) THEN
           data%H_lambda%val( data%h_ne + 1 : data%m_end ) = lambda
         ELSE
           data%H_lambda%val( data%h_ne + 1 : data%m_end ) =                    &
             lambda * M%val(  1 : data%m_ne )
-        END IF                     
+        END IF
 
 !  attempt an L B L^T factorization of H(lambda)
 
@@ -2167,7 +2210,7 @@
 
 !  test that the factorization succeeded
 
-        IF ( inform%SLS_inform%status == 0 ) THEN
+        IF ( inform%SLS_inform%status == GALAHAD_ok ) THEN
           IF ( data%control%SLS_control%pivot_control == 2 ) THEN
             psdef = .TRUE.
           ELSE
@@ -2192,7 +2235,7 @@
 !  if H(lambda) is positive definite, solve  H(lambda) x = - c
 
 !write(6,*) ' pos def ?', psdef
-        IF ( psdef ) THEN 
+        IF ( psdef ) THEN
           IF ( .NOT. inform%hard_case ) THEN
             CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
             IF ( constrained ) THEN
@@ -2222,18 +2265,24 @@
 
             IF ( inform%IR_inform%norm_final_residual >                        &
                  inform%IR_inform%norm_initial_residual ) THEN
-! write(6, "( ' *********** WARNING B - initial and final residuals are ',     &
+              IF ( printd ) WRITE( out,                                        &
+             &    "( ' **** WARNING *** iterative refinement diverged,',       &
+             &    ' increasing lambda marginally' ) ")
+              bad_eval = '2'
+! write(6, "( ' *********** WARNING 2 - initial and final residuals are ',     &
 !& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
 !               inform%IR_inform%norm_final_residual
               lambda_l = lambda
-              lambda = lambda_l + theta_eps * ( lambda_u - lambda_l )
+!             lambda = lambda_l + theta_eps * ( lambda_u - lambda_l )
+              lambda = lambda_l + lambda_pert
+              it = it + 1
               GO TO 100
             END IF
 
 !  compute the M-norm of x, ||x||_M
 
             IF ( unit_m ) THEN
-              inform%x_norm = TWO_NORM( X ) 
+              inform%x_norm = TWO_NORM( X )
               x_norm2( 0 ) = inform%x_norm ** 2
             ELSE
               CALL mop_AX( one, M, X, zero, data%Y( : n ), 0,                  &
@@ -2272,7 +2321,7 @@
             IF ( printi ) WRITE( out, "( A,                                    &
            &    ' Interior stopping criteria satisfied' )" ) prefix
             inform%obj = f + half * DOT_PRODUCT( C, X )
-            inform%status = 0
+            inform%status = GALAHAD_ok
             GO TO 900
           END IF
 
@@ -2282,7 +2331,7 @@
             IF ( printi ) WRITE( out, "( A,                                    &
            &    ' forced Newton solution taken ' )" ) prefix
             inform%obj = f + half * DOT_PRODUCT( C, X )
-            inform%status = 0
+            inform%status = GALAHAD_ok
             GO TO 900
           END IF
 
@@ -2328,7 +2377,7 @@
                &    ' Interval width =', ES11.4 )" ) prefix, lambda_u - lambda_l
               END IF
               inform%obj = f
-              inform%status = 0
+              inform%status = GALAHAD_ok
               GO TO 900
             END IF
 
@@ -2341,8 +2390,8 @@
               IF ( printt .OR. ( printi .AND. it == 1 ) ) WRITE( out, 2020 )   &
                 prefix
             END IF
-            IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" )              &
-              prefix, region, it, lambda_l, lambda, lambda_u
+            IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )          &
+              prefix, bad_eval, region, it, lambda_l, lambda, lambda_u
             n_lambda = 0
             GO TO 200
           END IF
@@ -2364,12 +2413,13 @@
             IF ( ( phase_1 .AND. printi ) .OR. printt .OR.                     &
                  ( printi .AND. it == 1 ) ) WRITE( out, 2030 ) prefix
             IF ( printi ) THEN
-              WRITE( out, "( A, A2, I4, 3ES22.15 )" )  prefix, region,         &
-              it, ABS( inform%x_norm - radius ), lambda, ABS( delta_lambda )
+              WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )  prefix, bad_eval,   &
+                region, it, ABS( inform%x_norm - radius ), lambda,             &
+                ABS( delta_lambda )
               WRITE( out, "( A,                                                &
            &    ' Normal stopping criteria satisfied' )" ) prefix
             END IF
-            inform%status = 0
+            inform%status = GALAHAD_ok
             EXIT
           END IF
 
@@ -2389,7 +2439,7 @@
 !  ----------------------------
 !  The current lambda lies in L
 !  ----------------------------
-            
+
             region = 'L'
             lambda_l = MAX( lambda_l, lambda )
 
@@ -2400,8 +2450,8 @@
               delta_lambda = zero
               IF ( printd ) THEN
                 WRITE( out, 2020 ) prefix
-                WRITE( out, "( A, A2, I4, 3ES22.15 )" )                        &
-                  prefix, region, it, lambda_l, lambda, lambda_u
+                WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )                    &
+                  prefix, bad_eval, region, it, lambda_l, lambda, lambda_u
               END IF
               IF ( printt ) THEN
                 WRITE( out, "( A, 4X, 28( '-' ), ' phase two ', 28( '-' ) )" ) &
@@ -2413,11 +2463,11 @@
                 prefix
             END IF
 
-!  a lambda in L has been found. It is now simply a matter of applying 
+!  a lambda in L has been found. It is now simply a matter of applying
 !  a variety of Taylor-series-based methods starting from this lambda
 
-            IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" ) prefix,      &
-              region, it, ABS( inform%x_norm - radius ), lambda,               &
+            IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" ) prefix,  &
+              bad_eval, region, it, ABS( inform%x_norm - radius ), lambda,     &
               ABS( delta_lambda )
 
 !  precaution against rounding producing lambda outside L
@@ -2443,18 +2493,18 @@
               IF ( printt .OR. ( printi .AND. it == 1 ) ) WRITE( out, 2020 )   &
                 prefix
             END IF
-            IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" )              &
-              prefix, region, it, lambda_l, lambda, lambda_u
+            IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )          &
+              prefix, bad_eval, region, it, lambda_l, lambda, lambda_u
 
 !  -----------------------------------------------------
-!  The solution lies in the interior of the trust-region 
+!  The solution lies in the interior of the trust-region
 !  -----------------------------------------------------
 
             IF ( lambda == zero .AND. .NOT. data%control%equality_problem ) THEN
               IF ( printi ) WRITE( out, "( A,                                  &
              &    ' Interior stopping criteria satisfied' )" ) prefix
               inform%obj = f + half * DOT_PRODUCT( C, X )
-              inform%status = 0
+              inform%status = GALAHAD_ok
               GO TO 900
             END IF
 
@@ -2463,7 +2513,7 @@
             IF ( inform%len_history < history_max ) THEN
               inform%len_history = inform%len_history + 1
               inform%history( inform%len_history )%lambda = lambda
-              inform%history( inform%len_history )%x_norm = inform%x_norm 
+              inform%history( inform%len_history )%x_norm = inform%x_norm
             END IF
           END IF
 
@@ -2482,6 +2532,24 @@
                            data%control%IR_control,                            &
                            data%control%SLS_control,                           &
                            inform%IR_inform, inform%SLS_inform )
+
+!  check that the solution succeeded. If not, increase lambda and try again
+
+            IF ( inform%IR_inform%status == GALAHAD_error_solve ) THEN
+              IF ( printd ) WRITE( out,                                        &
+             &    "( ' **** WARNING 3 *** iterative refinement diverged,',     &
+             &    ' increasing lambda marginally' ) ")
+              bad_eval = '3'
+! write(6, "( ' *********** WARNING 3 - initial and final residuals are ',     &
+!& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
+!              inform%IR_inform%norm_final_residual
+!write(6,"( ' in ', A, ' B, was ', 3ES22.15 )" ) region,lambda_l,lambda,lambda_u
+              lambda_l = lambda
+              lambda = lambda_l + theta_eps * ( lambda_u - lambda_l )
+!write(6,"( ' in ', A, ' B, is  ', 3ES22.15 )" ) region,lambda_l,lambda,lambda_u
+              it = it + 1
+              GO TO 100
+            END IF
 
 !  find y so that L y = M x
 
@@ -2569,6 +2637,24 @@
                                data%control%IR_control,                        &
                                data%control%SLS_control,                       &
                                inform%IR_inform, inform%SLS_inform )
+
+!  check that the solution succeeded. If not, increase lambda and try again
+
+                IF ( inform%IR_inform%status == GALAHAD_error_solve ) THEN
+                  IF ( printd ) WRITE( out,                                    &
+                 &    "( ' **** WARNING 5 *** iterative refinement diverged,', &
+                 &    ' increasing lambda marginally' ) ")
+                  bad_eval = '5'
+!write(6,"( ' in ', A, ' C, was ', 3ES22.15 )" ) &
+!  region, lambda_l, lambda, lambda_u
+                  lambda_l = lambda
+                  lambda = lambda_l + theta_eps5 * ( lambda_u - lambda_l )
+!write(6,"( ' in ', A, ' C, is  ', 3ES22.15 )" ) &
+!  region, lambda_l, lambda, lambda_u
+                  it = it + 1
+                  GO TO 100
+                END IF
+
 !  find z so that L z = x'
 
               ELSE
@@ -2619,12 +2705,18 @@
 !  and the resulting Taylor series approximants
 
  200      CONTINUE
-!write(6,*) ' x > del?', inform%x_norm > radius, ' hard ? ', inform%hard_case
-          IF ( inform%x_norm > radius ) THEN
+          IF ( printd ) WRITE( out,                                            &
+            "( ' --------- OK with lambda = ', ES22.15 )" ) lambda
+          bad_eval = ' '
 
 !  ----------------------------
 !  The current lambda lies in L
 !  ----------------------------
+
+!write(6,*) ' x > del?', inform%x_norm > radius, ' hard ? ', inform%hard_case
+          IF ( inform%x_norm > radius ) THEN
+
+!  for Taylor approximants of degree larger than one
 
             IF ( max_order >= 3 ) THEN
 
@@ -2642,8 +2734,8 @@
               a_3 = sixth * pi_beta( 3 )
               a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
               IF ( a_max > zero ) THEN
-                a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-                a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+                a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+                a_2 = a_2 / a_max ; a_3 = a_3 / a_max
               END IF
               CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,         &
                                 root1, root2, root3, roots_debug )
@@ -2670,8 +2762,8 @@
               a_3 = sixth * pi_beta( 3 )
               a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
               IF ( a_max > zero ) THEN
-                a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-                a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+                a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+                a_2 = a_2 / a_max ; a_3 = a_3 / a_max
               END IF
               CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,         &
                                 root1, root2, root3, roots_debug )
@@ -2708,14 +2800,14 @@
 !  improve the lower bound if possible
 
             lambda_l = MAX( lambda_l, lambda_plus )
- 
+
 !  check that the best Taylor improvement is significant
 
             IF ( ABS( delta_lambda ) < epsmch * MAX( one, ABS( lambda ) ) ) THEN
 !write(6,*) ABS( delta_lambda ), MAX( one, ABS( lambda ) )
               IF ( printi )                                                    &
                 WRITE( out, "( A, ' Warning - step too small' )" ) prefix
-              inform%status = 0
+              inform%status = GALAHAD_ok
               EXIT
             END IF
           ELSE
@@ -2739,7 +2831,7 @@
                 a_2 = half * pi_beta( 2 )
                 a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ) )
                 IF ( a_max > zero ) THEN
-                  a_0 = a_0 / a_max ; a_1 = a_1 / a_max ; a_2 = a_2 / a_max 
+                  a_0 = a_0 / a_max ; a_1 = a_1 / a_max ; a_2 = a_2 / a_max
                 END IF
                 CALL ROOTS_quadratic( a_0, a_1, a_2, roots_tol, nroots,        &
                                       root1, root2, roots_debug )
@@ -2762,8 +2854,8 @@
                   a_3 = sixth * pi_beta( 3 )
                   a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
                   IF ( a_max > zero ) THEN
-                    a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-                    a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+                    a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+                    a_2 = a_2 / a_max ; a_3 = a_3 / a_max
                   END IF
                   CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,     &
                                     root1, root2, root3, roots_debug )
@@ -2800,10 +2892,14 @@
 
               IF ( ABS( delta_lambda ) <                                       &
                    epsmch * MAX( one, ABS( lambda ) ) ) THEN
-                IF ( printi )                                                  &
-                  WRITE( out, "( A, ' Warning - step too small' )" ) prefix
-                inform%status = 0
-                EXIT
+                IF ( lambda_u - lambda_l == zero ) THEN
+                  inform%hard_case = .TRUE.
+                ELSE
+                  IF ( printi )                                                &
+                    WRITE( out, "( A, ' Warning - step too small' )" ) prefix
+                  inform%status = GALAHAD_ok
+                  EXIT
+                END IF
               END IF
             ELSE
               delta_lambda = zero
@@ -2813,7 +2909,7 @@
 !  Potential hard case
 !  - - - - - - - - - -
 
-!  if it seems as if it may be necessary, build an estmate of the leftmost 
+!  if it seems as if it may be necessary, build an estmate of the leftmost
 !  eigenvalue and its vector u using inverse iteration
 
             IF ( inform%hard_case .OR.                                         &
@@ -2844,7 +2940,7 @@
                     IF ( printd ) WRITE( out, "( A, ' ||u||_M^2 =',            &
                    &  ES12.4, ' < 0' )" ) prefix, u_norm
                     GO TO 930
-                  END IF 
+                  END IF
                   u_norm = SQRT( u_norm )
                 END IF
                 data%U( : n ) = data%U( : n ) / u_norm
@@ -2870,7 +2966,7 @@
                     IF ( printd ) WRITE( out, "( A, ' ||u||_M^2 =',            &
                    &  ES12.4, ' < 0' )" ) prefix, u_norm
                     GO TO 930
-                  END IF 
+                  END IF
                   u_norm = SQRT( u_norm )
                 END IF
               END IF
@@ -2903,6 +2999,14 @@
                   inform%time%clock_factorize + clock_now - clock_record
                 IF ( printt ) WRITE( out, 2050 ) prefix, clock_now -clock_record
 
+!               IF ( inform%IR_inform%norm_final_residual >                    &
+!                    inform%IR_inform%norm_initial_residual ) THEN
+!                 bad_eval = '7'
+! write(6, "( ' *********** WARNING 7 - initial and final residuals are ',     &
+!& 2ES12.4 )" ) inform%IR_inform%norm_initial_residual,                        &
+!              inform%IR_inform%norm_final_residual
+!               END IF
+
                 IF ( unit_m ) THEN
                   u_norm = TWO_NORM( data%U( : n ) )
                 ELSE
@@ -2913,13 +3017,13 @@
                     IF ( printd ) WRITE( out, "( A, ' ||u||_M^2 =',            &
                    &  ES12.4, ' < 0' )" ) prefix, u_norm
                     GO TO 930
-                  END IF 
+                  END IF
                   u_norm = SQRT( u_norm )
                 END IF
                 data%U( : n ) = data%U( : n ) / u_norm
                 u_set = .TRUE.
                 lambda_s_l = MAX( lambda_s_l,  lambda - one / u_norm )
-              END DO    
+              END DO
 
 !  compute the Rayleigh quotient
 
@@ -2948,11 +3052,7 @@
 
               width = ABS( lambda_u - lambda_l )
               width_rel = width / MAX( ABS( lambda_l ), ABS( lambda_u ) )
-!write(6,*) ' hard case suspected?', inform%hard_case, width_rel
               IF ( inform%hard_case ) THEN
-!write(6,*) lambda_l, theta_g, width
-!write(6,*) lambda_l + theta_g * width, &
-!          lambda_l, lambda_s_l + theta_ii * ( width_rel ** 1.333 )
 !               lambda = MIN( lambda_l + theta_g * width,                      &
                 lambda = MIN( lambda_l + theta_hard * width,                   &
                            MAX( lambda_l, lambda_s_l + theta_ii *              &
@@ -2964,7 +3064,7 @@
                              ( width_rel ** ( two * n_invit - gamma_eps ) ) ) )
               END IF
 
-!  end of potential hard case. If no inverse iteration was applied, 
+!  end of potential hard case. If no inverse iteration was applied,
 !  use safeguarded bisection
 
             ELSE
@@ -2988,8 +3088,8 @@
 
           IF ( printt .OR. ( printi .AND. it == 1 ) ) WRITE( out, 2020 ) prefix
           region = 'N'
-          IF ( printi ) WRITE( out, "( A, A2, I4, 3ES22.15 )" )                &
-            prefix, region, it, lambda_l, lambda, lambda_u
+          IF ( printi ) WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )            &
+            prefix, bad_eval, region, it, lambda_l, lambda, lambda_u
           try_zero = .FALSE.
           lambda_s_l = MAX( lambda_s_l, lambda )
           lambda_l = lambda_s_l
@@ -3039,39 +3139,37 @@
              MAX( one, ABS( lambda_l ), ABS( lambda_u ) ) ) THEN
           IF ( printi ) THEN
             IF ( printt ) WRITE( out, 2020 ) prefix
-            WRITE( out, "( A, A2, I4, 3ES22.15 )" )                            &
-              prefix, region, it + 1, lambda_l, lambda, lambda_u
+            WRITE( out, "( A, A1, A1, I4, 3ES22.15 )" )                        &
+              prefix, bad_eval, region, it + 1, lambda_l, lambda, lambda_u
             WRITE( out, "( A,                                                  &
            &    ' Hard-case stopping criteria satisfied.',                     &
            &    ' Interval width =', ES11.4 )" ) prefix, lambda_u - lambda_l
           END IF
-!write(6,*) ' hard case! u _set? ', u_set
-!write(6,*) ' x, r ', TWO_NORM( X ), radius
 
 !  compute the step alpha so that X + alpha U lies on the trust-region
 !  boundary and gives the smaller value of q
 
           IF ( u_set ) THEN
             IF ( unit_m ) THEN
-              utx = DOT_PRODUCT( data%U( : n ), X ) / radius 
+              utx = DOT_PRODUCT( data%U( : n ), X ) / radius
             ELSE
-              CALL mop_AX( one, M, data%U( : n ), zero, data%Y( : n ),         &
+!             CALL mop_AX( one, M, data%U( : n ), zero, data%Y( : n ),         &
+              CALL mop_AX( one, M, X, zero, data%Y( : n ),                     &
                            0, symmetric = .TRUE. )
               utx = DOT_PRODUCT( data%U( : n ), data%Y( : n ) ) / radius
             END IF
             distx = ( radius - inform%x_norm ) * ( ( radius + inform%x_norm )  &
-                       / radius ) 
+                       / radius )
             alpha = sign( distx / ( abs( utx ) +                               &
                           sqrt( utx ** 2 + distx / radius ) ), utx )
 
 !  record the optimal values
 
             X = X + alpha * data%U( : n )
-!write(6,*) ' x, r ', TWO_NORM( X ), radius
           END IF
           inform%obj = f + half * ( DOT_PRODUCT( C, X ) - lambda * radius ** 2 )
           inform%x_norm = radius
-          inform%status = 0
+          inform%status = GALAHAD_ok
           inform%hard_case = .TRUE.
           GO TO 900
         END IF
@@ -3090,7 +3188,7 @@
            &    ' Almost hard-case stopping criteria satisfied.',              &
            &    ' Interval width =', ES11.4 )" ) prefix, lambda_u - lambda_l
           END IF
-          inform%status = 0
+          inform%status = GALAHAD_ok
           EXIT
         END IF
 
@@ -3113,6 +3211,7 @@
       inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
         inform%time%clock_total + clock_now - clock_start
+
       RETURN
 
 !  -------------
@@ -3121,7 +3220,7 @@
 
   910 CONTINUE
       IF ( printi ) WRITE( out, "( A, '   **  Error return ', I0,              &
-     & ' from TRS ' )" ) prefix, inform%status 
+     & ' from TRS ' )" ) prefix, inform%status
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
@@ -3135,7 +3234,7 @@
   920 CONTINUE
       IF ( printi ) WRITE( out, "( A, ' error return from ',                   &
      &   'SLS_factorize: status = ', I0 )" ) prefix, inform%SLS_inform%status
-      inform%status = GALAHAD_error_factorization 
+      inform%status = GALAHAD_error_factorization
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
@@ -3177,8 +3276,8 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Solve the trust-region subproblem 
-!                                             
+!  Solve the trust-region subproblem
+!
 !      minimize     1/2 <x, H x> + <c, x> + f
 !      subject to    ||x||_2 <= radius  or ||x||_2 = radius
 !
@@ -3216,7 +3315,7 @@
       REAL ( KIND = wp ), INTENT( IN ) :: f
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: C, H
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: X
-      TYPE ( TRS_control_type ), INTENT( IN ) :: control        
+      TYPE ( TRS_control_type ), INTENT( IN ) :: control
       TYPE ( TRS_inform_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
@@ -3224,11 +3323,11 @@
 !-----------------------------------------------
 
       INTEGER :: i, it, out, nroots, print_level
-      INTEGER :: max_order, n_lambda, i_hard
+      INTEGER :: max_order, n_lambda, i_hard, n_sing
       REAL :: time_start, time_now, time_record
       REAL ( KIND = wp ) :: clock_start, clock_now, clock_record
       REAL ( KIND = wp ) :: lambda, lambda_l, lambda_u, delta_lambda
-      REAL ( KIND = wp ) :: alpha, utx, distx
+      REAL ( KIND = wp ) :: alpha, utx, distx, x_big
       REAL ( KIND = wp ) :: c_norm, c_norm_over_radius, v_norm2, w_norm2
       REAL ( KIND = wp ) :: beta, z_norm2, root1, root2, root3
       REAL ( KIND = wp ) :: lambda_min, lambda_max, lambda_plus, c2
@@ -3238,7 +3337,7 @@
       LOGICAL :: printi, printt, printd, problem_file_exists
       CHARACTER ( LEN = 1 ) :: region
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -3308,7 +3407,7 @@
               i_hard = i
               EXIT
             END IF
-          END DO        
+          END DO
           X( i_hard ) = one / radius
           inform%x_norm = radius
           inform%obj = f + lambda_min * radius ** 2
@@ -3322,12 +3421,12 @@
           WRITE( out, "( A,                                                    &
        &    ' Normal stopping criteria satisfied' )" ) prefix
         END IF
-        inform%status = 0
+        inform%status = GALAHAD_ok
         GO TO 900
       END IF
 
-!  construct values lambda_l and lambda_u for which lambda_l <= lambda_optimal 
-!   <= lambda_u, and ensure that all iterates satisfy lambda_l <= lambda 
+!  construct values lambda_l and lambda_u for which lambda_l <= lambda_optimal
+!   <= lambda_u, and ensure that all iterates satisfy lambda_l <= lambda
 !   <= lambda_u
 
       c_norm_over_radius = c_norm / radius
@@ -3351,14 +3450,14 @@
         inform%hard_case = .TRUE.
         DO i = 1, n
           IF ( H( i ) == lambda_min ) THEN
-            IF ( ABS( C( i ) ) > epsmch ) THEN
+            IF ( ABS( C( i ) ) > epsmch * c_norm ) THEN
               inform%hard_case = .FALSE.
               c2 = c2 + C( i ) ** 2
             ELSE
               i_hard = i
             END IF
           END IF
-        END DO        
+        END DO
 
 !  the hard case may occur
 
@@ -3367,10 +3466,10 @@
             IF ( H( i ) /= lambda_min ) THEN
               X( i )  = - C( i ) / ( H( i ) + lambda )
             ELSE
-              X( i ) = zero              
+              X( i ) = zero
             END IF
           END DO
-          inform%x_norm = TWO_NORM( X ) 
+          inform%x_norm = TWO_NORM( X )
 
 !  the hard case does occur
 
@@ -3380,9 +3479,9 @@
 !  compute the step alpha so that X + alpha E_i_hard lies on the trust-region
 !  boundary and gives the smaller value of q
 
-              utx = X( i_hard ) / radius 
+              utx = X( i_hard ) / radius
               distx = ( radius - inform%x_norm ) *                             &
-                ( ( radius + inform%x_norm ) / radius ) 
+                ( ( radius + inform%x_norm ) / radius )
               alpha = sign( distx / ( abs( utx ) +                             &
                             sqrt( utx ** 2 + distx / radius ) ), utx )
 
@@ -3390,7 +3489,7 @@
 
               X( i_hard ) = X( i_hard ) + alpha
             END IF
-            inform%x_norm = TWO_NORM( X ) 
+            inform%x_norm = TWO_NORM( X )
             inform%obj =                                                       &
                 f + half * ( DOT_PRODUCT( C, X ) - lambda * radius ** 2 )
             IF ( printi ) THEN
@@ -3399,7 +3498,7 @@
               WRITE( out, "( A,                                                &
            &    ' Hard-case stopping criteria satisfied' )" ) prefix
             END IF
-            inform%status = 0
+            inform%status = GALAHAD_ok
             GO TO 900
 
 !  the hard case didn't occur after all
@@ -3408,7 +3507,7 @@
             inform%hard_case = .FALSE.
 
 !  compute the first derivative of ||x|(lambda)||^2 - radius^2
-              
+
             w_norm2 = zero
             DO i = 1, n
               IF ( H( i ) /= lambda_min )                                      &
@@ -3419,7 +3518,7 @@
 !  compute the Newton correction
 
             lambda =                                                           &
-              lambda + ( inform%x_norm ** 2 - radius ** 2 ) / x_norm2( 1 )
+              lambda - ( inform%x_norm ** 2 - radius ** 2 ) / x_norm2( 1 )
             lambda_l = MAX( lambda_l, lambda )
           END IF
 
@@ -3429,13 +3528,14 @@
         ELSE
           lambda = lambda + SQRT( c2 ) / radius
           lambda_l = MAX( lambda_l, lambda )
-        END IF            
-      END IF        
+        END IF
+      END IF
 
 !  the iterates will all be in the L region. Prepare for the main loop
 
       it = 0
       max_order = MAX( 1, MIN( max_degree, control%taylor_max_degree ) )
+      inform%len_history = 0
 
 !  start the main loop
 
@@ -3445,9 +3545,21 @@
 !  if H(lambda) is positive definite, solve  H(lambda) x = - c
 
         CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
-        DO i = 1, n
-          X( i )  = - C( i ) / ( H( i ) + lambda )
-        END DO
+        n_sing = COUNT( H( : n ) + lambda <= zero )
+        IF ( n_sing == 0 ) THEN
+          DO i = 1, n
+            X( i )  = - C( i ) / ( H( i ) + lambda )
+          END DO
+        ELSE
+          x_big = radius / SQRT( REAL( n_sing, wp ) )
+          DO i = 1, n
+            IF ( H( i ) + lambda > zero ) THEN
+              X( i )  = - C( i ) / ( H( i ) + lambda )
+            ELSE
+              X( i )  = SIGN( x_big, - C( i ) )
+            END IF
+          END DO
+        END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%solve = inform%time%solve + time_now - time_record
         inform%time%clock_solve =                                              &
@@ -3455,14 +3567,14 @@
 
 !  compute the two-norm of x
 
-        inform%x_norm = TWO_NORM( X ) 
+        inform%x_norm = TWO_NORM( X )
         x_norm2( 0 ) = inform%x_norm ** 2
 
 !  if the Newton step lies within the trust region, exit
 
         IF ( lambda == zero .AND. inform%x_norm <= radius ) THEN
           inform%obj = f + half * DOT_PRODUCT( C, X )
-          inform%status = 0
+          inform%status = GALAHAD_ok
           region = 'L'
           IF ( printi ) THEN
             WRITE( out, "( A, A2, I4, 2ES22.15 )" ) prefix,                    &
@@ -3490,7 +3602,7 @@
             WRITE( out, "( A,                                                  &
          &    ' Normal stopping criteria satisfied' )" ) prefix
           END IF
-          inform%status = 0
+          inform%status = GALAHAD_ok
           EXIT
         END IF
 
@@ -3508,7 +3620,15 @@
             ABS( inform%x_norm - radius ), lambda, ABS( delta_lambda )
         END IF
 
-!  a lambda in L has been found. It is now simply a matter of applying 
+!  record, for the future, values of lambda which give small ||x||
+
+        IF ( inform%len_history < history_max ) THEN
+          inform%len_history = inform%len_history + 1
+          inform%history( inform%len_history )%lambda = lambda
+          inform%history( inform%len_history )%x_norm = inform%x_norm
+        END IF
+
+!  a lambda in L has been found. It is now simply a matter of applying
 !  a variety of Taylor-series-based methods starting from this lambda
 
 !  precaution against rounding producing lambda outside L
@@ -3575,8 +3695,8 @@
           a_3 = sixth * pi_beta( 3 )
           a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
           IF ( a_max > zero ) THEN
-            a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-            a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+            a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+            a_2 = a_2 / a_max ; a_3 = a_3 / a_max
           END IF
           CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,             &
                             root1, root2, root3, roots_debug )
@@ -3601,8 +3721,8 @@
           a_3 = sixth * pi_beta( 3 )
           a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
           IF ( a_max > zero ) THEN
-            a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-            a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+            a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+            a_2 = a_2 / a_max ; a_3 = a_3 / a_max
           END IF
           CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,             &
                             root1, root2, root3, roots_debug )
@@ -3633,13 +3753,13 @@
 !  improve the lower bound if possible
 
         lambda_l = MAX( lambda_l, lambda_plus )
- 
+
 !  check that the best Taylor improvement is significant
 
         IF ( ABS( delta_lambda ) < epsmch * MAX( one, ABS( lambda ) ) ) THEN
           IF ( printi ) WRITE( out, "( A, ' normal exit with no ',             &
          &                     'significant Taylor improvement' )" ) prefix
-          inform%status = 0
+          inform%status = GALAHAD_ok
           EXIT
         END IF
 
@@ -3695,7 +3815,7 @@
 !-----------------------------------------------
 
       TYPE ( TRS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( TRS_control_type ), INTENT( IN ) :: control        
+      TYPE ( TRS_control_type ), INTENT( IN ) :: control
       TYPE ( TRS_inform_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
@@ -3790,7 +3910,15 @@
                           inform%SLS_inform )
       IF ( inform%SLS_inform%status /= 0 ) THEN
         inform%status = GALAHAD_error_deallocate
-        inform%bad_alloc = 'trs: SLS_data'
+        inform%bad_alloc = 'trs: data%SLS_data'
+      END IF
+
+!  Deallocate all arrays allocated within IR
+
+      CALL IR_terminate( data%IR_data, control%IR_control, inform%IR_inform )
+      IF ( inform%IR_inform%status /= 0 ) THEN
+        inform%status = GALAHAD_error_deallocate
+        inform%bad_alloc = 'trs: data%IR_data'
       END IF
 
       RETURN
@@ -3813,12 +3941,12 @@
 
 !  Requires: sigma_lower <= sigma_target <= sigma_upper
 
-!  Input: 
+!  Input:
 !   n - problem dimension
 !   G - gradient
 !   lambda - current TR multiplier
 !   S - current TR minimizer
-!   sigma_lower, sigma_upper, sigma_target - lower bound, upper bound and 
+!   sigma_lower, sigma_upper, sigma_target - lower bound, upper bound and
 !     target values for sigma
 !   gamma_lambda - lambda increase factor
 !   radius_reduce - trust-region radius reduction factor
@@ -3829,7 +3957,7 @@
 !   lambda -  next TR multiplier (have_solved_next=.TRUE.) or an upper bound
 !     on the multiplier (have_solved_next=.FALSE., input lambda is lower bound)
 !   S - next TR minimizer (have_solved_next = .TRUE.) or approximation
-!     (have_solved_next = .FALSE.) 
+!     (have_solved_next = .FALSE.)
 !   have_solved_next - have we already solved the next TR problem?
 !   path - which line of Curtis et al's is executed (27,29,37,39)
 !   data, inform - see TRS_initialize
@@ -3852,12 +3980,12 @@
      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: G
      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: S
      TYPE ( TRS_data_type ), INTENT( INOUT ) :: data
-     TYPE ( TRS_control_type ), INTENT( IN ) :: control        
+     TYPE ( TRS_control_type ), INTENT( IN ) :: control
      TYPE ( TRS_inform_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e s
-!-----------------------------------------------     
+!-----------------------------------------------
 
       INTEGER :: it, n_lambda, max_order, out, print_level, nroots
       REAL :: time_start, time_now, time_record
@@ -3872,7 +4000,7 @@
       REAL ( KIND = wp ), DIMENSION( 0 : max_degree ) :: pi_beta, theta_beta
       LOGICAL :: printi, printt, printd, pos_def
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -3893,7 +4021,7 @@
       END IF
       sigma = MAX( sigma_lower, MIN( sigma_target, sigma_upper ) )
       have_solved_next = .FALSE.
- 
+
 !  reccord useful constants
 
       max_order = MAX( 1, MIN( max_degree, control%taylor_max_degree ) )
@@ -3931,7 +4059,7 @@
 
 !  test that the factorization succeeded
 
-      IF ( inform%SLS_inform%status == 0 ) THEN
+      IF ( inform%SLS_inform%status == GALAHAD_ok ) THEN
         IF ( data%control%SLS_control%pivot_control == 2 ) THEN
           pos_def = .TRUE.
         ELSE
@@ -3942,7 +4070,7 @@
       END IF
       IF ( .NOT. pos_def ) GO TO 920
 
-!  if H(lambda_trial) is positive definite, solve  
+!  if H(lambda_trial) is positive definite, solve
 !    H(lambda_trial) s(lambda_trial) = - g
 
       CALL CPU_time( time_record ) ; CALL CLOCK_time( clock_record )
@@ -3996,9 +4124,9 @@
 
         ELSE
 
-!  since Newton-like methods converge from the left, aim for the root with 
-!  sigma = sigma_target starting from lambda_input, stopping as soon as 
-!    ||s(lambda)|| <= lambda / sigma_lower 
+!  since Newton-like methods converge from the left, aim for the root with
+!  sigma = sigma_target starting from lambda_input, stopping as soon as
+!    ||s(lambda)|| <= lambda / sigma_lower
 
 !  start the main loop
 
@@ -4028,13 +4156,13 @@
 
 !  test that the factorization succeeded
 
-            IF ( inform%SLS_inform%status == 0 ) THEN
+            IF ( inform%SLS_inform%status == GALAHAD_ok ) THEN
               IF ( data%control%SLS_control%pivot_control == 2 ) THEN
                 pos_def = .TRUE.
               ELSE
                 pos_def = inform%SLS_inform%negative_eigenvalues == 0
               END IF
-            ELSE 
+            ELSE
               pos_def = .FALSE.
             END IF
             IF ( .NOT. pos_def ) GO TO 920
@@ -4070,7 +4198,7 @@
                 WRITE( out, "( A,                                              &
             &    ' Normal stopping criteria satisfied' )" ) prefix
               END IF
-              inform%status = 0
+              inform%status = GALAHAD_ok
               EXIT
             END IF
 
@@ -4148,7 +4276,7 @@
             a_2 = - oos2
             a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ) )
             IF ( a_max > zero ) THEN
-              a_0 = a_0 / a_max ; a_1 = a_1 / a_max ; a_2 = a_2 / a_max 
+              a_0 = a_0 / a_max ; a_1 = a_1 / a_max ; a_2 = a_2 / a_max
             END IF
             CALL ROOTS_quadratic( a_0, a_1, a_2, roots_tol, nroots,            &
                                   roots( 1 ), roots( 2 ), roots_debug )
@@ -4184,7 +4312,7 @@
             a_2 = pi_beta( 1 )
             a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ) )
             IF ( a_max > zero ) THEN
-              a_0 = a_0 / a_max ; a_1 = a_1 / a_max ; a_2 = a_2 / a_max 
+              a_0 = a_0 / a_max ; a_1 = a_1 / a_max ; a_2 = a_2 / a_max
             END IF
             CALL ROOTS_quadratic( a_0, a_1, a_2, roots_tol, nroots,            &
                                   roots( 1 ), roots( 2 ), roots_debug )
@@ -4283,8 +4411,8 @@
               a_3 = sixth * pi_beta( 3 )
               a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
               IF ( a_max > zero ) THEN
-                a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-                a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+                a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+                a_2 = a_2 / a_max ; a_3 = a_3 / a_max
               END IF
               CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,         &
                                 roots( 1 ), roots( 2 ), roots( 3 ),            &
@@ -4305,8 +4433,8 @@
               a_3 = sixth * pi_beta( 3 )
               a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
               IF ( a_max > zero ) THEN
-                a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-                a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+                a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+                a_2 = a_2 / a_max ; a_3 = a_3 / a_max
               END IF
               CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,         &
                                 roots( 1 ), roots( 2 ), roots( 3 ),            &
@@ -4330,8 +4458,8 @@
               a_3 = sixth * ( pi_beta( 3 ) - theta_beta( 3 ) )
               a_max = MAX( ABS( a_0 ), ABS( a_1 ), ABS( a_2 ), ABS( a_3 ) )
               IF ( a_max > zero ) THEN
-                a_0 = a_0 / a_max ; a_1 = a_1 / a_max 
-                a_2 = a_2 / a_max ; a_3 = a_3 / a_max 
+                a_0 = a_0 / a_max ; a_1 = a_1 / a_max
+                a_2 = a_2 / a_max ; a_3 = a_3 / a_max
               END IF
               CALL ROOTS_cubic( a_0, a_1, a_2, a_3, roots_tol, nroots,         &
                                 roots( 1 ), roots( 2 ), roots( 3 ),            &
@@ -4366,7 +4494,7 @@
             END IF
 
 !  end of main iteration loop
-  
+
           END DO
 
 !  compute the radius as the norm of the solution s(lambda)
@@ -4386,7 +4514,7 @@
 
   910 CONTINUE
       IF ( printi ) WRITE( out, "( A, '   **  Error return ', I0,              &
-     & ' from TRS_contract' )" ) prefix, inform%status 
+     & ' from TRS_contract' )" ) prefix, inform%status
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
@@ -4400,7 +4528,7 @@
   920 CONTINUE
       IF ( printi ) WRITE( out, "( A, ' error return from ',                   &
      &   'SLS_factorize: status = ', I0 )" ) prefix, inform%SLS_inform%status
-      inform%status = GALAHAD_error_factorization 
+      inform%status = GALAHAD_error_factorization
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
@@ -4429,13 +4557,13 @@
 !  Arguments:
 !  =========
 !
-!  Input - 
+!  Input -
 !   max_order - maximum order of derivative
-!   beta - power 
-!   x_norm2 - (0) value of ||x||^2, 
+!   beta - power
+!   x_norm2 - (0) value of ||x||^2,
 !             (i) ith derivative of ||x||^2, i = 1, max_order
-!  Output - 
-!   pi_beta - (0) value of ||x||^beta, 
+!  Output -
+!   pi_beta - (0) value of ||x||^beta,
 !             (i) ith derivative of ||x||^beta, i = 1, max_order
 !
 !  Extracted wholesale from module GALAHAD_RQS
@@ -4458,16 +4586,31 @@
 
       hbeta = half * beta
       pi_beta( 0 ) = x_norm2( 0 ) ** hbeta
-      pi_beta( 1 ) = hbeta * ( x_norm2( 0 ) ** ( hbeta - one ) ) * x_norm2( 1 )
-      IF ( max_order == 1 ) RETURN
-      pi_beta( 2 ) = hbeta * ( x_norm2( 0 ) ** ( hbeta - two ) ) *             &
-        ( ( hbeta - one ) * x_norm2( 1 ) ** 2 + x_norm2( 0 ) * x_norm2( 2 ) )
-      IF ( max_order == 2 ) RETURN
-      pi_beta( 3 ) = hbeta * ( x_norm2( 0 ) ** ( hbeta - three ) ) *           &
-        ( x_norm2( 3 ) * x_norm2( 0 ) ** 2 + ( hbeta - one ) *                 &
-          ( three * x_norm2( 0 ) * x_norm2( 1 ) * x_norm2( 2 ) +               &
-            ( hbeta - two ) * x_norm2( 1 ) ** 3 ) ) 
-
+      IF ( hbeta == one ) THEN
+        pi_beta( 1 ) = x_norm2( 1 )
+        IF ( max_order == 1 ) RETURN
+        pi_beta( 2 ) = x_norm2( 2 )
+        IF ( max_order == 2 ) RETURN
+        pi_beta( 3 ) = x_norm2( 3 )
+      ELSE IF ( hbeta == two ) THEN
+        pi_beta( 1 ) = two * x_norm2( 0 ) * x_norm2( 1 )
+        IF ( max_order == 1 ) RETURN
+        pi_beta( 2 ) = two * ( x_norm2( 1 ) ** 2 + x_norm2( 0 ) * x_norm2( 2 ) )
+        IF ( max_order == 2 ) RETURN
+        pi_beta( 3 ) = two *                                                   &
+          ( x_norm2( 0 ) * x_norm2( 3 ) + three * x_norm2( 1 ) * x_norm2( 2 ) )
+      ELSE
+        pi_beta( 1 )                                                           &
+          = hbeta * ( x_norm2( 0 ) ** ( hbeta - one ) ) * x_norm2( 1 )
+        IF ( max_order == 1 ) RETURN
+        pi_beta( 2 ) = hbeta * ( x_norm2( 0 ) ** ( hbeta - two ) ) *           &
+          ( ( hbeta - one ) * x_norm2( 1 ) ** 2 + x_norm2( 0 ) * x_norm2( 2 ) )
+        IF ( max_order == 2 ) RETURN
+        pi_beta( 3 ) = hbeta * ( x_norm2( 0 ) ** ( hbeta - three ) ) *         &
+          ( x_norm2( 3 ) * x_norm2( 0 ) ** 2 + ( hbeta - one ) *               &
+            ( three * x_norm2( 0 ) * x_norm2( 1 ) * x_norm2( 2 ) +             &
+              ( hbeta - two ) * x_norm2( 1 ) ** 3 ) )
+      END IF
       RETURN
 
 !  End of subroutine TRS_pi_derivs
@@ -4476,8 +4619,8 @@
 
 !-*-*-*-*-*  T R S _ T H E T A _ D E R I V S   S U B R O U T I N E   *-*-*-*-*-
 
-      SUBROUTINE TRS_theta_derivs( max_order, beta, lambda, sigma,            &
-                                     theta_beta )
+      SUBROUTINE TRS_theta_derivs( max_order, beta, lambda, sigma,             &
+                                   theta_beta )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
@@ -4486,12 +4629,12 @@
 !  Arguments:
 !  =========
 !
-!  Input - 
+!  Input -
 !   max_order - maximum order of derivative
-!   beta - power 
+!   beta - power
 !   lambda, sigma - lambda and sigma
-!  Output - 
-!   theta_beta - (0) value of (lambda/sigma)^beta, 
+!  Output -
+!   theta_beta - (0) value of (lambda/sigma)^beta,
 !             (i) ith derivative of (lambda/sigma)^beta, i = 1, max_order
 !
 !  Extracted wholesale from module GALAHAD_RQS
@@ -4517,22 +4660,243 @@
 
 !if ( los <= zero ) write( 6,*) ' l, s ',  lambda, sigma, beta
       theta_beta( 0 ) = los ** beta
-      theta_beta( 1 ) = beta * ( los ** ( beta - one ) ) * oos
-      IF ( max_order == 1 ) RETURN
-      theta_beta( 2 ) = beta * ( los ** ( beta - two ) ) *                    &
-                        ( beta - one ) * oos ** 2
-      IF ( max_order == 2 ) RETURN
-      theta_beta( 3 ) = beta * ( los ** ( beta - three ) ) *                  &
-                        ( beta - one ) * ( beta - two ) * oos ** 3
-
+      IF ( beta == one ) THEN
+        theta_beta( 1 ) = oos
+        IF ( max_order == 1 ) RETURN
+        theta_beta( 2 ) = zero
+        IF ( max_order == 2 ) RETURN
+        theta_beta( 3 ) = zero
+      ELSE IF ( beta == two ) THEN
+        theta_beta( 1 ) = two * los * oos
+        IF ( max_order == 1 ) RETURN
+        theta_beta( 2 ) = oos ** 2
+        IF ( max_order == 2 ) RETURN
+        theta_beta( 3 ) = zero
+      ELSE
+        theta_beta( 1 ) = beta * ( los ** ( beta - one ) ) * oos
+        IF ( max_order == 1 ) RETURN
+        theta_beta( 2 ) = beta * ( los ** ( beta - two ) ) *                   &
+                          ( beta - one ) * oos ** 2
+        IF ( max_order == 2 ) RETURN
+        theta_beta( 3 ) = beta * ( los ** ( beta - three ) ) *                 &
+                          ( beta - one ) * ( beta - two ) * oos ** 3
+      END IF
       RETURN
 
 !  End of subroutine TRS_theta_derivs
 
       END SUBROUTINE TRS_theta_derivs
 
+!-  G A L A H A D - T R S _ o r t h o g o n a l _ s o l v e  S U B R O U T I N E
+
+      SUBROUTINE TRS_orthogonal_solve( n, C, H, X, k_max,                      &
+                                       data, control, inform )
+
+! ------------------------------------------------------------------------
+
+!  Aim: find, successively
+
+!  x_k+1 = arg min q(x) = 1/2 <x, H x> + <c, x> + f : X_k^T x = 0
+!  where X_k = (x_1, .., x_k)
+
+!  Explanation:
+
+!  => (   H    X_k ) ( x_k+1 ) = - ( c )
+!     ( X^T_k   0  ) (  y_k  )     ( 0 )
+
+!   x_1   = - H^{-1} c &
+!   x_k+1 = - H^{-1} c - H^{-1} X_k y_k
+!         = x_1 - Z_k  y_k
+
+!  where Z_k = (z_1, ..., z_k) = H^{-1} X_k
+!            = ( H^{-1} x_1, ...,  H^{-1} x_k )
+
+!  Also X^T_k x_k+1 = 0 =>
+
+!   X^T_k Z_k y_k = X^T_k x_1 = ||x_1||^2 e_1
+
+!  Let H = L_H L^T_H and W_k = L_H^{-1} X_k so that w_k = W_k e_k =>
+
+!   X^T_k Z_k = X^T_k L^-T L_H^{-1} X_k = W^T_k W_k = L_k L^T_k
+
+!  with L_k lower triangular with last row (l_k-1^T,lam_k)
+
+!  => W^T_k W_k = ( W^T_k-1 W_k-1   W^T_k-1 w_k ) =
+!                 (  w^T_k W_k-1     w^T_k w_k  )
+!     L_k L^T_k = ( L_k-1 L^T_k-1         L_k-1 l_k-1        )
+!                 ( l^T_k-1 L^T_k-1  l^T_k-1 l_k-1 + lam_k^2 )
+
+!  i.e., L_k-1 l_k-1 = v_k-1 and lam_k^2 = nu_k - l^T_k-1 l_k-1
+!  where v_k-1 = W^T_k-1 w_k and nu_k = w^T_k w_k
+
+!  v_k-1  = W^T_k-1 w_k =  X^T_k-1 L_H^{-T} L_H^{-1} x_k = X^T_k-1 H^{-1} x_k
+!       = Z^T_k-1 x_k and
+!  nu_k = w^T_k w_k
+!       = z^T_k x_k
+
+!  Given L_k, find y_k via  L_k L^T_k y_k = ||x_1||^2 e_1, i.e.
+!  L_k u_k = ||x_1||^2 e_1 and L^T_k y_k = u_k =>
+
+!   u^T_k = (u^T_k-1,mu_k), where mu_k = - u_k-1^T l_k-1 / lam_k
+
+! Thus .... to summarize
+
+! ALGORITHM ORTHOGONAL_SOLVE
+
+! -1. Set Z_0 = 0 and u_0 = 0
+
+ ! 0. Factorize H and compute x_1 = - H^-1 c
+
+! for k = 1, ..., k_max - 1
+
+! 1. Set z_k = H^{-1} x_k and Z_k = ( Z_k-1 : z_k )
+
+! 2. Compute v_k-1 = Z^T_k-1 x_k and nu_k = z^T_k x_k
+
+! 3. Find new row of (l^T_k-1,lam_k) of L_k via
+
+!     L_k-1 l_k-1 = v_k-1 and lam_k^2 = nu_k - l^T_k-1 l_k-1
+
+! 4. If k = 1, set mu_1 = x^T_1 x_1 / lam_1
+!    else mu_k = - u_k-1^T l_k-1 / lam_k
+
+! 5. Find  L^T_k y_k = u_k, where u^T_k = (`u^T_k-1,mu_k)
+
+! 6. Set x_k+1 = x_1 - Z_k y_k
+
+! end for
+
+! total effort: k_max solves with H, k_max * ( k_max + 1 ) inner products
+! of order n to form Z^T_k x_k and Z_k y_k + lesser terms
+
+! ------------------------------------------------------------------------
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( IN ) :: n, k_max
+     TYPE ( SMT_type ), INTENT( IN ) :: H
+     REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: C
+     REAL ( KIND = wp ), INTENT( OUT), DIMENSION( n, k_max ) :: X
+
+!-----------------------------------------------
+!   L o c a l   V a r i a b l e s
+!-----------------------------------------------
+
+     INTEGER :: i, k
+     REAL ( KIND = wp ), DIMENSION( k_max ) :: U, Y
+     REAL ( KIND = wp ), DIMENSION( k_max, k_max ) :: LT
+     REAL ( KIND = wp ), DIMENSION( n, k_max ) :: Z
+     TYPE ( TRS_data_type ), INTENT( INOUT ) :: data
+     TYPE ( TRS_control_type ), INTENT( IN ) :: control
+     TYPE ( TRS_inform_type ), INTENT( INOUT ) :: inform
+
+!  factorize H
+
+     CALL SLS_analyse( data%H_lambda, data%SLS_data,                           &
+                       data%control%SLS_control, inform%SLS_inform )
+     CALL SLS_factorize( data%H_lambda, data%SLS_data,                         &
+                         data%control%SLS_control, inform%SLS_inform )
+
+!    U = 0.0_wp
+!    Y = 0.0_wp
+!    LT = 0.0_wp
+!    Z = 0.0_wp
+
+!  compute x_1 = - H^-1 c
+
+     X( : , 1 ) = - C
+     CALL SLS_solve( data%H_lambda, X( : , 1 ), data%SLS_data,                 &
+                     data%control%SLS_control, inform%SLS_inform )
+
+!  main loop
+
+!write(6,*) ' x ', 1, X( : , 1 )
+     DO k = 1, k_max - 1
+
+!  set z_k = H^{-1} x_k and Z_k = ( Z_k-1 : z_k )
+
+       Z( : , k ) = X( : , k )
+       CALL SLS_solve( data%H_lambda, Z( : , k ), data%SLS_data,               &
+                       data%control%SLS_control, inform%SLS_inform )
+
+!write(6,*) ' z ', k, Z( : , k )
+
+!  store v_k-1 = Z^T_k-1 x_k and nu_k = z^T_k x_k in the kth column of LT
+
+       DO i = 1, k
+         LT( i , k ) = DOT_PRODUCT( Z( : , i ), X( : , k ) )
+       END DO
+
+!  find the new row (l^T_k-1,lam_k) of L_k (i.e, k-th column of LT) via
+!    L_k-1 l_k-1 = v_k-1 ...
+
+!write(6,*) ' k ', k
+       IF ( k > 1 ) THEN
+         LT( 1, k ) = LT( 1, k ) / LT( 1, 1 )
+         DO i = 2, k - 1
+           LT( i, k ) = ( LT( i, k )                                           &
+             - DOT_PRODUCT( LT( : i - 1, i ), LT( : i - 1, k ) ) ) / LT( i, i )
+         END DO
+
+!  ... and lam_k^2 = nu_k - l^T_k-1 l_k-1
+
+         IF ( LT( k, k ) < DOT_PRODUCT( LT( : k - 1, k ), LT( : k - 1, k ) ) ) &
+           write(6,*) ' error ', LT( k, k ),                                   &
+             DOT_PRODUCT( LT( : k - 1, k ), LT( : k - 1, k ) )
+         LT( k, k ) =                                                          &
+           SQRT( LT( k, k ) - DOT_PRODUCT( LT( : k - 1, k ), LT( : k - 1, k ) ))
+       ELSE
+         LT( 1, 1 ) = SQRT( LT( 1, 1 ) )
+       END IF
+
+!  if k = 1, set mu_1 = x^T_1 x_1 / lam_1
+
+       IF ( k == 1 ) THEN
+         U( 1 ) = DOT_PRODUCT(  X( : , 1 ),  X( : , 1 ) ) / LT( 1, 1 )
+
+!  otherwise set mu_k = - u_k-1^T l_k-1 / lam_k
+
+       ELSE
+         U( k )                                                                &
+           =  - DOT_PRODUCT(  U( : k - 1 ),  LT( : k - 1 , k ) ) / LT( k, k )
+       END IF
+
+!  find  L^T_k y_k = u_k, where u^T_k = (u^T_k-1,mu_k)
+
+       Y( : k ) = U( : k )
+       DO i = k, 1, - 1
+         Y( i ) = Y( i ) / LT( i, i )
+         IF ( i > 1 ) &
+         Y( : i - 1 ) = Y( : i - 1 ) - Y( i ) * LT( : i - 1, i )
+       END DO
+
+!  set x_k+1 = x_1 - Z_k y_k
+
+       X( : , k + 1 ) = X( : , 1 )
+       DO i = 1, k
+         X( : , k + 1 ) = X( : , k + 1 ) - Z( : , i ) * Y( i )
+       END DO
+
+!write(6,*) ' x ', k+1, X( : , k+1 )
+
+!write(6,*) ' u ', u( : k )
+!DO i = 1, k
+!  write(6,*) 'LT col ', i, LT( : i, i )
+!END DO
+!DO i = 1, k
+!  write(6,*) 'Z col ', i, Z( 1:2, i )
+!END DO
+
+     END DO
+
+     RETURN
+
+!  end of subroutine TRS_orthogonal_solve
+
+     END SUBROUTINE TRS_orthogonal_solve
+
 !-*-*-*-*-*-  End of G A L A H A D _ T R S  double  M O D U L E  *-*-*-*-*-*-
 
    END MODULE GALAHAD_TRS_double
-
-

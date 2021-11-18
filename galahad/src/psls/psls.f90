@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 27/05/2015 AT 13:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 26/07/2021 AT 14:45 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ P S L S   M O D U L E  -*-*-*-*-*-*-*-*-*-
 
@@ -10,7 +10,7 @@
 !   originally released GALAHAD Version 2.2. April 13th 2008
 !   Incorporated SLS in place of SILS GALAHAD Version 2.4, January 27th 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_PSLS_double
@@ -30,16 +30,16 @@
       USE GALAHAD_QPT_double, ONLY : QPT_keyword_H
       USE GALAHAD_SLS_double
       USE GALAHAD_SCU_double, ONLY : SCU_matrix_type, SCU_data_type,           &
-        SCU_info_type, SCU_factorize, SCU_solve, SCU_append, SCU_terminate
+        SCU_inform_type, SCU_factorize, SCU_solve, SCU_append, SCU_terminate
       USE GALAHAD_SORT_double, ONLY : SORT_reorder_by_cols
-      USE LANCELOT_EXTEND_double, ONLY : EXTEND_arrays
+      USE GALAHAD_EXTEND_double, ONLY : EXTEND_arrays
       USE LANCELOT_BAND_double
       USE HSL_MI28_double
       USE GALAHAD_SPECFILE_double
       USE GALAHAD_NORMS_double, ONLY : TWO_NORM
 
       IMPLICIT NONE
-     
+
       PRIVATE
       PUBLIC :: PSLS_read_specfile, PSLS_initialize, PSLS_terminate,           &
                 PSLS_form_and_factorize, PSLS_update_factors, PSLS_solve,      &
@@ -87,9 +87,9 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: PSLS_control_type
 
@@ -107,14 +107,14 @@
 
 !  which preconditioner to use:
 !   <0  no preconditioning, P = I
-!    0  automatic 
+!    0  automatic
 !    1  diagonal, P = diag( max( A, %min_diagonal ) )
 !    2  banded, P = band( A ) with semi-bandwidth %semi_bandwidth
 !    3  re-ordered band, P = band(order(A)) with semi-bandwidth %semi_bandwidth
 !    4  full factorization, P = A, Schnabel-Eskow modification
 !    5  full factorization, P = A, GMPS modification
 !    6  incomplete factorization, Lin-More'
-!    7  incomplete factorization, HSL_MI28 
+!    7  incomplete factorization, HSL_MI28
 !    8  incomplete factorization, Munskgaard
 !    9  expanding band
 
@@ -129,30 +129,30 @@
         INTEGER :: scaling = 0
         INTEGER :: ordering = 0
 
-!  maximum number of nonzeros in a column of A for Schur-complement 
+!  maximum number of nonzeros in a column of A for Schur-complement
 !  factorization  to accommodate newly fixed variables
 
         INTEGER :: max_col = 100
 
-!  number of extra vectors of length n required by the Lin-More' incomplete 
+!  number of extra vectors of length n required by the Lin-More' incomplete
 !  Cholesky preconditioner
 
         INTEGER :: icfs_vectors = 10
 
-!  the maximum number of fill entries within each column of the incomplete 
+!  the maximum number of fill entries within each column of the incomplete
 !  factor L computed by HSL_MI28. In general, increasing mi28_lsize improves
 !  the quality of the preconditioner but increases the time to compute
 !  and then apply the preconditioner. Values less than 0 are treated as 0
 
         INTEGER :: mi28_lsize = 10
 
-!  the maximum number of entries within each column of the strictly lower 
-!  triangular matrix R used in the computation of the preconditioner by 
-!  HSL_MI28.  Rank-1 arrays of size mi28_rsize *  n are allocated internally 
+!  the maximum number of entries within each column of the strictly lower
+!  triangular matrix R used in the computation of the preconditioner by
+!  HSL_MI28.  Rank-1 arrays of size mi28_rsize *  n are allocated internally
 !  to hold R. Thus the amount of memory used, as well as the amount of work
 !  involved in computing the preconditioner, depends on mi28_rsize. Setting
 !  mi28_rsize > 0 generally leads to a higher quality preconditioner than
-!  using mi28_rsize = 0, and choosing mi28_rsize >= mi28_lsize is generally 
+!  using mi28_rsize = 0, and choosing mi28_rsize >= mi28_lsize is generally
 !  recommended
 
         INTEGER :: mi28_rsize = 10
@@ -166,7 +166,7 @@
 
         LOGICAL :: new_structure = .TRUE.
 
-!  set get_semi_bandwidth true if the semi-bandwidth of the submatrix is to be 
+!  set get_semi_bandwidth true if the semi-bandwidth of the submatrix is to be
 !  calculated
 
         LOGICAL :: get_semi_bandwidth = .TRUE.
@@ -189,9 +189,9 @@
         CHARACTER ( LEN = 30 ) :: definite_linear_solver =                     &
            "sils" // REPEAT( ' ', 26 )
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix
@@ -261,9 +261,9 @@
 
       END TYPE PSLS_time_type
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: PSLS_inform_type
 
@@ -304,7 +304,7 @@
 
        INTEGER :: preconditioner = - 100
 
-!  the actual semi-bandwidth 
+!  the actual semi-bandwidth
 
        INTEGER :: semi_bandwidth = - 1
 
@@ -380,7 +380,7 @@
         REAL ( KIND = wp ) :: perturbation
         LOGICAL :: sub_matrix, perturbed
         INTEGER, DIMENSION( 10 ) :: mc61_ICNTL                                 &
-          = (/ 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 /)
+          = (/ 6, 6, 0, 0, 0, 0, 0, 0, 0, 0 /)
         REAL ( KIND = wp ), DIMENSION( 5 ) :: mc61_CNTL                        &
           = (/ 2.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, 0.0_wp /)
         INTEGER, ALLOCATABLE, DIMENSION( : ) :: SUB, INDEX, IW, PERM, MAPS
@@ -398,7 +398,7 @@
         TYPE ( SLS_data_type ) :: SLS_data
         TYPE ( SCU_matrix_type ) :: SCU_matrix
         TYPE ( SCU_data_type ) :: SCU_data
-        TYPE ( SCU_info_type ) :: SCU_inform
+        TYPE ( SCU_inform_type ) :: SCU_inform
         TYPE ( MI28_control ) :: MI28_control
         TYPE ( MI28_keep ) ::  MI28_keep
       END TYPE PSLS_data_type
@@ -424,7 +424,7 @@
 !
 !  Default control data for PSLS. This routine should be called before
 !  PSLS_solve
-! 
+!
 !  --------------------------------------------------------------------
 !
 !  Arguments:
@@ -436,7 +436,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
      TYPE ( PSLS_data_type ), INTENT( INOUT ) :: data
-     TYPE ( PSLS_control_type ), INTENT( OUT ) :: control        
+     TYPE ( PSLS_control_type ), INTENT( OUT ) :: control
      TYPE ( PSLS_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -455,10 +455,10 @@
 
      SUBROUTINE PSLS_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given could (roughly) 
+!  The defauly values as given could (roughly)
 !  have been set as:
 
 ! BEGIN PSLS SPECIFICATIONS (DEFAULT)
@@ -490,7 +490,7 @@
 
 !  Dummy arguments
 
-     TYPE ( PSLS_control_type ), INTENT( INOUT ) :: control        
+     TYPE ( PSLS_control_type ), INTENT( INOUT ) :: control
      INTEGER, INTENT( IN ) :: device
      CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -529,7 +529,7 @@
 
      spec( error )%keyword = 'error-printout-device'
      spec( out )%keyword = 'printout-device'
-     spec( print_level )%keyword = 'print-level' 
+     spec( print_level )%keyword = 'print-level'
      spec( preconditioner )%keyword = 'preconditioner-used'
      spec( semi_bandwidth )%keyword = 'semi-bandwidth-for-band-preconditioner'
      spec( scaling )%keyword = 'scaling-used'
@@ -657,14 +657,14 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Form and factorize a symmetric, positive definite approximation P to a 
+!  Form and factorize a symmetric, positive definite approximation P to a
 !  symmetric submatrix of given symmetrix matrix A
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Arguments: 
+!  Arguments:
 
-!   A is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   A is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of A. Four storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -675,7 +675,7 @@
 !       A%val( : )   the values of the components of A
 !       A%row( : )   the row indices of the components of A
 !       A%col( : )   the column indices of the components of A
-!       A%ne         the number of nonzeros used to store 
+!       A%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of A
 !
 !    ii) sparse, by rows
@@ -694,7 +694,7 @@
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -706,14 +706,14 @@
 !
 !  data is a structure of type PSLS_data_type which holds private internal data
 !
-!  control is a structure of type PSLS_control_type that controls the 
+!  control is a structure of type PSLS_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
-!   the elements may be set by a call to PSLS_initialize. See PSLS_initialize 
+!   the elements may be set by a call to PSLS_initialize. See PSLS_initialize
 !   for details
 !
-!  inform is a structure of type PSLS_inform_type that provides information on 
+!  inform is a structure of type PSLS_inform_type that provides information on
 !   exit from PSLS_solve. The component status has possible values:
-!  
+!
 !     0 Normal termination.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -722,7 +722,7 @@
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!    -3 one of the restrictions 
+!    -3 one of the restrictions
 !        A%n    >=  1
 !        A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE', , 'DIAGONAL' }
 !       has been violated.
@@ -730,24 +730,24 @@
 !    -9 the ordering (analysis) phase failed.
 !
 !    -10 the factorization phase failed.
-!    
-!  On exit from PSLS_form_and_factorize, other components of inform give the 
+!
+!  On exit from PSLS_form_and_factorize, other components of inform give the
 !  following:
 !
-!     alloc_status = The status of the last attempted allocation/deallocation 
+!     alloc_status = The status of the last attempted allocation/deallocation
 !     analyse_status = The return status from the ordering phase of the
 !      factorization (if any)
 !     factorize_status = The return status from the factorization phase
 !     solve_status = The return status from the solve phase
-!     factorization_integer = The total integer workspace required for the 
+!     factorization_integer = The total integer workspace required for the
 !       factorization
-!     factorization_real = The total real workspace required for the 
+!     factorization_real = The total real workspace required for the
 !       factorization
 !     preconditioner = Code for the actual preconditioner computed
 !     semi_bandwidth = The semi-bandwidth of the original submatrix
-!     neg1, neg2 - the number of -ve 1x1 and 2x2 pivots found during the 
+!     neg1, neg2 - the number of -ve 1x1 and 2x2 pivots found during the
 !       factorization
-!     perturbed = true if the initial preconditioner was perturbed to ensure 
+!     perturbed = true if the initial preconditioner was perturbed to ensure
 !      that it is definite
 !     fill_in_ratio = ratio of nonzeros in factors to the original matrix
 !     norm_residual = norm of the residual during the solve phase
@@ -760,9 +760,9 @@
 !     time%factorize = the time spent factorizing the preconditioner
 !     time%solve = the time spent in the solution phase
 !
-!   SUB is an optional rank-one integer assumed-sized array whose components 
-!    list the indices of the required submatrix. The indices should be in 
-!    increasing order. If SUB is not present, the entire matrix A will be 
+!   SUB is an optional rank-one integer assumed-sized array whose components
+!    list the indices of the required submatrix. The indices should be in
+!    increasing order. If SUB is not present, the entire matrix A will be
 !    considered.
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -784,8 +784,8 @@
       REAL :: time_now, time_start, time_record
       REAL ( KIND = wp ) :: clock_now, clock_start, clock_record
       REAL ( KIND = wp ) :: de, df
-      
-!  prefix for all output 
+
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -827,9 +827,12 @@
       IF ( A%n < 0 .OR. .NOT. QPT_keyword_H( A%type ) ) THEN
         inform%status = GALAHAD_error_restrictions
         GO TO 930
-      END IF 
+      END IF
 
-      IF ( control%new_structure ) THEN
+      data%sub_matrix = PRESENT( SUB )
+
+      IF ( control%new_structure .OR. data%sub_matrix ) THEN
+!     IF ( control%new_structure ) THEN
         data%n_update = 0
         data%max_col = control%max_col
         IF ( data%max_col <= 0 ) data%max_col = 100
@@ -837,8 +840,6 @@
 !  Record if a variable is contained in the submatrix
 
         data%n = A%n
-   
-        data%sub_matrix = PRESENT( SUB )
         IF ( data%sub_matrix ) THEN
           data%n_sub = SIZE( SUB )
           array_name = 'psls: data%SUB'
@@ -872,9 +873,9 @@
 
         IF ( control%get_semi_bandwidth ) THEN
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             inform%semi_bandwidth = 0
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             inform%semi_bandwidth = data%n_sub - 1
           CASE ( 'SPARSE_BY_ROWS' )
             IF ( data%sub_matrix ) THEN
@@ -923,18 +924,19 @@
 !  Stage 1 - Form the preliminary P
 !  --------------------------------
 
-      data%P%n = data%n_sub
+      data%P%n = data%n_sub ; data%P%m = data%P%n
 
       IF ( printt ) WRITE( out, "( /, A, ' Form and factorize ' )" ) prefix
       SELECT CASE ( control%preconditioner )
 
 !  a diagonal matrix will be used
 
-      CASE ( preconditioner_diagonal ) 
-        
+      CASE ( preconditioner_diagonal )
+
 !  allocate space to hold the diagonal
 
-        IF ( control%new_structure ) THEN
+ !      IF ( control%new_structure ) THEN
+        IF ( control%new_structure .OR. data%sub_matrix ) THEN
           array_name = 'psls: data%DIAG'
           CALL SPACE_resize_array( data%n_sub, data%DIAG,                      &
               inform%status, inform%alloc_status, array_name = array_name,     &
@@ -947,13 +949,16 @@
 !  fit the data into the diagonal
 
         SELECT CASE ( SMT_get( A%type ) )
-        CASE ( 'DIAGONAL' ) 
+        CASE ( 'DIAGONAL' )
           IF ( data%sub_matrix ) THEN
-            data%DIAG = A%val( SUB( : data%n_sub ) )
+            DO l = 1, data%n_sub
+              data%DIAG( l ) = A%val( SUB( l ) )
+            END DO
+!           data%DIAG( : data%n_sub ) = A%val( SUB( : data%n_sub ) )
           ELSE
             data%DIAG = A%val( : data%n )
           END IF
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           IF ( data%sub_matrix ) THEN
             l = 0 ; j = 0
             DO i = 1, data%n
@@ -966,7 +971,7 @@
             l = 0
             DO i = 1, data%n
               l = l + i
-              data%DIAG( i ) = data%DIAG( i ) + A%val( l )
+              data%DIAG( i ) = A%val( l )
             END DO
           END IF
         CASE ( 'SPARSE_BY_ROWS' )
@@ -1014,7 +1019,7 @@
 
 !  A band matrix will be used
 
-      CASE ( preconditioner_band ) 
+      CASE ( preconditioner_band )
 
         IF ( control%new_structure ) THEN
 
@@ -1025,10 +1030,10 @@
 !  submatrix case
 
             SELECT CASE ( SMT_get( A%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               data%semi_bandwidth_used = 0
 !             data%P%ne = data%n_sub
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               data%semi_bandwidth_used =                                       &
                 MIN( control%semi_bandwidth, data%n_sub - 1 )
 !             data%P%ne = ( data%n_sub * ( data%n_sub + 1 ) ) / 2
@@ -1055,7 +1060,7 @@
               data%semi_bandwidth_used = 0
 !             data%P%ne = 0
               DO l = 1, A%ne
-                i = data%INDEX( A%row( l ) ) 
+                i = data%INDEX( A%row( l ) )
                 IF ( i > 0 ) THEN
                   j = data%INDEX( A%col( l ) )
                   IF ( j > 0 ) THEN
@@ -1074,10 +1079,10 @@
 !  complete matrix case
 
             SELECT CASE ( SMT_get( A%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               data%semi_bandwidth_used = 0
 !             data%P%ne = data%n_sub
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               data%semi_bandwidth_used =                                       &
                 MIN( control%semi_bandwidth, data%n_sub - 1 )
 !             data%P%ne = ( data%n_sub * ( data%n_sub + 1 ) ) / 2
@@ -1168,7 +1173,7 @@
 !  initialize an empty band
 
         data%DIAG = zero ; data%OFFDIA = zero
-        
+
 !  fit the data into the band
 
         IF ( data%sub_matrix ) THEN
@@ -1177,7 +1182,7 @@
 
 !         data%P%ne = 0
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%DIAG = A%val( SUB( : data%n_sub ) )
 !           DO ii = 1, data%n_sub
 !             i = SUB( ii )
@@ -1187,7 +1192,7 @@
 !             END IF
 !           END DO
 !           data%P%val( : data%n_sub ) = A%val( SUB( : data%n_sub ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO ii = 1, data%n
               i = data%INDEX( ii )
@@ -1243,7 +1248,7 @@
             END DO
           CASE ( 'COORDINATE' )
             DO l = 1, A%ne
-              i = data%INDEX( A%row( l ) ) 
+              i = data%INDEX( A%row( l ) )
               IF ( i > 0 ) THEN
                 j = data%INDEX( A%col( l ) )
                 IF ( j > 0 ) THEN
@@ -1271,7 +1276,7 @@
 
 !         data%P%ne = 0
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%DIAG = A%val( : data%n )
 !           DO i = 1, data%n
 !             data%P%ne = data%P%ne + 1
@@ -1280,7 +1285,7 @@
 !             END IF
 !           END DO
 !           data%P%val( : data%n ) = A%val( : data%n )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO i = 1, data%n
               DO j = 1, i
@@ -1344,16 +1349,16 @@
 
 !  A re-ordered band matrix will be used
 
-      CASE ( preconditioner_reordered_band ) 
+      CASE ( preconditioner_reordered_band )
 
         IF ( control%new_structure ) THEN
 
 !  compute the number of nonzeros in A
 
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%p_ne = data%n_sub
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%p_ne = ( data%n_sub * ( data%n_sub + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             IF ( data%sub_matrix ) THEN
@@ -1442,13 +1447,13 @@
 !  submatrix case
 
             SELECT CASE ( SMT_get( A%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               DO ii = 1, data%n_sub
                 i = SUB( ii )
                 data%p_ne = data%p_ne + 1
                 data%P_row( data%p_ne ) = i ; data%P_col( data%p_ne ) = i
               END DO
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               l = 0
               DO ii = 1, data%n
                 i = data%INDEX( ii )
@@ -1488,7 +1493,7 @@
               END DO
             CASE ( 'COORDINATE' )
               DO l = 1, A%ne
-                i = data%INDEX( A%row( l ) ) 
+                i = data%INDEX( A%row( l ) )
                 IF ( i > 0 ) THEN
                   j = data%INDEX( A%col( l ) )
                   IF ( j > 0 ) THEN
@@ -1507,13 +1512,13 @@
 !  complete matrix case
 
             SELECT CASE ( SMT_get( A%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               data%DIAG = A%val( : data%n )
               DO i = 1, data%n
                 data%p_ne = data%p_ne + 1
                 data%P_row( data%p_ne ) = i ; data%P_col( data%p_ne ) = i
               END DO
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               l = 0
               DO i = 1, data%n
                 DO j = 1, i
@@ -1566,6 +1571,8 @@
 
 !  find a bandwidth-reducing ordering
 
+          IF ( control%print_level <= 0 .OR. control%out <= 0 )                &
+            data%mc61_ICNTL( 1 : 2 ) = - 1
           CALL MC61AD( 2, data%n_sub, data%mc61_lirn,                          &
                        data%P_row, data%P_colptr, data%PERM, data%mc61_liw,    &
                        data%IW, data%W, data%mc61_ICNTL, data%mc61_CNTL,       &
@@ -1587,9 +1594,9 @@
 !  submatrix case
 
             SELECT CASE ( SMT_get( A%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               data%semi_bandwidth_used = 0
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               data%semi_bandwidth_used =                                       &
                 MIN( control%semi_bandwidth, data%n_sub - 1 )
             CASE ( 'SPARSE_BY_ROWS' )
@@ -1597,11 +1604,11 @@
               DO iii = 1, data%n
                 i = data%INDEX( iii )
                 IF ( i > 0 ) THEN
-                  ii = data%PERM( i ) 
+                  ii = data%PERM( i )
                   DO l = A%ptr( iii ), A%ptr( iii + 1 ) - 1
                     j = data%INDEX( A%col( l ) )
                     IF ( j > 0 ) THEN
-                      jj = data%PERM( j ) 
+                      jj = data%PERM( j )
                       ij = ABS( ii - jj )
                       IF ( ij <= control%semi_bandwidth ) THEN
                         data%semi_bandwidth_used =                             &
@@ -1614,12 +1621,12 @@
             CASE ( 'COORDINATE' )
               data%semi_bandwidth_used = 0
               DO l = 1, A%ne
-                i = data%INDEX( A%row( l ) ) 
+                i = data%INDEX( A%row( l ) )
                 IF ( i > 0 ) THEN
-                  ii = data%PERM( i ) 
+                  ii = data%PERM( i )
                   j = data%INDEX( A%col( l ) )
                   IF ( j > 0 ) THEN
-                    jj = data%PERM( j ) 
+                    jj = data%PERM( j )
                     ij = ABS( ii - jj )
                     IF ( ij <= control%semi_bandwidth ) THEN
                       data%semi_bandwidth_used =                               &
@@ -1635,15 +1642,15 @@
 !  complete matrix case
 
             SELECT CASE ( SMT_get( A%type ) )
-            CASE ( 'DIAGONAL' ) 
+            CASE ( 'DIAGONAL' )
               data%semi_bandwidth_used = 0
-            CASE ( 'DENSE' ) 
+            CASE ( 'DENSE' )
               data%semi_bandwidth_used =                                       &
                 MIN( control%semi_bandwidth, data%n_sub - 1 )
             CASE ( 'SPARSE_BY_ROWS' )
               data%semi_bandwidth_used = 0
               DO i = 1, data%n
-                ii = data%PERM( i ) 
+                ii = data%PERM( i )
                 DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
                   j = A%col( l ) ; jj = data%PERM( j )
                   ij = ABS( ii - jj )
@@ -1726,7 +1733,7 @@
 !  initialize an empty band
 
         data%DIAG = zero ; data%OFFDIA = zero
-        
+
 !  fit the data into the band
 
         IF ( data%sub_matrix ) THEN
@@ -1735,7 +1742,7 @@
 
 !         data%P%ne = 0
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%DIAG = A%val( SUB( : data%n_sub ) )
 !           DO ii = 1, data%n_sub
 !             i = SUB( ii )
@@ -1745,17 +1752,17 @@
 !             END IF
 !           END DO
 !           data%P%val( : data%n_sub ) = A%val( SUB( : data%n_sub ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO iii = 1, data%n
               i = data%INDEX( iii )
               IF ( i > 0 ) THEN
-                ii = data%PERM( i ) 
+                ii = data%PERM( i )
                 DO jjj = 1, iii
                   j = data%INDEX( jjj )
                   l = l + 1
                   IF ( j > 0 ) THEN
-                    jj = data%PERM( j ) 
+                    jj = data%PERM( j )
                     ij = ABS( ii - jj )
                     IF ( ij <= data%semi_bandwidth_used ) THEN
                       IF ( ii == jj ) THEN
@@ -1780,11 +1787,11 @@
             DO iii = 1, data%n
               i = data%INDEX( iii )
               IF ( i > 0 ) THEN
-                ii = data%PERM( i ) 
+                ii = data%PERM( i )
                 DO l = A%ptr( iii ), A%ptr( iii + 1 ) - 1
                   j = data%INDEX( A%col( l ) )
                   IF ( j > 0 ) THEN
-                    jj = data%PERM( j ) 
+                    jj = data%PERM( j )
                     ij = ABS( ii - jj )
                     IF ( ij <= data%semi_bandwidth_used ) THEN
                       IF ( ii == jj ) THEN
@@ -1805,12 +1812,12 @@
             END DO
           CASE ( 'COORDINATE' )
             DO l = 1, A%ne
-              i = data%INDEX( A%row( l ) ) 
+              i = data%INDEX( A%row( l ) )
               IF ( i > 0 ) THEN
-                ii = data%PERM( i ) 
+                ii = data%PERM( i )
                 j = data%INDEX( A%col( l ) )
                 IF ( j > 0 ) THEN
-                  jj = data%PERM( j ) 
+                  jj = data%PERM( j )
                   ij = ABS( ii - jj )
                   IF ( ij <= data%semi_bandwidth_used ) THEN
                     IF ( ii == jj ) THEN
@@ -1836,7 +1843,7 @@
 
 !         data%P%ne = 0
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%DIAG = A%val( : data%n )
 !           DO i = 1, data%n
 !             data%P%ne = data%P%ne + 1
@@ -1845,13 +1852,13 @@
 !             END IF
 !           END DO
 !           data%P%val( : data%n ) = A%val( : data%n )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO i = 1, data%n
-              ii = data%PERM( i ) 
+              ii = data%PERM( i )
               DO j = 1, i
                 l = l + 1
-                jj = data%PERM( j ) 
+                jj = data%PERM( j )
                 ij = ABS( ii - jj )
                 IF ( ij <= data%semi_bandwidth_used ) THEN
                   IF ( ii == jj ) THEN
@@ -1870,10 +1877,10 @@
             END DO
           CASE ( 'SPARSE_BY_ROWS' )
             DO i = 1, data%n
-              ii = data%PERM( i ) 
+              ii = data%PERM( i )
               DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
                 j = A%col( l )
-                jj = data%PERM( j ) 
+                jj = data%PERM( j )
                 ij = ABS( ii - jj )
                 IF ( ij <= data%semi_bandwidth_used ) THEN
                   IF ( ii == jj ) THEN
@@ -1892,8 +1899,8 @@
             END DO
           CASE ( 'COORDINATE' )
             DO l = 1, A%ne
-              i = A%row( l ) ; ii = data%PERM( i ) 
-              j = A%col( l ) ; jj = data%PERM( j ) 
+              i = A%row( l ) ; ii = data%PERM( i )
+              j = A%col( l ) ; jj = data%PERM( j )
               ij = ABS( ii - jj )
               IF ( ij <= data%semi_bandwidth_used ) THEN
                 IF ( ii == jj ) THEN
@@ -1921,9 +1928,9 @@
 
         IF ( control%new_structure ) THEN
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%P%ne = data%n_sub
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%P%ne = ( data%n_sub * ( data%n_sub - 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             IF ( data%sub_matrix ) THEN
@@ -1987,7 +1994,7 @@
 !  fit the data into the coordinate storage scheme provided
 
         SELECT CASE ( SMT_get( A%type ) )
-        CASE ( 'DIAGONAL' ) 
+        CASE ( 'DIAGONAL' )
           IF ( data%sub_matrix ) THEN
             IF ( control%new_structure ) THEN
               DO i = 1, data%n_sub
@@ -2003,7 +2010,7 @@
             END IF
             data%P%val( : A%ne ) = A%val( : A%ne )
           END IF
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           IF ( data%sub_matrix ) THEN
             l = 0 ; data%P%ne = 0
             DO ii = 1, data%n
@@ -2058,7 +2065,7 @@
             IF ( control%new_structure ) THEN
               DO i = 1, data%n
                 DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
-                  data%P%row( l ) = i 
+                  data%P%row( l ) = i
                   data%P%col( l ) = A%col( l )
                 END DO
               END DO
@@ -2103,7 +2110,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
+        WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
           control%preconditioner
         inform%status = GALAHAD_preconditioner_unknown
         RETURN
@@ -2127,11 +2134,11 @@
 
 !  The diagonal matrix needs not be factorized
 
-      CASE ( preconditioner_diagonal ) 
-        
+      CASE ( preconditioner_diagonal )
+
 !  The band or re-ordered band matrix will be factorized
 
-      CASE ( preconditioner_band, preconditioner_reordered_band ) 
+      CASE ( preconditioner_band, preconditioner_reordered_band )
 
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
         CALL BAND_factor( data%n_sub, data%semi_bandwidth_used, data%DIAG,     &
@@ -2157,7 +2164,7 @@
 
 !  The full matrix will be factorized with Schnabel-Eskow modifications
 
-      CASE ( preconditioner_full_se ) 
+      CASE ( preconditioner_full_se )
 
 !  initialize solver-specific data
 
@@ -2178,7 +2185,7 @@
         inform%time%clock_analyse                                              &
           = inform%time%clock_analyse + clock_now - clock_record
         IF ( printt ) WRITE( out, 2000 ) prefix, time_now - time_record
-           
+
 !  Test that the analysys succeeded
 
         IF ( inform%SLS_inform%status < 0 ) THEN
@@ -2205,7 +2212,7 @@
          &  'SLS_factorize: status = ', I0 )" ) prefix,                        &
              inform%SLS_inform%status
           inform%status = GALAHAD_error_factorization ;  GO TO 930 ; END IF
-         
+
         data%perturbed = inform%SLS_inform%first_modified_pivot > 0
         inform%perturbed = data%perturbed
 
@@ -2248,7 +2255,7 @@
 
 !  The full matrix will be factorized with GMPS modifications
 
-      CASE ( preconditioner_full_gmps ) 
+      CASE ( preconditioner_full_gmps )
 
 !  initialize solver-specific data
 
@@ -2268,7 +2275,7 @@
         inform%time%clock_analyse                                              &
           = inform%time%clock_analyse + clock_now - clock_record
         IF ( printt ) WRITE( out, 2000 ) prefix, time_now - time_record
-           
+
 !  Test that the analysys succeeded
 
         IF ( inform%SLS_inform%status < 0 ) THEN
@@ -2277,7 +2284,7 @@
           inform%status = GALAHAD_error_analysis ;  GO TO 930 ; END IF
          predicted = inform%SLS_inform%entries_in_factors
 
-!  Factorize the matrix P, using the Gill-Murray-Ponceleon-Saunders 
+!  Factorize the matrix P, using the Gill-Murray-Ponceleon-Saunders
 !  modification to the symmetric indefinite factorization
 
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
@@ -2347,9 +2354,9 @@
 
 !  The Lin-More' incomplete factorization of the full matrix will be used
 
-      CASE ( preconditioner_incomplete_lm ) 
+      CASE ( preconditioner_incomplete_lm )
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
-        
+
 !  Allocate workspace arrays for ICFS
 
         array_name = 'psls: data%IW'
@@ -2434,7 +2441,7 @@
          icfact = MAX( 0, control%icfs_vectors )
          data%l_ne = data%p_ne + data%n_sub * icfact
 
-!  Allocate space to hold the off diagonals and factors in comprossed 
+!  Allocate space to hold the off diagonals and factors in comprossed
 !  column format
 
         array_name = 'psls: data%P_offd'
@@ -2499,7 +2506,7 @@
            END IF
          END DO
 
-!   ... and reposition the starting addresses 
+!   ... and reposition the starting addresses
 
          data%P_colptr( 1 ) = 1
          DO i = 1, data%n_sub
@@ -2519,13 +2526,19 @@
 !           DO l = data%P_colptr( i ), data%P_colptr( i + 1 ) - 1
 !               WRITE( out, "( 'o', 2I7, ES12.4 )" )                           &
 !                 data%P_row( l ), i, data%P_offd( l )
-!           END DO           
-!         END DO           
+!           END DO
+!         END DO
 
 !  form and factorize Lin and More's preconditioner
 
          data%perturbation = zero
-         CALL DICFS( data%n_sub, data%p_ne,                                    &
+         i = data%n_sub
+         IF ( printi ) THEN
+           data%IW( 1 ) = out
+         ELSE
+           data%IW( 1 ) = - 1
+         END IF
+         CALL DICFS( i, data%p_ne,                                             &
                      data%P_offd( : data%p_ne ), data%P_diag( : data%n_sub ),  &
                      data%P_colptr( : data%n_sub + 1 ),                        &
                      data%P_row( : data%p_ne ),                                &
@@ -2534,6 +2547,8 @@
                      data%L_row( : data%l_ne ),                                &
                      icfact, data%perturbation, data%IW( : 3 * data%n_sub ),   &
                      data%DIAG( : data%n_sub ), data%W( : data%n_sub ) )
+         IF ( i == - 26 ) THEN
+           inform%status = GALAHAD_error_unknown_solver ; GO TO 910 ; END IF
 
         IF ( printi ) WRITE( out, "( /, A,                                     &
        &   ' Preconditioner: Lin-More incomplete factorizatio',                &
@@ -2548,8 +2563,8 @@
 !          DO l = data%L_colptr( i ), data%L_colptr( i + 1 ) - 1
 !              WRITE( out, "( 'o', 2I7, ES12.4 )" )                            &
 !                data%L_row( l ), i, data%L_offd( l )
-!          END DO           
-!        END DO           
+!          END DO
+!        END DO
 
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%factorize = inform%time%factorize + time_now - time_record
@@ -2559,7 +2574,7 @@
 
 !  the HSL_MI28 incomplete factorization of the full matrix will be used
 
-      CASE ( preconditioner_incomplete_mi28 ) 
+      CASE ( preconditioner_incomplete_mi28 )
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
 
 !  build a mapping from co-ordinate to CSR format
@@ -2632,7 +2647,7 @@
             END IF
           END DO
         END IF
-        
+
 !  ...  and the values
 
         data%P_csr%val( data%P_csr%ptr( 1 : data%P%n ) ) = zero
@@ -2700,7 +2715,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
+        WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
           control%preconditioner
         inform%status = GALAHAD_preconditioner_unknown
         RETURN
@@ -2711,14 +2726,14 @@
 !  ----------------------------------------------------
 
       data%n_fixed = 0
-   
+
 !  Allocate workspace for updates
 
       data%SCU_matrix%n = data%n_sub
       data%SCU_matrix%m = data%n_fixed
       data%SCU_matrix%m_max = data%max_col
       data%SCU_matrix%class = 4
-     
+
       array_name = 'lancelot: data%SCU_matrix%BD_col_start'
       CALL SPACE_resize_array( data%SCU_matrix%m_max + 1,                      &
              data%SCU_matrix%BD_col_start,                                     &
@@ -2743,7 +2758,7 @@
              exact_size = control%space_critical,                              &
              bad_alloc = inform%bad_alloc, out = control%error )
       IF ( inform%status /= GALAHAD_ok ) GO TO 910
-      
+
       array_name = 'psls: data%RHS_sub'
       CALL SPACE_resize_array( data%n_sub, data%RHS_sub,                       &
           inform%status, inform%alloc_status, array_name = array_name,         &
@@ -2797,7 +2812,7 @@
 !  Record the time taken to assemble and factorize the preconditioner
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_now - clock_start
       RETURN
@@ -2806,7 +2821,7 @@
 
   910 CONTINUE
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_now - clock_start
       RETURN
@@ -2815,9 +2830,9 @@
 
   930 CONTINUE
       IF ( printi ) WRITE( out, "( ' ', /, A, '   **  Error return ', I0,     &
-     & ' from PSLS ' )" ) prefix, inform%status 
+     & ' from PSLS ' )" ) prefix, inform%status
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_now - clock_start
       RETURN
@@ -2837,14 +2852,14 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Build a symmetric, strictly-diagonally dominant approximation P to a 
+!  Build a symmetric, strictly-diagonally dominant approximation P to a
 !  given symmetrix matrix A
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Arguments: 
+!  Arguments:
 
-!   A is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   A is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of A. Four storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -2855,7 +2870,7 @@
 !       A%val( : )   the values of the components of A
 !       A%row( : )   the row indices of the components of A
 !       A%col( : )   the column indices of the components of A
-!       A%ne         the number of nonzeros used to store 
+!       A%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of A
 !
 !    ii) sparse, by rows
@@ -2874,7 +2889,7 @@
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -2886,14 +2901,14 @@
 !
 !  data is a structure of type PSLS_data_type which holds private internal data
 !
-!  control is a structure of type PSLS_control_type that controls the 
+!  control is a structure of type PSLS_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
-!   the elements may be set by a call to PSLS_initialize. See PSLS_initialize 
+!   the elements may be set by a call to PSLS_initialize. See PSLS_initialize
 !   for details
 !
-!  inform is a structure of type PSLS_inform_type that provides information on 
+!  inform is a structure of type PSLS_inform_type that provides information on
 !   exit from PSLS_solve. The component status has possible values:
-!  
+!
 !     0 Normal termination.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -2902,7 +2917,7 @@
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!    -3 one of the restrictions 
+!    -3 one of the restrictions
 !        A%n    >=  1
 !        A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE', , 'DIAGONAL' }
 !       has been violated.
@@ -2910,24 +2925,24 @@
 !    -9 the ordering (analysis) phase failed.
 !
 !    -10 the factorization phase failed.
-!    
-!  On exit from PSLS_build, other components of inform give the 
+!
+!  On exit from PSLS_build, other components of inform give the
 !  following:
 !
-!     alloc_status = The status of the last attempted allocation/deallocation 
+!     alloc_status = The status of the last attempted allocation/deallocation
 !     analyse_status = The return status from the ordering phase of the
 !      factorization (if any)
 !     factorize_status = The return status from the factorization phase
 !     solve_status = The return status from the solve phase
-!     factorization_integer = The total integer workspace required for the 
+!     factorization_integer = The total integer workspace required for the
 !       factorization
-!     factorization_real = The total real workspace required for the 
+!     factorization_real = The total real workspace required for the
 !       factorization
 !     preconditioner = Code for the actual preconditioner computed
 !     semi_bandwidth = The semi-bandwidth of the original submatrix
-!     neg1, neg2 - the number of -ve 1x1 and 2x2 pivots found during the 
+!     neg1, neg2 - the number of -ve 1x1 and 2x2 pivots found during the
 !       factorization
-!     perturbed = true if the initial preconditioner was perturbed to ensure 
+!     perturbed = true if the initial preconditioner was perturbed to ensure
 !      that it is definite
 !     fill_in_ratio = ratio of nonzeros in factors to the original matrix
 !     norm_residual = norm of the residual during the solve phase
@@ -2940,9 +2955,9 @@
 !     time%factorize = the time spent factorizing the preconditioner
 !     time%solve = the time spent in the solution phase
 !
-!   SUB is an optional rank-one integer assumed-sized array whose components 
-!    list the indices of the required submatrix. The indices should be in 
-!    increasing order. If SUB is not present, the entire matrix A will be 
+!   SUB is an optional rank-one integer assumed-sized array whose components
+!    list the indices of the required submatrix. The indices should be in
+!    increasing order. If SUB is not present, the entire matrix A will be
 !    considered.
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -2963,8 +2978,8 @@
       REAL :: time_now, time_start
       REAL ( KIND = wp ) :: clock_start, clock_now
       REAL ( KIND = wp ) :: val
-      
-!  prefix for all output 
+
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -3006,7 +3021,7 @@
       IF ( A%n < 0 .OR. .NOT. QPT_keyword_H( A%type ) ) THEN
         inform%status = GALAHAD_error_restrictions
         GO TO 930
-      END IF 
+      END IF
 
       IF ( control%new_structure ) THEN
         data%n_update = 0
@@ -3024,9 +3039,9 @@
 
         IF ( control%get_semi_bandwidth ) THEN
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             inform%semi_bandwidth = 0
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             inform%semi_bandwidth = data%n_sub - 1
           CASE ( 'SPARSE_BY_ROWS' )
             DO i = 1, data%n
@@ -3051,7 +3066,7 @@
 !  --------------------------------
 
       IF ( printt ) WRITE( out, "( /, A, ' Form P' )" ) prefix
-      P%n = data%n_sub
+      P%n = data%n_sub ; P%m = P%n
 
 !  special case: A is diagonal
 
@@ -3073,7 +3088,7 @@
             inform%status = - 1 ; GO TO 910 ; END IF
         END IF
 
-!  fit the data into the diagonal and ensure that the diaginal is 
+!  fit the data into the diagonal and ensure that the diagonal is
 !  sufficiently positive
 
         P%val = MAX( A%val( : data%n ), control%min_diagonal )
@@ -3089,8 +3104,8 @@
 
 !  a diagonal matrix will be used
 
-      CASE ( preconditioner_diagonal ) 
-        
+      CASE ( preconditioner_diagonal )
+
 !  allocate space to hold the matrix in diagonal form
 
         IF ( control%new_structure ) THEN
@@ -3110,7 +3125,7 @@
 !  fit the data into the diagonal
 
         SELECT CASE ( SMT_get( A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           P%val = zero
           DO i = 1, data%n
@@ -3140,7 +3155,7 @@
 
 !  A band matrix will be used
 
-      CASE ( preconditioner_band ) 
+      CASE ( preconditioner_band )
 
         IF ( control%new_structure ) THEN
 
@@ -3149,7 +3164,7 @@
           data%semi_bandwidth_used = 0
           P%ne = data%n
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             DO i = 1, data%n
               DO j = 1, i
                 ij = ABS( i - j )
@@ -3223,14 +3238,14 @@
         P%val( : data%n ) = zero
         P%ne = data%n
         SELECT CASE ( SMT_get( A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, data%n
             DO j = 1, i
               l = l + 1
               ij = ABS( i - j )
               IF ( ij <= data%semi_bandwidth_used ) THEN
-                IF ( ij == 0 ) THEN 
+                IF ( ij == 0 ) THEN
                   P%val( i ) = P%val( i ) + A%val( l )
                 ELSE
                   P%ne = P%ne + 1
@@ -3248,7 +3263,7 @@
               j = A%col( l )
               ij = ABS( i - j )
               IF ( ij <= data%semi_bandwidth_used ) THEN
-                IF ( ij == 0 ) THEN 
+                IF ( ij == 0 ) THEN
                   P%val( i ) = P%val( i ) + A%val( l )
                 ELSE
                   P%ne = P%ne + 1
@@ -3265,7 +3280,7 @@
             i = A%row( l ) ; j = A%col( l )
             ij = ABS( i - j )
             IF ( ij <= data%semi_bandwidth_used ) THEN
-              IF ( ij == 0 ) THEN 
+              IF ( ij == 0 ) THEN
                 P%val( i ) = P%val( i ) + A%val( l )
               ELSE
                 P%ne = P%ne + 1
@@ -3285,19 +3300,19 @@
 
 !  A re-ordered band matrix will be used
 
-      CASE ( preconditioner_reordered_band ) 
+      CASE ( preconditioner_reordered_band )
 
-        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
-          control%preconditioner
-        inform%status = GALAHAD_preconditioner_unknown
-        RETURN
+!       WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
+!         control%preconditioner
+!       inform%status = GALAHAD_preconditioner_unknown
+!       RETURN
 
         IF ( control%new_structure ) THEN
 
 !  compute the number of nonzeros in A
 
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%p_ne = ( data%n_sub * ( data%n_sub + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             data%p_ne = A%ptr( data%n + 1 ) - 1
@@ -3362,7 +3377,7 @@
 
           data%p_ne = 0
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             l = 0
             DO i = 1, data%n
               DO j = 1, i
@@ -3414,6 +3429,8 @@
 
 !  find a bandwidth-reducing ordering
 
+          IF ( control%print_level <= 0 .OR. control%out <= 0 )                &
+            data%mc61_ICNTL( 1 : 2 ) = - 1
           CALL MC61AD( 2, data%n_sub, data%mc61_lirn,                          &
                        data%P_row, data%P_colptr, data%PERM, data%mc61_liw,    &
                        data%IW, data%W, data%mc61_ICNTL, data%mc61_CNTL,       &
@@ -3433,9 +3450,9 @@
           data%semi_bandwidth_used = 0
           P%ne = data%n
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             DO i = 1, data%n
-              ii = data%PERM( i ) 
+              ii = data%PERM( i )
               DO j = 1, i
                 jj = data%PERM( j )
                 ij = ABS( ii - jj )
@@ -3448,7 +3465,7 @@
             END DO
           CASE ( 'SPARSE_BY_ROWS' )
             DO i = 1, data%n
-              ii = data%PERM( i ) 
+              ii = data%PERM( i )
               DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
                 j = A%col( l ) ; jj = data%PERM( j )
                 ij = ABS( ii - jj )
@@ -3512,21 +3529,21 @@
         P%val( : data%n ) = zero
         P%ne = data%n
         SELECT CASE ( SMT_get( A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, data%n
-            ii = data%PERM( i ) 
+            ii = data%PERM( i )
             DO j = 1, i
               l = l + 1
-              jj = data%PERM( j ) 
+              jj = data%PERM( j )
               ij = ABS( ii - jj )
               IF ( ij <= data%semi_bandwidth_used ) THEN
-                IF ( ij == 0 ) THEN 
+                IF ( ij == 0 ) THEN
                   P%val( i ) = P%val( i ) + A%val( l )
                 ELSE
                   P%ne = P%ne + 1
                   IF ( control%new_structure ) THEN
-                    P%row( P%ne ) = ii ; P%col( P%ne ) = jj
+                    P%row( P%ne ) = i ; P%col( P%ne ) = j
                   END IF
                   P%val( P%ne ) = A%val( l )
                 END IF
@@ -3535,18 +3552,18 @@
           END DO
         CASE ( 'SPARSE_BY_ROWS' )
           DO i = 1, data%n
-            ii = data%PERM( i ) 
+            ii = data%PERM( i )
             DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
               j = A%col( l )
-              jj = data%PERM( j ) 
+              jj = data%PERM( j )
               ij = ABS( ii - jj )
               IF ( ij <= data%semi_bandwidth_used ) THEN
-                IF ( ij == 0 ) THEN 
+                IF ( ij == 0 ) THEN
                   P%val( i ) = P%val( i ) + A%val( l )
                 ELSE
                   P%ne = P%ne + 1
                   IF ( control%new_structure ) THEN
-                    P%row( P%ne ) = ii ; P%col( P%ne ) = jj
+                    P%row( P%ne ) = i ; P%col( P%ne ) = j
                   END IF
                   P%val( P%ne ) = A%val( l )
                 END IF
@@ -3555,16 +3572,16 @@
           END DO
         CASE ( 'COORDINATE' )
           DO l = 1, A%ne
-            i = A%row( l ) ; ii = data%PERM( i ) 
-            j = A%col( l ) ; jj = data%PERM( j ) 
+            i = A%row( l ) ; ii = data%PERM( i )
+            j = A%col( l ) ; jj = data%PERM( j )
             ij = ABS( ii - jj )
             IF ( ij <= data%semi_bandwidth_used ) THEN
-              IF ( ij == 0 ) THEN 
+              IF ( ij == 0 ) THEN
                 P%val( i ) = P%val( i ) + A%val( l )
               ELSE
                 P%ne = P%ne + 1
                 IF ( control%new_structure ) THEN
-                  P%row( P%ne ) = ii ; P%col( P%ne ) = jj
+                  P%row( P%ne ) = i ; P%col( P%ne ) = j
                 END IF
                 P%val( P%ne ) = A%val( l )
               END IF
@@ -3587,7 +3604,7 @@
 
         IF ( control%new_structure ) THEN
           SELECT CASE ( SMT_get( A%type ) )
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             P%ne = ( data%n_sub * ( data%n_sub - 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             P%ne = data%n
@@ -3645,12 +3662,12 @@
         P%val( : data%n ) = zero
         P%ne = data%n
         SELECT CASE ( SMT_get( A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, data%n
             DO j = 1, i
               l = l + 1
-              IF ( i == j ) THEN 
+              IF ( i == j ) THEN
                 P%val( i ) = P%val( i ) + A%val( l )
               ELSE
                 P%ne = P%ne + 1
@@ -3665,7 +3682,7 @@
           DO i = 1, data%n
             DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
               j = A%col( l )
-              IF ( i == j ) THEN 
+              IF ( i == j ) THEN
                 P%val( i ) = P%val( i ) + A%val( l )
               ELSE
                 P%ne = P%ne + 1
@@ -3679,7 +3696,7 @@
         CASE ( 'COORDINATE' )
           DO l = 1, A%ne
             i = A%row( l ) ; j = A%col( l )
-            IF ( i == j ) THEN 
+            IF ( i == j ) THEN
               P%val( i ) = P%val( i ) + A%val( l )
             ELSE
               P%ne = P%ne + 1
@@ -3704,7 +3721,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )          &
+        WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )           &
           control%preconditioner
         inform%status = GALAHAD_preconditioner_unknown
         RETURN
@@ -3742,7 +3759,7 @@
           data%P_offd( i ) = data%P_offd( i ) + ABS( val )
           data%P_offd( j ) = data%P_offd( j ) + ABS( val )
         END IF
-      END DO 
+      END DO
 
 !  increase any diagonal entry of P to ensure that is larger than the sum
 !  of the absolute values of off-diagonal terms
@@ -3750,12 +3767,12 @@
       DO i = 1, P%n
         P%val( i ) = MAX( P%val( i ), data%P_offd( i ) + control%min_diagonal )
       END DO
-      
+
 !  Record the time taken to build the preconditioner
 
   900 CONTINUE
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_now - clock_start
       inform%status = GALAHAD_ok
@@ -3765,7 +3782,7 @@
 
   910 CONTINUE
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_now - clock_start
       RETURN
@@ -3774,9 +3791,9 @@
 
   930 CONTINUE
       IF ( printi ) WRITE( out, "( ' ', /, A, '   **  Error return ', I0,     &
-     & ' from PSLS ' )" ) prefix, inform%status 
+     & ' from PSLS ' )" ) prefix, inform%status
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_now - clock_start
       RETURN
@@ -3795,8 +3812,8 @@
 !  for the case where a set of its rows/columns are removed.
 
 !  Specifically, the matrix P has been found as a suitable approximation to
-!  the n_sub by n_sub symmetric submatrix, involving rows/columns indexed by 
-!  SUB, of a given n by n matrix A, using subroutine PSLS_form_and_factorize. 
+!  the n_sub by n_sub symmetric submatrix, involving rows/columns indexed by
+!  SUB, of a given n by n matrix A, using subroutine PSLS_form_and_factorize.
 !  Schemetically (implicitly permuting the rows/columns in SUB to the front),
 !
 !     ( A_sub  A_off^T ) -> A_sub ~= P
@@ -3804,13 +3821,13 @@
 !
 !  Subsequently a further n_fixed rows/columns have been removed by previous
 !  calls to PSLS_update_factors. Now another set of rows/columns of A, listed
-!  in FIX, are to be fixed. Again, schematically (implicitly permuting the 
+!  in FIX, are to be fixed. Again, schematically (implicitly permuting the
 !  fixed rows/columns to the end),
 !
 !     ( P_free  P_off^T ) -> P_free
 !     ( P_off   P_fixed )
 !
-!  Our aim is to solve systems 
+!  Our aim is to solve systems
 !
 !      P_free x_free = rhs_free
 !
@@ -3820,24 +3837,24 @@
 !     ( P_off   P_fixed  I ) ( x_fixed ) = ( rhs_fixed );  (*)
 !     (   0       I      0 ) (   y     )   (    0      )
 !
-!  the actual values of rhs_fixed and thus y are irrelevant and may be 
+!  the actual values of rhs_fixed and thus y are irrelevant and may be
 !  chosen for convenience. To solve (*) we use the Schur complement method
 !  implemented in GALAHAD_SCU; this uses the available factors of P and
 !  the computed ones of the Schur-complement
 !
-!     S = ( 0  I ) ( P_free  P_off^T )^{-1} ( 0 ) 
+!     S = ( 0  I ) ( P_free  P_off^T )^{-1} ( 0 )
 !                  ( P_off   P_fixed )      ( I )
-! 
+!
 !  and it is the latter that we need to obtain. S is obtained one row
 !  at a time. Once S exceeds a specified dimension, P will be reformed
-!  and refactorized, the fixed variables removed from SUB, and n_fixed 
+!  and refactorized, the fixed variables removed from SUB, and n_fixed
 !  reset to zero
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Arguments: 
+!  Arguments:
 
-!   FIX is a rank-one integer assumed-sized array whose components list the 
+!   FIX is a rank-one integer assumed-sized array whose components list the
 !    indices of the A that are to be fixed
 
 !   data, control, inform are as for PSLS_form_and_factorize
@@ -3853,13 +3870,13 @@
 
 !  Local variables
 
-      INTEGER :: i, j, n_fix, band_status, scu_status
+      INTEGER :: i, j, n_fix, n_stat, band_status, scu_status
       CHARACTER ( LEN = 60 ) :: task
 
 !  how many variables will be fixed?
 
       n_fix = SIZE( FIX )
-      
+
 !  does this exceed the space alllowed for the Schur complement?
 
       IF ( data%SCU_matrix%m + n_fix > data%max_col ) THEN
@@ -3872,9 +3889,9 @@
         inform%status = 1
         RETURN
       END IF
-      
-!  run through the list of variables to be fixed. For each, find the 
-!  index in the free list, j 
+
+!  run through the list of variables to be fixed. For each, find the
+!  index in the free list, j
 
       DO i = 1, n_fix
         j = data%INDEX( FIX( i ) )
@@ -3903,13 +3920,13 @@
 
 !  P is a diagonal matrix
 
-            CASE ( preconditioner_diagonal ) 
+            CASE ( preconditioner_diagonal )
               data%RHS_sub( : data%n_sub ) =                                   &
                 data%RHS_sub( : data%n_sub ) / data%DIAG( : data%n_sub )
-        
+
 !  P is a band or re-ordered band matrix
 
-            CASE ( preconditioner_band, preconditioner_reordered_band ) 
+            CASE ( preconditioner_band, preconditioner_reordered_band )
               CALL BAND_solve( data%n_sub, data%semi_bandwidth_used,           &
                                data%DIAG, data%OFFDIA,                         &
                                data%semi_bandwidth_used,                       &
@@ -3917,28 +3934,33 @@
 
 !  P is the full matrix with Schnabel-Eskow or GMPS modifications
 
-            CASE ( preconditioner_full_se, preconditioner_full_gmps ) 
+            CASE ( preconditioner_full_se, preconditioner_full_gmps )
               CALL SLS_solve( data%P, data%RHS_sub, data%SLS_data,             &
                               data%SLS_control, inform%SLS_inform )
 
 !  P is the Lin-More' incomplete factorization
 
-            CASE ( preconditioner_incomplete_lm ) 
+            CASE ( preconditioner_incomplete_lm )
               task = 'N'
-              CALL DSTRSOL( data%n_sub, data%L_offd( : data%l_ne ),            &
+              n_stat = data%n_sub
+              CALL DSTRSOL( n_stat, data%L_offd( : data%l_ne ),                &
                             data%L_diag( : data%n_sub ),                       &
                             data%L_colptr( : data%n_sub + 1 ),                 &
                             data%L_row( : data%l_ne ), data%RHS_sub, task )
+              IF ( n_stat == - 26 ) THEN
+               inform%status = GALAHAD_error_unknown_solver ; RETURN ; END IF
               task = 'T'
-              CALL DSTRSOL( data%n_sub, data%L_offd( : data%l_ne ),            &
+              CALL DSTRSOL( n_stat, data%L_offd( : data%l_ne ),                &
                             data%L_diag( : data%n_sub ),                       &
                             data%L_colptr( : data%n_sub + 1 ),                 &
                             data%L_row( : data%l_ne ), data%RHS_sub, task )
+              IF ( n_stat == - 26 ) THEN
+               inform%status = GALAHAD_error_unknown_solver ; RETURN ; END IF
 
 !  P is one of the other cases ... eventually
 
             CASE DEFAULT
-              WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )    &
+              WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )     &
                 control%preconditioner
               inform%status = GALAHAD_preconditioner_unknown
               RETURN
@@ -3964,6 +3986,7 @@
           data%n_fixed = data%n_fixed + 1
         END IF
       END DO
+      inform%status = GALAHAD_ok
       RETURN
 
 !  End of subroutine PSLS_update_factors
@@ -4030,12 +4053,12 @@
 
 !  Local variables
 
-      INTEGER :: band_status, scu_status
+      INTEGER :: n_stat, band_status, scu_status
       REAL :: time_start, time_now
       REAL ( KIND = wp ) :: clock_now, clock_start
       CHARACTER ( LEN = 60 ) :: task
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -4064,13 +4087,13 @@
         IF ( control%preconditioner == preconditioner_reordered_band ) THEN
           IF ( data%sub_matrix ) THEN
             data%RHS_sub( data%PERM( : data%n_sub ) )                          &
-              = SOL( data%SUB( : data%n_sub ) ) 
+              = SOL( data%SUB( : data%n_sub ) )
           ELSE
             data%RHS_sub( data%PERM( : data%n_sub ) ) = SOL( : data%n_sub )
           END IF
         ELSE
           IF ( data%sub_matrix ) THEN
-            data%RHS_sub( : data%n_sub ) = SOL( data%SUB( : data%n_sub ) ) 
+            data%RHS_sub( : data%n_sub ) = SOL( data%SUB( : data%n_sub ) )
           ELSE
             data%RHS_sub( : data%n_sub ) = SOL( : data%n_sub )
           END IF
@@ -4083,40 +4106,45 @@
 
 !  P is a diagonal matrix
 
-        CASE ( preconditioner_diagonal ) 
+        CASE ( preconditioner_diagonal )
           data%RHS_sub( : data%n_sub ) =                                       &
             data%RHS_sub( : data%n_sub ) / data%DIAG( : data%n_sub )
-        
+
 !  P is a band or re-ordered band matrix
 
-        CASE ( preconditioner_band, preconditioner_reordered_band ) 
+        CASE ( preconditioner_band, preconditioner_reordered_band )
           CALL BAND_solve( data%n_sub, data%semi_bandwidth_used, data%DIAG,    &
                            data%OFFDIA, data%semi_bandwidth_used,              &
                            data%RHS_sub, band_status )
 
 !  P is the full matrix with Schnabel-Eskow or GMPS modifications
 
-        CASE ( preconditioner_full_se, preconditioner_full_gmps ) 
+        CASE ( preconditioner_full_se, preconditioner_full_gmps )
           CALL SLS_solve( data%P, data%RHS_sub, data%SLS_data,                 &
                           data%SLS_control, inform%SLS_inform )
 
 !  P is the Lin-More' incomplete factorization
 
-        CASE ( preconditioner_incomplete_lm ) 
+        CASE ( preconditioner_incomplete_lm )
           task = 'N'
-          CALL DSTRSOL( data%n_sub, data%L_offd( : data%l_ne ),                &
+          n_stat = data%n_sub
+          CALL DSTRSOL( n_stat, data%L_offd( : data%l_ne ),                    &
                         data%L_diag( : data%n_sub ),                           &
                         data%L_colptr( : data%n_sub + 1 ),                     &
                         data%L_row( : data%l_ne ), data%RHS_sub, task )
+          IF ( n_stat == - 26 ) THEN
+            inform%status = GALAHAD_error_unknown_solver ; RETURN ; END IF
           task = 'T'
-          CALL DSTRSOL( data%n_sub, data%L_offd( : data%l_ne ),                &
+          CALL DSTRSOL( n_stat, data%L_offd( : data%l_ne ),                    &
                         data%L_diag( : data%n_sub ),                           &
                         data%L_colptr( : data%n_sub + 1 ),                     &
                         data%L_row( : data%l_ne ), data%RHS_sub, task )
+          IF ( n_stat == - 26 ) THEN
+            inform%status = GALAHAD_error_unknown_solver ; RETURN ; END IF
 
 !  P is the HSL_MI28 incomplete factorization
 
-        CASE ( preconditioner_incomplete_mi28 ) 
+        CASE ( preconditioner_incomplete_mi28 )
           CALL MI28_precondition( data%n_sub, data%mi28_keep,                  &
                                   data%RHS_sub( : data%n_sub ),                &
                                   data%SOL_sub( : data%n_sub ),                &
@@ -4125,7 +4153,7 @@
 !  P is one of the other cases ... eventually
 
         CASE DEFAULT
-          WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )        &
+          WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )         &
             control%preconditioner
           inform%status = GALAHAD_preconditioner_unknown
           RETURN
@@ -4144,13 +4172,13 @@
           IF ( data%sub_matrix ) THEN
             SOL( data%SUB( : data%n_sub ) ) = data%SOL_sub( : data%n_sub )
           ELSE
-            SOL( : data%n_sub ) = data%SOL_sub( : data%n_sub ) 
+            SOL( : data%n_sub ) = data%SOL_sub( : data%n_sub )
           END IF
         ELSE
           IF ( data%sub_matrix ) THEN
             SOL( data%SUB( : data%n_sub ) ) = data%RHS_sub( : data%n_sub )
           ELSE
-            SOL( : data%n_sub ) = data%RHS_sub( : data%n_sub ) 
+            SOL( : data%n_sub ) = data%RHS_sub( : data%n_sub )
           END IF
         END IF
 
@@ -4164,7 +4192,7 @@
 !  - - - - - - - - - - - - - - - - - - - - - - - - -
 
       ELSE
-!       WRITE( 6, "( ' update not implemented yet ' )" )
+!       WRITE( 6, "( ' update not yet implemented ' )" )
 !       inform%status = GALAHAD_not_yet_implemented
 
 !  Solve for the preconditioned gradient using the Schur complement update.
@@ -4172,9 +4200,9 @@
 
         IF ( control%preconditioner == preconditioner_reordered_band ) THEN
           data%RHS_scu( data%PERM( : data%n_sub ) )                            &
-            = SOL( data%SUB( : data%n_sub ) ) 
+            = SOL( data%SUB( : data%n_sub ) )
         ELSE
-          data%RHS_scu( : data%n_sub ) = SOL( data%SUB( : data%n_sub ) ) 
+          data%RHS_scu( : data%n_sub ) = SOL( data%SUB( : data%n_sub ) )
         END IF
         data%RHS_scu( data%n_sub + 1 : data%SCU_matrix%n + data%SCU_matrix%m ) &
           = zero
@@ -4197,13 +4225,13 @@
 
 !  P is a diagonal matrix
 
-          CASE ( preconditioner_diagonal ) 
+          CASE ( preconditioner_diagonal )
             data%RHS_sub( : data%n_sub ) =                                     &
               data%RHS_sub( : data%n_sub ) / data%DIAG( : data%n_sub )
 
 !  P is a band or re-ordered band matrix
 
-          CASE ( preconditioner_band, preconditioner_reordered_band ) 
+          CASE ( preconditioner_band, preconditioner_reordered_band )
             CALL BAND_solve( data%n_sub, data%semi_bandwidth_used,             &
                              data%DIAG, data%OFFDIA,                           &
                              data%semi_bandwidth_used,                         &
@@ -4211,27 +4239,32 @@
 
 !  P is the full matrix with Schnabel-Eskow or GMPS modifications
 
-          CASE ( preconditioner_full_se, preconditioner_full_gmps ) 
+          CASE ( preconditioner_full_se, preconditioner_full_gmps )
             CALL SLS_solve( data%P, data%RHS_sub, data%SLS_data,               &
                             data%SLS_control, inform%SLS_inform )
 
 !  P is the Lin-More' incomplete factorization
 
-          CASE ( preconditioner_incomplete_lm ) 
+          CASE ( preconditioner_incomplete_lm )
             task = 'N'
-            CALL DSTRSOL( data%n_sub, data%L_offd( : data%l_ne ),              &
+            n_stat = data%n_sub
+            CALL DSTRSOL( n_stat, data%L_offd( : data%l_ne ),                  &
                           data%L_diag( : data%n_sub ),                         &
                           data%L_colptr( : data%n_sub + 1 ),                   &
                           data%L_row( : data%l_ne ), data%RHS_sub, task )
+            IF ( n_stat == - 26 ) THEN
+              inform%status = GALAHAD_error_unknown_solver ; RETURN ; END IF
             task = 'T'
-            CALL DSTRSOL( data%n_sub, data%L_offd( : data%l_ne ),              &
+            CALL DSTRSOL( n_stat, data%L_offd( : data%l_ne ),                  &
                           data%L_diag( : data%n_sub ),                         &
                           data%L_colptr( : data%n_sub + 1 ),                   &
                           data%L_row( : data%l_ne ), data%RHS_sub, task )
+            IF ( n_stat == - 26 ) THEN
+              inform%status = GALAHAD_error_unknown_solver ; RETURN ; END IF
 
 !  P is the HSL_MI28 incomplete factorization
 
-          CASE ( preconditioner_incomplete_mi28 ) 
+          CASE ( preconditioner_incomplete_mi28 )
             CALL MI28_precondition( data%n_sub, data%mi28_keep,                &
                                     data%RHS_sub( : data%n_sub ),              &
                                     data%SOL_sub( : data%n_sub ),              &
@@ -4240,7 +4273,7 @@
 !  P is one of the other cases ... eventually
 
           CASE DEFAULT
-            WRITE( 6, "( ' PSLS: case ', I0, ' not implemented yet ' )" )      &
+            WRITE( 6, "( ' PSLS: case ', I0, ' not yet implemented' )" )       &
               control%preconditioner
             inform%status = GALAHAD_preconditioner_unknown
             RETURN
@@ -4257,7 +4290,7 @@
           IF ( data%sub_matrix ) THEN
             SOL( data%SUB( : data%n_sub ) ) = data%SOL_sub( : data%n_sub )
           ELSE
-            SOL( : data%n_sub ) = data%SOL_sub( : data%n_sub ) 
+            SOL( : data%n_sub ) = data%SOL_sub( : data%n_sub )
           END IF
         ELSE
           SOL( data%SUB( : data%n_sub ) ) = data%SOL_scu( : data%n_sub )
@@ -4325,20 +4358,20 @@
 
 !  identity "preconditioner"
 
-      CASE ( preconditioner_none ) 
+      CASE ( preconditioner_none )
         PSLS_norm = TWO_NORM( V )
 
 !  diagonal preconditioner
 
-      CASE ( preconditioner_diagonal ) 
-        
+      CASE ( preconditioner_diagonal )
+
 !  the required norm is || SQRT(D) v ||_2
 
         PSLS_norm = TWO_NORM( SQRT( data%DIAG ) * V )
 
 !  band preconditioner
 
-      CASE ( preconditioner_band, preconditioner_reordered_band ) 
+      CASE ( preconditioner_band, preconditioner_reordered_band )
 
 !  allocate necessary workspace
 
@@ -4381,12 +4414,12 @@
             bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= GALAHAD_ok ) GO TO 910
 
-!  check to see if there have been any diagonal perturbations, and 
+!  check to see if there have been any diagonal perturbations, and
 !  compute w = Pert * v
 
         CALL SLS_ENQUIRE( data%SLS_data, inform%SLS_inform,                    &
                           PERTURBATION = data%W )
-        data%W( : data%n_sub ) = data%W( : data%n_sub ) * V( : data%n_sub ) 
+        data%W( : data%n_sub ) = data%W( : data%n_sub ) * V( : data%n_sub )
 
 !  compute w = w + A * v
 
@@ -4411,7 +4444,7 @@
               END IF
             END DO
           END DO
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, data%n_sub
             DO j = 1, i
@@ -4421,7 +4454,7 @@
               IF ( i /= j ) data%W( j ) = data%W( j ) + val * V( i )
             END DO
           END DO
-        CASE ( 'DIAGNAL' ) 
+        CASE ( 'DIAGNAL' )
           data%W( : data%n_sub ) = data%W( : data%n_sub )                      &
             + A%val(  data%n_sub ) * V( : data%n_sub )
         END SELECT
@@ -4440,7 +4473,7 @@
 !  Lin-More' incomplete Cholesky factorization,
 
       CASE ( preconditioner_incomplete_lm )
-         
+
 !  allocate necessary workspace
 
         array_name = 'psls: data%W'
@@ -4469,7 +4502,7 @@
 !  HSL_MI28 incomplete Cholesky factorization
 
       CASE ( preconditioner_incomplete_mi28 )
-         
+
 !  allocate necessary workspace
 
         array_name = 'psls: data%W'
@@ -4515,7 +4548,7 @@
 !  One of the other cases will be used ... eventually
 
       CASE DEFAULT
-        WRITE( 6, "( ' PSLS_norm: case ', I0, ' not implemented yet ' )" )     &
+        WRITE( 6, "( ' PSLS_norm: case ', I0, ' not yet implemented' )" )      &
           control%preconditioner
         inform%status = GALAHAD_not_yet_implemented
         GO TO 910
@@ -4556,7 +4589,7 @@
 
 !  Dummy arguments
 
-      TYPE ( PSLS_control_type ), INTENT( IN ) :: control        
+      TYPE ( PSLS_control_type ), INTENT( IN ) :: control
       TYPE ( PSLS_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( PSLS_data_type ), INTENT( INOUT ) :: data
 
@@ -4802,35 +4835,35 @@
       INTEGER, INTENT( IN ) :: preconditioner, semi_bandwidth, icfs_vectors
       PSLS_name =  REPEAT( ' ', 80 )
       SELECT CASE ( preconditioner )
-      CASE ( : - 1 ) 
+      CASE ( : - 1 )
         PSLS_name =                                                            &
           "no preconditioner"
-      CASE ( 0 ) 
+      CASE ( 0 )
         PSLS_name =                                                            &
           "automatic preconditioner"
-      CASE ( 1 ) 
+      CASE ( 1 )
         PSLS_name =                                                            &
           "diagonal preconditioner"
-      CASE ( 2 ) 
+      CASE ( 2 )
         WRITE( PSLS_name, "( A, I0 )" )                                        &
           "banded preconditioner with semi-bandwidth ", semi_bandwidth
-      CASE ( 3 ) 
+      CASE ( 3 )
         WRITE( PSLS_name, "( A, I0 )" )                                        &
           "reordered banded preconditioner with semi-bandwidth ", semi_bandwidth
-      CASE ( 4 ) 
+      CASE ( 4 )
         PSLS_name =                                                            &
           "full factorization preconditioner with Schnabel-Eskow modification"
-      CASE ( 5 ) 
+      CASE ( 5 )
         PSLS_name =                                                            &
           "full factorization preconditioner with GMPS modification"
-      CASE ( 6 ) 
+      CASE ( 6 )
         WRITE( PSLS_name, "( A, I0, A )" )                                     &
           "Lin-More' incomplete factorization preconditioner with ",           &
           icfs_vectors, " vectors"
-      CASE ( 7 ) 
+      CASE ( 7 )
         PSLS_name =                                                            &
           "Munskgaard incomplete factorization preconditioner"
-      CASE ( 8 ) 
+      CASE ( 8 )
         PSLS_name =                                                            &
           "expanding band preconditioner"
       CASE DEFAULT
@@ -4848,7 +4881,7 @@
 
 !   The Gill-Murray-Ponceleon-Saunders code for modifying the negative
 !   eigen-components obtained when factorizing a symmetric indefinite
-!   matrix (see SOL 90-8, P.19-21) using the GALAHAD package SILS 
+!   matrix (see SOL 90-8, P.19-21) using the GALAHAD package SILS
 
 !-----------------------------------------------
 !   D u m m y   A r g u m e n t s
@@ -4869,7 +4902,7 @@
      REAL ( KIND = wp ) :: alpha, beta, gamma, tau
      REAL ( KIND = wp ) :: t, c , s, e1, e2, eigen, eigen_zero
      LOGICAL :: oneby1
-     
+
      eigen_zero = EPSILON( one )
      CALL SLS_enquire( data, inform, PIVOTS = PERM, D = D )
      D( 1, rank + 1 : n ) = zero
@@ -4877,7 +4910,7 @@
 !  neg1 and neg2 are the number of negative eigenvalues which arise
 !  from small or negative 1x1 and 2x2 block pivots
 
-     neg1 = 0 ; neg2 = 0 
+     neg1 = 0 ; neg2 = 0
 
 !  Loop over all the block pivots
 
@@ -4892,7 +4925,7 @@
          ELSE
            oneby1 = .TRUE.
          END IF
-        
+
          alpha = D( 1, i )
 
 !  =========
@@ -4912,36 +4945,36 @@
 !  Negative 1x1 block
 !  ------------------
 
-           IF ( eigen < - eigen_zero ) THEN 
-             neg1 = neg1 + 1 
-             D( 1, i ) = - alpha 
+           IF ( eigen < - eigen_zero ) THEN
+             neg1 = neg1 + 1
+             D( 1, i ) = - alpha
 
 !  Small 1x1 block
 !  ---------------
 
-           ELSE IF ( eigen < eigen_zero ) THEN 
-             neg1 = neg1 + 1 
-             D( 1, i ) = one / eigen_zero 
-           END IF 
+           ELSE IF ( eigen < eigen_zero ) THEN
+             neg1 = neg1 + 1
+             D( 1, i ) = one / eigen_zero
+           END IF
 
 !  =========
 !  2x2 block
 !  =========
 
          ELSE
-         
+
            beta = D( 2, i )
            gamma = D( 1, i + 1 )
 
 !  2x2 block: (  alpha  beta   ) = (  c  s  ) (  e1     ) (  c  s  )
 !             (  beta   gamma  )   (  s -c  ) (     e2  ) (  s -c  )
 
-           IF ( alpha * gamma < beta ** 2 ) THEN 
-             tau = ( gamma - alpha ) / ( two * beta ) 
-             t = - one / ( ABS( tau ) + SQRT( one + tau ** 2 ) ) 
-             IF ( tau < zero ) t = - t 
-             c = one / SQRT( one + t ** 2 ) ; s = t * c 
-             e1 = alpha + beta * t ; e2 = gamma - beta * t 
+           IF ( alpha * gamma < beta ** 2 ) THEN
+             tau = ( gamma - alpha ) / ( two * beta )
+             t = - one / ( ABS( tau ) + SQRT( one + tau ** 2 ) )
+             IF ( tau < zero ) t = - t
+             c = one / SQRT( one + t ** 2 ) ; s = t * c
+             e1 = alpha + beta * t ; e2 = gamma - beta * t
 
 !  Record the first eigenvalue
 
@@ -4953,17 +4986,17 @@
 !  Negative first eigenvalue
 !  -------------------------
 
-             IF ( eigen < - eigen_zero ) THEN 
-               neg2 = neg2 + 1 
+             IF ( eigen < - eigen_zero ) THEN
+               neg2 = neg2 + 1
                e1 = - e1
 
 !  Small first eigenvalue
 !  ----------------------
 
-             ELSE IF ( eigen < eigen_zero ) THEN 
-               neg2 = neg2 + 1 
-               e1 = one / eigen_zero 
-             END IF 
+             ELSE IF ( eigen < eigen_zero ) THEN
+               neg2 = neg2 + 1
+               e1 = one / eigen_zero
+             END IF
 
 !  Record the second eigenvalue
 
@@ -4972,24 +5005,24 @@
 !  Negative second eigenvalue
 !  --------------------------
 
-             IF ( eigen < - eigen_zero ) THEN 
-               neg2 = neg2 + 1 
+             IF ( eigen < - eigen_zero ) THEN
+               neg2 = neg2 + 1
                e2 = - e2
 
 !  Small second eigenvalue
 !  -----------------------
 
-             ELSE IF ( eigen < eigen_zero ) THEN 
-               neg2 = neg2 + 1 
-               e2 = one / eigen_zero 
-             END IF 
+             ELSE IF ( eigen < eigen_zero ) THEN
+               neg2 = neg2 + 1
+               e2 = one / eigen_zero
+             END IF
 
 !  Record the modified block
 
-             D( 1, i ) = c ** 2 * e1 + s ** 2 * e2 
-             D( 2, i ) = c * s * ( e1 - e2 ) 
-             D( 1, i + 1 ) = s ** 2 * e1 + c ** 2 * e2 
-           END IF 
+             D( 1, i ) = c ** 2 * e1 + s ** 2 * e2
+             D( 2, i ) = c * s * ( e1 - e2 )
+             D( 1, i + 1 ) = s ** 2 * e1 + c ** 2 * e2
+           END IF
          END IF
        ELSE
          oneby1 = .TRUE.
@@ -5000,7 +5033,7 @@
 
      CALL SLS_alter_d( data, D, inform )
 
-     RETURN  
+     RETURN
 
 !  End of subroutine PSLS_gmps
 
@@ -5009,4 +5042,3 @@
 !  End of module GALAHAD_PSLS_double
 
    END MODULE GALAHAD_PSLS_double
-

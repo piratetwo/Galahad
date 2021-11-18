@@ -16,10 +16,88 @@ err = 'Error while testing package ';
 %end
 
 try
+    pkg = 'ARC';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_arc
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'BQP';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_bqp
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'BQPB';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_bqpb
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'BLLS';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_blls
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'LPB';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_lpb
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'LPA';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_lpa
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
     pkg = 'CQP';
     disp(sprintf('******* Testing %s *******', pkg));
     ntests = ntests + 1;
-    test_galahad_eqp
+    test_galahad_cqp
     if inform.status ~= 0
         pkg_failures = pkg_failures + 1;
     end
@@ -32,7 +110,7 @@ try
     pkg = 'DQP';
     disp(sprintf('******* Testing %s *******', pkg));
     ntests = ntests + 1;
-    test_galahad_eqp
+    test_galahad_dqp
     if inform.status ~= 0
         pkg_failures = pkg_failures + 1;
     end
@@ -147,6 +225,19 @@ catch excpt
 end
 
 try
+    pkg = 'NLS';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_nls
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
     pkg = 'QPA';
     disp(sprintf('******* Testing %s *******', pkg));
     ntests = ntests + 1;
@@ -238,10 +329,49 @@ catch excpt
 end
 
 try
+    pkg = 'SLS';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_sls
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'TRB';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_trb
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
     pkg = 'TRS';
     disp(sprintf('******* Testing %s *******', pkg));
     ntests = ntests + 1;
     test_galahad_trs
+    if inform.status ~= 0
+        pkg_failures = pkg_failures + 1;
+    end
+catch excpt
+    disp(sprintf('%d %d\n', err, pkg));
+    syntax_errors = syntax_errors + 1;
+end
+
+try
+    pkg = 'TRU';
+    disp(sprintf('******* Testing %s *******', pkg));
+    ntests = ntests + 1;
+    test_galahad_tru
     if inform.status ~= 0
         pkg_failures = pkg_failures + 1;
     end

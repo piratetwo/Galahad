@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.4. February 12th, 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_TRS_MATLAB_TYPES
@@ -51,7 +51,7 @@
         mwPointer :: total, assemble, analyse, factorize, solve
         mwPointer :: clock_total, clock_assemble
         mwPointer :: clock_analyse, clock_factorize, clock_solve
-      END TYPE 
+      END TYPE
 
       TYPE, PUBLIC :: TRS_history_pointer_type
         mwPointer :: pointer
@@ -68,7 +68,7 @@
         TYPE ( TRS_history_pointer_type ) :: history_pointer
         TYPE ( SLS_pointer_type ) :: SLS_pointer
         TYPE ( IR_pointer_type ) :: IR_pointer
-      END TYPE 
+      END TYPE
 
     CONTAINS
 
@@ -113,6 +113,9 @@
         CASE( 'print_level' )
           CALL MATLAB_get_value( ps, 'print_level',                            &
                                  pc, TRS_control%print_level )
+        CASE( 'dense_factorization' )
+          CALL MATLAB_get_value( ps, 'dense_factorization',                    &
+                                 pc, TRS_control%dense_factorization )
         CASE( 'new_h' )
           CALL MATLAB_get_value( ps, 'new_h',                                  &
                                  pc, TRS_control%new_h )
@@ -226,15 +229,16 @@
       mwPointer :: mxCreateStructMatrix
       mwPointer :: pointer
 
-      INTEGER * 4, PARAMETER :: ninform = 28
+      INTEGER * 4, PARAMETER :: ninform = 29
       CHARACTER ( LEN = 31 ), PARAMETER :: finform( ninform ) = (/             &
          'error                          ', 'out                            ', &
-         'print_level                    ', 'new_h                          ', &
+         'print_level                    ', 'dense_factorization            ', &
+         'new_h                          ',                                    &
          'new_m                          ', 'new_a                          ', &
          'max_factorizations             ', 'inverse_itmax                  ', &
          'taylor_max_degree              ', 'initial_multiplier             ', &
          'lower                          ', 'upper                          ', &
-         'stop_normal                    ', 'stop_absolute-normal           ', &
+         'stop_normal                    ', 'stop_absolute_normal           ', &
          'stop_hard                      ',                                    &
          'start_invit_tol                ', 'start_invitmax_tol             ', &
          'use_initial_multiplier         ', 'equality_problem               ', &
@@ -262,6 +266,8 @@
                                   TRS_control%out )
       CALL MATLAB_fill_component( pointer, 'print_level',                      &
                                   TRS_control%print_level )
+      CALL MATLAB_fill_component( pointer, 'dense_factorization',              &
+                                  TRS_control%dense_factorization )
       CALL MATLAB_fill_component( pointer, 'new_h',                            &
                                   TRS_control%new_h )
       CALL MATLAB_fill_component( pointer, 'new_m',                            &

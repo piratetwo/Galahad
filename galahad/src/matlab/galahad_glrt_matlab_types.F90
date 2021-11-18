@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.4. February 16th, 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_GLRT_MATLAB_TYPES
@@ -47,9 +47,9 @@
         mwPointer :: pointer
         mwPointer :: status, alloc_status, bad_alloc
         mwPointer :: iter, iter_pass2
-        mwPointer :: obj, multiplier, xpo_norm, leftmost
-        mwPointer :: negative_curvature
-      END TYPE 
+        mwPointer :: obj, obj_regularized, multiplier, xpo_norm, leftmost
+        mwPointer :: negative_curvature, hard_case
+      END TYPE
     CONTAINS
 
 !-*-  G L R T _ M A T L A B _ C O N T R O L _ S E T  S U B R O U T I N E   -*-
@@ -131,7 +131,7 @@
         CASE( 'deallocate_error_fatal' )
           CALL MATLAB_get_value( ps, 'deallocate_error_fatal',                 &
                                  pc, GLRT_control%deallocate_error_fatal )
-        CASE( 'prefix' )                                           
+        CASE( 'prefix' )
           CALL galmxGetCharacter( ps, 'prefix',                                &
                                   pc, GLRT_control%prefix, len )
         END SELECT
@@ -258,13 +258,14 @@
 
       mwPointer :: mxCreateStructMatrix
 
-      INTEGER * 4, PARAMETER :: ninform = 10
+      INTEGER * 4, PARAMETER :: ninform = 12
       CHARACTER ( LEN = 21 ), PARAMETER :: finform( ninform ) = (/             &
            'status               ', 'alloc_status         ',                   &
            'bad_alloc            ', 'iter                 ',                   &
            'iter_pass2           ', 'obj                  ',                   &
-           'multiplier           ', 'xpo_norm             ',                   &
-           'leftmost             ', 'negative_curvature   ' /)
+           'obj_regularized      ', 'multiplier           ',                   &
+           'xpo_norm             ', 'leftmost             ',                   &
+           'negative_curvature   ', 'hard_case            '     /)
 
 !  create the structure
 
@@ -291,6 +292,8 @@
       CALL MATLAB_create_real_component( GLRT_pointer%pointer,                 &
         'obj',  GLRT_pointer%obj )
       CALL MATLAB_create_real_component( GLRT_pointer%pointer,                 &
+        'obj_regularized',  GLRT_pointer%obj_regularized )
+      CALL MATLAB_create_real_component( GLRT_pointer%pointer,                 &
         'multiplier',  GLRT_pointer%multiplier )
       CALL MATLAB_create_real_component( GLRT_pointer%pointer,                 &
         'xpo_norm',  GLRT_pointer%xpo_norm )
@@ -298,6 +301,8 @@
         'leftmost',  GLRT_pointer%leftmost )
       CALL MATLAB_create_logical_component( GLRT_pointer%pointer,              &
         'negative_curvature', GLRT_pointer%negative_curvature )
+      CALL MATLAB_create_logical_component( GLRT_pointer%pointer,              &
+        'hard_case', GLRT_pointer%hard_case )
 
       RETURN
 
@@ -339,6 +344,8 @@
                                mxGetPr( GLRT_pointer%iter_pass2 ) )
       CALL MATLAB_copy_to_ptr( GLRT_inform%obj,                                &
                                mxGetPr( GLRT_pointer%obj ) )
+      CALL MATLAB_copy_to_ptr( GLRT_inform%obj_regularized,                 &
+                               mxGetPr( GLRT_pointer%obj_regularized ) )
       CALL MATLAB_copy_to_ptr( GLRT_inform%multiplier,                         &
                                mxGetPr( GLRT_pointer%multiplier ) )
       CALL MATLAB_copy_to_ptr( GLRT_inform%xpo_norm,                           &
@@ -347,6 +354,8 @@
                                mxGetPr( GLRT_pointer%leftmost ) )
       CALL MATLAB_copy_to_ptr( GLRT_inform%negative_curvature,                 &
                                mxGetPr( GLRT_pointer%negative_curvature ) )
+      CALL MATLAB_copy_to_ptr( GLRT_inform%hard_case,                          &
+                               mxGetPr( GLRT_pointer%hard_case ) )
 
       RETURN
 

@@ -3,7 +3,8 @@
 ! ---------------
 
 QPBAND    problem name (example from QPBAND.SIF with n = 5)
-QP        # problem is a quadratic program
+QCL       # problem is a quadratic program
+Minimize  # minimize the objective function
 5         # variables
 2         # general linear constraints
 

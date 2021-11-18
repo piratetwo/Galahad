@@ -1173,6 +1173,7 @@
       LOGICAL :: end_group_type_section, start_group_uses_section
       LOGICAL :: dgrset, adddoloop, qgroup, qsqr, qprod
       LOGICAL :: setana, delset, grp1st, grpyet, varyet, fixed
+      LOGICAL :: skipl1, skipl2, skipl3
       CHARACTER ( LEN = 2 ) :: field1, colfie
       CHARACTER ( LEN = 10 ) :: field2, field3, field5, grupe, elmnt
       CHARACTER ( LEN = 10 ) :: detype, dgtype
@@ -1755,10 +1756,10 @@
         nuline = blnkln
         IF ( fixed ) THEN
           READ ( input, 1000, END = 810, ERR = 810 ) nuline
-          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, TRIM( nuline )
         ELSE
           READ ( input, 1010, END = 810, ERR = 810 ) nuline
-          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, TRIM( nuline )
 
 !  if the card is in free format, translate it into fixed format
 
@@ -1773,7 +1774,8 @@
             ilines = 1
             nuline = blnkln
             nuline = NULINA( ilines )
-            IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+            IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                      &
+              lineno, ilines, TRIM( nuline )
 
 !  there are only blank lines on the free format card
 
@@ -1788,7 +1790,8 @@
         ilines = ilines + 1
         nuline = blnkln
         nuline = NULINA( ilines )
-        IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+        IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                          &
+          lineno, ilines, TRIM( nuline )
       END IF
 
 !  consider the header part of the card
@@ -2628,16 +2631,21 @@
 !  mock do-loop
 
           lev1 = lev1s
+          skipl1 = .TRUE.
   220     CONTINUE
           IF ( .NOT. ( ( lev1i > 0 .AND. lev1 <= lev1e ) .OR.                  &
-               ( lev1i < 0 .AND. lev1 >= lev1e ) ) ) GO TO 337
+                       ( lev1i < 0 .AND. lev1 >= lev1e ) ) ) THEN
+            IF ( skipl1 .AND. debug .AND. out > 0 ) WRITE( out, 5040 ) 1
+            GO TO 337
+          END IF
+          skipl1 = .FALSE.
           l1 = 0 ; l2 = 0 ; l3 = 0
 
 !  set the loop value
 
           IIVAL( LOOP( 1 ) ) = lev1
           IF ( debug .AND. out > 0 ) WRITE( out, 5000 )                        &
-            1, IINAMES( LOOP( 1 ) ), lev1
+            1, l1, IINAMES( LOOP( 1 ) ), lev1
 
 !  execute the remaining list of level-1 instructions
 
@@ -2667,17 +2675,19 @@
 !  mock do-loop
 
           lev2 = lev2s
+          skipl2 = .TRUE.
   240     CONTINUE
           l2 = level2
           IF ( .NOT. ( lev2i > 0 .AND. lev2 <= lev2e ) .OR.                    &
-             ( lev2i < 0 .AND. lev2 >= lev2e ) ) GO TO 292
+                     ( lev2i < 0 .AND. lev2 >= lev2e ) ) GO TO 292
+          skipl2 = .FALSE.
           l3 = levl3a
 
 !  set the loop value
 
           IIVAL( INSTR1( 2, l1 ) ) = lev2
           IF ( debug .AND. out > 0 ) WRITE( out, 5000 )                        &
-                  2, IINAMES( INSTR1( 2, l1 ) ), lev2
+                  2, l2, IINAMES( INSTR1( 2, l1 ) ), lev2
 
 !  execute the remaining list of level-2 instructions
 
@@ -2706,16 +2716,18 @@
 !  mock do-loop
 
           lev3 = lev3s
+          skipl3 = .TRUE.
   260     CONTINUE
           l3 = level3
           IF ( .NOT.  ( lev3i > 0 .AND. lev3 <= lev3e ) .OR.                   &
                       ( lev3i < 0 .AND. lev3 >= lev3e ) ) GO TO 281
+          skipl3 = .FALSE.
 
 !  set the loop value
 
           IIVAL( INSTR2( 2, l2 ) ) = lev3
           IF ( debug .AND. out > 0 )                                           &
-             WRITE( out, 5000 ) 3, IINAMES( INSTR2( 2, l2 ) ), lev3
+             WRITE( out, 5000 ) 3, l3, IINAMES( INSTR2( 2, l2 ) ), lev3
 
 !  execute the remaining list of level-3 instructions
 
@@ -2766,6 +2778,8 @@
   281     CONTINUE
           l3 = l3 + 1
           IF ( INSTR3( 1, l3 ) /= 2 ) GO TO 281
+          IF ( skipl3 .AND. debug .AND. out > 0 )                              &
+            WRITE( out, 5030 ) 3, level3, l3 - 1
 
 !  end of level-3 do-loop
 
@@ -2809,8 +2823,30 @@
 !  the do-loop is not executed. find the next relevant instruction
 
   292     CONTINUE
-          l2 = l2 + 1
-          IF ( INSTR2( 1, l2 ) /= 2 ) GO TO 292
+!         l2 = l2 + 1
+!         IF ( INSTR2( 1, l2 ) /= 2 ) GO TO 292
+          l3 = levl3a
+          DO
+            l2 = l2 + 1
+
+!  see if the level-2 loop is to be terminated
+
+            IF ( INSTR2( 1, l2 ) == 2 ) EXIT
+
+!  execute a level-3 loop if encountered
+
+            IF ( INSTR2( 1, l2 ) == 1 ) THEN
+
+!  pass through the list of level-3 instructions without executing them
+
+              DO
+                l3 = l3 + 1
+                IF ( INSTR3( 1, l3 ) == 2 ) EXIT
+              END DO
+            END IF
+          END DO
+          IF ( skipl2 .AND. debug .AND. out > 0 )                              &
+            WRITE( out, 5030 ) 2, level2, l2 - 1
           level2 = l2
 
 !  end of level-2 do-loop
@@ -3615,9 +3651,9 @@
  2960 FORMAT( /, ' From within do loop ending on line ', i5,                   &
               ', current line is ', /,                                         &
               2X, A2, 1X, A10, A10, 1P, D12.4, 3X, A10, D12.4 )
- 2970 FORMAT( ' Line ', i5, 4X, A160 )
- 2980 FORMAT( ' Line ', i5, '.', i2, 1X, A65 )
- 2990 FORMAT( ' Line ', i5, 4X, A65 )
+ 2970 FORMAT( ' Line ', I7, 3X, A )
+ 2980 FORMAT( ' Line ', I7, '.', I1, 1X, A )
+ 2990 FORMAT( ' Line ', I7, 3X, A )
  3000 FORMAT( /, ' Row names ', /, ' --------- ', /, 8( 1X, A8 ) )
  3010 FORMAT( /, ' Column names ', /, ' ------------', /, 8( 1X, A8 ) )
  3020 FORMAT( /, 3('  Col   Row    Value  '),                                  &
@@ -3645,19 +3681,22 @@
  3110 FORMAT( /, '    Group type   Argument   No. parameters',                 &
               /, '    ----------   --------   -------------- ',                &
               /, ( 5X, 2A10, I14 ) )
- 4000 FORMAT( ' Int. par. num. ', i5, ' Name = ', A10, ' Value = ', I12)
- 4010 FORMAT( ' Level-', i1, ' Instruction ', i4, ' Starting do-loop ' )
- 4020 FORMAT( ' Level-', i1, ' Instruction ', i4, ' Ending do-loop ' )
- 4030 FORMAT( ' Level-', i1, ' Instruction ', i4,                              &
+ 4000 FORMAT( ' Int. par. num. ', I5, ' Name = ', A10, ' Value = ', I12)
+ 4010 FORMAT( ' Level-', I1, ' Instruction ', I4, ' Starting do-loop ' )
+ 4020 FORMAT( ' Level-', I1, ' Instruction ', I4, ' Ending do-loop ' )
+ 4030 FORMAT( ' Level-', I1, ' Instruction ', I4,                              &
               ' Incrementing do-loop ' )
- 4100 FORMAT( ' Real par. num. ', i5, ' Name = ', A10,' Value = ',             &
+ 4100 FORMAT( ' Real par. num. ', I5, ' Name = ', A10,' Value = ',             &
                 1P, D12.4)
- 5000 FORMAT( /, ' Level-', i1, ' loop index ', A10, ' = ', I12 )
- 5010 FORMAT( ' Level-', i1, ' instruction ', i3,                              &
+ 5000 FORMAT( /, ' Level-', I1, ' instruction ', I3, ' loop index ',           &
+                A10, ' = ', I12 )
+ 5010 FORMAT( ' Level-', I1, ' instruction ', I3,                              &
               ' Index ', A10, ' = ', I12 )
- 5020 FORMAT( ' Level-', i1, ' instruction ', i3,                              &
+ 5020 FORMAT( ' Level-', I1, ' instruction ', I3,                              &
               ' Index ', A10, ' = ', 1P, D12.4 )
- 5060 FORMAT( ' Level-', i1, ' instruction ', i3, ' Set line ', /,             &
+ 5030 FORMAT( /, ' Level-', I1, ' skipping loop instructions ', I0, ' to ', I0 )
+ 5040 FORMAT( /, ' Level-', I1, ' skipping loop instructions' )
+ 5060 FORMAT( ' Level-', I1, ' instruction ', I3, ' Set line ', /,             &
               '    field1 = ', A12, ' field2 = ', A10, ' field3 = ',           &
               A10, /, '    value4 = ', 1P, D12.4, ' field5 = ', A10,           &
               ' value6 = ', 1P, D12.4 )
@@ -7666,53 +7705,53 @@
               ' not recognised ' )
  2390 FORMAT( ' ** Exit from INTERPRET_gpsmps - specified function name ',     &
               A10, ' not recognised ' )
- 4030 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4030 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to the value ', i6 )
- 4040 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4040 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by adding ', A10, ' to the value ', i6 )
- 4041 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4041 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by subtracting ', A10, ' from the value ', i6 )
- 4050 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4050 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by multiplying ', A10, ' by the value ', i6 )
- 4051 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4051 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by dividing the value ', i6, ' by ', A10 )
- 4055 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4055 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to the integer equivalent of ', A10 )
- 4059 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4059 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to ', A10 )
- 4060 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4060 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by adding ', A10, ' to ', A10 )
- 4061 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4061 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by subtracting ', A10, ' from ', A10 )
- 4070 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4070 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by multiplying ', A10, ' and ', A10 )
- 4071 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4071 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by dividing ', A10, ' by ', A10 )
- 4110 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4110 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to the value ', A6, '(', 1P, D12.4, ')' )
- 4120 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4120 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to the value ', A6, '(', A10, ')' )
- 4130 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4130 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to the value ', 1P, D12.4 )
- 4140 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4140 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by adding ', A10, ' to the value ', 1P, D12.4 )
- 4141 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4141 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by subtracting ', A10, ' from the value ', 1P, D12.4 )
- 4150 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4150 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by multiplying ', A10, ' by the value ', 1P, D12.4 )
- 4151 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4151 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by dividing the value ', 1P, D12.4, ' by ', A10 )
- 4159 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4159 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to ', A10 )
- 4160 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4160 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by adding ', A10, ' to ', A10 )
- 4161 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4161 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by subtracting ', A10, ' from ', A10 )
- 4170 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4170 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by multiplying ', A10, ' and ', A10 )
- 4171 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4171 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' by dividing ', A10, ' by ', A10 )
- 4180 FORMAT( ' Level ', i2, ' instruction ', i4, ' set ', A10,                &
+ 4180 FORMAT( ' Level-', I1, ' instruction ', I4, ' set ', A10,                &
               ' to the fl. pt. value of ', A10 )
 
 !  end of subroutine DECODE_scalar_instruction
@@ -8161,18 +8200,18 @@
 
  2140 FORMAT( ' ** Exit from INTERPRET_gpsmps - type of array definition',     &
               ' unrecognised')
- 4080 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 2 array ',           &
+ 4080 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 2 array ',           &
                 A10, ' indices ', 3( A10, 1X ) )
- 4090 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 3 array ',           &
+ 4090 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 3 array ',           &
                 A10, ' indices ', 3( A10, 1X ) )
- 4100 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 5 array ',           &
+ 4100 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 5 array ',           &
                 A10, ' indices ', 3( A10, 1X ) )
- 4110 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 2 name ', A10)
- 4120 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 3 name ', A10)
- 4130 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 5 name ', A10)
- 4140 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 4 value ',           &
+ 4110 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 2 name ', A10 )
+ 4120 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 3 name ', A10 )
+ 4130 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 5 name ', A10 )
+ 4140 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 4 value ',           &
               1P, D12.4 )
- 4150 FORMAT( ' Level ', i2, ' instruction ', i4, ' field 6 value ',           &
+ 4150 FORMAT( ' Level-', I1, ' instruction ', I4, ' field 6 value ',           &
               1P, D12.4 )
 
 !  end of subroutine DECODE_array_instruction
@@ -10324,10 +10363,10 @@
         nuline = blnkln
         IF ( fixed ) THEN
           READ( input, 1000, END = 590, ERR = 590 ) nuline
-          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, TRIM( nuline )
         ELSE
           READ( input, 1010, END = 590, ERR = 590 ) nuline
-          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, TRIM( nuline )
 
 !  if the card is in free format, translate it into fixed format
 
@@ -10342,7 +10381,8 @@
             ilines = 1
             nuline = blnkln
             nuline = NULINA( ilines )
-            IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+            IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                      &
+              lineno, ilines, TRIM( nuline )
 
 !  there are only blank lines on the free format card
 
@@ -10357,7 +10397,8 @@
         ilines = ilines + 1
         nuline = blnkln
         nuline = NULINA( ilines )
-        IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+        IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                          &
+          lineno, ilines, TRIM( nuline )
       END IF
 
 !  consider the header part of the card
@@ -11735,9 +11776,9 @@
  2720 FORMAT( ' ** Exit from MAKE_elfun - field 3 not blank on',               &
               ' A, F or G card ' )
  2900 FORMAT( ' ' )
- 2970 FORMAT( ' Line ', i5, 4X, A160 )
- 2980 FORMAT( ' Line ', i5, '.', i2, 1X, A65 )
- 2990 FORMAT( ' Line ', i5, 4X, A65 )
+ 2970 FORMAT( ' Line ', I7, 3X, A )
+ 2980 FORMAT( ' Line ', I7, '.', I1, 1X, A )
+ 2990 FORMAT( ' Line ', I7, 3X, A )
  3000 FORMAT( '      SUBROUTINE ', A6, '( ', 5( A6, ', ' ), /,                 &
               '     *                   ', 5( A6, ', ' ), /,                   &
               '     *                   ', 5( A6, ', ' ), /,                   &
@@ -12252,10 +12293,10 @@
         nuline = blnkln
         IF ( fixed ) THEN
           READ ( input, 1000, END = 590, ERR = 590 ) nuline
-          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, TRIM( nuline )
         ELSE
           READ ( input, 1010, END = 590, ERR = 590 ) nuline
-          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, TRIM( nuline )
 
 !  if the card is in free format, translate it into fixed format
 
@@ -12270,7 +12311,8 @@
             ilines = 1
             nuline = blnkln
             nuline = NULINA( ilines )
-            IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+            IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                      &
+              lineno, ilines, TRIM( nuline )
 
 !  there are only blank lines on the free format card
 
@@ -12285,7 +12327,8 @@
         ilines = ilines + 1
         nuline = blnkln
         nuline = NULINA( ilines )
-        IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+        IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                          &
+          lineno, ilines, TRIM( nuline )
       END IF
 
 !  consider the header part of the card
@@ -13916,9 +13959,9 @@
  2720 FORMAT( ' ** Exit from MAKE_elfun_ad - field 3 not blank on',            &
               ' A, F or G card ' )
  2900 FORMAT( ' ' )
- 2970 FORMAT( ' Line ', i5, 4X, A160 )
- 2980 FORMAT( ' Line ', i5, '.', i2, 1X, A65 )
- 2990 FORMAT( ' Line ', i5, 4X, A65 )
+ 2970 FORMAT( ' Line ', I7, 3X, A )
+ 2980 FORMAT( ' Line ', I7, '.', I1, 1X, A )
+ 2990 FORMAT( ' Line ', I7, 3X, A )
  3000 FORMAT( '      SUBROUTINE ', A6, '( ', 5( A6, ', ' ), /,                 &
         '     *                   ', 5( A6, ', ' ), /,                         &
         '     *                   ', 5( A6, ', ' ), /,                         &
@@ -14504,7 +14547,7 @@
             nuline = blnkln
             READ ( input, 1000, END = 590, ERR = 590 ) nuline
           END IF
-          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, TRIM( nuline )
         ELSE
           IF ( gotlin ) THEN
             gotlin = .FALSE.
@@ -14512,7 +14555,7 @@
             nuline = blnkln
             READ ( input, 1010, END = 590, ERR = 590 ) nuline
           END IF
-          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, TRIM( nuline )
 
 !  if the card is in free format, translate it into fixed format
 
@@ -14527,7 +14570,8 @@
             ilines = 1
             nuline = blnkln
             nuline = NULINA( ilines )
-            IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+            IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                      &
+              lineno, ilines, TRIM( nuline )
 
 !  there are only blank lines on the free format card
 
@@ -14542,7 +14586,8 @@
         ilines = ilines + 1
         nuline = blnkln
         nuline = NULINA( ilines )
-        IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+        IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                          &
+          lineno, ilines, TRIM( nuline )
       END IF
 
 !  consider the header part of the card
@@ -15401,9 +15446,9 @@
  2730 FORMAT( ' ** Exit from MAKE_group - field 2 or 3 not blank on',          &
               ' A, F, G or H card ' )
  2900 FORMAT( ' ' )
- 2970 FORMAT( ' Line ', i5, 4X, A160 )
- 2980 FORMAT( ' Line ', i5, '.', i2, 1X, A65 )
- 2990 FORMAT( ' Line ', i5, 4X, A65 )
+ 2970 FORMAT( ' Line ', I7, 3X, A )
+ 2980 FORMAT( ' Line ', I7, '.', I1, 1X, A )
+ 2990 FORMAT( ' Line ', I7, 3X, A )
  3000 FORMAT( '      SUBROUTINE ', A6, '( ', 5( A6, ', ' ), /,                 &
               '     *                   ', 5( A6, ', ' ), /,                   &
               '     *                   ', 4( A6, ', ' ), A6, ' )', /,         &
@@ -15675,7 +15720,7 @@
             nuline = blnkln
             READ ( input, 1000, END = 590, ERR = 590 ) nuline
           END IF
-          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2990 ) lineno, TRIM( nuline )
         ELSE
           IF ( gotlin ) THEN
             gotlin = .FALSE.
@@ -15683,7 +15728,7 @@
             nuline = blnkln
             READ ( input, 1010, END = 590, ERR = 590 ) nuline
           END IF
-          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, nuline
+          IF ( out > 0 .AND. debug ) WRITE( out, 2970 ) lineno, TRIM( nuline )
 
 !  if the card is in free format, translate it into fixed format
 
@@ -15698,7 +15743,8 @@
             ilines = 1
             nuline = blnkln
             nuline = NULINA( ilines )
-            IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+            IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                      &
+              lineno, ilines, TRIM( nuline )
 
 !  there are only blank lines on the free format card
 
@@ -15713,7 +15759,8 @@
          ilines = ilines + 1
          nuline = blnkln
          nuline = NULINA( ilines )
-         IF ( out > 0 .AND. debug ) WRITE( out, 2980 ) lineno, ilines, nuline
+         IF ( out > 0 .AND. debug ) WRITE( out, 2980 )                         &
+           lineno, ilines, TRIM( nuline )
       END IF
 
 !  consider the header part of the card
@@ -16770,9 +16817,9 @@
  2730 FORMAT( ' ** Exit from MAKE_group_ad - field 2 or 3 not blank on',       &
               ' A, F, G or H card ' )
  2900 FORMAT( ' ' )
- 2970 FORMAT( ' Line ', i5, 4X, A160 )
- 2980 FORMAT( ' Line ', i5, '.', i2, 1X, A65 )
- 2990 FORMAT( ' Line ', i5, 4X, A65 )
+ 2970 FORMAT( ' Line ', I7, 3X, A )
+ 2980 FORMAT( ' Line ', I7, '.', I1, 1X, A )
+ 2990 FORMAT( ' Line ', I7, 3X, A )
  3000 FORMAT( '      SUBROUTINE ', A6, '( ', 5( A6, ', ' ), /,                 &
               '     *                   ', 5( A6, ', ' ), /,                   &
               '     *                   ', 4( A6, ', ' ), A6, ' )', /,         &
@@ -20755,4 +20802,3 @@
      END SUBROUTINE EXTEND_array3_integer
 
     END MODULE SIFDECODE
-

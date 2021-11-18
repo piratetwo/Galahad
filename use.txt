@@ -1,0 +1,60 @@
+ls /usr/bin/gfortran*
+sudo apt install g++-4.7
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 30
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.7 50
+sudo update-alternatives --config g++
+
+
+
+1. 使用galahad包
+sdgal pc64.lnx.gfo arc /home/pirate/sif/WOODS
+
+2. 使用cutest包 例如cgplus包，将对应的源代码文件编译 gfortran -c *.f
+将编译后的文件复制到/home/pirate/cutest/objects/pc64.lnx.gfo/double路径下
+runcutest -p cgplus -D $MASTSIF/WOODS
+
+3. decode .sif
+ sifdecoder -A pc64.lnx.gfo -st /home/pirate/sif/WOODS
+ gfortran *.f -L/home/pirate/cutest/objects/pc64.lnx.gfo/double -lcutest
+ ./a.out (关于输出需要输出到文件？)
+
+4. 纯matlab代码的执行
+
+At the Matlab prompt, type
+
+    >> setenv('DYLD_LIBRARY_PATH', '/usr/local/bin:/opt/local/lib:')
+    >> !sifdecoder LUBRIFC
+
+The problem should be decoded in the current directory. More programmatically,
+you may use constructions such as
+
+    >> probname='LUBRIFC';
+    >> cmd = ['sifdecoder ', probname];  % Note the trailing blank.
+    >> unix(cmd);
+
+In order to create a MEX file, you can proceed similarly
+
+    >> cmd=['runcutest -p matlab -D ', probname];
+    >> unix(cmd);
+
+5. matlab调用cutest
+>>cd ./test
+>>cutest2matlab $MASTSIF/WOODS.SIF
+>>
+probname='WOODS';
+cmd=['runcutest -p matlab -D ', probname];
+unix(cmd);
+
+
+6. matlab调用galahad包，添加路径后直接使用
+[control] = galahad_lsrt( 'initial' );
+A=diag([1;2;3]);
+b=[1;1;1];
+p=3;
+sigma=0.2;
+[ x, obj, inform ] = galahad_lsrt( A, b, p, sigma, control )
+galahad_lsrt( 'final' );
+
+
+
+

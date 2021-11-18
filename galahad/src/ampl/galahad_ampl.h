@@ -80,8 +80,8 @@ extern "C" {   /* To prevent C++ compilers from mangling symbols */
 #define WRAP_USE_QPC      FUNDERSCORE(wrap_use_qpc)
 #define WRAP_USE_CQP      FUNDERSCORE(wrap_use_cqp)
 #define WRAP_USE_QP       FUNDERSCORE(wrap_use_qp)
-#define WRAP_USE_PRE      FUNDERSCORE(wrap_use_pre)
-#define WRAP_USE_LANB     FUNDERSCORE(wrap_use_lanb)
+#define WRAP_USE_PRESOLVE FUNDERSCORE(wrap_use_presolve)
+#define WRAP_USE_LANCELOT FUNDERSCORE(wrap_use_lancelot)
 #define WRAP_USE_FILTRANE FUNDERSCORE(wrap_use_filtrane)
 
 #ifdef QPA
@@ -99,13 +99,13 @@ extern "C" {   /* To prevent C++ compilers from mangling symbols */
 #ifdef QP
     Cextern void WRAP_USE_QP( void (*fn)() );
 #endif
-#ifdef PRE
-    Cextern void WRAP_USE_PRE( void (*fn)() );
+#ifdef PRESOLVE
+    Cextern void WRAP_USE_PRESOLVE( void (*fn)() );
 #endif
-#ifdef LANB
-    Cextern void WRAP_USE_LANB( void (*fn)() );
+#ifdef LANCELOT
+    Cextern void WRAP_USE_LANCELOT( void (*fn)() );
 #endif
-#ifdef FILT
+#ifdef FILTRANE
     Cextern void WRAP_USE_FILTRANE( void (*fn)() );
 #endif
 
@@ -132,13 +132,13 @@ extern "C" {   /* To prevent C++ compilers from mangling symbols */
 #ifdef QP
     void (*USE_QP)();        /* Function pointer to USE_QP( )  */
 #endif
-#ifdef PRE
-    void (*USE_PRE)();       /* Function pointer to USE_PRE( )  */
+#ifdef PRESOLVE
+    void (*USE_PRESOLVE)();  /* Function pointer to USE_PRESOLVE( )  */
 #endif
-#ifdef LANB
-    void (*USE_LANB)();      /* Function pointer to USE_LANB( ) */
+#ifdef LANCELOT
+    void (*USE_LANCELOT)();  /* Function pointer to USE_LANCELOT( ) */
 #endif
-#ifdef FILT
+#ifdef FILTRANE
     void (*USE_FILTRANE)();  /* Function pointer to USE_FILTRANE( ) */
 #endif
 

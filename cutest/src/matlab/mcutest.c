@@ -94,7 +94,7 @@
  *                                         D. Orban, Montreal, January 2007
  *                                        CUTEst version additions:
  *                                         Nick Gould, January 2013
- *                                        This version, June 17 2013 11:45 GMT
+ *                                        This version, March 13 2018 16:00 GMT
  */
 
 /* -------------------------------------------------------------------------- */
@@ -107,10 +107,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* For versions of the Matlab API prior to 7.3 */
+/* For versions of the Matlab API prior to 7.3 - 
+   depricatd as Matlab no longer has the MX_API_VER preprocessor macro ... duh!
 #if (MX_API_VER < 0x07030000)
 typedef int mwSize;
 typedef int mwIndex;
+#endif
+*/
+
+#ifndef MWSIZE_MAX
+    #define  mwIndex        int
+    #define  mwSignedIndex  int
+    #define  mwSize         int
 #endif
 
 /* Safeguard against C++ symbol mangling */
@@ -749,7 +757,8 @@ extern "C" {
           nnzgci = CUTEst_nvar;
           ir = mxCalloc(nnzgci, sizeof(integer));
           g = (doublereal *)mxCalloc(nnzgci, sizeof(doublereal));
-          CUTEST_cofsg( &status, &CUTEst_nvar, x, f, &nnzgci, &nnzgci, g,
+          integer nnzgci0 = nnzgci;
+          CUTEST_cofsg( &status, &CUTEst_nvar, x, f, &nnzgci, &nnzgci0, g,
                         (integer *)ir, &somethingTrue);
           if (status != 0) {
             sprintf(msgBuf,"** CUTEst error, status = %d, aborting\n", status);
@@ -922,7 +931,8 @@ extern "C" {
         nnzgci = CUTEst_nvar;
         ir = mxCalloc(nnzgci, sizeof(integer));
         g = (doublereal *)mxCalloc(nnzgci, sizeof(doublereal));
-        CUTEST_cisgr( &status, &CUTEst_nvar, &icon, x, &nnzgci, &nnzgci, g,
+        integer nnzgci0 = nnzgci;
+        CUTEST_cisgr( &status, &CUTEst_nvar, &icon, x, &nnzgci, &nnzgci0, g,
                       (integer *)ir);
         if (status != 0) {
           sprintf(msgBuf,"** CUTEst error, status = %d, aborting\n", status);
@@ -1115,9 +1125,10 @@ extern "C" {
         J = (doublereal *)mxCalloc(CUTEst_nnzj, sizeof(doublereal));
         irow = (integer *)mxCalloc(CUTEst_nnzj, sizeof(integer));
         jcol = (integer *)mxCalloc(CUTEst_nnzj, sizeof(integer));
+        integer CUTEst_nnzj0 = CUTEst_nnzj;
 
         CUTEST_ccfsg( &status, &CUTEst_nvar, &CUTEst_ncon, x, c, &CUTEst_nnzj,
-              &CUTEst_nnzj, J, jcol, irow, &somethingTrue);
+              &CUTEst_nnzj0, J, jcol, irow, &somethingTrue);
         if (status != 0) {
             sprintf(msgBuf,"** CUTEst error, status = %d, aborting\n", status);
             mexErrMsgTxt(msgBuf);
@@ -1152,7 +1163,9 @@ extern "C" {
 
         ir = mxCalloc(nnzgci, sizeof(integer));
         g = (doublereal *)mxCalloc(nnzgci, sizeof(doublereal));
-        CUTEST_ccifsg( &status, &CUTEst_nvar, &icon, x, c, &nnzgci, &nnzgci, g,
+        integer nnzgci0 = nnzgci;
+
+        CUTEST_ccifsg( &status, &CUTEst_nvar, &icon, x, c, &nnzgci, &nnzgci0, g,
                        (integer *)ir, &somethingTrue);
         if (status != 0) {
             sprintf(msgBuf,"** CUTEst error, status = %d, aborting\n", status);
@@ -2016,6 +2029,10 @@ mexErrMsgTxt("stop\n");
     jptr[0] = (mwIndex)0;
     jptr[1] = (mwIndex)nnzActual;
 
+    /* Sort entries */
+    if (jptr[0] > jptr[1] - 1)
+      quicksort_cutest(ir, (double *)pr, jptr[0], jptr[1] - 1);
+
 #ifdef MXDEBUG
     mexPrintf("Sparse vector has %-d nonzeros\n", nnzActual);
 #endif
@@ -2074,7 +2091,7 @@ mexErrMsgTxt("stop\n");
       }
 
     /* Restore jptr */
-    for (j = ncol-1; j >= 1; j--) jptr[j] = jptr[j-1];
+    for (j = ncol; j >= 1; j--) jptr[j] = jptr[j-1];
     jptr[0] = (mwIndex)0;
 
     /* Sort each segment of ir in ascending order (a silly Matlab thing).
@@ -2082,11 +2099,9 @@ mexErrMsgTxt("stop\n");
      * causes bugs and eventually deadly crashes in Matlab. */
 
     for (j = 0; j < ncol; j++)
-/*    quicksortFollow(ir, (double*)pr, jptr[j], jptr[j+1]-1); */
-    if ( jptr[j] > jptr[j+1]-1) {
-      quicksort_cutest(ir, (double*)pr, jptr[j], jptr[j+1]-1);
-    }
-    /*   mexPrintf("out %-d\n", nnz); */
+      /* sort row indices in column j if it is nonempty */
+      if ( jptr[j]+1 < jptr[j+1])
+        quicksort_cutest(ir, (double*)pr, jptr[j], jptr[j+1]-1);
 
     return matrix;
   }

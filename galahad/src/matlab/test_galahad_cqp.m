@@ -1,7 +1,7 @@
 % test galahad_cqp
 % Nick Gould for GALAHAD productions 06/November/2009
 
-clear A H control
+clear A H SA SH control inform
 
 %m = 800 ;
 m = 1 ;
@@ -25,12 +25,30 @@ for i = 1:n
  x_l(i) = 0 ;
  x_u(i) =  inf;
 end
-control.PSLS_control.definite_linear_solver = 'ma57' ;
-control.PSLS_control.preconditioner = 1 ;
-control.PSLS_control.out = 6 ;
-control.PSLS_control.print_level = 1 ;
+
+fprintf('solve dense example \n')
+
+control.SBLS_control.definite_linear_solver = 'ma57' ;
+%control.SBLS_control.out = 6 ;
+%control.SBLS_control.print_level = 1 ;
 control.out = 6 ;
-control.BQP_control.out = 6 ;
-control.print_level = 1 ;
-control.BQP_control.print_level = 1 ;
-[ x, inform, aux ] = galahad_cqp( H, g, f, A, c_l, c_u, x_l, x_u, control )
+%control.print_level = 1 ;
+[ x, inform, aux ] = galahad_cqp( H, g, f, A, c_l, c_u, x_l, x_u, ...
+                                  control ) ;
+disp( sprintf( '%s %13.6e %s %2.0f', ...
+  ' - cqp: optimal f =', inform.obj, '- status =', inform.status ) )
+
+%  solve the sparse system
+
+fprintf('solve sparse example \n')
+
+SA = sparse(A) ;
+SH = sparse(H) ;
+
+[ control ] = galahad_cqp( 'initial' ) ;
+control.print_level = 0 ;
+[ x, inform, aux ] = galahad_cqp( 'existing', H, g, f, A, c_l, c_u, ...
+                                  x_l, x_u, control ) ;
+disp( sprintf( '%s %13.6e %s %2.0f', ...
+  ' - cqp: optimal f =', inform.obj, '- status =', inform.status ) )
+galahad_cqp( 'final' )

@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.5. August 1st, 2012
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_DQP_MATLAB_TYPES
@@ -53,7 +53,7 @@
         mwPointer :: analyse, factorize, solve
         mwPointer :: clock_total, clock_preprocess, clock_find_dependent
         mwPointer :: clock_analyse, clock_factorize, clock_solve
-      END TYPE 
+      END TYPE
 
       TYPE, PUBLIC :: DQP_pointer_type
         mwPointer :: pointer
@@ -68,7 +68,7 @@
         TYPE ( SBLS_pointer_type ) :: SBLS_pointer
         TYPE ( GLTR_pointer_type ) :: GLTR_pointer
 !       TYPE ( ULS_pointer_type ) :: ULS_pointer
-      END TYPE 
+      END TYPE
     CONTAINS
 
 !-*-  C Q P _ M A T L A B _ C O N T R O L _ S E T  S U B R O U T I N E   -*-
@@ -124,25 +124,28 @@
         CASE( 'dual_starting_point' )
           CALL MATLAB_get_value( ps, 'dual_starting_point',                    &
                                  pc, DQP_control%dual_starting_point  )
-        CASE( 'maxit' )                                                        
+        CASE( 'maxit' )
           CALL MATLAB_get_value( ps, 'maxit',                                  &
                                  pc, DQP_control%maxit  )
-        CASE( 'max_sc' )                                                        
+        CASE( 'max_sc' )
           CALL MATLAB_get_value( ps, 'max_sc',                                 &
                                  pc, DQP_control%max_sc  )
         CASE( 'cauchy_only' )
           CALL MATLAB_get_value( ps, 'cauchy_only',                            &
                                  pc, DQP_control%cauchy_only  )
-        CASE( 'arc_search_maxit ' )                                             
+        CASE( 'arc_search_maxit ' )
           CALL MATLAB_get_value( ps, 'arc_search_maxit ',                      &
                                  pc, DQP_control%arc_search_maxit  )
-        CASE( 'cg_maxit' )                                                     
+        CASE( 'cg_maxit' )
           CALL MATLAB_get_value( ps, 'cg_maxit',                               &
                                  pc, DQP_control%maxit  )
-        CASE( 'restore_problem' )                                               
+        CASE( 'restore_problem' )
           CALL MATLAB_get_value( ps, 'restore_problem',                        &
                                  pc, DQP_control%restore_problem )
-        CASE( 'infinity' )                                                     
+        CASE( 'rho' )
+          CALL MATLAB_get_value( ps, 'rho',                                    &
+                                 pc, DQP_control%rho )
+        CASE( 'infinity' )
           CALL MATLAB_get_value( ps, 'infinity',                               &
                                  pc, DQP_control%infinity )
         CASE( 'stop_abs_p' )
@@ -157,58 +160,58 @@
         CASE( 'stop_rel_d' )
           CALL MATLAB_get_value( ps, 'stop_rel_d',                             &
                                  pc, DQP_control%stop_rel_d )
-        CASE( 'stop_abs_c' )                                         
+        CASE( 'stop_abs_c' )
           CALL MATLAB_get_value( ps, 'stop_abs_c',                             &
                                  pc, DQP_control%stop_abs_c )
-        CASE( 'stop_rel_c' )                                         
+        CASE( 'stop_rel_c' )
           CALL MATLAB_get_value( ps, 'stop_rel_c',                             &
                                  pc, DQP_control%stop_rel_c )
-        CASE( 'stop_cg_relative' )                                         
+        CASE( 'stop_cg_relative' )
           CALL MATLAB_get_value( ps, 'stop_cg_relative',                       &
                                  pc, DQP_control%stop_cg_relative )
-        CASE( 'stop_cg_absolute' )                                         
+        CASE( 'stop_cg_absolute' )
           CALL MATLAB_get_value( ps, 'stop_cg_absolute',                       &
                                  pc, DQP_control%stop_cg_absolute )
-        CASE( 'cg_zero_curvature' )                                         
+        CASE( 'cg_zero_curvature' )
           CALL MATLAB_get_value( ps, 'cg_zero_curvature',                      &
                                  pc, DQP_control%cg_zero_curvature )
-!       CASE( 'obj_unbounded' )                                           
+!       CASE( 'obj_unbounded' )
 !         CALL MATLAB_get_value( ps, 'obj_unbounded',                          &
 !                                pc, DQP_control%obj_unbounded )
-        CASE( 'identical_bounds_tol' )                                         
+        CASE( 'identical_bounds_tol' )
           CALL MATLAB_get_value( ps, 'identical_bounds_tol',                   &
                                  pc, DQP_control%identical_bounds_tol )
-        CASE( 'cpu_time_limit' )                                               
+        CASE( 'cpu_time_limit' )
           CALL MATLAB_get_value( ps, 'cpu_time_limit',                         &
                                  pc, DQP_control%cpu_time_limit )
-        CASE( 'clock_time_limit' )                
+        CASE( 'clock_time_limit' )
           CALL MATLAB_get_value( ps, 'clock_time_limit',                       &
                                  pc, DQP_control%clock_time_limit )
-        CASE( 'remove_dependencies' )                                          
+        CASE( 'remove_dependencies' )
           CALL MATLAB_get_value( ps, 'remove_dependencies',                    &
                                  pc, DQP_control%remove_dependencies )
-        CASE( 'treat_zero_bounds_as_general' )                                 
+        CASE( 'treat_zero_bounds_as_general' )
           CALL MATLAB_get_value( ps,'treat_zero_bounds_as_general',            &
                                  pc, DQP_control%treat_zero_bounds_as_general )
-!       CASE( 'just_feasible' )                                               
+!       CASE( 'just_feasible' )
 !         CALL MATLAB_get_value( ps, 'just_feasible',                          &
-!                                pc, DQP_control%just_feasible )        
-!       CASE( 'getdua' )                                               
+!                                pc, DQP_control%just_feasible )
+!       CASE( 'getdua' )
 !         CALL MATLAB_get_value( ps, 'getdua',                                 &
-!                                pc, DQP_control%getdua )        
-        CASE( 'exact_arc_search' )                  
+!                                pc, DQP_control%getdua )
+        CASE( 'exact_arc_search' )
           CALL MATLAB_get_value( ps, 'exact_arc_search',                       &
-                                 pc, DQP_control%exact_arc_search )        
-        CASE( 'subspace_direct' )                                         
+                                 pc, DQP_control%exact_arc_search )
+        CASE( 'subspace_direct' )
           CALL MATLAB_get_value( ps, 'subspace_direct',                        &
                                  pc, DQP_control%subspace_direct )
-        CASE( 'subspace_arc_search' )                  
+        CASE( 'subspace_arc_search' )
           CALL MATLAB_get_value( ps, 'subspace_arc_search',                    &
-                                 pc, DQP_control%subspace_arc_search )        
-        CASE( 'space_critical' )                                               
+                                 pc, DQP_control%subspace_arc_search )
+        CASE( 'space_critical' )
           CALL MATLAB_get_value( ps, 'space_critical',                         &
-                                 pc, DQP_control%space_critical )        
-        CASE( 'deallocate_error_fatal' )                                       
+                                 pc, DQP_control%space_critical )
+        CASE( 'deallocate_error_fatal' )
           CALL MATLAB_get_value( ps, 'deallocate_error_fatal',                 &
                                  pc, DQP_control%deallocate_error_fatal )
         CASE( 'symmetric_linear_solver' )
@@ -275,20 +278,20 @@
       mwPointer :: mxCreateStructMatrix
       mwPointer :: pointer
 
-      INTEGER * 4, PARAMETER :: ninform = 41
+      INTEGER * 4, PARAMETER :: ninform = 42
       CHARACTER ( LEN = 31 ), PARAMETER :: finform( ninform ) = (/             &
          'error                          ', 'out                            ', &
          'print_level                    ', 'start_print                    ', &
          'stop_print                     ', 'print_gap                      ', &
          'dual_starting_point            ', 'maxit                          ', &
-         'max_sc                         ', 'cauchy-only                    ', &
+         'max_sc                         ', 'cauchy_only                    ', &
          'arc_search_maxit               ', 'cg_maxit                       ', &
-         'restore_problem                ', 'infinity                       ', &
-         'stop_abs_p                     ', 'stop_rel_p                     ', &
-         'stop_abs_d                     ', 'stop_rel_d                     ', &
-         'stop_abs_c                     ', 'stop_rel_c                     ', &
-         'stop_cg_relative               ', 'stop_cg_absolute               ', &
-         'cg_zero_curvature              ',                                    &
+         'restore_problem                ', 'rho                            ', &
+         'infinity                       ', 'stop_abs_p                     ', &
+         'stop_rel_p                     ', 'stop_abs_d                     ', &
+         'stop_rel_d                     ', 'stop_abs_c                     ', &
+         'stop_rel_c                     ', 'stop_cg_relative               ', &
+         'stop_cg_absolute               ', 'cg_zero_curvature              ', &
          'identical_bounds_tol           ', 'cpu_time_limit                 ', &
          'clock_time_limit               ', 'remove_dependencies            ', &
          'treat_zero_bounds_as_general   ', 'exact_arc_search               ', &
@@ -337,6 +340,8 @@
                                   DQP_control%cg_maxit )
       CALL MATLAB_fill_component( pointer, 'restore_problem',                  &
                                   DQP_control%restore_problem )
+      CALL MATLAB_fill_component( pointer, 'rho',                              &
+                                  DQP_control%rho )
       CALL MATLAB_fill_component( pointer, 'infinity',                         &
                                   DQP_control%infinity )
       CALL MATLAB_fill_component( pointer, 'stop_abs_p',                       &
@@ -586,19 +591,19 @@
       CALL MATLAB_copy_to_ptr( DQP_pointer%pointer,                            &
                                'bad_alloc', DQP_inform%bad_alloc )
       CALL MATLAB_copy_to_ptr( DQP_inform%iter,                                &
-                               mxGetPr( DQP_pointer%iter ) )    
+                               mxGetPr( DQP_pointer%iter ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%factorization_status,                &
-                               mxGetPr( DQP_pointer%factorization_status ) )    
+                               mxGetPr( DQP_pointer%factorization_status ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%factorization_integer,               &
-                               mxGetPr( DQP_pointer%factorization_integer ) )   
+                               mxGetPr( DQP_pointer%factorization_integer ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%factorization_real,                  &
-                               mxGetPr( DQP_pointer%factorization_real ) )    
+                               mxGetPr( DQP_pointer%factorization_real ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%nfacts,                              &
-                               mxGetPr( DQP_pointer%nfacts ) )    
+                               mxGetPr( DQP_pointer%nfacts ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%threads,                             &
-                               mxGetPr( DQP_pointer%threads ) )    
+                               mxGetPr( DQP_pointer%threads ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%obj,                                 &
-                               mxGetPr( DQP_pointer%obj ) )                     
+                               mxGetPr( DQP_pointer%obj ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%primal_infeasibility,                &
                                mxGetPr( DQP_pointer%primal_infeasibility ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%dual_infeasibility,                  &
@@ -606,9 +611,9 @@
       CALL MATLAB_copy_to_ptr( DQP_inform%complementary_slackness,             &
                                mxGetPr( DQP_pointer%complementary_slackness ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%non_negligible_pivot,                &
-                               mxGetPr( DQP_pointer%non_negligible_pivot ) )    
+                               mxGetPr( DQP_pointer%non_negligible_pivot ) )
       CALL MATLAB_copy_to_ptr( DQP_inform%feasible,                            &
-                               mxGetPr( DQP_pointer%feasible ) )    
+                               mxGetPr( DQP_pointer%feasible ) )
 
 
 !  time components

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.7 - 27/07/2015 AT 14:20 GMT.
+! THIS VERSION: GALAHAD 3.3 - 28/09/2021 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ C Q P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -9,10 +9,10 @@
 !   based originally on GALAHAD_LSQP
 !   originally released in GALAHAD Version 2.4. June 16th 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
-MODULE GALAHAD_CQP_double
+    MODULE GALAHAD_CQP_double
 
 !     ------------------------------------------------
 !     |                                              |
@@ -39,7 +39,7 @@ MODULE GALAHAD_CQP_double
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_verb_pleural,    &
+      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_verb_pleural,           &
                                        STRING_ies, STRING_are, STRING_ordinal
       USE GALAHAD_SPACE_double
       USE GALAHAD_SMT_double
@@ -51,13 +51,13 @@ MODULE GALAHAD_CQP_double
                               CQP_abs_AX => QPD_abs_AX, CQP_abs_HX => QPD_abs_HX
       USE GALAHAD_ROOTS_double
       USE GALAHAD_LMS_double, ONLY: LMS_data_type, LMS_apply_lbfgs
-      USE GALAHAD_SORT_double, ONLY: SORT_heapsort_build,                      &
-                               SORT_heapsort_smallest, SORT_inverse_permute
+      USE GALAHAD_SORT_double, ONLY: SORT_inverse_permute
       USE GALAHAD_FDC_double
       USE GALAHAD_SBLS_double
       USE GALAHAD_CRO_double
       USE GALAHAD_FIT_double
       USE GALAHAD_NORMS_double, ONLY: TWO_norm
+      USE GALAHAD_CHECKPOINT_double
       USE GALAHAD_RPD_double, ONLY: RPD_inform_type, RPD_write_qp_problem_data
 
       IMPLICIT NONE
@@ -66,7 +66,21 @@ MODULE GALAHAD_CQP_double
       PUBLIC :: CQP_initialize, CQP_read_specfile, CQP_solve, CQP_solve_main,  &
                 CQP_terminate, QPT_problem_type, SMT_type, SMT_put, SMT_get,   &
                 CQP_Ax, CQP_data_type, CQP_dims_type, CQP_indicators,          &
-                CQP_workspace
+                CQP_workspace, CQP_full_initialize, CQP_full_terminate,        &
+                CQP_import, CQP_solve_qp, CQP_solve_sld, CQP_reset_control,    &
+                CQP_information
+
+!----------------------
+!   I n t e r f a c e s
+!----------------------
+
+     INTERFACE CQP_initialize
+       MODULE PROCEDURE CQP_initialize, CQP_full_initialize
+     END INTERFACE CQP_initialize
+
+     INTERFACE CQP_terminate
+       MODULE PROCEDURE CQP_terminate, CQP_full_terminate
+     END INTERFACE CQP_terminate
 
 !--------------------
 !   P r e c i s i o n
@@ -113,14 +127,14 @@ MODULE GALAHAD_CQP_double
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: CQP_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -139,7 +153,7 @@ MODULE GALAHAD_CQP_double
 
         INTEGER :: stop_print = - 1
 
-!   at most maxit inner iterations are allowed 
+!   at most maxit inner iterations are allowed
 
         INTEGER :: maxit = 1000
 
@@ -149,7 +163,7 @@ MODULE GALAHAD_CQP_double
 
         INTEGER :: infeas_max = 10
 
-!   the initial value of the barrier parameter will not be changed for the 
+!   the initial value of the barrier parameter will not be changed for the
 !     first muzero_fixed iterations
 !
         INTEGER :: muzero_fixed = 0
@@ -165,22 +179,24 @@ MODULE GALAHAD_CQP_double
 
 !   specifies the type of indicator function used. Pssible values are
 
-!     1 primal indicator: constraint active <=> distance to nearest bound 
+!     1 primal indicator: constraint active <=> distance to nearest bound
 !         <= %indicator_p_tol
-!     2 primal-dual indicator: constraint active <=> distance to nearest bound 
+!     2 primal-dual indicator: constraint active <=> distance to nearest bound
 !        <= %indicator_tol_pd * size of corresponding multiplier
-!     3 primal-dual indicator: constraint active <=> distance to nearest bound 
+!     3 primal-dual indicator: constraint active <=> distance to nearest bound
 !        <= %indicator_tol_tapia * distance to same bound at previous iteration
 
         INTEGER :: indicator_type = 2
 
-!   which residual trajectory should be used to aim from the current iterate 
+!   which residual trajectory should be used to aim from the current iterate
 !   to the solution
 
 !     1 the Zhang linear residual trajectory
 !     2 the Zhao-Sun quadratic residual trajectory
 !     3 the Zhang arc ultimately switching to the Zhao-Sun residual trajectory
 !     4 the mixed linear-quadratic residual trajectory
+!     5 the Zhang arc ultimately switching to the mixed linear-quadratic
+!       residual trajectory
 
         INTEGER :: arc = 1
 
@@ -188,17 +204,17 @@ MODULE GALAHAD_CQP_double
 
         INTEGER :: series_order = 2
 
-!    specifies the unit number to write generated SIF file describing the 
+!    specifies the unit number to write generated SIF file describing the
 !     current problem
 
         INTEGER :: sif_file_device = 52
 
-!    specifies the unit number to write generated QPLIB file describing the 
+!    specifies the unit number to write generated QPLIB file describing the
 !     current problem
 
         INTEGER :: qplib_file_device = 53
 
-!   any bound larger than infinity in modulus will be regarded as infinite 
+!   any bound larger than infinity in modulus will be regarded as infinite
 
         REAL ( KIND = wp ) :: infinity = ten ** 19
 
@@ -221,15 +237,15 @@ MODULE GALAHAD_CQP_double
 
         REAL ( KIND = wp ) :: perturb_h = zero
 
-!   initial primal variables will not be closer than prfeas from their bounds 
+!   initial primal variables will not be closer than prfeas from their bounds
 
         REAL ( KIND = wp ) :: prfeas = ten4
 
-!   initial dual variables will not be closer than dufeas from their bounds 
-!   
+!   initial dual variables will not be closer than dufeas from their bounds
+!
         REAL ( KIND = wp ) :: dufeas = ten4
 
-!   the initial value of the barrier parameter. If muzero is not positive, 
+!   the initial value of the barrier parameter. If muzero is not positive,
 !    it will be reset to an appropriate value
 
         REAL ( KIND = wp ) :: muzero = - one
@@ -249,24 +265,24 @@ MODULE GALAHAD_CQP_double
 
         REAL ( KIND = wp ) :: gamma_f = tenm5
 
-!   if the overall infeasibility of the problem is not reduced by at least a 
-!    factor reduce_infeas over %infeas_max iterations, the problem is flagged 
+!   if the overall infeasibility of the problem is not reduced by at least a
+!    factor reduce_infeas over %infeas_max iterations, the problem is flagged
 !    as infeasible (see infeas_max)
 
         REAL ( KIND = wp ) :: reduce_infeas = one - point01
 
-!   if the objective function value is smaller than obj_unbounded, it will be 
+!   if the objective function value is smaller than obj_unbounded, it will be
 !    flagged as unbounded from below.
 
         REAL ( KIND = wp ) :: obj_unbounded = - one / epsmch
 
-!   if W=0 and the potential function value is smaller than 
-!         potential_unbounded * number of one-sided bounds, 
+!   if W=0 and the potential function value is smaller than
+!         potential_unbounded * number of one-sided bounds,
 !     the analytic center will be flagged as unbounded
 
         REAL ( KIND = wp ) :: potential_unbounded = - 10.0_wp
 
-!   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than 
+!   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than
 !    identical_bounds_tol will be reset to the average of their values
 
         REAL ( KIND = wp ) :: identical_bounds_tol = epsmch
@@ -275,19 +291,19 @@ MODULE GALAHAD_CQP_double
 
         REAL ( KIND = wp ) :: mu_lunge = ten ** ( - 5 )
 
-!   if %indicator_type = 1, a constraint/bound will be 
+!   if %indicator_type = 1, a constraint/bound will be
 !    deemed to be active <=> distance to nearest bound <= %indicator_p_tol
 
         REAL ( KIND = wp ) :: indicator_tol_p = epsmch
 
-!   if %indicator_type = 2, a constraint/bound will be deemed to be active 
-!     <=> distance to nearest bound 
+!   if %indicator_type = 2, a constraint/bound will be deemed to be active
+!     <=> distance to nearest bound
 !        <= %indicator_tol_pd * size of corresponding multiplier
 
         REAL ( KIND = wp ) :: indicator_tol_pd = 1.0_wp
 
-!   if %indicator_type = 3, a constraint/bound will be deemed to be active 
-!     <=> distance to nearest bound 
+!   if %indicator_type = 3, a constraint/bound will be deemed to be active
+!     <=> distance to nearest bound
 !        <= %indicator_tol_tapia * distance to same bound at previous iteration
 
         REAL ( KIND = wp ) :: indicator_tol_tapia = 0.9_wp
@@ -300,23 +316,28 @@ MODULE GALAHAD_CQP_double
 
         REAL ( KIND = wp ) :: clock_time_limit = - one
 
-!   the equality constraints will be preprocessed to remove any linear 
+!   the equality constraints will be preprocessed to remove any linear
 !    dependencies if true
 
         LOGICAL :: remove_dependencies = .TRUE.
 
-!    any problem bound with the value zero will be treated as if it were a 
+!    any problem bound with the value zero will be treated as if it were a
 !     general value if true
 
         LOGICAL :: treat_zero_bounds_as_general = .FALSE.
 
-!   if %just_feasible is true, the algorithm will stop as soon as a feasible 
-!     point is found. Otherwise, the optimal solution to the problem will be 
+!   if %just_feasible is true, the algorithm will stop as soon as a feasible
+!     point is found. Otherwise, the optimal solution to the problem will be
 !     found
+
+        LOGICAL :: treat_separable_as_general = .FALSE.
+
+!   if %treat_separable_as_general, is true, any separability in the
+!    problem structure will be ignored
 
         LOGICAL :: just_feasible  = .FALSE.
 
-!   if %getdua, is true, advanced initial values are obtained for the 
+!   if %getdua, is true, advanced initial values are obtained for the
 !    dual variables
 
         LOGICAL :: getdua = .FALSE.
@@ -354,12 +375,12 @@ MODULE GALAHAD_CQP_double
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
-!   if %generate_sif_file is .true. if a SIF file describing the current 
+!   if %generate_sif_file is .true. if a SIF file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_sif_file = .FALSE.
 
-!   if %generate_qplib_file is .true. if a QPLIB file describing the current 
+!   if %generate_qplib_file is .true. if a QPLIB file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_qplib_file = .FALSE.
@@ -375,7 +396,7 @@ MODULE GALAHAD_CQP_double
          "CQPPROB.qplib"  // REPEAT( ' ', 16 )
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -390,11 +411,11 @@ MODULE GALAHAD_CQP_double
 
 !  control parameters for FIT
 
-        TYPE ( FIT_control_type ) :: FIT_control  
+        TYPE ( FIT_control_type ) :: FIT_control
 
 !  control parameters for ROOTS
 
-        TYPE ( ROOTS_control_type ) :: ROOTS_control  
+        TYPE ( ROOTS_control_type ) :: ROOTS_control
 
 !  control parameters for CRO
 
@@ -456,9 +477,9 @@ MODULE GALAHAD_CQP_double
         REAL ( KIND = wp ) :: clock_solve = 0.0
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: CQP_inform_type
 
@@ -502,7 +523,7 @@ MODULE GALAHAD_CQP_double
 
         INTEGER :: threads = 1
 
-!  the value of the objective function at the best estimate of the solution 
+!  the value of the objective function at the best estimate of the solution
 !   determined by CQP_solve
 
         REAL ( KIND = wp ) :: obj = HUGE( one )
@@ -519,12 +540,18 @@ MODULE GALAHAD_CQP_double
 
         REAL ( KIND = wp ) :: complementary_slackness = HUGE( one )
 
-!  the value of the logarithmic potential function 
+!  these values at the initial point (needed bg GALAHAD_CCQP)
+
+        REAL ( KIND = wp ) :: init_primal_infeasibility = HUGE( one )
+        REAL ( KIND = wp ) :: init_dual_infeasibility = HUGE( one )
+        REAL ( KIND = wp ) :: init_complementary_slackness = HUGE( one )
+
+!  the value of the logarithmic potential function
 !      sum -log(distance to constraint boundary)
 
         REAL ( KIND = wp ) :: potential
 
-!  the smallest pivot which was not judged to be zero when detecting linearly 
+!  the smallest pivot which was not judged to be zero when detecting linearly
 !   dependent constraints
 
         REAL ( KIND = wp ) :: non_negligible_pivot = - one
@@ -532,6 +559,12 @@ MODULE GALAHAD_CQP_double
 !  is the returned "solution" feasible?
 
         LOGICAL :: feasible = .FALSE.
+
+!  checkpoints(i) records the iteration at which the criticality measures
+!   first fall below 10**-i, i = 1, ..., 16 (-1 means not achieved)
+
+        INTEGER, DIMENSION( 16 ) :: checkpointsIter = - 1
+        REAL ( KIND = wp ), DIMENSION( 16 ) :: checkpointsTime = - one
 
 !  timings (see above)
 
@@ -562,6 +595,14 @@ MODULE GALAHAD_CQP_double
         TYPE ( RPD_inform_type ) :: RPD_inform
       END TYPE
 
+      TYPE, PUBLIC :: CQP_full_data_type
+        LOGICAL :: f_indexing
+        TYPE ( CQP_data_type ) :: CQP_data
+        TYPE ( CQP_control_type ) :: CQP_control
+        TYPE ( CQP_inform_type ) :: CQP_inform
+        TYPE ( QPT_problem_type ) :: prob
+      END TYPE CQP_full_data_type
+
    CONTAINS
 
 !-*-*-*-*-*-   C Q P _ I N I T I A L I Z E   S U B R O U T I N E   -*-*-*-*-*
@@ -571,8 +612,8 @@ MODULE GALAHAD_CQP_double
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Default control data for CQP. This routine should be called before
-!  CQP_primal_dual
-! 
+!  CQP_solve
+!
 !  ---------------------------------------------------------------------------
 !
 !  Arguments:
@@ -584,7 +625,7 @@ MODULE GALAHAD_CQP_double
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
       TYPE ( CQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( CQP_control_type ), INTENT( OUT ) :: control        
+      TYPE ( CQP_control_type ), INTENT( OUT ) :: control
       TYPE ( CQP_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -592,11 +633,11 @@ MODULE GALAHAD_CQP_double
 !  Set real control parameters
 
       control%stop_abs_p = epsmch ** 0.33
-      control%stop_rel_p = epsmch ** 0.33
+!     control%stop_rel_p = epsmch ** 0.33
       control%stop_abs_c = epsmch ** 0.33
-      control%stop_rel_c = epsmch ** 0.33
+!     control%stop_rel_c = epsmch ** 0.33
       control%stop_abs_d = epsmch ** 0.33
-      control%stop_rel_d = epsmch ** 0.33
+!     control%stop_rel_d = epsmch ** 0.33
       control%obj_unbounded = - epsmch ** ( - 2 )
       control%indicator_tol_p = control%stop_abs_p
 
@@ -639,20 +680,52 @@ MODULE GALAHAD_CQP_double
       data%trans = 0 ; data%tried_to_remove_deps = .FALSE.
       data%save_structure = .TRUE.
 
-      RETURN  
+      RETURN
 
 !  End of CQP_initialize
 
       END SUBROUTINE CQP_initialize
 
+!- G A L A H A D -  C Q P _ F U L L _ I N I T I A L I Z E  S U B R O U T I N E -
+
+     SUBROUTINE CQP_full_initialize( data, control, inform )
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!   Provide default values for CQP controls
+
+!   Arguments:
+
+!   data     private internal data
+!   control  a structure containing control information. See preamble
+!   inform   a structure containing output information. See preamble
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( CQP_control_type ), INTENT( OUT ) :: control
+     TYPE ( CQP_inform_type ), INTENT( OUT ) :: inform
+
+     CALL CQP_initialize( data%cqp_data, control, inform )
+
+     RETURN
+
+!  End of subroutine CQP_full_initialize
+
+     END SUBROUTINE CQP_full_initialize
+
 !-*-*-*-*-   C Q P _ R E A D _ S P E C F I L E  S U B R O U T I N E   -*-*-*-
 
       SUBROUTINE CQP_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by CQP_initialize could (roughly) 
+!  The defauly values as given by CQP_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN CQP SPECIFICATIONS (DEFAULT)
@@ -697,6 +770,7 @@ MODULE GALAHAD_CQP_double
 !  maximum-clock-time-limit                          -1.0
 !  remove-linear-dependencies                        T
 !  treat-zero-bounds-as-general                      F
+!  treat-separable-as-general                        F
 !  just-find-feasible-point                          F
 !  balance-initial-complentarity                     F
 !  get-advanced-dual-variables                       F
@@ -704,7 +778,7 @@ MODULE GALAHAD_CQP_double
 !  try-every-order-of-series                         T
 !  move-final-solution-onto-bound                    F
 !  cross-over-solution                               T
-!  array-syntax-worse-than-do-loop                   F 
+!  array-syntax-worse-than-do-loop                   F
 !  space-critical                                    F
 !  deallocate-error-fatal                            F
 !  generate-sif-file                                 F
@@ -716,7 +790,7 @@ MODULE GALAHAD_CQP_double
 
 !  Dummy arguments
 
-      TYPE ( CQP_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( CQP_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -765,7 +839,9 @@ MODULE GALAHAD_CQP_double
       INTEGER, PARAMETER :: remove_dependencies = clock_time_limit + 1
       INTEGER, PARAMETER :: treat_zero_bounds_as_general =                     &
                               remove_dependencies + 1
-      INTEGER, PARAMETER :: just_feasible = treat_zero_bounds_as_general + 1
+      INTEGER, PARAMETER :: treat_separable_as_general =                       &
+                              treat_zero_bounds_as_general + 1
+      INTEGER, PARAMETER :: just_feasible = treat_separable_as_general + 1
       INTEGER, PARAMETER :: getdua = just_feasible + 1
       INTEGER, PARAMETER :: puiseux = getdua + 1
       INTEGER, PARAMETER :: every_order = puiseux + 1
@@ -789,7 +865,7 @@ MODULE GALAHAD_CQP_double
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
       spec( start_print )%keyword = 'start-print'
       spec( stop_print )%keyword = 'stop-print'
       spec( maxit )%keyword = 'maximum-number-of-iterations'
@@ -834,6 +910,7 @@ MODULE GALAHAD_CQP_double
       spec( remove_dependencies )%keyword = 'remove-linear-dependencies'
       spec( treat_zero_bounds_as_general )%keyword =                           &
         'treat-zero-bounds-as-general'
+      spec( treat_separable_as_general )%keyword = 'treat-separable-as-general'
       spec( just_feasible )%keyword = 'just-find-feasible-point'
       spec( getdua )%keyword = 'get-advanced-dual-variables'
       spec( puiseux )%keyword = 'puiseux-series'
@@ -852,6 +929,8 @@ MODULE GALAHAD_CQP_double
       spec( sif_file_name )%keyword = 'sif-file-name'
       spec( qplib_file_name )%keyword = 'qplib-file-name'
       spec( prefix )%keyword = 'output-line-prefix'
+
+!     IF ( PRESENT( alt_specname ) ) WRITE(6,*) ' cqp: ', alt_specname
 
 !  Read the specfile
 
@@ -994,6 +1073,9 @@ MODULE GALAHAD_CQP_double
      CALL SPECFILE_assign_value( spec( just_feasible ),                        &
                                  control%just_feasible,                        &
                                  control%error )
+     CALL SPECFILE_assign_value( spec( treat_separable_as_general ),           &
+                                 control%treat_separable_as_general,           &
+                                 control%error )
      CALL SPECFILE_assign_value( spec( getdua ),                               &
                                  control%getdua,                               &
                                  control%error )
@@ -1095,11 +1177,11 @@ MODULE GALAHAD_CQP_double
 !
 !  Minimize the quadratic objective
 !
-!        1/2 x^T H x + g^T x + f  
+!        1/2 x^T H x + g^T x + f
 !
 !  or the linear/separable objective
 !
-!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f  
+!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f
 !
 !  where
 !
@@ -1116,11 +1198,11 @@ MODULE GALAHAD_CQP_double
 !
 !  Arguments:
 !
-!  prob is a structure of type QPT_problem_type, whose components hold 
+!  prob is a structure of type QPT_problem_type, whose components hold
 !   information about the problem on input, and its solution on output.
 !   The following components must be set:
 !
-!   %new_problem_structure is a LOGICAL variable, which must be set to 
+!   %new_problem_structure is a LOGICAL variable, which must be set to
 !    .TRUE. by the user if this is the first problem with this "structure"
 !    to be solved since the last call to CQP_initialize, and .FALSE. if
 !    a previous call to a problem with the same "structure" (but different
@@ -1128,18 +1210,18 @@ MODULE GALAHAD_CQP_double
 !
 !   %n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !   %m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
+!
 !   %gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term g will be zero, and the analytic centre of the 
+!     0  the linear term g will be zero, and the analytic centre of the
 !        feasible region will be found if in addition %Hessian_kind is 0.
 !        %G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        %G (see below) need not be set
 !
 !     any other value - the gradients will be those given by %G (see below)
@@ -1147,16 +1229,16 @@ MODULE GALAHAD_CQP_double
 !   %Hessian_kind is an INTEGER variable which defines the type of objective
 !    function to be used. Possible values are
 !
-!     0  all the weights will be zero, and the analytic centre of the 
+!     0  all the weights will be zero, and the analytic centre of the
 !        feasible region will be found. %WEIGHT (see below) need not be set
 !
 !     1  all the weights will be one. %WEIGHT (see below) need not be set
 !
 !     2  the weights will be those given by %WEIGHT (see below)
 !
-!    <0  the positive semi-definite Hessian H will be used 
+!    <0  the positive semi-definite Hessian H will be used
 !
-!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of H (except for the L-BFGS case). Eight storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -1167,7 +1249,7 @@ MODULE GALAHAD_CQP_double
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
 !       H%col( : )   the column indices of the components of H
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !
 !    ii) sparse, by rows
@@ -1186,7 +1268,7 @@ MODULE GALAHAD_CQP_double
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -1225,32 +1307,32 @@ MODULE GALAHAD_CQP_double
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above,
-!    except for scheme (ix), for which a permutation will be set within H_lm. 
+!    except for scheme (ix), for which a permutation will be set within H_lm.
 !    However, if scheme (i) is used for input, the output H%row will contain
 !    the row numbers corresponding to the values in H%val, and thus in this
 !    case the output matrix will be available in both formats (i) and (ii).
-!    
+!
 !   %H_lm is a structure of type LMS_data_type, whose components hold the
 !     L-BFGS Hessian. Access to this structure is via the module GALAHAD_LMS,
 !     and this component needs only be set if %H%type( 1 : 5 ) = 'LBFGS.'
 !
 !   %WEIGHT is a REAL array, which need only be set if %Hessian_kind is larger
 !    than 1. If this is so, it must be of length at least %n, and contain the
-!    weights W for the objective function. 
-!  
+!    weights W for the objective function.
+!
 !   %X0 is a REAL array, which need only be set if %Hessian_kind is not 1 or 2.
 !    If this is so, it must be of length at least %n, and contain the
-!    weights X^0 for the objective function. 
-!  
-!   %G is a REAL array, which need only be set if %gradient_kind is not 0 
+!    weights X^0 for the objective function.
+!
+!   %G is a REAL array, which need only be set if %gradient_kind is not 0
 !    or 1. If this is so, it must be of length at least %n, and contain the
-!    linear terms g for the objective function. 
-!  
+!    linear terms g for the objective function.
+!
 !   %f is a REAL variable, which must be set by the user to the value of
 !    the constant term f in the objective function. On exit, it may have
 !    been changed to reflect variables which have been fixed.
 !
-!   %A is a structure of type SMT_type used to hold the matrix A. 
+!   %A is a structure of type SMT_type used to hold the matrix A.
 !    Three storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -1279,68 +1361,68 @@ MODULE GALAHAD_CQP_double
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
 !    However, if scheme (i) is used for input, the output A%row will contain
 !    the row numbers corresponding to the values in A%val, and thus in this
-!    case the output matrix will be available in both formats (i) and (ii).   
-! 
-!   %C is a REAL array of length %m, which is used to store the values of 
-!    A x. It need not be set on entry. On exit, it will have been filled 
+!    case the output matrix will be available in both formats (i) and (ii).
+!
+!   %C is a REAL array of length %m, which is used to store the values of
+!    A x. It need not be set on entry. On exit, it will have been filled
 !    with appropriate values.
 !
 !   %X is a REAL array of length %n, which must be set by the user
-!    to estimaes of the solution, x. On successful exit, it will contain 
+!    to estimaes of the solution, x. On successful exit, it will contain
 !    the required solution, x.
 !
 !   %C_l, %C_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays c_l and c_u of lower and upper bounds on A x.
-!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %C_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %C_u to a value larger than 
-!    control%infinity. On exit, %C_l and %C_u will most likely have been 
+!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %C_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %C_u to a value larger than
+!    control%infinity. On exit, %C_l and %C_u will most likely have been
 !    reordered.
-!   
+!
 !   %Y is a REAL array of length %m, which must be set by the user to
-!    appropriate estimates of the values of the Lagrange multipliers 
-!    corresponding to the general constraints c_l <= A x <= c_u. 
-!    On successful exit, it will contain the required vector of Lagrange 
+!    appropriate estimates of the values of the Lagrange multipliers
+!    corresponding to the general constraints c_l <= A x <= c_u.
+!    On successful exit, it will contain the required vector of Lagrange
 !    multipliers.
 !
 !   %X_l, %X_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays x_l and x_u of lower and upper bounds on x.
-!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %X_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %X_u to a value larger than 
-!    control%infinity. On exit, %X_l and %X_u will most likely have been 
+!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %X_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %X_u to a value larger than
+!    control%infinity. On exit, %X_l and %X_u will most likely have been
 !    reordered.
-!   
+!
 !   %Z is a REAL array of length %n, which must be set by the user to
-!    appropriate estimates of the values of the dual variables 
-!    (Lagrange multipliers corresponding to the simple bound constraints 
+!    appropriate estimates of the values of the dual variables
+!    (Lagrange multipliers corresponding to the simple bound constraints
 !    x_l <= x <= x_u). On successful exit, it will contain
-!   the required vector of dual variables. 
+!   the required vector of dual variables.
 !
 !  data is a structure of type CQP_data_type which holds private internal data
 !
-!  control is a structure of type CQP_control_type that controls the 
+!  control is a structure of type CQP_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
 !   the elements may be set by a call to CQP_initialize. See the preamble
 !   for details
 !
-!  inform is a structure of type CQP_inform_type that provides 
-!    information on exit from CQP_solve. The component status 
+!  inform is a structure of type CQP_inform_type that provides
+!    information on exit from CQP_solve. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination with a locally optimal solution.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -1349,7 +1431,7 @@ MODULE GALAHAD_CQP_double
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!   - 3 one of the restrictions 
+!   - 3 one of the restrictions
 !        prob%n     >=  1
 !        prob%m     >=  0
 !        prob%A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE' }
@@ -1364,43 +1446,43 @@ MODULE GALAHAD_CQP_double
 !
 !    -8 The analytic center appears to be unbounded.
 !
-!    -9 The analysis phase of the factorization failed; the return status 
+!    -9 The analysis phase of the factorization failed; the return status
 !       from the factorization package is given in the component factor_status.
-!      
+!
 !   -10 The factorization failed; the return status from the factorization
 !       package is given in the component factor_status.
-!      
-!   -11 The solve of a required linear system failed; the return status from 
+!
+!   -11 The solve of a required linear system failed; the return status from
 !       the factorization package is given in the component factor_status.
-!      
-!   -16 The problem is so ill-conditoned that further progress is impossible.  
+!
+!   -16 The problem is so ill-conditoned that further progress is impossible.
 !
 !   -17 The step is too small to make further impact.
 !
 !   -18 Too many iterations have been performed. This may happen if
-!       control%maxit is too small, but may also be symptomatic of 
+!       control%maxit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !   -19 Too much time has passed. This may happen if control%cpu_time_limit or
-!       control%clock_time_limit is too small, but may also be symptomatic of 
+!       control%clock_time_limit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !  On exit from CQP_solve, other components of inform are given in the preamble
 !
-!  C_stat is an optional INTEGER array of length m, which if present will be 
-!   set on exit to indicate the likely ultimate status of the constraints. 
-!   Possible values are 
-!   C_stat( i ) < 0, the i-th constraint is likely in the active set, 
-!                    on its lower bound, 
+!  C_stat is an optional INTEGER array of length m, which if present will be
+!   set on exit to indicate the likely ultimate status of the constraints.
+!   Possible values are
+!   C_stat( i ) < 0, the i-th constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is likely not in the active set
 !
-!  B_stat is an optional  INTEGER array of length n, which if present will be 
-!   set on exit to indicate the likely ultimate status of the simple bound 
-!   constraints. Possible values are 
-!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set, 
-!                    on its lower bound, 
+!  B_stat is an optional  INTEGER array of length n, which if present will be
+!   set on exit to indicate the likely ultimate status of the simple bound
+!   constraints. Possible values are
+!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is likely not in the active set
@@ -1411,7 +1493,7 @@ MODULE GALAHAD_CQP_double
 
       TYPE ( QPT_problem_type ), INTENT( INOUT ) :: prob
       TYPE ( CQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       TYPE ( CQP_inform_type ), INTENT( OUT ) :: inform
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%m ) :: C_stat
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%n ) :: B_stat
@@ -1419,7 +1501,7 @@ MODULE GALAHAD_CQP_double
 !  Local variables
 
       INTEGER :: i, j, l, n_depen, nzc
-      REAL ( KIND = wp ) :: time_start, time_record, time_now
+      REAL :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize, cro_clock_matrix
@@ -1433,7 +1515,7 @@ MODULE GALAHAD_CQP_double
 
 !$    INTEGER :: OMP_GET_MAX_THREADS
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -1443,7 +1525,7 @@ MODULE GALAHAD_CQP_double
         WRITE( control%out, "( A, ' entering CQP_solve ' )" ) prefix
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
       IF ( control%generate_sif_file ) THEN
         CALL QPD_SIF( prob, control%sif_file_name, control%sif_file_device,    &
@@ -1454,7 +1536,7 @@ MODULE GALAHAD_CQP_double
 ! -------------------------------------------------------------------
 
 ! -------------------------------------------------------------------
-!  If desired, generate a QPLIB file for problem passed 
+!  If desired, generate a QPLIB file for problem passed
 
       IF ( control%generate_qplib_file ) THEN
         CALL RPD_write_qp_problem_data( prob, control%qplib_file_name,         &
@@ -1474,7 +1556,7 @@ MODULE GALAHAD_CQP_double
       inform%alloc_status = 0 ; inform%bad_alloc = ''
       inform%factorization_status = 0
       inform%iter = - 1 ; inform%nfacts = - 1 ; inform%nbacts = 0
-      inform%factorization_integer = - 1 ; inform%factorization_real = - 1 
+      inform%factorization_integer = - 1 ; inform%factorization_real = - 1
       inform%obj = - one ; inform%potential = infinity
       inform%non_negligible_pivot = zero
       inform%feasible = .FALSE.
@@ -1484,7 +1566,7 @@ MODULE GALAHAD_CQP_double
 
 !  basic single line of output per iteration
 
-      printi = control%out > 0 .AND. control%print_level >= 1 
+      printi = control%out > 0 .AND. control%print_level >= 1
       printa = control%out > 0 .AND. control%print_level >= 101
 
 !  ensure that input parameters are within allowed ranges
@@ -1493,11 +1575,11 @@ MODULE GALAHAD_CQP_double
            .NOT. QPT_keyword_A( prob%A%type ) ) THEN
         inform%status = GALAHAD_error_restrictions
         IF ( control%error > 0 .AND. control%print_level > 0 )                 &
-          WRITE( control%error, 2010 ) prefix, inform%status 
-        GO TO 800 
-      END IF 
+          WRITE( control%error, 2010 ) prefix, inform%status
+        GO TO 800
+      END IF
 
-!  if required, write out problem 
+!  if required, write out problem
 
       IF ( prob%Hessian_kind < 0 ) THEN
         lbfgs = SMT_get( prob%H%type ) == 'LBFGS'
@@ -1515,8 +1597,8 @@ MODULE GALAHAD_CQP_double
         IF ( prob%X_l( i ) - prob%X_u( i ) > control%identical_bounds_tol ) THEN
           inform%status = GALAHAD_error_bad_bounds
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
         ELSE IF ( prob%X_u( i ) == prob%X_l( i )  ) THEN
         ELSE IF ( prob%X_u( i ) - prob%X_l( i )                                &
                   <= control%identical_bounds_tol ) THEN
@@ -1524,7 +1606,7 @@ MODULE GALAHAD_CQP_double
           prob%X_l( i ) = av_bnd ; prob%X_u( i ) = av_bnd
           reset_bnd = .TRUE.
         END IF
-      END DO   
+      END DO
       IF ( reset_bnd .AND. printi ) WRITE( control%out,                        &
         "( /, A, '   **  Warning: one or more variable bounds reset ' )" )     &
          prefix
@@ -1534,8 +1616,8 @@ MODULE GALAHAD_CQP_double
         IF ( prob%C_l( i ) - prob%C_u( i ) > control%identical_bounds_tol ) THEN
           inform%status = GALAHAD_error_bad_bounds
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
         ELSE IF ( prob%C_u( i ) == prob%C_l( i ) ) THEN
         ELSE IF ( prob%C_u( i ) - prob%C_l( i )                                &
                   <= control%identical_bounds_tol ) THEN
@@ -1543,7 +1625,7 @@ MODULE GALAHAD_CQP_double
           prob%C_l( i ) = av_bnd ; prob%C_u( i ) = av_bnd
           reset_bnd = .TRUE.
         END IF
-      END DO   
+      END DO
       IF ( reset_bnd .AND. printi ) WRITE( control%out,                        &
         "( A, /, '   **  Warning: one or more constraint bounds reset ' )" )   &
           prefix
@@ -1562,28 +1644,28 @@ MODULE GALAHAD_CQP_double
 !  store the problem dimensions
 
         SELECT CASE ( SMT_get( prob%A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           data%a_ne = prob%m * prob%n
         CASE ( 'SPARSE_BY_ROWS' )
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         CASE ( 'COORDINATE' )
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END SELECT
 
         IF ( prob%Hessian_kind < 0 ) THEN
           SELECT CASE ( SMT_get( prob%H%type ) )
-          CASE ( 'NONE', 'ZERO', 'IDENTITY' ) 
+          CASE ( 'NONE', 'ZERO', 'IDENTITY' )
             data%h_ne = 0
-          CASE ( 'SCALED_IDENTITY' ) 
+          CASE ( 'SCALED_IDENTITY' )
             data%h_ne = 1
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%h_ne = prob%n
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%h_ne = ( prob%n * ( prob%n + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
           CASE ( 'COORDINATE' )
-            data%h_ne = prob%H%ne 
+            data%h_ne = prob%H%ne
           CASE ( 'LBFGS' )
             data%h_ne = 0
           END SELECT
@@ -1595,8 +1677,8 @@ MODULE GALAHAD_CQP_double
       IF ( data%a_ne <= 0 ) THEN
         separable_bqp = .TRUE.
         SELECT CASE ( SMT_get( prob%H%type ) )
-        CASE ( 'NONE', 'ZERO', 'IDENTITY', 'SCALED_IDENTITY', 'DIAGONAL' ) 
-        CASE ( 'DENSE' ) 
+        CASE ( 'NONE', 'ZERO', 'IDENTITY', 'SCALED_IDENTITY', 'DIAGONAL' )
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, prob%n
             DO j = 1, i
@@ -1629,6 +1711,7 @@ MODULE GALAHAD_CQP_double
 
 !  the problem is a separable bound-constrained QP. Solve it explicitly
 
+        IF ( control%treat_separable_as_general ) separable_bqp = .FALSE.
         IF ( separable_bqp ) THEN
           IF ( printi ) WRITE( control%out,                                    &
             "( /, A, ' Solving separable bound-constrained QP -' )" ) prefix
@@ -1679,10 +1762,18 @@ MODULE GALAHAD_CQP_double
 !  perform the preprocessing
 
       IF ( prob%new_problem_structure ) THEN
-        IF ( printi ) WRITE( control%out,                                      &
-               "( /, A, ' problem dimensions before preprocessing: ', /,  A,   &
-     &         ' n = ', I8, ' m = ', I8, ' a_ne = ', I8, ' h_ne = ', I8 )" )   &
+        IF ( printi ) THEN
+          IF ( prob%m > 0 ) THEN
+            WRITE( control%out,                                                &
+               "(  A, ' problem dimensions before preprocessing: ', /,  A,     &
+           &   ' n = ', I0, ' m = ', I0, ' a_ne = ', I0, ' h_ne = ', I0 )" )   &
                prefix, prefix, prob%n, prob%m, data%a_ne, data%h_ne
+          ELSE
+            WRITE( control%out,                                                &
+               "(  A, ' problem dimensions before preprocessing:',             &
+           &   ' n = ', I0, ' h_ne = ', I0 )" ) prefix, prob%n, data%h_ne
+          END IF
+        END IF
 
         CALL QPP_initialize( data%QPP_map, data%QPP_control )
         data%QPP_control%infinity = control%infinity
@@ -1693,11 +1784,11 @@ MODULE GALAHAD_CQP_double
         CALL QPP_reorder( data%QPP_map, data%QPP_control,                      &
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
+
 !  test for satisfactory termination
 
         IF ( data%QPP_inform%status /= GALAHAD_ok ) THEN
@@ -1706,45 +1797,53 @@ MODULE GALAHAD_CQP_double
             WRITE( control%out, "( A, ' status ', I0, ' after QPP_reorder')" ) &
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  record array lengths
 
         SELECT CASE ( SMT_get( prob%A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           data%a_ne = prob%m * prob%n
         CASE ( 'SPARSE_BY_ROWS' )
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         CASE ( 'COORDINATE' )
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END SELECT
 
         IF ( prob%Hessian_kind < 0 ) THEN
           SELECT CASE ( SMT_get( prob%H%type ) )
-          CASE ( 'NONE', 'ZERO', 'IDENTITY' ) 
+          CASE ( 'NONE', 'ZERO', 'IDENTITY' )
             data%h_ne = 0
-          CASE ( 'SCALED_IDENTITY' ) 
+          CASE ( 'SCALED_IDENTITY' )
             data%h_ne = 1
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%h_ne = prob%n
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%h_ne = ( prob%n * ( prob%n + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
           CASE ( 'COORDINATE' )
-            data%h_ne = prob%H%ne 
+            data%h_ne = prob%H%ne
           CASE ( 'LBFGS' )
             data%h_ne = 0
           END SELECT
         END IF
 
-        IF ( printi ) WRITE( control%out,                                      &
+        IF ( printi ) THEN
+          IF ( prob%m > 0 ) THEN
+            WRITE( control%out,                                                &
                "(  A, ' problem dimensions after preprocessing: ', /,  A,      &
-     &         ' n = ', I8, ' m = ', I8, ' a_ne = ', I8, ' h_ne = ', I8 )" )   &
+           &   ' n = ', I0, ' m = ', I0, ' a_ne = ', I0, ' h_ne = ', I0 )" )   &
                prefix, prefix, prob%n, prob%m, data%a_ne, data%h_ne
+          ELSE
+            WRITE( control%out,                                                &
+               "(  A, ' problem dimensions after  preprocessing:',             &
+           &   ' n = ', I0, ' h_ne = ', I0 )" ) prefix, prob%n, data%h_ne
+          END IF
+        END IF
 
         prob%new_problem_structure = .FALSE.
         data%trans = 1
@@ -1756,7 +1855,7 @@ MODULE GALAHAD_CQP_double
           CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
           CALL QPP_apply( data%QPP_map, data%QPP_inform,                       &
                           prob, get_all = .TRUE. )
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
             inform%time%preprocess + time_now - time_record
           inform%time%clock_preprocess =                                       &
@@ -1770,11 +1869,11 @@ MODULE GALAHAD_CQP_double
               WRITE( control%out, "( A, ' status ', I0, ' after QPP_apply')" ) &
                prefix, data%QPP_inform%status
             IF ( control%error > 0 .AND. control%print_level > 0 )             &
-              WRITE( control%error, 2010 ) prefix, inform%status 
+              WRITE( control%error, 2010 ) prefix, inform%status
             CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform)
-            GO TO 800 
-          END IF 
-        END IF 
+            GO TO 800
+          END IF
+        END IF
         data%trans = data%trans + 1
       END IF
 
@@ -1804,7 +1903,7 @@ MODULE GALAHAD_CQP_double
 
 !  find any dependent rows
 
-        nzc = prob%A%ptr( data%dims%c_equality + 1 ) - 1 
+        nzc = prob%A%ptr( data%dims%c_equality + 1 ) - 1
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
         CALL FDC_find_dependent( prob%n, data%dims%c_equality,                 &
                                  prob%A%val( : nzc ),                          &
@@ -1813,7 +1912,7 @@ MODULE GALAHAD_CQP_double
                                  prob%C_l, n_depen, data%Index_C_freed,        &
                                  data%FDC_data, data%FDC_control,              &
                                  inform%FDC_inform )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%find_dependent =                                           &
           inform%time%find_dependent + time_now - time_record
         inform%time%clock_find_dependent =                                     &
@@ -1831,14 +1930,14 @@ MODULE GALAHAD_CQP_double
         inform%nfacts = 1
 
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-               time_now - time_start > control%cpu_time_limit ) .OR.           &
+             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
-        END IF 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
+        END IF
 
         IF ( printi .AND. inform%non_negligible_pivot < thousand *             &
           control%FDC_control%SLS_control%absolute_pivot_tolerance )           &
@@ -1908,7 +2007,7 @@ MODULE GALAHAD_CQP_double
                  exact_size = control%space_critical,                          &
                  bad_alloc = inform%bad_alloc, out = control%error )
           IF ( inform%status /= GALAHAD_ok ) GO TO 900
-        
+
 !  free the constraint bounds as required
 
         DO i = 1, n_depen
@@ -1927,7 +2026,7 @@ MODULE GALAHAD_CQP_double
 !  store the problem dimensions
 
         data%dims_save_freed = data%dims
-        data%a_ne = prob%A%ne 
+        data%a_ne = prob%A%ne
 
         IF ( printi ) WRITE( control%out,                                      &
                "( /, A, ' problem dimensions before removal of dependecies: ', &
@@ -1936,23 +2035,23 @@ MODULE GALAHAD_CQP_double
 
 !  perform the preprocessing
 
-        CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record ) 
+        CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record )
         CALL QPP_reorder( data%QPP_map_freed, data%QPP_control,                &
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
-        data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1 
+
+        data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1
         data%dims%x_s = 1 ; data%dims%x_e = prob%n
-        data%dims%c_s = data%dims%x_e + 1 
-        data%dims%c_e = data%dims%x_e + data%dims%nc  
+        data%dims%c_s = data%dims%x_e + 1
+        data%dims%c_e = data%dims%x_e + data%dims%nc
         data%dims%c_b = data%dims%c_e - prob%m
-        data%dims%y_s = data%dims%c_e + 1 
+        data%dims%y_s = data%dims%c_e + 1
         data%dims%y_e = data%dims%c_e + prob%m
-        data%dims%y_i = data%dims%c_s + prob%m 
+        data%dims%y_i = data%dims%c_s + prob%m
         data%dims%v_e = data%dims%y_e
 
 !  test for satisfactory termination
@@ -1963,12 +2062,12 @@ MODULE GALAHAD_CQP_double
             WRITE( control%out, "( A, ' status ', I0, ' after QPP_reorder')" ) &
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           CALL QPP_terminate( data%QPP_map_freed, data%QPP_control,            &
                               data%QPP_inform )
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  record revised array lengths
 
@@ -1977,7 +2076,7 @@ MODULE GALAHAD_CQP_double
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( printi ) WRITE( control%out,                                      &
@@ -1986,9 +2085,9 @@ MODULE GALAHAD_CQP_double
                prefix, prefix, prob%n, prob%m, data%a_ne
       END IF
 
-!  compute the dimension of the KKT system 
+!  compute the dimension of the KKT system
 
-      data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1 
+      data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1
 
 !  arrays containing data relating to the composite vector ( x  c  y )
 !  are partitioned as follows:
@@ -2004,16 +2103,16 @@ MODULE GALAHAD_CQP_double
 !    ^                 ^    ^ ^               ^ ^    ^               ^
 !    |                 |    | |               | |    |               |
 !   x_s                |    |c_s              |y_s  y_i             y_e = v_e
-!                      |    |                 |                     
+!                      |    |                 |
 !                     c_b  x_e               c_e
 
       data%dims%x_s = 1 ; data%dims%x_e = prob%n
-      data%dims%c_s = data%dims%x_e + 1 
-      data%dims%c_e = data%dims%x_e + data%dims%nc  
+      data%dims%c_s = data%dims%x_e + 1
+      data%dims%c_e = data%dims%x_e + data%dims%nc
       data%dims%c_b = data%dims%c_e - prob%m
-      data%dims%y_s = data%dims%c_e + 1 
+      data%dims%y_s = data%dims%c_e + 1
       data%dims%y_e = data%dims%c_e + prob%m
-      data%dims%y_i = data%dims%c_s + prob%m 
+      data%dims%y_i = data%dims%c_s + prob%m
       data%dims%v_e = data%dims%y_e
 
 !  ----------------
@@ -2070,7 +2169,7 @@ MODULE GALAHAD_CQP_double
                                  prob%Hessian_kind, prob%gradient_kind,        &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
-                                 C_stat = C_stat, B_Stat = B_Stat )            
+                                 C_stat = C_stat, B_Stat = B_Stat )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -2098,7 +2197,7 @@ MODULE GALAHAD_CQP_double
                                  G = prob%G,                                   &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
-                                 C_stat = C_stat, B_Stat = B_Stat )            
+                                 C_stat = C_stat, B_Stat = B_Stat )
           END IF
         ELSE IF ( prob%Hessian_kind == 1 ) THEN
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2128,7 +2227,7 @@ MODULE GALAHAD_CQP_double
                                  X0 = prob%X0,                                 &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
-                                 C_stat = C_stat, B_Stat = B_Stat )            
+                                 C_stat = C_stat, B_Stat = B_Stat )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -2156,7 +2255,7 @@ MODULE GALAHAD_CQP_double
                                  X0 = prob%X0, G = prob%G,                     &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
-                                 C_stat = C_stat, B_Stat = B_Stat )            
+                                 C_stat = C_stat, B_Stat = B_Stat )
           END IF
         ELSE IF ( prob%Hessian_kind == 2 ) THEN
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2186,7 +2285,7 @@ MODULE GALAHAD_CQP_double
                                  WEIGHT = prob%WEIGHT, X0 = prob%X0,           &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
-                                 C_stat = C_stat, B_Stat = B_Stat )            
+                                 C_stat = C_stat, B_Stat = B_Stat )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -2215,7 +2314,7 @@ MODULE GALAHAD_CQP_double
                                  G = prob%G,                                   &
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last, Z_last = data%Z_last,   &
-                                 C_stat = C_stat, B_Stat = B_Stat )            
+                                 C_stat = C_stat, B_Stat = B_Stat )
           END IF
         ELSE
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2247,7 +2346,7 @@ MODULE GALAHAD_CQP_double
                                    C_last = data%A_s, X_last = data%H_s,       &
                                    Y_last = data%Y_last,                       &
                                    Z_last = data%Z_last,                       &
-                                   C_stat = C_stat, B_Stat = B_Stat )          
+                                   C_stat = C_stat, B_Stat = B_Stat )
             ELSE
               CALL CQP_solve_main( data%dims, prob%n, prob%m,                  &
                                    prob%A%val, prob%A%col, prob%A%ptr,         &
@@ -2277,7 +2376,7 @@ MODULE GALAHAD_CQP_double
                                    C_last = data%A_s, X_last = data%H_s,       &
                                    Y_last = data%Y_last,                       &
                                    Z_last = data%Z_last,                       &
-                                   C_stat = C_stat, B_Stat = B_Stat )          
+                                   C_stat = C_stat, B_Stat = B_Stat )
             END IF
           ELSE
             IF ( lbfgs ) THEN
@@ -2308,7 +2407,7 @@ MODULE GALAHAD_CQP_double
                                    C_last = data%A_s, X_last = data%H_s,       &
                                    Y_last = data%Y_last,                       &
                                    Z_last = data%Z_last,                       &
-                                   C_stat = C_stat, B_Stat = B_Stat )          
+                                   C_stat = C_stat, B_Stat = B_Stat )
             ELSE
               CALL CQP_solve_main( data%dims, prob%n, prob%m,                  &
                                    prob%A%val, prob%A%col, prob%A%ptr,         &
@@ -2338,10 +2437,10 @@ MODULE GALAHAD_CQP_double
                                    C_last = data%A_s, X_last = data%H_s,       &
                                    Y_last = data%Y_last,                       &
                                    Z_last = data%Z_last,                       &
-                                   C_stat = C_stat, B_Stat = B_Stat )          
+                                   C_stat = C_stat, B_Stat = B_Stat )
             END IF
           END IF
-        END IF  
+        END IF
 
 !  constraint/variable exit status not required
 
@@ -2370,7 +2469,7 @@ MODULE GALAHAD_CQP_double
                                  data%OPT_alpha, data%OPT_merit,               &
                                  data%SBLS_data, prefix,                       &
                                  control, inform,                              &
-                                 prob%Hessian_kind, prob%gradient_kind )       
+                                 prob%Hessian_kind, prob%gradient_kind )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -2395,7 +2494,7 @@ MODULE GALAHAD_CQP_double
                                  data%SBLS_data, prefix,                       &
                                  control, inform,                              &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 G = prob%G )                                  
+                                 G = prob%G )
           END IF
         ELSE IF ( prob%Hessian_kind == 1 ) THEN
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2422,7 +2521,7 @@ MODULE GALAHAD_CQP_double
                                  data%SBLS_data, prefix,                       &
                                  control, inform,                              &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 X0 = prob%X0 )                                
+                                 X0 = prob%X0 )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -2447,7 +2546,7 @@ MODULE GALAHAD_CQP_double
                                  data%SBLS_data, prefix,                       &
                                  control, inform,                              &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 X0 = prob%X0, G = prob%G )                    
+                                 X0 = prob%X0, G = prob%G )
           END IF
         ELSE IF ( prob%Hessian_kind == 1 ) THEN
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2474,7 +2573,7 @@ MODULE GALAHAD_CQP_double
                                  data%SBLS_data, prefix,                       &
                                  control, inform,                              &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 WEIGHT = prob%WEIGHT, X0 = prob%X0 )          
+                                 WEIGHT = prob%WEIGHT, X0 = prob%X0 )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -2500,7 +2599,7 @@ MODULE GALAHAD_CQP_double
                                  control, inform,                              &
                                  prob%Hessian_kind, prob%gradient_kind,        &
                                  WEIGHT = prob%WEIGHT, X0 = prob%X0,           &
-                                 G = prob%G )                                  
+                                 G = prob%G )
           END IF
         ELSE
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2528,7 +2627,7 @@ MODULE GALAHAD_CQP_double
                                    data%SBLS_data, prefix,                     &
                                    control, inform,                            &
                                    prob%Hessian_kind, prob%gradient_kind,      &
-                                   H_lm = prob%H_lm )                          
+                                   H_lm = prob%H_lm )
             ELSE
               CALL CQP_solve_main( data%dims, prob%n, prob%m,                  &
                                    prob%A%val, prob%A%col, prob%A%ptr,         &
@@ -2554,7 +2653,7 @@ MODULE GALAHAD_CQP_double
                                    control, inform,                            &
                                    prob%Hessian_kind, prob%gradient_kind,      &
                                    H_val = prob%H%val, H_col = prob%H%col,     &
-                                   H_ptr = prob%H%ptr )                        
+                                   H_ptr = prob%H%ptr )
             END IF
           ELSE
             IF ( lbfgs ) THEN
@@ -2581,7 +2680,7 @@ MODULE GALAHAD_CQP_double
                                    data%SBLS_data, prefix,                     &
                                    control, inform,                            &
                                    prob%Hessian_kind, prob%gradient_kind,      &
-                                   H_lm = prob%H_lm, G = prob%G )              
+                                   H_lm = prob%H_lm, G = prob%G )
             ELSE
               CALL CQP_solve_main( data%dims, prob%n, prob%m,                  &
                                    prob%A%val, prob%A%col, prob%A%ptr,         &
@@ -2607,11 +2706,11 @@ MODULE GALAHAD_CQP_double
                                    control, inform,                            &
                                    prob%Hessian_kind, prob%gradient_kind,      &
                                    H_val = prob%H%val, H_col = prob%H%col,     &
-                                   H_ptr = prob%H%ptr, G = prob%G )            
+                                   H_ptr = prob%H%ptr, G = prob%G )
             END IF
           END IF
-        END IF  
-      END IF  
+        END IF
+      END IF
 
       inform%time%analyse = inform%time%analyse +                              &
         inform%FDC_inform%time%analyse - time_analyse
@@ -2626,8 +2725,8 @@ MODULE GALAHAD_CQP_double
 
       IF ( stat_required .AND. control%crossover .AND.                         &
            inform%status == GALAHAD_ok ) THEN
-         IF ( printa ) THEN
-          WRITE( control%out, "( A, ' Before crossover:`' )" ) prefix
+        IF ( printa ) THEN
+          WRITE( control%out, "( A, ' Before crossover:' )" ) prefix
           WRITE( control%out, "( /, A, '      i       X_l             X   ',   &
          &   '          X_u            Z        st' )" ) prefix
           DO i = 1, prob%n
@@ -2718,7 +2817,7 @@ MODULE GALAHAD_CQP_double
         END IF
         CALL QPP_restore( data%QPP_map_freed, data%QPP_inform, prob,           &
                           get_all = .TRUE.)
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
@@ -2736,7 +2835,7 @@ MODULE GALAHAD_CQP_double
 
 !  retore the problem to its original form
 
-  700 CONTINUE 
+  700 CONTINUE
       data%trans = data%trans - 1
       IF ( data%trans == 0 ) THEN
 !       data%IW( : prob%n + 1 ) = 0
@@ -2773,7 +2872,7 @@ MODULE GALAHAD_CQP_double
                             get_z = .TRUE., get_c = .TRUE. )
         END IF
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
@@ -2783,16 +2882,16 @@ MODULE GALAHAD_CQP_double
 
 !  compute total time
 
-  800 CONTINUE 
+  800 CONTINUE
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
-  
+        inform%time%clock_total + clock_now - clock_start
+
       IF ( printi ) WRITE( control%out,                                        &
      "( /, A, 3X, ' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=',    &
     &             '-=-=-=-=-=-=-=',                                            &
-    &   /, A, 3X, ' =                          CQP total time            ',    &
+    &   /, A, 3X, ' =                            total time              ',    &
     &             '             =',                                            &
     &   /, A, 3X, ' =', 24X, 0P, F12.2, 29x, '='                               &
     &   /, A, 3X, ' =    preprocess    analyse    factorize     solve    ',    &
@@ -2807,16 +2906,16 @@ MODULE GALAHAD_CQP_double
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving CQP_solve ' )" ) prefix
-      RETURN  
+      RETURN
 
 !  allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
+        inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
         "( A, ' ** Message from -CQP_solve-', /,  A,                           &
        &      ' Allocation error, for ', A, /, A, ' status = ', I0 ) " )       &
@@ -2824,11 +2923,11 @@ MODULE GALAHAD_CQP_double
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving CQP_solve ' )" ) prefix
-      RETURN  
+      RETURN
 
 !  non-executable statements
 
- 2010 FORMAT( ' ', /, A, '    ** Error return ', I0, ' from CQP ' ) 
+ 2010 FORMAT( ' ', /, A, '    ** Error return ', I0, ' from CQP ' )
 
 !  End of CQP_solve
 
@@ -2857,11 +2956,11 @@ MODULE GALAHAD_CQP_double
 !
 !  Minimize the quadratic objective function
 !
-!        1/2 x^T H x + g^T x + f  
+!        1/2 x^T H x + g^T x + f
 !
 !  or the linear/separable objective function
 !
-!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f  
+!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f
 !
 !  subject to the constraints
 !
@@ -2875,8 +2974,8 @@ MODULE GALAHAD_CQP_double
 !  The subroutine is particularly appropriate when A is sparse.
 !
 !  In order that many of the internal computations may be performed
-!  efficiently, it is required that   
-!  
+!  efficiently, it is required that
+!
 !  * the variables are ordered so that their bounds appear in the order
 !
 !    free                      x
@@ -2886,7 +2985,7 @@ MODULE GALAHAD_CQP_double
 !    upper                     x <= x_u
 !    non-positivity            x <=  0
 !
-!    Fixed variables are not permitted (ie, x_l < x_u for range variables). 
+!    Fixed variables are not permitted (ie, x_l < x_u for range variables).
 !
 !  * the constraints are ordered so that their bounds appear in the order
 !
@@ -2911,42 +3010,42 @@ MODULE GALAHAD_CQP_double
 !
 !   %x_free is an INTEGER variable, which must be set by the user to the
 !    number of free variables. RESTRICTION: %x_free >= 0
-!                 
+!
 !   %x_l_start is an INTEGER variable, which must be set by the user to the
 !    index of the first variable with a nonzero lower (or lower range) bound.
 !    RESTRICTION: %x_l_start >= %x_free + 1
-!                 
+!
 !   %x_l_end is an INTEGER variable, which must be set by the user to the
 !    index of the last variable with a nonzero lower (or lower range) bound.
 !    RESTRICTION: %x_l_end >= %x_l_start
-!                 
+!
 !   %x_u_start is an INTEGER variable, which must be set by the user to the
-!    index of the first variable with a nonzero upper (or upper range) bound. 
+!    index of the first variable with a nonzero upper (or upper range) bound.
 !    RESTRICTION: %x_u_start >= %x_l_start
-!                 
+!
 !   %x_u_end is an INTEGER variable, which must be set by the user to the
-!    index of the last variable with a nonzero upper (or upper range) bound. 
+!    index of the last variable with a nonzero upper (or upper range) bound.
 !    RESTRICTION: %x_u_end >= %x_u_start
-!                 
+!
 !   %c_equality is an INTEGER variable, which must be set by the user to the
 !    number of equality constraints, m. RESTRICTION: %c_equality >= 0
-!                 
+!
 !   %c_l_start is an INTEGER variable, which must be set by the user to the
-!    index of the first inequality constraint with a lower (or lower range) 
-!    bound. RESTRICTION: %c_l_start = %c_equality + 1 
+!    index of the first inequality constraint with a lower (or lower range)
+!    bound. RESTRICTION: %c_l_start = %c_equality + 1
 !    (strictly, this information is redundant!)
-!                 
+!
 !   %c_l_end is an INTEGER variable, which must be set by the user to the
-!    index of the last inequality constraint with a lower (or lower range) 
+!    index of the last inequality constraint with a lower (or lower range)
 !    bound. RESTRICTION: %c_l_end >= %c_l_start
-!                 
+!
 !   %c_u_start is an INTEGER variable, which must be set by the user to the
-!    index of the first inequality constraint with an upper (or upper range) 
+!    index of the first inequality constraint with an upper (or upper range)
 !    bound. RESTRICTION: %c_u_start >= %c_l_start
 !    (strictly, this information is redundant!)
-!                 
+!
 !   %c_u_end is an INTEGER variable, which must be set by the user to the
-!    index of the last inequality constraint with an upper (or upper range) 
+!    index of the last inequality constraint with an upper (or upper range)
 !    bound. RESTRICTION: %c_u_end = %m
 !    (strictly, this information is redundant!)
 !
@@ -2960,7 +3059,7 @@ MODULE GALAHAD_CQP_double
 !    value n
 !
 !   %c_s is an INTEGER variable, which must be set by the user to the
-!    value dims%x_e + 1 
+!    value dims%x_e + 1
 !
 !   %c_e is an INTEGER variable, which must be set by the user to the
 !    value dims%x_e + dims%nc
@@ -2983,58 +3082,58 @@ MODULE GALAHAD_CQP_double
 !  A_col/ptr/val is used to hold the matrix A by rows. In particular:
 !      A_col( : )   the column indices of the components of A
 !      A_ptr( : )   pointers to the start of each row, and past the end of
-!                   the last row. 
+!                   the last row.
 !      A_val( : )   the values of the components of A
 !
-!  C_l, C_u are REAL arrays of length m, which must be set by the user to 
+!  C_l, C_u are REAL arrays of length m, which must be set by the user to
 !   the values of the arrays x_l and x_u of lower and upper bounds on x, ordered
 !   as described above (strictly only C_l( dims%c_l_start : dims%c_l_end )
 !   and C_u( dims%c_u_start : dims%c_u_end ) need be set, as the other
 !   components are ignored!).
-!  
-!  X_l, X_u are REAL arrays of length n, which must be set by the user to 
+!
+!  X_l, X_u are REAL arrays of length n, which must be set by the user to
 !   the values of the arrays x_l and x_u of lower and upper bounds on x, ordered
 !   as described above (strictly only X_l( dims%x_l_start : dims%x_l_end )
 !   and X_u( dims%x_u_start : dims%x_u_end ) need be set, as the other
 !   components are ignored!).
-!  
+!
 !  C_RES is a REAL array of length m, which need not be set on entry. On exit,
-!   the i-th component of C_RES will contain (A * x)_i, for i = 1, .... , m. 
+!   the i-th component of C_RES will contain (A * x)_i, for i = 1, .... , m.
 !
 !  X is a REAL array of length n, which must be set by
-!   the user on entry to CQP_solve to give an initial estimate of the 
-!   optimization parameters, x. The i-th component of X should contain 
-!   the initial estimate of x_i, for i = 1, .... , n.  The estimate need 
-!   not satisfy the simple bound constraints and may be perturbed by 
-!   CQP_solve prior to the start of the minimization.  Any estimate which is 
+!   the user on entry to CQP_solve to give an initial estimate of the
+!   optimization parameters, x. The i-th component of X should contain
+!   the initial estimate of x_i, for i = 1, .... , n.  The estimate need
+!   not satisfy the simple bound constraints and may be perturbed by
+!   CQP_solve prior to the start of the minimization.  Any estimate which is
 !   closer to one of its bounds than control%prfeas may be reset to try to
-!   ensure that it is at least control%prfeas from its bounds. On exit from 
-!   CQP_solve, X will contain the best estimate of the optimization 
+!   ensure that it is at least control%prfeas from its bounds. On exit from
+!   CQP_solve, X will contain the best estimate of the optimization
 !   parameters found
-!  
+!
 !  Y is a REAL array of length m, which must be set by the user
 !   on entry to CQP_solve to give an initial estimates of the
-!   optimal Lagrange multipiers, y. The i-th component of Y 
-!   should contain the initial estimate of y_i, for i = 1, .... , m.  
-!   Any estimate which is smaller than control%dufeas may be 
+!   optimal Lagrange multipiers, y. The i-th component of Y
+!   should contain the initial estimate of y_i, for i = 1, .... , m.
+!   Any estimate which is smaller than control%dufeas may be
 !   reset to control%dufeas. The dual variable for any variable with both
 !   On exit from CQP_solve, Y will contain the best estimate of
 !   the Lagrange multipliers found
-!  
+!
 !  Z, is a REAL array of length n, which must be set by
-!   on entry to CQP_solve to hold the values of the the dual variables 
-!   associated with the simple bound constraints. 
-!   Any estimate which is smaller than control%dufeas may be 
+!   on entry to CQP_solve to hold the values of the the dual variables
+!   associated with the simple bound constraints.
+!   Any estimate which is smaller than control%dufeas may be
 !   reset to control%dufeas. The dual variable for any variable with both
 !   infinite lower and upper bounds need not be set. On exit from
 !   CQP_solve, Z will contain the best estimates obtained
-!  
+!
 !  control and inform are exactly as for CQP_solve
 !
 !  Hessian_kind is an INTEGER variable which defines the type of objective
 !    function to be used. Possible values are
 !
-!     0  all the weights will be zero, and the analytic centre of the 
+!     0  all the weights will be zero, and the analytic centre of the
 !        feasible region will be found. WEIGHT (see below) need not be set
 !
 !     1  all the weights will be one. WEIGHT (see below) need not be set
@@ -3043,43 +3142,45 @@ MODULE GALAHAD_CQP_double
 !
 !     any other value  - the Hessian will be given by H (see below)
 !
-!   WEIGHT is an optional REAL array, which need only be included if 
-!    Hessian_kind is not 0 or 1. If this is so, it must be of length at least 
-!    n, and contain the weights W for the objective function. 
-!  
-!   X0 is an optional REAL array, which need only be included if 
-!    Hessian_kind is not 0. If this is so, it must be of length at least 
-!    n, and contain the shifts X^0 for the objective function. 
-!  
-!   H_col/ptr/val is used to hold the lower triangle of the matrix H by rows. 
+!   WEIGHT is an optional REAL array, which need only be included if
+!    Hessian_kind is 2. If this is so, it must be of length at least
+!    n, and contain the weights W for the objective function.
+!
+!   X0 is an optional REAL array, which need only be included if
+!    Hessian_kind is 1 or 2. If this is so, it must be of length at least
+!    n, and contain the shifts X^0 for the objective function.
+!
+!   H_col/ptr/val is used to hold the lower triangle of the matrix H by rows.
 !    In particular:
 !      H_col( : )   the column indices of the components of H
 !      H_ptr( : )   pointers to the start of each row, and past the end of
-!                   the last row. 
-!      H_val( : )   the values of the components of H
+!                   the last row.
+!      H_val( : )   the values of the components of H.
+!     If H_ptr or H_col is absent, H will be presumed to be a scalar
+!     multiple, H_val(1), of the identity
 !
-!   H_lm is used to hold a "limited-memory" representation of H as set up by 
+!   H_lm is used to hold a "limited-memory" representation of H as set up by
 !     the module GALAHAD_LMS
 !
 !   gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term will be zero, and the analytic centre of the 
+!     0  the linear term will be zero, and the analytic centre of the
 !        feasible region will be found if in addition Hessian_kind is 0.
 !        G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        G (see below) need not be set
 !
 !     any other value - the gradients will be those given by G (see below)
 !
-!   G is an optional REAL array, which need only be included if 
-!    gradient_kind is not 0 or 1. If this is so, it must be of length at least 
-!    n, and contain the gradient term g for the objective function. 
-!  
-!  The remaining arguments are used as internal workspace, and need not be 
+!   G is an optional REAL array, which need only be included if
+!    gradient_kind is not 0 or 1. If this is so, it must be of length at least
+!    n, and contain the gradient term g for the objective function.
+!
+!  The remaining arguments are used as internal workspace, and need not be
 !  set on entry
-!  
+!
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
@@ -3168,7 +3269,7 @@ MODULE GALAHAD_CQP_double
       TYPE ( LMS_data_type ), OPTIONAL, INTENT( INOUT ) :: H_lm
 
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( SBLS_data_type ), INTENT( INOUT ) :: SBLS_data
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: ROOTS_data
@@ -3190,14 +3291,14 @@ MODULE GALAHAD_CQP_double
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_record, clock_start, clock_now, clock_solve
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize
-      REAL ( KIND = wp ) :: pjgnrm, mu, amax, hmax, gamma_f, bik, slope, comp
-      REAL ( KIND = wp ) :: cs, slknes, slkmin, reduce_infeas, tau
+      REAL ( KIND = wp ) :: pjgnrm, mu, amax, gmax, hmax, gamma_f, bik, slope
+      REAL ( KIND = wp ) :: cs, slknes, slkmin, reduce_infeas, tau, comp
       REAL ( KIND = wp ) :: slknes_x, slknes_c, slkmax_x, slkmax_c, res_cs
       REAL ( KIND = wp ) :: slkmin_x, slkmin_c, res_primal, res_primal_dual
       REAL ( KIND = wp ) :: merit, merit_trial, merit_best, merit_model
       REAL ( KIND = wp ) :: prfeas, dufeas, p_min, p_max, d_min, d_max
       REAL ( KIND = wp ) :: pivot_tol, relative_pivot_tol, min_pivot_tol
-      REAL ( KIND = wp ) :: alpha, alpha_l, alpha_u, alpha_max, one_minus_alpha 
+      REAL ( KIND = wp ) :: alpha, alpha_l, alpha_u, alpha_max, one_minus_alpha
       REAL ( KIND = wp ) :: sigma, gamma_c, gi, co, sigma_mu, sigma_mu2, curv
       REAL ( KIND = wp ) :: one_plus_sigma_mu, two_plus_sigma_mu, balance, xi
       REAL ( KIND = wp ) :: one_plus_2_sigma_mu, two_sigma_mu2, two_sigma_mu
@@ -3208,8 +3309,8 @@ MODULE GALAHAD_CQP_double
       LOGICAL :: printt, printi, printe, printd, printw, set_printp, printp
       LOGICAL :: maxpiv, stat_required, guarantee, unbounded, lbfgs
 !     LOGICAL :: root_arc
-      LOGICAL :: puiseux, get_stat, use_scale_c = .FALSE.
-      CHARACTER ( LEN = 1 ) :: re, mo, pui
+      LOGICAL :: diagonal_hessian, puiseux, get_stat, use_scale_c = .FALSE.
+      CHARACTER ( LEN = 1 ) :: re, pui
       CHARACTER ( LEN = 2 ) :: arc
       CHARACTER ( len = 10 ) :: char_x, char_c, char_y
       CHARACTER ( len = 10 ) :: char_z_l, char_z_u, char_y_l, char_y_u
@@ -3230,43 +3331,67 @@ MODULE GALAHAD_CQP_double
         lbfgs = .FALSE.
       END IF
 
+!  detemine what kind of Hessian is to be stored
+
+      diagonal_hessian = .FALSE.
+      IF ( Hessian_kind < 0 ) THEN
+        IF ( .NOT. PRESENT( H_col ) .OR. .NOT. PRESENT( H_ptr ) )             &
+          diagonal_hessian = .TRUE.
+      END IF
+
 !  move to argument list
 
       IF ( control%out > 0 .AND. control%print_level >= 20 ) THEN
-        WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) n, m
-        WRITE( control%out, "( ' f = ', ES12.4 )" ) f
-        IF ( PRESENT( G ) )                                                    &
-          WRITE( control%out, "( ' G = ', /, ( 5ES12.4 ) )" ) G( : n )
-        IF ( hessian_kind == 1 ) THEN
-          WRITE( control%out, "( ' H  = 1.0' )" )
-        ELSE IF ( hessian_kind == 2 ) THEN
-          WRITE( control%out, "( ' H  =' )" )
-          WRITE( control%out, "( ( 4( ES12.4 ) ) )" ) ( WEIGHT( i ), i = 1, n )
+!     IF ( control%out > 0 .AND. control%print_level >= 1 ) THEN
+        WRITE( control%out, "( /, A, ' n = ', I0, ', m = ', I0, ', f =',       &
+       &                       ES24.16 )" ) prefix, n, m, f
+        IF ( gradient_kind == 0 ) THEN
+          WRITE( control%out, "( A, ' G = zeros' )" ) prefix
+        ELSE IF ( gradient_kind == 1 ) THEN
+          WRITE( control%out, "( A, ' G = ones' )" ) prefix
+        ELSE
+          WRITE( control%out, "( A, ' G =', /, ( 5X, 3ES24.16 ) )" )           &
+            prefix, G( : n )
+        END IF
+        IF ( Hessian_kind == 0 ) THEN
+          WRITE( control%out, "( A, ' W = zeros' )" ) prefix
+        ELSE IF ( Hessian_kind == 1 ) THEN
+          WRITE( control%out, "( A, ' W = ones ' )" ) prefix
+        ELSE IF ( Hessian_kind == 2 ) THEN
+          WRITE( control%out, "( A, ' W = ', /, ( 5X, 3ES24.16 ) )" )          &
+            prefix, WEIGHT( : n )
         ELSE IF ( hessian_kind < 0 ) THEN
           IF ( lbfgs ) THEN
             WRITE( control%out, "( ' H (limited-memory, held implicitly)' )" )
           ELSE
-            WRITE( control%out, "( ' H (row-wise) = ' )" )
+            WRITE( control%out, "( A, ' H (row-wise) =' )" ) prefix
             DO i = 1, n
-              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
+              IF ( H_ptr( i ) <= H_ptr( i + 1 ) - 1 )                          &
+                WRITE( control%out, "( ( 2X, 2( 2I8, ES24.16 ) ) )" )          &
                ( i, H_col( j ), H_val( j ), j = H_ptr( i ), H_ptr( i + 1 ) - 1 )
             END DO
           END IF
         END IF
-        WRITE( control%out, "( ' X_l = ', /, ( 5ES12.4 ) )" ) X_l( : n )
-        WRITE( control%out, "( ' X_u = ', /, ( 5ES12.4 ) )" ) X_u( : n )
-          WRITE( control%out, "( ' A (row-wise) = ' )" )
+        WRITE( control%out, "( A,                                              &
+       &  ' X_l =', /, ( 5X, 3ES24.16 ) )" ) prefix, X_l( : n )
+        WRITE( control%out, "( A,                                              &
+       &  ' X_u =', /, ( 5X, 3ES24.16 ) )" ) prefix, X_u( : n )
+        IF ( m > 0 ) THEN
+          WRITE( control%out, "( A, ' A (row-wise) =' )" ) prefix
           DO i = 1, m
-            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
-              ( i, A_col( j ), A_val( j ),                                     &
-                j = A_ptr( i ), A_ptr( i + 1 ) - 1 )
+           IF ( A_ptr( i ) <= A_ptr( i + 1 ) - 1 )                             &
+              WRITE( control%out, "( ( 2X, 2( 2I8, ES24.16 ) ) )" )            &
+              ( i, A_col( j ), A_val( j ), j = A_ptr( i ), A_ptr( i + 1 ) - 1 )
           END DO
-        WRITE( control%out, "( ' C_l = ', /, ( 5ES12.4 ) )" ) C_l( : m )
-        WRITE( control%out, "( ' C_u = ', /, ( 5ES12.4 ) )" ) C_u( : m )
+          WRITE( control%out, "( A,                                            &
+         &  ' C_l =', /, ( 5X, 3ES24.16 ) )" ) prefix, C_l( : m )
+          WRITE( control%out, "( A,                                            &
+         &  ' C_u =', /, ( 5X, 3ES24.16 ) )" ) prefix, C_u( : m )
+        END IF
       END IF
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
       IF ( generate_sif .AND. .NOT. lbfgs .AND. PRESENT( G ) ) THEN
         WRITE( sif, "( 'NAME          CQP_OUT', //, 'VARIABLES', / )" )
@@ -3360,22 +3485,22 @@ MODULE GALAHAD_CQP_double
       END IF
 
       IF ( control%stop_print < 0 ) THEN
-        stop_print = control%maxit
+        stop_print = control%maxit + 1
       ELSE
         stop_print = control%stop_print
       END IF
 
-      error = control%error ; out = control%out 
+      error = control%error ; out = control%out
 
       set_printe = error > 0 .AND. control%print_level >= 1
 
 !  basic single line of output per iteration
 
-      set_printi = out > 0 .AND. control%print_level >= 1 
+      set_printi = out > 0 .AND. control%print_level >= 1
 
 !  as per printi, but with additional timings for various operations
 
-      set_printt = out > 0 .AND. control%print_level >= 2 
+      set_printt = out > 0 .AND. control%print_level >= 2
 
 !  as per printt but also with an indication of where in the code we are
 
@@ -3393,12 +3518,12 @@ MODULE GALAHAD_CQP_double
 
       IF ( inform%iter >= start_print .AND. inform%iter < stop_print ) THEN
         printe = set_printe ; printi = set_printi ; printt = set_printt
-        printp = set_printp ; 
+        printp = set_printp ;
         printw = set_printw ; printd = set_printd
         print_level = control%print_level
       ELSE
         printe = .FALSE. ; printi = .FALSE. ; printt = .FALSE.
-        printp = .FALSE. ; 
+        printp = .FALSE. ;
         printw = .FALSE. ; printd = .FALSE.
         print_level = 0
       END IF
@@ -3414,7 +3539,7 @@ MODULE GALAHAD_CQP_double
 
 !  if there are no variables, exit
 
-      IF ( n == 0 ) THEN 
+      IF ( n == 0 ) THEN
         i = COUNT( ABS( C_l( : dims%c_equality ) ) > control%stop_abs_p ) +    &
             COUNT( C_l( dims%c_l_start : dims%c_l_end ) > control%stop_abs_p)+ &
             COUNT( C_u( dims%c_u_start : dims%c_u_end ) < - control%stop_abs_p )
@@ -3433,7 +3558,7 @@ MODULE GALAHAD_CQP_double
         C_RES = zero ; Y = zero
         inform%obj = zero
         GO TO 810
-      END IF 
+      END IF
 
 !  store the Jacobian and Hessian accounting for slack variables
 
@@ -3450,7 +3575,7 @@ MODULE GALAHAD_CQP_double
       DO i = 1, m
         A_sbls%row( A_ptr( i ) : A_ptr( i + 1 ) - 1 ) = i
       END DO
-      A_sbls%col( : a_ne ) = A_col( : a_ne ) 
+      A_sbls%col( : a_ne ) = A_col( : a_ne )
       A_sbls%val( : a_ne ) = A_val( : a_ne )
 
 !  ... and include the coodinates corresponding to the slack variables
@@ -3464,8 +3589,7 @@ MODULE GALAHAD_CQP_double
 
       IF ( Hessian_kind < 0 .AND. .NOT. lbfgs ) THEN
         CALL SMT_put( H_sbls%type, 'COORDINATE', inform%alloc_status )
-        h_ne = H_ptr( n + 1 ) - 1
-        H_sbls%n = n_sbls ; H_sbls%m = n_sbls ; H_sbls%ne = h_ne + n_sbls
+        H_sbls%n = n_sbls ; H_sbls%m = n_sbls
 
 !  set the components of the barrier terms in coordinate form ...
 
@@ -3475,16 +3599,26 @@ MODULE GALAHAD_CQP_double
 
 !  ... and add the components of H
 
-        DO i = 1, n
-          H_sbls%row( n_sbls + H_ptr( i ) : n_sbls + H_ptr( i + 1 ) - 1 ) = i
-        END DO
-        H_sbls%col( n_sbls + 1 : n_sbls + h_ne ) = H_col( : h_ne ) 
-
-!       SELECT CASE ( SMT_get( H_type ) )
-!       CASE ( 'SCALED_IDENTITY', 'DIAGONAL', 'DENSE', 'SPARSE_BY_ROWS',       &
+        IF ( diagonal_hessian ) THEN
+          h_ne = n
+          DO i = 1, n
+            H_sbls%row( n_sbls + i ) = i
+            H_sbls%col( n_sbls + i ) = i
+            H_sbls%val( n_sbls + i ) = H_val( i )
+          END DO
+        ELSE
+          h_ne = H_ptr( n + 1 ) - 1
+          DO i = 1, n
+            H_sbls%row( n_sbls + H_ptr( i ) : n_sbls + H_ptr( i + 1 ) - 1 ) = i
+          END DO
+          H_sbls%col( n_sbls + 1 : n_sbls + h_ne ) = H_col( : h_ne )
+!         SELECT CASE ( SMT_get( H_type ) )
+!         CASE ( 'SCALED_IDENTITY', 'DIAGONAL', 'DENSE', 'SPARSE_BY_ROWS',     &
 !              'COORDINATE' )
           H_sbls%val( n_sbls + 1 : n_sbls + h_ne ) = H_val( : h_ne )
-!       END SELECT
+!         END SELECT
+        END IF
+        H_sbls%ne = h_ne + n_sbls
 
 !  otherwise H will be in diagonal form
 
@@ -3513,6 +3647,7 @@ MODULE GALAHAD_CQP_double
         C_stat( dims%c_equality + 1 : ) = 0
       END IF
       get_stat = .FALSE.
+      iorder = 0
 
 !  if required, write out the problem
 
@@ -3528,7 +3663,7 @@ MODULE GALAHAD_CQP_double
         END IF
       END IF
 
-!  record the initial point, move the starting point away from any bounds, 
+!  record the initial point, move the starting point away from any bounds,
 !  and move that for dual variables away from zero
 
       nbnds_x = 0
@@ -3579,22 +3714,22 @@ MODULE GALAHAD_CQP_double
 !  check that range constraints are not simply fixed variables,
 !  and that the upper bounds are larger than the corresponing lower bounds
 
-        IF ( X_u( i ) - X_l( i ) <= epsmch ) THEN 
+        IF ( X_u( i ) - X_l( i ) <= epsmch ) THEN
           inform%status = GALAHAD_error_bad_bounds
           GO TO 700
         END IF
         nbnds_x = nbnds_x + 2
-        IF ( X_l( i ) + prfeas >= X_u( i ) - prfeas ) THEN 
-          X( i ) = half * ( X_l( i ) + X_u( i ) ) 
-        ELSE 
-          X( i ) = MIN( MAX( X( i ), X_l( i ) + prfeas ), X_u( i ) - prfeas ) 
-        END IF 
+        IF ( X_l( i ) + prfeas >= X_u( i ) - prfeas ) THEN
+          X( i ) = half * ( X_l( i ) + X_u( i ) )
+        ELSE
+          X( i ) = MIN( MAX( X( i ), X_l( i ) + prfeas ), X_u( i ) - prfeas )
+        END IF
         DIST_X_l( i ) = X( i ) - X_l( i ) ; DIST_X_u( i ) = X_u( i ) - X( i )
         IF ( control%balance_initial_complentarity ) THEN
           Z_l( i ) = balance / DIST_X_l( i )
           Z_u( i ) = - balance / DIST_X_u( i )
         ELSE
-          Z_l( i ) = MAX(   ABS( Z( i ) ),   dufeas )  
+          Z_l( i ) = MAX(   ABS( Z( i ) ),   dufeas )
           Z_u( i ) = MIN( - ABS( Z( i ) ), - dufeas )
         END IF
         IF ( printd ) WRITE( out, "( A, I6, 5ES12.4 )" )                       &
@@ -3610,7 +3745,7 @@ MODULE GALAHAD_CQP_double
         IF ( control%balance_initial_complentarity ) THEN
           Z_u( i ) = - balance / DIST_X_u( i )
         ELSE
-          Z_u( i ) = MIN( - ABS( Z( i ) ), - dufeas ) 
+          Z_u( i ) = MIN( - ABS( Z( i ) ), - dufeas )
         END IF
         IF ( printd ) WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,    &
        &  '      -     ', ES12.4 )" ) prefix, i, X( i ), X_u( i ), Z_u( i )
@@ -3624,7 +3759,7 @@ MODULE GALAHAD_CQP_double
         IF ( control%balance_initial_complentarity ) THEN
           Z_u( i ) = balance / X( i )
         ELSE
-          Z_u( i ) = MIN( - ABS( Z( i ) ), - dufeas ) 
+          Z_u( i ) = MIN( - ABS( Z( i ) ), - dufeas )
         END IF
         IF ( printd ) WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,    &
        &  '      -     ',  ES12.4 )" ) prefix, i, X( i ), zero, Z_u( i )
@@ -3666,7 +3801,7 @@ MODULE GALAHAD_CQP_double
 
 !  compute an appropriate initial value for the slack variable
 
-          C( i ) = MAX( C_RES( i ) / SCALE_C( i ), C_l( i ) + prfeas ) 
+          C( i ) = MAX( C_RES( i ) / SCALE_C( i ), C_l( i ) + prfeas )
           DIST_C_l( i ) = C( i ) - C_l( i )
           C_RES( i ) = C_RES( i ) - SCALE_C( i ) * C( i )
           IF ( control%balance_initial_complentarity ) THEN
@@ -3685,7 +3820,7 @@ MODULE GALAHAD_CQP_double
 !  check that range constraints are not simply fixed variables,
 !  and that the upper bounds are larger than the corresponing lower bounds
 
-          IF ( C_u( i ) - C_l( i ) <= epsmch ) THEN 
+          IF ( C_u( i ) - C_l( i ) <= epsmch ) THEN
             inform%status = GALAHAD_error_bad_bounds
             GO TO 700
           END IF
@@ -3701,18 +3836,18 @@ MODULE GALAHAD_CQP_double
 
 !  scale the bounds
 
-          C_l( i ) = C_l( i ) / SCALE_C( i ) 
+          C_l( i ) = C_l( i ) / SCALE_C( i )
           C_u( i ) = C_u( i ) / SCALE_C( i )
 
 !  compute an appropriate initial value for the slack variable
 
-          IF ( C_l( i ) + prfeas >= C_u( i ) - prfeas ) THEN 
-            C( i ) = half * ( C_l( i ) + C_u( i ) ) 
-          ELSE 
+          IF ( C_l( i ) + prfeas >= C_u( i ) - prfeas ) THEN
+            C( i ) = half * ( C_l( i ) + C_u( i ) )
+          ELSE
             C( i ) = MIN( MAX( C_RES( i ) / SCALE_C( i ), C_l( i ) + prfeas ), &
-                               C_u( i ) - prfeas ) 
-          END IF 
-          DIST_C_l( i ) = C( i ) - C_l( i ) 
+                               C_u( i ) - prfeas )
+          END IF
+          DIST_C_l( i ) = C( i ) - C_l( i )
           DIST_C_u( i ) = C_u( i ) - C( i )
           C_RES( i ) = C_RES( i ) - SCALE_C( i ) * C( i )
           IF ( control%balance_initial_complentarity ) THEN
@@ -3745,13 +3880,13 @@ MODULE GALAHAD_CQP_double
 
 !  compute an appropriate initial value for the slack variable
 
-          C( i ) = MIN( C_RES( i ) / SCALE_C( i ), C_u( i ) - prfeas ) 
+          C( i ) = MIN( C_RES( i ) / SCALE_C( i ), C_u( i ) - prfeas )
           DIST_C_u( i ) = C_u( i ) - C( i )
           C_RES( i ) = C_RES( i ) - SCALE_C( i ) * C( i )
           IF ( control%balance_initial_complentarity ) THEN
             Y_u( i ) = - balance / DIST_C_u( i )
           ELSE
-            Y_u( i ) = MIN( - ABS( SCALE_C( i ) * Y( i ) ), - dufeas ) 
+            Y_u( i ) = MIN( - ABS( SCALE_C( i ) * Y( i ) ), - dufeas )
           END IF
           IF ( printd ) WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,  &
          &  '      -     ', ES12.4 )") prefix, i, C_RES( i ), C_u( i ), Y_u( i )
@@ -3823,23 +3958,33 @@ MODULE GALAHAD_CQP_double
           curv = zero
           DO i = 1, n
             xi = X( i )
-            DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
-              j = H_col( l )
-              IF ( i == j ) THEN
-                curv = curv + xi * xi * H_val( l )
-              ELSE
-                curv = curv + two * xi * X( j ) * H_val( l )
-              END IF
-            END DO
+            IF ( diagonal_hessian ) THEN
+              curv = curv + xi * xi * H_val( i )
+            ELSE
+              DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
+                j = H_col( l )
+                IF ( i == j ) THEN
+                  curv = curv + xi * xi * H_val( l )
+                ELSE
+                  curv = curv + two * xi * X( j ) * H_val( l )
+                END IF
+              END DO
+            END IF
           END DO
         END IF
         inform%obj = f + half * curv
       END IF
-      
+
+!  also compute the largest component of g
+
       IF ( gradient_kind == 1 ) THEN
         inform%obj = inform%obj + SUM( X )
+        gmax = one
       ELSE IF ( gradient_kind /= 0 ) THEN
         inform%obj = inform%obj + DOT_PRODUCT( G, X )
+        gmax = MAXVAL( ABS( G( : n ) ) )
+      ELSE
+        gmax = zero
       END IF
 
 !  find the largest components of A and H
@@ -3854,7 +3999,11 @@ MODULE GALAHAD_CQP_double
         IF ( lbfgs ) THEN
           hmax = ABS( H_lm%delta )
         ELSE IF ( h_ne > 0 ) THEN
-          hmax = MAXVAL( ABS( H_val( : h_ne ) ) )
+          IF ( diagonal_hessian ) THEN
+            hmax = MAXVAL( ABS( H_val( : n ) ) )
+          ELSE
+            hmax = MAXVAL( ABS( H_val( : h_ne ) ) )
+          END IF
         ELSE
           hmax = zero
         END IF
@@ -3862,9 +4011,10 @@ MODULE GALAHAD_CQP_double
         hmax = zero
       END IF
 
-      IF ( printi ) WRITE( out, "( /, A, '  maximum element of A =', ES11.4,   &
-    &                              /, A, '  maximum element of H =', ES11.4 )")&
-        prefix, amax, prefix, hmax
+      IF ( printi .AND. m > 0 ) WRITE( out,                                    &
+         "( /, A, '  maximum element of A =', ES11.4 )" ) prefix, amax
+      IF ( printi ) WRITE( out, "( /, A, '  maximum element of H =', ES11.4,   &
+    &    /, A, '  maximum element of G =', ES11.4 )") prefix, hmax, prefix, gmax
 
 !  test to see if we are feasible
 
@@ -4036,7 +4186,11 @@ MODULE GALAHAD_CQP_double
       END IF
       inform%complementary_slackness = slknes
 
-!  compute the binomial coefficients b_i^k = b_i^{k-1} + b_{i-1}^{k-1} 
+      inform%init_primal_infeasibility = inform%primal_infeasibility
+      inform%init_dual_infeasibility = inform%dual_infeasibility
+      inform%init_complementary_slackness = inform%complementary_slackness
+
+!  compute the binomial coefficients b_i^k = b_i^{k-1} + b_{i-1}^{k-1}
 
       IF ( order > 1 ) THEN
         BINOMIAL( 0, 1 ) = one
@@ -4053,11 +4207,11 @@ MODULE GALAHAD_CQP_double
 
       inform%iter = 0 ; inform%nfacts = 0
       IF ( printw ) WRITE( out, "( /, A, ' merit function value = ',           &
-     &     ES12.4 )" ) prefix, merit 
+     &     ES12.4 )" ) prefix, merit
 
-      IF ( n == 0 ) THEN 
-        inform%status = GALAHAD_ok ; GO TO 600 
-      END IF 
+      IF ( n == 0 ) THEN
+        inform%status = GALAHAD_ok ; GO TO 600
+      END IF
       merit_best = merit ; it_best = 0
 
 !  compute stopping tolerances
@@ -4071,17 +4225,22 @@ MODULE GALAHAD_CQP_double
 
 !  test for convergence
 
+      CALL CPU_TIME( time_record )
+      CALL CHECKPOINT( inform%iter, time_record - time_start,                  &
+         MAX( inform%primal_infeasibility,                                     &
+         inform%dual_infeasibility, inform%complementary_slackness ),          &
+         inform%checkpointsIter, inform%checkpointsTime, 1, 16 )
       IF ( inform%primal_infeasibility <= stop_p .AND.                         &
            inform%dual_infeasibility <= stop_d .AND.                           &
            inform%complementary_slackness <= stop_c ) THEN
-        inform%status = GALAHAD_ok ; GO TO 600 
-      END IF 
+        inform%status = GALAHAD_ok ; GO TO 600
+      END IF
 
 !  ===================================================
 !  Analyse the sparsity pattern of the required matrix
 !  ===================================================
 
-      re = ' ' ; mo = ' ' ;  nbact = 0
+      re = ' ' ; nbact = 0
       pivot_tol = SBLS_control%SLS_control%relative_pivot_tolerance
       min_pivot_tol = SBLS_control%SLS_control%minimum_pivot_tolerance
       relative_pivot_tol = pivot_tol
@@ -4123,22 +4282,22 @@ MODULE GALAHAD_CQP_double
 !  print a summary of the iteration
 
         CALL CLOCK_TIME( clock_now ) ; clock_now = clock_now - clock_start
-        IF ( printi ) THEN 
-          IF ( inform%iter > 0 ) THEN 
+        IF ( printi ) THEN
+          IF ( inform%iter > 0 ) THEN
             IF ( printt .OR. ( printi .AND.                                    &
                inform%iter == start_print ) ) WRITE( out, 2000 ) prefix
             WRITE( out, 2030 ) prefix, inform%iter, re,                        &
              inform%primal_infeasibility, inform%dual_infeasibility,           &
-             inform%complementary_slackness, inform%obj, alpha, mo, mu,        &
+             inform%complementary_slackness, inform%obj, alpha, mu,            &
              iorder, pui, arc, nbact, clock_now
-          ELSE 
+          ELSE
             WRITE( out, 2000 ) prefix
             WRITE( out, 2020 ) prefix, inform%iter, re,                        &
               inform%primal_infeasibility, inform%dual_infeasibility,          &
               inform%complementary_slackness, inform%obj, mu, clock_now
-          END IF 
+          END IF
 
-          IF ( printd ) THEN 
+          IF ( printd ) THEN
             WRITE( out, 2100 ) prefix, ' X ', X
             IF ( dims%c_l_start <= dims%c_l_end ) WRITE( out, 2100 ) prefix,   &
                 ' C_l ', DIST_C_l( dims%c_l_start : dims%c_l_end )
@@ -4148,13 +4307,14 @@ MODULE GALAHAD_CQP_double
               prefix,  ' Z_l ', Z_l( dims%x_free + 1 : dims%x_l_end )
             IF (  dims%x_u_start <= n ) WRITE( out, 2100 )                     &
               prefix, ' Z_u ', Z_u( dims%x_u_start :  n )
-          END IF 
-        END IF 
+          END IF
+        END IF
 
         IF ( control%arc == 2 .OR.                                             &
              ( control%arc == 3 .AND. mu <= tenm4 ) ) THEN
           arc = 'ZS'
-        ELSE IF ( control%arc == 4 ) THEN
+        ELSE IF ( control%arc == 4 .OR.                                        &
+             ( control%arc == 5 .AND. mu <= tenm10 ) ) THEN
           arc = 'ZP'
           puiseux = .TRUE.
         ELSE
@@ -4167,7 +4327,7 @@ MODULE GALAHAD_CQP_double
 !  sense that we require (componentwise)
 !   | primal optimality | <= MAX( stop_rel * | typical value |, stop_abs )
 
-        IF ( m > 0 ) THEN 
+        IF ( m > 0 ) THEN
           RHS( dims%y_s : dims%c_e + dims%c_equality ) =                       &
             ABS( C_l( : dims%c_equality ) )
           RHS( dims%c_e + dims%c_l_start : dims%c_e +  dims%c_u_end ) =        &
@@ -4181,7 +4341,7 @@ MODULE GALAHAD_CQP_double
         ELSE
           primal_nonopt = 0
         END IF
-          
+
 !  now find how many dual optimality conditions are violated in the
 !  sense that we require (componentwise)
 !   | dual optimality | <= MAX( stop_rel * | typical value |, stop_abs )
@@ -4199,9 +4359,13 @@ MODULE GALAHAD_CQP_double
             CALL LMS_apply_lbfgs( ABS( X ), H_lm, i, RESULT = RHS( : n ) )
             RHS( : n ) = ABS( RHS( : n ) )
           ELSE
-            RHS( : n ) = zero
-            CALL CQP_abs_HX( dims, n,  RHS( : n ) ,                            &
-                             h_ne, H_val, H_col, H_ptr, X )
+            IF ( diagonal_hessian ) THEN
+              RHS( : n ) = H_val( : n ) * ABS( X( : n ) )
+            ELSE
+              RHS( : n ) = zero
+              CALL CQP_abs_HX( dims, n, RHS( : n ) ,                           &
+                               h_ne, H_val, H_col, H_ptr, X )
+            END IF
           END IF
         END IF
         IF ( control%perturb_h /= zero )                                       &
@@ -4317,26 +4481,31 @@ MODULE GALAHAD_CQP_double
 
 !  test for optimality
 
+        CALL CPU_TIME( time_record )
+        CALL CHECKPOINT( inform%iter, time_record - time_start,                &
+           MAX( inform%primal_infeasibility,                                   &
+           inform%dual_infeasibility, inform%complementary_slackness ),        &
+           inform%checkpointsIter, inform%checkpointsTime, 1, 16 )
         IF ( primal_nonopt + dual_nonopt + cs_nonopt == 0 ) THEN
-          inform%status = GALAHAD_ok ; GO TO 600 
-        END IF 
+          inform%status = GALAHAD_ok ; GO TO 600
+        END IF
 
 !  test to see if more than maxit iterations have been performed
 
-        inform%iter = inform%iter + 1 
-        IF ( inform%iter > control%maxit ) THEN 
-          inform%status = GALAHAD_error_max_iterations ; GO TO 600 
-        END IF 
+        inform%iter = inform%iter + 1
+        IF ( inform%iter > control%maxit ) THEN
+          inform%status = GALAHAD_error_max_iterations ; GO TO 600
+        END IF
 
 !  check that the CPU time limit has not been reached
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-               time_now - time_start > control%cpu_time_limit ) .OR.           &
+             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit ; GO TO 600
-        END IF 
+        END IF
 
         IF ( inform%iter == start_print ) THEN
           printe = set_printe ; printi = set_printi ; printt = set_printt
@@ -4360,14 +4529,14 @@ MODULE GALAHAD_CQP_double
           IF ( it_best > infeas_max ) THEN
             IF ( inform%feasible ) THEN
               inform%status = GALAHAD_error_unbounded ; GO TO 600
-            ELSE 
+            ELSE
               IF ( printi ) WRITE( out, "( /, A, ' ================= the ',    &
              &  'problem appears to be infeasible ================= ', / )" )  &
                prefix
-              inform%status = GALAHAD_error_primal_infeasible ; GO TO 600 
+              inform%status = GALAHAD_error_primal_infeasible ; GO TO 600
             END IF
           END IF
-        END IF  
+        END IF
 
 !  test to see if the potential function appears to be unbounded from below
 
@@ -4377,9 +4546,9 @@ MODULE GALAHAD_CQP_double
                ( ( dims%x_l_end - dims%x_free ) +                              &
                ( n -  dims%x_u_start + 1 ) +                                   &
                ( dims%c_l_end - dims%c_l_start + 1 ) +                         &
-               ( dims%c_u_end - dims%c_u_start + 1 ) ) ) THEN 
-            inform%status = GALAHAD_error_no_center ; GO TO 600 
-          END IF 
+               ( dims%c_u_end - dims%c_u_start + 1 ) ) ) THEN
+            inform%status = GALAHAD_error_no_center ; GO TO 600
+          END IF
 
 !  compute the Hessian matrix of the barrier terms
 
@@ -4434,7 +4603,7 @@ MODULE GALAHAD_CQP_double
             IF ( ABS( DIST_X_l( i ) ) <= degen_tol .AND. printd )              &
               WRITE( out, "( A, ' i = ', i6, ' DIST X, Z ', 2ES12.4 )" )       &
                 prefix, i, DIST_X_l( i ), Z_l( i )
-            BARRIER_X( i ) = Z_l( i ) / DIST_X_l( i ) 
+            BARRIER_X( i ) = Z_l( i ) / DIST_X_l( i )
           END DO
           DO i = dims%x_u_start, dims%x_l_end
             IF ( ABS( DIST_X_l( i ) ) <= degen_tol .AND. printd )              &
@@ -4465,7 +4634,7 @@ MODULE GALAHAD_CQP_double
             IF ( ABS( DIST_C_l( i ) ) <= degen_tol .AND. printd )              &
               WRITE( out, "( A, ' i = ', i6, ' DIST C, Y ', 2ES12.4 )" )       &
                 prefix, i, DIST_C_l( i ), Y_l( i )
-            BARRIER_C( i ) = Y_l( i ) / DIST_C_l( i ) 
+            BARRIER_C( i ) = Y_l( i ) / DIST_C_l( i )
           END DO
           DO i = dims%c_u_start, dims%c_l_end
             IF ( ABS( DIST_C_l( i ) ) <= degen_tol .AND. printd )              &
@@ -4492,16 +4661,13 @@ MODULE GALAHAD_CQP_double
 !  -*-*-*-*-*-*-*-*-*-*-*-*-      Factorization      -*-*-*-*-*-*-*-*-*-
 !  =====================================================================
 
-        mo = ' '
-
 !  only refactorize if B has changed
 
-        re = 'r' 
-      
-        CALL CPU_TIME( time ) 
+        re = 'r'
+        CALL CPU_TIME( time )
 
 !  include the values of the barrier terms
- 
+
         IF ( Hessian_kind <= 0 ) THEN
           H_sbls%val( 1 : dims%x_free ) = control%perturb_h
           H_sbls%val(dims%x_free + 1 : n ) = BARRIER_X + control%perturb_h
@@ -4525,8 +4691,8 @@ MODULE GALAHAD_CQP_double
                SBLS_control%preconditioner == 5 .OR.                           &
                SBLS_control%preconditioner >= 9 .OR.                           &
                SBLS_control%preconditioner <= 0 )                              &
-            SBLS_control%preconditioner = 6
-        ELSE 
+            SBLS_control%preconditioner = 8
+        ELSE
           IF ( SBLS_control%preconditioner == 6 .OR.                           &
                SBLS_control%preconditioner == 7 .OR.                           &
                SBLS_control%preconditioner == 8 )                              &
@@ -4558,13 +4724,14 @@ MODULE GALAHAD_CQP_double
        &  ' ......... factorization of KKT matrix ............... ' )" ) prefix
         IF ( lbfgs ) THEN
           CALL SBLS_form_and_factorize( A_sbls%n, A_sbls%m, H_sbls, A_sbls,    &
-            C_sbls, SBLS_data, SBLS_control, inform%SBLS_inform, H_lm = H_lm )
+            C_sbls, SBLS_data, SBLS_control, inform%SBLS_inform,               &
+            D = H_sbls%val, H_lm = H_lm )
         ELSE
           CALL SBLS_form_and_factorize( A_sbls%n, A_sbls%m, H_sbls, A_sbls,    &
             C_sbls, SBLS_data, SBLS_control, inform%SBLS_inform )
         END IF
 !write(6,*) ' perturbed? ', inform%SBLS_inform%perturbed
-        inform%nfacts = inform%nfacts + 1 
+        inform%nfacts = inform%nfacts + 1
 
         inform%time%analyse = inform%time%analyse +                            &
           inform%SBLS_inform%SLS_inform%time%analyse - time_analyse
@@ -4592,7 +4759,7 @@ MODULE GALAHAD_CQP_double
 
           IF ( SBLS_control%factorization == 2 .AND. maxpiv ) THEN
             inform%status = GALAHAD_error_factorization ; GO TO 700
-              
+
 !  ... or we may change the method
 
           ELSE IF ( SBLS_control%factorization < 2 .AND. maxpiv ) THEN
@@ -4635,13 +4802,13 @@ MODULE GALAHAD_CQP_double
 
 !  record warning conditions
 
-        ELSE 
+        ELSE
           IF (inform%factorization_status > 0 ) THEN
-            IF ( printt ) THEN 
+            IF ( printt ) THEN
               WRITE( out, "( A, '   **  Warning ', I0, ' from ', A )" )        &
               prefix, inform%SBLS_inform%status, 'SBLS_form_andfactorize'
-            END IF 
-          END IF 
+            END IF
+          END IF
 
 !  Record the storage required
 
@@ -4650,11 +4817,11 @@ MODULE GALAHAD_CQP_double
           inform%factorization_real =                                          &
             inform%SBLS_inform%SLS_inform%real_size_necessary
 
-        END IF 
+        END IF
 
 !  If the matrix is singular, there is a chance that the
 !  problem is unbounded from below
-  
+
         IF ( inform%feasible .AND. inform%SBLS_inform%rank_def ) THEN
           RHS( : n ) = - GRAD_L( : n )
           RHS( dims%c_s : dims%c_e ) = zero
@@ -4673,7 +4840,7 @@ MODULE GALAHAD_CQP_double
                                        RHS, SBLS_data, control%SBLS_control,   &
                                        inform%SBLS_inform )
           END IF
-          CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_TIME( clock_now )
           time_solve = time_solve + time_now - time_record
           clock_solve = clock_solve + clock_now - clock_record
           inform%status = inform%SBLS_inform%status
@@ -4696,13 +4863,13 @@ MODULE GALAHAD_CQP_double
             END DO
             IF ( unbounded ) THEN
               inform%status = GALAHAD_error_unbounded ; GO TO 700
-            END IF 
-          END IF 
+            END IF
+          END IF
         END IF
 
         IF ( inform%SBLS_inform%perturbed ) THEN
           SBLS_control%new_h = 2
-        ELSE 
+        ELSE
           SBLS_control%new_h = 1
         END IF
         SBLS_control%new_a = 0
@@ -4715,8 +4882,8 @@ MODULE GALAHAD_CQP_double
           WRITE( out, "( A, 1X, I0, ' integer and ', I0, ' real words needed', &
          &    ' for factorization' )" ) prefix, inform%factorization_integer,  &
                                         inform%factorization_real
-        END IF 
-  
+        END IF
+
 !       IF ( printw ) WRITE( out, "( A,                                        &
 !      &  ' ............... end of factorization ............... ' )" ) prefix
 
@@ -4744,9 +4911,9 @@ MODULE GALAHAD_CQP_double
 
 !  we consider the search arc
 
-!     v_l(alpha) = v + sum_k=1^l [ (-1)^k v^k / k! ] alpha^k 
+!     v_l(alpha) = v + sum_k=1^l [ (-1)^k v^k / k! ] alpha^k
 
-!  as alpha inceases from 0 to 1 and where v_l(alpha) is the l-th-order Taylor 
+!  as alpha inceases from 0 to 1 and where v_l(alpha) is the l-th-order Taylor
 !  series approximation of the arc v(1-alpha)) about alpha = 0 (equiv theta
 !  = 1 - alpha about theta = 1) and for which v(theta) satisfies the conditions
 
@@ -4754,7 +4921,7 @@ MODULE GALAHAD_CQP_double
 !                            A x(theta) - b                = prim(theta)
 !                           X(theta) z(theta)              = comp(theta)
 
-!  for suitable 
+!  for suitable
 !      prim(theta) = theta ( A x - b )
 !      dual(theta) = theta ( H x - A^T y - z + g )
 !  (Taylor or Taylor-Puisuex) or
@@ -4773,10 +4940,10 @@ MODULE GALAHAD_CQP_double
 !   (      Y_l                  C-C_l       ) ( y_l^k )   ( s_l^k )
 !   (     -Y_u                        C_u-C ) ( y_u^k )   ( s_u^k )
 
-!  for k > 0 for which 
+!  for k > 0 for which
 
 !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!  arc 1: for the Zhang arc, 
+!  arc 1: for the Zhang arc,
 !    comp(theta) =   theta Xz + (1-theta) sigma mu e      (lower)
 !            or    - theta Xz - (1-theta) sigma mu e      (upper)
 !  (Taylor) or
@@ -4863,17 +5030,17 @@ MODULE GALAHAD_CQP_double
 !     s_l^k = - sum_i=1^k-1 b_i^k C^i y_l^{k-i}      (store in y_l^k)
 !   & s_u^k =   sum_i=1^k-1 b_i^k C^i y_u^{k-i}      (store in y_u^k)
 
-!  (k>2) for the Puiseux arc, where b_i^k is the binomial coefficient 
+!  (k>2) for the Puiseux arc, where b_i^k is the binomial coefficient
 !     "k choose i"
 
-!  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!  arc 2: for the Zhao-Sun arc, comp(theta) = 
+!  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!  arc 2: for the Zhao-Sun arc, comp(theta) =
 !       theta Xz + sigma mu theta ( 1 - theta ) ( mu e - X z ) (lower) or
 !     - theta Xz - sigma mu theta ( 1 - theta ) ( mu e - X z ) (upper)
 !   or, in the Puiseux case,
 !       theta^2 Xz + sigma mu theta^2 ( 1 - theta ) ( mu e - X z ) (lower) or
 !     - theta^2 Xz - sigma mu theta^2 ( 1 - theta ) ( mu e - X z ) (upper)
-!  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 !     h^1 = g + Hx - A^Ty - z_l - z_u
 !     d^i = y - y_l - y_u
@@ -4918,11 +5085,11 @@ MODULE GALAHAD_CQP_double
 !     h^2 = 2 ( g + Hx - A^Ty - z_l - z_u )
 !     d^2 = 2 ( y - y_l - y_u )
 !     a^2 = 2 ( A x - b )
-!     r_l^2 = - 4 sigma mu [ mu e - (X-X_l)z_l ] + 2(X-X_l)z_l - 2 X^1 z_l^1 
+!     r_l^2 = - 4 sigma mu [ mu e - (X-X_l)z_l ] + 2(X-X_l)z_l - 2 X^1 z_l^1
 !                                                              (store in z_l^2)
 !     r_u^2 =   4 sigma mu [ mu e + (X_u-X)z_u ] + 2(X_u-X)z_u + 2 X^1 z_u^1
 !                                                              (store in z_u^2)
-!     s_l^2 = - 4 sigma mu [ mu e - (C-C_l)y_l ] + 2(C-C_l)y_l - 2 C^1 y_l^1 
+!     s_l^2 = - 4 sigma mu [ mu e - (C-C_l)y_l ] + 2(C-C_l)y_l - 2 C^1 y_l^1
 !                                                              (store in y_l^2)
 !   & s_u^2 =   4 sigma mu [ mu e + (C_u-C)y_u ] + 2(C_u-C)y_u + 2 C^1 y_u^1
 !                                                              (store in y_u^2)
@@ -4953,9 +5120,9 @@ MODULE GALAHAD_CQP_double
 
 !  (k>3) for the Puiseux arc
 
-!  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-!  On writing 
+!  On writing
 !        z_l^k = (X-X_l)^-1 [ r_l^k - Z_l x^k ]
 !        z_u^k = (X_u-X)^-1 [ r_u^k + Z_u x^k ]
 !        y_l^k = (C-C_l)^-1 [ s_l^k - Y_l c^k ]
@@ -5058,7 +5225,7 @@ MODULE GALAHAD_CQP_double
 
               IF ( k == 1 ) THEN
 
-!  rhs for problem variables: g + Hx - A^Ty - mu (X-X_l)^-1 e + mu (X_u-X)^-1 e 
+!  rhs for problem variables: g + Hx - A^Ty - mu (X-X_l)^-1 e + mu (X_u-X)^-1 e
 
                 RHS( : dims%x_free ) = GRAD_L( : dims%x_free )
                 DO i = dims%x_free + 1, dims%x_l_start - 1
@@ -5078,7 +5245,7 @@ MODULE GALAHAD_CQP_double
                   RHS( i ) = GRAD_L( i ) - mu / X( i )
                 END DO
 
-!  rhs for slack variables: y - mu (C-C_l)^-1 e + mu (C_u-C)^-1 e 
+!  rhs for slack variables: y - mu (C-C_l)^-1 e + mu (C_u-C)^-1 e
 
                 DO i = dims%c_l_start, dims%c_u_start - 1
                   RHS( dims%c_b + i ) = Y( i ) - mu / DIST_C_l( i )
@@ -5095,7 +5262,7 @@ MODULE GALAHAD_CQP_double
 
               ELSE
 
-!  rhs for problem variables: g + Hx - A^Ty - (X-X_l)^-1 ( mu e + X^1 z_l^1 ) 
+!  rhs for problem variables: g + Hx - A^Ty - (X-X_l)^-1 ( mu e + X^1 z_l^1 )
 !    + (X_u-X)^-1 ( mu e + X^1 z_u^1 )
 
                 RHS( : dims%x_free ) = GRAD_L( : dims%x_free )
@@ -5121,7 +5288,7 @@ MODULE GALAHAD_CQP_double
                     - ( mu + X_coef( i, 1 ) * Z_u_coef( i, 1 ) ) / X( i )
                 END DO
 
-!  rhs for slack variables: y - (C-C_l)^-1 ( mu e + C^1 y_l^1 ) 
+!  rhs for slack variables: y - (C-C_l)^-1 ( mu e + C^1 y_l^1 )
 !    + (C_u-C)^-1 ( mu e + C^1 y_u^1 )
 
                 DO i = dims%c_l_start, dims%c_u_start - 1
@@ -5142,7 +5309,7 @@ MODULE GALAHAD_CQP_double
 !  rhs for constraint infeasibilities: A x - b
 
               RHS( dims%y_s : dims%y_e ) = C_RES( : dims%c_u_end )
-  
+
 !  double the Puiseux rhs
 
               IF ( puiseux ) RHS( : dims%y_e ) = two * RHS( : dims%y_e )
@@ -5177,7 +5344,7 @@ MODULE GALAHAD_CQP_double
                   RHS( i ) = GRAD_L( i ) + Z_u( i ) - two_mu / X( i )
                 END DO
 
-!  rhs for slack variables: 
+!  rhs for slack variables:
 !       y + y_l + y_u - 2 mu (C-C_l)^-1 e + 2 mu (C_u-C)^-1 e
 
                 DO i = dims%c_l_start, dims%c_u_start - 1
@@ -5197,12 +5364,12 @@ MODULE GALAHAD_CQP_double
 !  rhs for constraint infeasibilities: A x - b
 
                 RHS( dims%y_s : dims%y_e ) = C_RES( : dims%c_u_end )
-  
+
 !  for the 2nd order rhs
 
               ELSE
 
-!  rhs for problem variables: 2 z_l + 2 z_u 
+!  rhs for problem variables: 2 z_l + 2 z_u
 !                  - 2 (X-X_l)^-1 ( mu e + X^1 z_l^1 )
 !                  + 2 (X_u-X)^-1 ( mu e + X^1 z_u^1 )
 
@@ -5252,7 +5419,7 @@ MODULE GALAHAD_CQP_double
                 RHS( dims%y_s : dims%y_e ) = zero
               END IF
             END IF
-         
+
 !  for the 1st and 2nd order Taylor and 1st to 3rd order Puiseux coefficients
 !  and the Zhao-Sun arc
 
@@ -5398,7 +5565,7 @@ MODULE GALAHAD_CQP_double
 
               IF ( puiseux ) THEN
 
-!  rhs for problem variables: 
+!  rhs for problem variables:
 !   2 ( g + Hx - A^Ty - z_l - z_u ) + (X-X_l)^-1 r_l^1 + (X_u-X)^-1 r_u^1 )
 
                 RHS( : dims%x_free ) = two * GRAD_L( : dims%x_free )
@@ -5449,7 +5616,7 @@ MODULE GALAHAD_CQP_double
 
               ELSE
 
-!  rhs for problem variables: 
+!  rhs for problem variables:
 !   g + Hx - A^Ty - z_l - z_u + (X-X_l)^-1 r_l^1 + (X_u-X)^-1 r_u^1
 
                 RHS( : dims%x_free ) = GRAD_L( : dims%x_free )
@@ -5505,7 +5672,7 @@ MODULE GALAHAD_CQP_double
 
               IF ( puiseux ) THEN
 
-!  rhs for problem variables: 
+!  rhs for problem variables:
 !   2 ( g + Hx - A^Ty - z_l - z_u ) + (X-X_l)^-1 r_l^2 + (X_u-X)^-1 r_u^2
 
                 RHS( : dims%x_free ) = two * GRAD_L( : dims%x_free )
@@ -5713,13 +5880,13 @@ MODULE GALAHAD_CQP_double
 !  rhs for constraint infeasibilities: 0
 
             RHS( dims%y_s : dims%y_e ) = zero
-          END IF 
+          END IF
 
-          IF ( printd ) THEN 
+          IF ( printd ) THEN
             WRITE( out, 2100 ) prefix, ' RHS_x ', RHS( dims%x_s : dims%x_e )
             IF ( m > 0 )                                                     &
               WRITE( out, 2100 ) prefix, ' RHS_y ', RHS( dims%y_s : dims%y_e )
-          END IF 
+          END IF
 
 ! :::::::::::::::::::::::::::::::::::
 ! 3b. Compute the series coefficients
@@ -5736,7 +5903,7 @@ MODULE GALAHAD_CQP_double
               WRITE( out, "( A, ' ........... compute ', I0, A2,               &
              &           ' order Puiseux coefficients  ........... ' )" )      &
                 prefix, k, STRING_ordinal( k )
-            ELSE            
+            ELSE
               WRITE( out, "( A, ' ............ compute ', I0, A2,              &
              &           ' order Taylor coefficients  ............ ' )" )      &
                 prefix, k, STRING_ordinal( k )
@@ -5764,13 +5931,13 @@ MODULE GALAHAD_CQP_double
           inform%status = inform%SBLS_inform%status
           IF ( inform%status /= GALAHAD_ok ) GO TO 700
 
-          IF ( printd ) THEN 
+          IF ( printd ) THEN
             WRITE( out, 2100 ) prefix, ' SOL_x ', RHS( dims%x_s : dims%x_e )
             IF ( m > 0 )                                                       &
               WRITE( out, 2100 ) prefix, ' SOL_y ', RHS( dims%y_s : dims%y_e )
-          END IF 
+          END IF
 
-!  if the residual of the linear system is larger than the current 
+!  if the residual of the linear system is larger than the current
 !  optimality residual, no further progress is likely
 
           IF ( inform%SBLS_inform%norm_residual > merit ) THEN
@@ -5778,8 +5945,8 @@ MODULE GALAHAD_CQP_double
 !  it didn't. We might have run out of options ...
 
             IF ( SBLS_control%factorization == 2 .AND. maxpiv ) THEN
-              inform%status = GALAHAD_error_ill_conditioned ; GO TO 600 
-              
+              inform%status = GALAHAD_error_ill_conditioned ; GO TO 600
+
 !  ... or we may change the method ...
 
             ELSE IF ( SBLS_control%factorization < 2 .AND. maxpiv ) THEN
@@ -5821,7 +5988,7 @@ MODULE GALAHAD_CQP_double
 
             GO TO 200
           END IF
-  
+
 !  record ( x^k, c^k, y^k )
 
           X_coef( : n, k ) = RHS( dims%x_s : dims%x_e )
@@ -5850,12 +6017,12 @@ MODULE GALAHAD_CQP_double
           DO i = dims%x_u_start, dims%x_u_end
             Z_u_coef( i, k ) =                                                 &
               ( Z_u_coef( i, k ) + Z_u( i ) * X_coef( i, k ) ) / DIST_X_u( i )
-          END DO       
+          END DO
 
           DO i = dims%x_u_end + 1, n
             Z_u_coef( i, k ) =                                                 &
               - ( Z_u_coef( i, k ) + Z_u( i ) * X_coef( i, k ) ) / X( i )
-          END DO       
+          END DO
 
           DO i = dims%c_l_start, dims%c_l_end
             Y_l_coef( i, k ) =                                                 &
@@ -5865,10 +6032,10 @@ MODULE GALAHAD_CQP_double
           DO i = dims%c_u_start, dims%c_u_end
             Y_u_coef( i, k ) =                                                 &
               ( Y_u_coef( i, k ) + Y_u( i ) * C_coef( i, k ) ) / DIST_C_u( i )
-          END DO       
+          END DO
         END DO
 
-!  finally, scale the coefficients v^k <- (-1)^k v^k / k! 
+!  finally, scale the coefficients v^k <- (-1)^k v^k / k!
 
         co = one
         DO k = 1, order
@@ -5896,7 +6063,7 @@ MODULE GALAHAD_CQP_double
             WRITE( out, "( A, 1X, A, I1, 7A10 )" ) prefix, arc, k,             &
               char_x, char_c, char_y, char_z_l, char_z_u, char_y_l, char_y_u
           END DO
-        END IF   
+        END IF
 
 !  Additionally, if the Taylor Zhang arc is not being used, we need to include
 !  this as a precaution to guarantee convergence
@@ -5930,7 +6097,7 @@ MODULE GALAHAD_CQP_double
             DY_u_zh( i ) =   mu + ( C_u( i ) - C( i ) ) * Y_u( i )
           END DO
 
-!  rhs for problem variables: g + Hx - A^Ty - mu (X-X_l)^-1 e + mu (X_u-X)^-1 e 
+!  rhs for problem variables: g + Hx - A^Ty - mu (X-X_l)^-1 e + mu (X_u-X)^-1 e
 
           RHS( : dims%x_free ) = GRAD_L( : dims%x_free )
           DO i = dims%x_free + 1, dims%x_l_start - 1
@@ -5949,7 +6116,7 @@ MODULE GALAHAD_CQP_double
             RHS( i ) = GRAD_L( i ) - mu / X( i )
           END DO
 
-!  rhs for slack variables: y - mu (C-C_l)^-1 e + mu (C_u-C)^-1 e 
+!  rhs for slack variables: y - mu (C-C_l)^-1 e + mu (C_u-C)^-1 e
 
           DO i = dims%c_l_start, dims%c_u_start - 1
             RHS( dims%c_b + i ) = Y( i ) - mu / DIST_C_l( i )
@@ -5966,19 +6133,19 @@ MODULE GALAHAD_CQP_double
 
           IF ( m > 0 ) THEN
             RHS( dims%y_s : dims%y_e ) = C_RES( : dims%c_u_end )
-  
-            C_RES( : dims%c_equality ) = - C_l( : dims%c_equality ) 
+
+            C_RES( : dims%c_equality ) = - C_l( : dims%c_equality )
             C_RES( dims%c_l_start : dims%c_u_end ) = - SCALE_C * C
             CALL CQP_AX( m, C_RES, m, a_ne, A_val, A_col, A_ptr,               &
                           n, X, '+ ' )
             inform%primal_infeasibility = MAXVAL( ABS( C_RES ) )
           END IF
 
-          IF ( printd ) THEN 
+          IF ( printd ) THEN
             WRITE( out, 2100 ) prefix, ' RHS_x ', RHS( dims%x_s : dims%x_e )
             IF ( m > 0 )                                                       &
               WRITE( out, 2100 ) prefix, ' RHS_y ', RHS( dims%y_s : dims%y_e )
-          END IF 
+          END IF
 
 ! Compute the coefficients
 
@@ -6009,16 +6176,16 @@ MODULE GALAHAD_CQP_double
           time_solve = time_solve + time_now - time_record
           clock_solve = clock_solve + clock_now - clock_record
 
-          IF ( printd ) THEN 
+          IF ( printd ) THEN
             WRITE( out, 2100 ) prefix, ' SOL_x ', RHS( dims%x_s : dims%x_e )
             IF ( m > 0 )                                                       &
               WRITE( out, 2100 ) prefix, ' SOL_y ', RHS( dims%y_s : dims%y_e )
-          END IF 
+          END IF
 
           inform%status = inform%SBLS_inform%status
           IF ( inform%status /= GALAHAD_ok ) GO TO 700
 
-!  if the residual of the linear system is larger than the current 
+!  if the residual of the linear system is larger than the current
 !  optimality residual, no further progress is likely
 
           IF ( inform%SBLS_inform%norm_residual > merit ) THEN
@@ -6026,8 +6193,8 @@ MODULE GALAHAD_CQP_double
 !  it didn't. We might have run out of options ...
 
             IF ( SBLS_control%factorization == 2 .AND. maxpiv ) THEN
-              inform%status = GALAHAD_error_ill_conditioned ; GO TO 600 
-              
+              inform%status = GALAHAD_error_ill_conditioned ; GO TO 600
+
 !  ... or we may change the method ...
 
             ELSE IF ( SBLS_control%factorization < 2 .AND. maxpiv ) THEN
@@ -6069,7 +6236,7 @@ MODULE GALAHAD_CQP_double
 
             GO TO 200
           END IF
-  
+
 !  record ( x^k, c^k, y^k )
 
           DX_zh( : n ) = - RHS( dims%x_s : dims%x_e )
@@ -6098,12 +6265,12 @@ MODULE GALAHAD_CQP_double
           DO i = dims%x_u_start, dims%x_u_end
             DZ_u_zh( i ) =                                                     &
               - ( DZ_u_zh( i ) - Z_u( i ) * DX_zh( i ) ) / DIST_X_u( i )
-          END DO       
+          END DO
 
           DO i = dims%x_u_end + 1, n
             DZ_u_zh( i ) =                                                     &
                 ( DZ_u_zh( i ) - Z_u( i ) * DX_zh( i ) ) / X( i )
-          END DO       
+          END DO
 
           DO i = dims%c_l_start, dims%c_l_end
             DY_l_zh( i ) =                                                     &
@@ -6113,7 +6280,7 @@ MODULE GALAHAD_CQP_double
           DO i = dims%c_u_start, dims%c_u_end
             DY_u_zh( i ) =                                                     &
               - ( DY_u_zh( i ) - Y_u( i ) * DC_zh( i ) ) / DIST_C_u( i )
-          END DO       
+          END DO
 
           IF ( printw ) THEN
             char_x = MAXVAL_ABS( DX_zh( : ) )
@@ -6126,11 +6293,11 @@ MODULE GALAHAD_CQP_double
             WRITE( out, "( A, ' ZT', I1, 7A10 )" ) prefix, 1,                  &
               char_x, char_c, char_y, char_z_l, char_z_u, char_y_l, char_y_u
           END IF
-        END IF   
+        END IF
 
         IF ( printt ) WRITE( out,                                              &
            "( A, ' time for solves = ', F0.2 ) " ) prefix, clock_solve
-        inform%time%solve = inform%time%solve + time_solve
+        inform%time%solve = inform%time%solve + REAL( time_solve, wp )
         inform%time%clock_solve = inform%time%clock_solve + clock_solve
 
         IF ( printw ) WRITE( out,                                              &
@@ -6151,7 +6318,7 @@ MODULE GALAHAD_CQP_double
 
         IF ( guarantee ) THEN
 
-!  find the largest alpha in [0,1] for which 
+!  find the largest alpha in [0,1] for which
 
 !     v_1(alpha) = v + alpha v^1
 
@@ -6165,7 +6332,7 @@ MODULE GALAHAD_CQP_double
 
 !  check that resulting alpha is not too small
 
-          IF ( inform%status == GALAHAD_error_tiny_step ) GO TO 500 
+          IF ( inform%status == GALAHAD_error_tiny_step ) GO TO 500
 
 ! :::::::::::::::::::::::::::::::::::::::::::::::::::::::
 !  Use a safeguarded arc-search, starting from alpha_max
@@ -6199,7 +6366,7 @@ MODULE GALAHAD_CQP_double
             IF ( alpha_u <= epsmch ) THEN
               IF ( inform%iter - 1 > muzero_fixed ) THEN
                 inform%status = GALAHAD_error_tiny_step
-                GO TO 500 
+                GO TO 500
               ELSE
                 muzero_fixed = inform%iter - 2
                 EXIT
@@ -6208,8 +6375,8 @@ MODULE GALAHAD_CQP_double
 
 !  the merit value of an acceptable point must be smaller than a linear model
 
-            merit_model = merit + alpha * eta * slope 
- 
+            merit_model = merit + alpha * eta * slope
+
 !  compute the complementarity at the new point on the arc
 
             comp = zero
@@ -6236,7 +6403,7 @@ MODULE GALAHAD_CQP_double
             one_minus_alpha = one - alpha
             merit_trial = comp + one_minus_alpha * tau * res_primal_dual
             IF ( printw ) WRITE( out, "( A, 16X, 3ES16.8 )" )                  &
-              prefix, alpha, merit_trial, merit_model 
+              prefix, alpha, merit_trial, merit_model
 
 !  check to see if the Amijo criterion is satisfied.
 
@@ -6257,7 +6424,7 @@ MODULE GALAHAD_CQP_double
               alpha_u = alpha
               alpha = half * ( alpha + alpha_l )
             END IF
-            nbact = nbact + 1 
+            nbact = nbact + 1
           END DO
           opt_alpha_guarantee = alpha
           opt_merit_guarantee = merit_trial
@@ -6284,6 +6451,7 @@ MODULE GALAHAD_CQP_double
         ELSE
           sorder = order
         END IF
+
   step: DO iorder = sorder, order
 
           CALL CQP_compute_v_alpha( dims, n, m, iorder, X_coef, C_coef,        &
@@ -6291,13 +6459,13 @@ MODULE GALAHAD_CQP_double
                            X, X_l, X_u, Z_l, Z_u, Y, Y_l, Y_u, C,              &
                            C_l, C_u, one, comp )
 
-!  find the largest alpha in [0,1] for which 
+!  find the largest alpha in [0,1] for which
 
 !     v_l(alpha) = v + sum_k=1^l [ (-1)^k v^k / k! ] alpha^k
 
 !  lies in a given wide neighbourhood of the central path
 
-!         IF ( .TRUE. ) THEN     
+!         IF ( .TRUE. ) THEN
           IF ( .FALSE. ) THEN    ! serial step
           CALL CQP_compute_stepsize( dims, n, m, nbnds, iorder,                &
                                      puiseux .AND. arc /= 'ZP',                &
@@ -6373,8 +6541,8 @@ MODULE GALAHAD_CQP_double
 
 !  the merit value of an acceptable point must be smaller than a linear model
 
-            merit_model = merit + alpha * eta * slope 
- 
+            merit_model = merit + alpha * eta * slope
+
 !  compute the complementarity at the new point on the arc
 
             CALL CQP_compute_v_alpha( dims, n, m, iorder, X_coef, C_coef,      &
@@ -6392,7 +6560,7 @@ MODULE GALAHAD_CQP_double
               merit_trial = comp + one_minus_alpha * tau * res_primal_dual
             END IF
             IF ( printw ) WRITE( out, "( A, 16X, 3ES16.8 )" )                  &
-              prefix, alpha, merit_trial, merit_model 
+              prefix, alpha, merit_trial, merit_model
 
 !  check to see if the Amijo criterion is satisfied.
 
@@ -6413,7 +6581,7 @@ MODULE GALAHAD_CQP_double
               alpha_u = alpha
               alpha = half * ( alpha + alpha_l )
             END IF
-            nbact = nbact + 1 
+            nbact = nbact + 1
           END DO
           OPT_alpha( iorder ) = alpha
           OPT_merit( iorder ) = merit_trial
@@ -6475,8 +6643,8 @@ MODULE GALAHAD_CQP_double
 
 !  compute the constraint residuals
 
-          IF ( m > 0 ) THEN 
-            C_RES( : dims%c_equality ) = - C_l( : dims%c_equality ) 
+          IF ( m > 0 ) THEN
+            C_RES( : dims%c_equality ) = - C_l( : dims%c_equality )
             C_RES( dims%c_l_start : dims%c_u_end ) = - SCALE_C * C
             CALL CQP_AX( m, C_RES, m, a_ne, A_val, A_col, A_ptr,      &
                           n, X, '+ ' )
@@ -6523,7 +6691,7 @@ MODULE GALAHAD_CQP_double
                                 Y_l( dims%c_l_start : dims%c_l_end ) ) -       &
                    DOT_PRODUCT( DIST_C_u( dims%c_u_start : dims%c_u_end ),     &
                                 Y_u( dims%c_u_start : dims%c_u_end ) )
-  
+
           IF ( nbnds > 0 ) THEN
             slknes = slknes / nbnds
           ELSE
@@ -6532,9 +6700,21 @@ MODULE GALAHAD_CQP_double
 
 !  test for optimality
 
+!write(6,*) inform%primal_infeasibility, stop_p
+!write(6,*) inform%dual_infeasibility, stop_d
+!write(6,*) slknes, stop_c
+
           IF ( inform%primal_infeasibility <= stop_p .AND.                     &
                inform%dual_infeasibility <= stop_d .AND.                       &
                slknes <= stop_c ) THEN
+
+!  checkpoint
+
+            CALL CPU_TIME( time_record )
+            CALL CHECKPOINT( inform%iter, time_record - time_start,            &
+               MAX( inform%primal_infeasibility,                               &
+               inform%dual_infeasibility, slknes ),                            &
+               inform%checkpointsIter, inform%checkpointsTime, 1, 16 )
 
 !  if optimal, compute the objective function value
 
@@ -6552,19 +6732,23 @@ MODULE GALAHAD_CQP_double
                 curv = zero
                 DO i = 1, n
                   xi = X( i )
-                  DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
-                    j = H_col( l )
-                    IF ( i == j ) THEN
-                      curv = curv + xi * xi * H_val( l )
-                    ELSE
-                      curv = curv + two * xi * X( j ) * H_val( l )
-                    END IF
-                  END DO
+                  IF ( diagonal_hessian ) THEN
+                    curv = curv + xi * xi * H_val( i )
+                  ELSE
+                    DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
+                      j = H_col( l )
+                      IF ( i == j ) THEN
+                        curv = curv + xi * xi * H_val( l )
+                      ELSE
+                        curv = curv + two * xi * X( j ) * H_val( l )
+                      END IF
+                    END DO
+                  END IF
                 END DO
               END IF
               inform%obj = f + half * curv
             END IF
-      
+
             IF ( gradient_kind == 1 ) THEN
               inform%obj = inform%obj + SUM( X )
             ELSE IF ( gradient_kind /= 0 ) THEN
@@ -6579,23 +6763,23 @@ MODULE GALAHAD_CQP_double
 !  print a summary of the final iteration
 
             CALL CLOCK_TIME( clock_now )
-            IF ( printi ) THEN 
+            IF ( printi ) THEN
               IF ( printt .OR. ( printi .AND.                                  &
                  inform%iter == start_print ) ) WRITE( out, 2000 ) prefix
               WRITE( out, 2030 ) prefix, inform%iter, re,                      &
                inform%primal_infeasibility, inform%dual_infeasibility,         &
-               slknes, inform%obj, one, mo, mu, order, pui, arc, nbact,        &
+               slknes, inform%obj, one, mu, order, pui, arc, nbact,            &
                clock_now - clock_start
-            END IF 
+            END IF
 
-            IF ( printd ) THEN 
+            IF ( printd ) THEN
               WRITE( out, 2100 ) prefix, ' X ', X
               IF ( dims%x_free + 1 <= dims%x_l_end ) WRITE( out, 2100 )        &
                 prefix,  ' Z_l ', Z_l( dims%x_free + 1 : dims%x_l_end )
               IF (  dims%x_u_start <= n ) WRITE( out, 2100 )                   &
                 prefix, ' Z_u ', Z_u( dims%x_u_start :  n )
-            END IF 
-            inform%status = GALAHAD_ok ; GO TO 600 
+            END IF
+            inform%status = GALAHAD_ok ; GO TO 600
           END IF
 
 !  if the lunge failed, revert to the best point found in the linesearch
@@ -6683,9 +6867,9 @@ END DO
 
         END IF
 
-        inform%nbacts = inform%nbacts + nbact 
+        inform%nbacts = inform%nbacts + nbact
 
-!  update the distances to the bounds with some precaution against exterme 
+!  update the distances to the bounds with some precaution against exterme
 !  roundoff
 
         DO i = dims%x_l_start, dims%x_l_end
@@ -6718,8 +6902,8 @@ END DO
 
 !  compute the constraint residuals
 
-        IF ( m > 0 ) THEN 
-          C_RES( : dims%c_equality ) = - C_l( : dims%c_equality ) 
+        IF ( m > 0 ) THEN
+          C_RES( : dims%c_equality ) = - C_l( : dims%c_equality )
           C_RES( dims%c_l_start : dims%c_u_end ) = - SCALE_C * C
           CALL CQP_AX( m, C_RES, m, a_ne, A_val, A_col, A_ptr,      &
                         n, X, '+ ' )
@@ -6744,7 +6928,7 @@ END DO
                                        H_lm = H_lm, G = G,                     &
                                        WEIGHT = WEIGHT, X0 = X0 )
 
-!  update the values of the merit function, the gradient of the Lagrangian, 
+!  update the values of the merit function, the gradient of the Lagrangian,
 !  and the constraint residuals
 
 !       GRAD_L( dims%x_s : dims%x_e ) = GRAD_L( dims%x_s : dims%x_e ) +        &
@@ -6772,19 +6956,23 @@ END DO
             curv = zero
             DO i = 1, n
               xi = X( i )
-              DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
-                j = H_col( l )
-                IF ( i == j ) THEN
-                  curv = curv + xi * xi * H_val( l )
-                ELSE
-                  curv = curv + two * xi * X( j ) * H_val( l )
-                END IF
-              END DO
+              IF ( diagonal_hessian ) THEN
+                curv = curv + xi * xi * H_val( i )
+              ELSE
+                DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
+                  j = H_col( l )
+                  IF ( i == j ) THEN
+                    curv = curv + xi * xi * H_val( l )
+                  ELSE
+                    curv = curv + two * xi * X( j ) * H_val( l )
+                  END IF
+                END DO
+              END IF
             END DO
           END IF
           inform%obj = f + half * curv
         END IF
-  
+
         IF ( gradient_kind == 1 ) THEN
           inform%obj = inform%obj + SUM( X )
         ELSE IF ( gradient_kind /= 0 ) THEN
@@ -6815,7 +7003,7 @@ END DO
                    DOT_PRODUCT( DIST_C_u( dims%c_u_start : dims%c_u_end ),     &
                                 Y_u( dims%c_u_start : dims%c_u_end ) )
         slknes = slknes_x + slknes_c
-  
+
         slkmin_x = MIN( MINVAL( X( dims%x_free + 1 : dims%x_l_start - 1 ) *    &
                                 Z_l( dims%x_free + 1 : dims%x_l_start - 1 ) ), &
                         MINVAL( DIST_X_l( dims%x_l_start : dims%x_l_end ) *    &
@@ -6829,7 +7017,7 @@ END DO
                         MINVAL( - DIST_C_u( dims%c_u_start : dims%c_u_end ) *  &
                                 Y_u( dims%c_u_start : dims%c_u_end ) ) )
         slkmin = MIN( slkmin_x, slkmin_c )
-  
+
         slkmax_x = MAX( MAXVAL( X( dims%x_free + 1 : dims%x_l_start - 1 ) *    &
                                 Z_l( dims%x_free + 1 : dims%x_l_start - 1 ) ), &
                         MAXVAL( DIST_X_l( dims%x_l_start : dims%x_l_end ) *    &
@@ -6842,37 +7030,37 @@ END DO
                                 Y_l( dims%c_l_start : dims%c_l_end ) ),        &
                         MAXVAL( - DIST_C_u( dims%c_u_start : dims%c_u_end ) *  &
                                 Y_u( dims%c_u_start : dims%c_u_end ) ) )
-  
+
         p_min = MIN( MINVAL( X( dims%x_free + 1 : dims%x_l_start - 1 ) ),      &
                      MINVAL( DIST_X_l( dims%x_l_start : dims%x_l_end ) ),      &
                      MINVAL( DIST_X_u( dims%x_u_start : dims%x_u_end ) ),      &
                      MINVAL( - X( dims%x_u_end + 1 : n ) ),                    &
                      MINVAL( DIST_C_l( dims%c_l_start : dims%c_l_end ) ),      &
                      MINVAL( DIST_C_u( dims%c_u_start : dims%c_u_end ) ) )
-  
+
         p_max = MAX( MAXVAL( X( dims%x_free + 1 : dims%x_l_start - 1 ) ),      &
                      MAXVAL( DIST_X_l( dims%x_l_start : dims%x_l_end ) ),      &
                      MAXVAL( DIST_X_u( dims%x_u_start : dims%x_u_end ) ),      &
                      MAXVAL( - X( dims%x_u_end + 1 : n ) ),                    &
                      MAXVAL( DIST_C_l( dims%c_l_start : dims%c_l_end ) ),      &
                      MAXVAL( DIST_C_u( dims%c_u_start : dims%c_u_end ) ) )
-  
+
         d_min = MIN( MINVAL(   Z_l( dims%x_free + 1 : dims%x_l_end ) ),        &
                      MINVAL( - Z_u( dims%x_u_start : n ) ),                    &
                      MINVAL(   Y_l( dims%c_l_start : dims%c_l_end ) ),         &
                      MINVAL( - Y_u( dims%c_u_start : dims%c_u_end ) ) )
-  
+
         d_max = MAX( MAXVAL(   Z_l( dims%x_free + 1 : dims%x_l_end ) ),        &
                      MAXVAL( - Z_u( dims%x_u_start : n ) ),                    &
                      MAXVAL(   Y_l( dims%c_l_start : dims%c_l_end ) ),         &
                      MAXVAL( - Y_u( dims%c_u_start : dims%c_u_end ) ) )
-  
+
         IF ( nbnds_x > 0 ) THEN
           slknes_x = slknes_x / nbnds_x
         ELSE
           slknes_x = zero
         END IF
-  
+
         IF ( nbnds_c > 0 ) THEN
           slknes_c = slknes_c / nbnds_c
         ELSE
@@ -6883,6 +7071,51 @@ END DO
           inform%complementary_slackness = slknes
         ELSE
           slknes = zero
+        END IF
+
+!  checkpoint
+
+        CALL CPU_TIME( time_record )
+        CALL CHECKPOINT( inform%iter, time_record - time_start,                &
+           MAX( inform%primal_infeasibility,                                   &
+           inform%dual_infeasibility, slknes ),                                &
+           inform%checkpointsIter, inform%checkpointsTime, 1, 16 )
+
+!  test for optimality
+
+        IF ( inform%primal_infeasibility <= stop_p .AND.                       &
+             inform%dual_infeasibility <= stop_d .AND.                         &
+             slknes <= stop_c ) THEN
+
+!write(6,*) inform%primal_infeasibility, stop_p
+!write(6,*) inform%dual_infeasibility, stop_d
+!write(6,*) slknes, stop_c
+
+          IF ( .NOT. inform%feasible ) THEN
+            IF ( printi ) WRITE( out, 2070 ) prefix
+            inform%feasible = .TRUE.
+          END IF
+
+!  print a summary of the final iteration
+
+          CALL CLOCK_TIME( clock_now )
+          IF ( printi ) THEN
+            IF ( printt .OR. ( printi .AND.                                    &
+               inform%iter == start_print ) ) WRITE( out, 2000 ) prefix
+            WRITE( out, 2030 ) prefix, inform%iter, re,                        &
+             inform%primal_infeasibility, inform%dual_infeasibility,           &
+             slknes, inform%obj, one, mu, order, pui, arc, nbact,              &
+             clock_now - clock_start
+          END IF
+
+          IF ( printd ) THEN
+            WRITE( out, 2100 ) prefix, ' X ', X
+            IF ( dims%x_free + 1 <= dims%x_l_end ) WRITE( out, 2100 )          &
+              prefix,  ' Z_l ', Z_l( dims%x_free + 1 : dims%x_l_end )
+            IF (  dims%x_u_start <= n ) WRITE( out, 2100 )                     &
+              prefix, ' Z_u ', Z_u( dims%x_u_start :  n )
+          END IF
+          inform%status = GALAHAD_ok ; GO TO 600
         END IF
 
         IF ( printw .AND. nbnds > 0 ) WRITE( out, 2130 )                       &
@@ -6901,7 +7134,7 @@ END DO
               WRITE( out, 2070 ) prefix
               WRITE( out, 2030 ) prefix, inform%iter, re,                      &
                 inform%primal_infeasibility, inform%dual_infeasibility,        &
-                inform%complementary_slackness, zero, alpha, mo, mu, nbact,    &
+                inform%complementary_slackness, zero, alpha, mu, nbact,        &
                 clock_now - clock_start
               IF ( printt ) WRITE( out, 2000 ) prefix
             END IF
@@ -6940,10 +7173,9 @@ END DO
             mu = MIN( SQRT( ABS( slknes ) ), sigma ) * ABS( slknes )
         END IF
 
-        IF ( get_stat ) THEN
-
 !  estimate the variable and constraint exit status
 
+        IF ( get_stat ) THEN
           CALL CQP_indicators( dims, n, m, C_l, C_u, C_last, C,                &
                                DIST_C_l, DIST_C_u, X_l, X_u, X_last, X,        &
                                DIST_X_l, DIST_X_u, Y_l, Y_u, Z_l, Z_u,         &
@@ -6958,7 +7190,7 @@ END DO
         END IF
 
         IF ( mu < one .AND. stat_required ) THEN
-          get_stat = .TRUE. 
+          get_stat = .TRUE.
           C_last( dims%c_l_start : dims%c_u_end )                              &
             = C( dims%c_l_start : dims%c_u_end )
           X_last = X
@@ -6991,43 +7223,43 @@ END DO
           DO i = dims%x_l_end + 1, n
             Z_last( i ) = Z_u( i )
           END DO
-        END IF       
+        END IF
 
 !  compute the projected gradient of the Lagrangian function
 
-        pjgnrm = zero 
-        DO i = 1, n 
-          gi = GRAD_L( i ) 
-          gi = GRAD_L( i ) 
-          IF ( gi < zero ) THEN 
-            gi = - MIN( ABS( X_u( i ) - X( i ) ), - gi ) 
-          ELSE 
-            gi = MIN( ABS( X_l( i ) - X( i ) ), gi ) 
-          END IF 
-          pjgnrm = MAX( pjgnrm, ABS( gi ) ) 
-        END DO 
-  
-        IF ( printd ) THEN 
+        pjgnrm = zero
+        DO i = 1, n
+          gi = GRAD_L( i )
+          gi = GRAD_L( i )
+          IF ( gi < zero ) THEN
+            gi = - MIN( ABS( X_u( i ) - X( i ) ), - gi )
+          ELSE
+            gi = MIN( ABS( X_l( i ) - X( i ) ), gi )
+          END IF
+          pjgnrm = MAX( pjgnrm, ABS( gi ) )
+        END DO
+
+        IF ( printd ) THEN
           WRITE( out, 2100 ) prefix, ' DIST_X_l ',                             &
             X( dims%x_free + 1 : dims%x_l_start - 1 ), DIST_X_l
           WRITE( out, 2100 ) prefix, ' DIST_X_u ',                             &
             DIST_X_u, - X( dims%x_u_end + 1 : n )
-          WRITE( out, "( ' ' )" ) 
-        END IF 
-  
+          WRITE( out, "( ' ' )" )
+        END IF
+
         IF ( printd ) WRITE( out, 2110 ) prefix, pjgnrm, prefix,               &
           inform%primal_infeasibility
-      END DO 
+      END DO
 
 !  ---------------------------------------------------------------------
 !  ---------------------- End of Major Iteration -----------------------
 !  ---------------------------------------------------------------------
 
-  500 CONTINUE 
+  500 CONTINUE
 
 !  print details of the solution obtained
 
-  600 CONTINUE 
+  600 CONTINUE
 
 !  Compute the final objective function value
 
@@ -7045,14 +7277,18 @@ END DO
           curv = zero
           DO i = 1, n
             xi = X( i )
-            DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
-              j = H_col( l )
-              IF ( i == j ) THEN
-                curv = curv + xi * xi * H_val( l )
-              ELSE
-                curv = curv + two * xi * X( j ) * H_val( l )
-              END IF
-            END DO
+            IF ( diagonal_hessian ) THEN
+              curv = curv + xi * xi * H_val( i )
+            ELSE
+              DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
+                j = H_col( l )
+                IF ( i == j ) THEN
+                  curv = curv + xi * xi * H_val( l )
+                ELSE
+                  curv = curv + two * xi * X( j ) * H_val( l )
+                END IF
+              END DO
+            END IF
           END DO
         END IF
         inform%obj = f + half * curv
@@ -7086,6 +7322,9 @@ END DO
             ELSE IF ( control%arc == 4 ) THEN
               WRITE( control%out, "( A, '  Maximum order ', I0, ' Puiseux',    &
            &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
+            ELSE IF ( control%arc == 5 ) THEN
+              WRITE( control%out, "( A, '  Maximum order ', I0, ' Puiseux',    &
+           &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
             ELSE
               WRITE( control%out, "( A, '  Maximum order ', I0, ' Puiseux',    &
            &   ' fit to the Zhang-Zhao-Sun arc is used' )" ) prefix, order
@@ -7098,6 +7337,9 @@ END DO
               WRITE( control%out, "( A, '  Order ', I0, ' Puiseux',            &
            &   ' fit to the Zhao-Sun arc is used' )" ) prefix, order
             ELSE IF ( control%arc == 4 ) THEN
+              WRITE( control%out, "( A, '  Order ', I0, ' Puiseux',            &
+           &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
+            ELSE IF ( control%arc == 5 ) THEN
               WRITE( control%out, "( A, '  Order ', I0, ' Puiseux',            &
            &   ' fit to the Zhang-Puiseux arc is used' )" ) prefix, order
             ELSE
@@ -7140,39 +7382,39 @@ END DO
 
 !  If required, make the solution exactly complementary
 
-      IF ( control%feasol ) THEN 
+      IF ( control%feasol ) THEN
         DO i = dims%x_free + 1, dims%x_l_start - 1
-          IF ( ABS( Z_l( i ) ) < ABS( X( i ) ) ) THEN 
-            Z_l( i ) = zero 
-          ELSE 
-            X( i ) = X_l( i ) 
-          END IF 
+          IF ( ABS( Z_l( i ) ) < ABS( X( i ) ) ) THEN
+            Z_l( i ) = zero
+          ELSE
+            X( i ) = X_l( i )
+          END IF
         END DO
 
         DO i = dims%x_l_start, dims%x_l_end
-          IF ( ABS( Z_l( i ) ) < ABS( DIST_X_l( i ) ) ) THEN 
-            Z_l( i ) = zero 
-          ELSE 
-            X( i ) = X_l( i ) 
-          END IF 
+          IF ( ABS( Z_l( i ) ) < ABS( DIST_X_l( i ) ) ) THEN
+            Z_l( i ) = zero
+          ELSE
+            X( i ) = X_l( i )
+          END IF
         END DO
 
         DO i = dims%x_u_start, dims%x_u_end
-          IF ( ABS( Z_u( i ) ) < ABS( DIST_X_u( i ) ) ) THEN 
-            Z_u( i ) = zero 
-          ELSE 
-            X( i ) = X_u( i ) 
-          END IF 
+          IF ( ABS( Z_u( i ) ) < ABS( DIST_X_u( i ) ) ) THEN
+            Z_u( i ) = zero
+          ELSE
+            X( i ) = X_u( i )
+          END IF
         END DO
 
         DO i = dims%x_u_end + 1, n
-          IF ( ABS( Z_u( i ) ) < ABS( X( i ) ) ) THEN 
-            Z_u( i ) = zero 
-          ELSE 
-            X( i ) = X_u( i ) 
-          END IF 
+          IF ( ABS( Z_u( i ) ) < ABS( X( i ) ) ) THEN
+            Z_u( i ) = zero
+          ELSE
+            X( i ) = X_u( i )
+          END IF
         END DO
-      END IF 
+      END IF
 
 !  Exit
 
@@ -7212,7 +7454,7 @@ END DO
       C_RES( : m ) = zero
       CALL CQP_AX( m, C_RES( : m ), m, a_ne, A_val, A_col,                     &
                     A_ptr, n, X, '+ ')
-      IF ( printi .AND. m > 0 ) THEN 
+      IF ( printi .AND. m > 0 ) THEN
         WRITE( out, "( A, '  Computed constraint residual is', ES11.4 )" )     &
              prefix,                                                           &
              MAX( zero, MAXVAL( ABS( C_l( : dims%c_equality ) -                &
@@ -7220,13 +7462,12 @@ END DO
                         MAXVAL( C_l(  dims%c_l_start : dims%c_l_end ) -        &
                                 C_RES(  dims%c_l_start : dims%c_l_end ) ),     &
                         MAXVAL( C_RES( dims%c_u_start : dims%c_u_end ) -       &
-                                C_u( dims%c_u_start : dims%c_u_end ) ) )     
+                                C_u( dims%c_u_start : dims%c_u_end ) ) )
       END IF
-
-      IF ( get_stat ) THEN
 
 !  estimate the variable and constraint exit status
 
+      IF ( stat_required ) THEN
         CALL CQP_indicators( dims, n, m, C_l, C_u, C_last, C,                  &
                              DIST_C_l, DIST_C_u, X_l, X_u, X_last, X,          &
                              DIST_X_l, DIST_X_u, Y_l, Y_u, Z_l, Z_u,           &
@@ -7295,28 +7536,28 @@ END DO
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving CQP_solve_main ' )" ) prefix
 
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
  2000 FORMAT( /, A, ' Iter   p-feas  d-feas com-slk    obj   ',                &
-                '  step   target   arc bt     time' ) 
+                '  step   target   arc bt     time' )
  2020 FORMAT( A, I5, A1, 3ES8.1, ES9.1, '     -   ', ES7.1,                    &
-            '    -   -', 0P, F9.2 ) 
- 2030 FORMAT( A, I5, A1, 3ES8.1, ES9.1, ES8.1, A1, ES7.1, I3, A1, A2, I3,      &
-              0P, F9.2 ) 
+            '    -   -', 0P, F9.2 )
+ 2030 FORMAT( A, I5, A1, 3ES8.1, ES9.1, ES8.1, 1X, ES7.1, I3, A1, A2, I3,      &
+              0P, F9.2 )
  2070 FORMAT( /, A, ' ========================= feasible point found',         &
                     ' =========================', / )
- 2100 FORMAT( A, A, /, ( 10X, 7ES10.2 ) ) 
+ 2100 FORMAT( A, A, /, ( 10X, 7ES10.2 ) )
  2110 FORMAT( /, A, '  Norm of projected gradient is', ES11.4,                 &
-              /, A, '  Norm of infeasibility is', ES11.4 ) 
+              /, A, '  Norm of infeasibility is', ES11.4 )
  2130 FORMAT( A, 21X, ' == >  mu estimated   = ', ES10.2, /,                   &
               A, 21X, '       mu_x estimated = ', ES10.2, /,                   &
               A, 21X, '       mu_c estimated = ', ES10.2, /,                   &
               A, 21X, ' min/max slackness_x = ', 2ES12.4, /,                   &
               A, 21X, ' min/max slackness_c = ', 2ES12.4, /,                   &
               A, 14X, ' min/max primal feasibility = ', 2ES12.4, /,            &
-              A, 14X, ' min/max dual   feasibility = ', 2ES12.4 ) 
+              A, 14X, ' min/max dual   feasibility = ', 2ES12.4 )
 
       CONTAINS
 
@@ -7359,9 +7600,9 @@ END DO
 !  Dummy arguments
 
       TYPE ( CQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
- 
+
 !  Local variables
 
       CHARACTER ( LEN = 80 ) :: array_name
@@ -7371,7 +7612,7 @@ END DO
       CALL FDC_terminate( data%FDC_data, data%FDC_control,                     &
                           inform%FDC_inform )
       IF ( inform%FDC_inform%status /= GALAHAD_ok )                            &
-        inform%status = inform%FDC_inform%status 
+        inform%status = inform%FDC_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -7380,7 +7621,7 @@ END DO
       CALL CRO_terminate( data%CRO_data, control%CRO_control,                  &
                           inform%CRO_inform )
       IF ( inform%CRO_inform%status /= GALAHAD_ok )                            &
-        inform%status = inform%CRO_inform%status 
+        inform%status = inform%CRO_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -7400,7 +7641,7 @@ END DO
       CALL FIT_terminate( data%FIT_data, control%FIT_control,                  &
                            inform%FIT_inform )
       IF ( inform%FIT_inform%status /= GALAHAD_ok )                            &
-        inform%status = inform%FIT_inform%status 
+        inform%status = inform%FIT_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -7409,7 +7650,7 @@ END DO
       CALL ROOTS_terminate( data%ROOTS_data, control%ROOTS_control,            &
                            inform%ROOTS_inform )
       IF ( inform%ROOTS_inform%status /= GALAHAD_ok )                          &
-        inform%status = inform%ROOTS_inform%status 
+        inform%status = inform%ROOTS_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -7766,6 +8007,150 @@ END DO
 
       END SUBROUTINE CQP_terminate
 
+! -  G A L A H A D -  C Q P _ f u l l _ t e r m i n a t e  S U B R O U T I N E -
+
+     SUBROUTINE CQP_full_terminate( data, control, inform )
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!   Deallocate all private storage
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( CQP_control_type ), INTENT( IN ) :: control
+     TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
+
+!-----------------------------------------------
+!   L o c a l   V a r i a b l e s
+!-----------------------------------------------
+
+     CHARACTER ( LEN = 80 ) :: array_name
+
+!  deallocate workspace
+
+     CALL CQP_terminate( data%cqp_data, control, inform )
+
+!  deallocate any internal problem arrays
+
+     array_name = 'cqp: data%prob%X'
+     CALL SPACE_dealloc_array( data%prob%X,                                    &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%X_l'
+     CALL SPACE_dealloc_array( data%prob%X_l,                                  &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%X_u'
+     CALL SPACE_dealloc_array( data%prob%X_u,                                  &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%G'
+     CALL SPACE_dealloc_array( data%prob%G,                                    &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%Z'
+     CALL SPACE_dealloc_array( data%prob%Z,                                    &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%C'
+     CALL SPACE_dealloc_array( data%prob%C,                                    &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%C_l'
+     CALL SPACE_dealloc_array( data%prob%C_l,                                  &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%C_u'
+     CALL SPACE_dealloc_array( data%prob%C_u,                                  &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%WEIGHT'
+     CALL SPACE_dealloc_array( data%prob%WEIGHT,                               &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%X0'
+     CALL SPACE_dealloc_array( data%prob%X0,                                   &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%H%ptr'
+     CALL SPACE_dealloc_array( data%prob%H%ptr,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%H%row'
+     CALL SPACE_dealloc_array( data%prob%H%row,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%H%col'
+     CALL SPACE_dealloc_array( data%prob%H%col,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%H%val'
+     CALL SPACE_dealloc_array( data%prob%H%val,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%A%ptr'
+     CALL SPACE_dealloc_array( data%prob%A%ptr,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%A%row'
+     CALL SPACE_dealloc_array( data%prob%A%row,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%A%col'
+     CALL SPACE_dealloc_array( data%prob%A%col,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'cqp: data%prob%A%val'
+     CALL SPACE_dealloc_array( data%prob%A%val,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     RETURN
+
+!  End of subroutine CQP_full_terminate
+
+     END SUBROUTINE CQP_full_terminate
+
 !-*-*-*-*-*-   C Q P _ M E R I T _ V A L U E   F U N C T I O N   -*-*-*-*-*-*-
 
       FUNCTION CQP_merit_value( dims, n, m, X, Y, Y_l, Y_u, Z_l, Z_u,          &
@@ -7780,12 +8165,12 @@ END DO
 !  Compute the value of the merit function
 !
 !     | < z_l . ( x - x_l ) > +  < z_u . ( x_u - x ) > +
-!       < y_l . ( c - c_l ) > +  < y_u . ( c_u - c ) > | + 
+!       < y_l . ( c - c_l ) > +  < y_u . ( c_u - c ) > | +
 !            || ( GRAD_L - z_l - z_u ) ||
 !      tau * || (   y - y_l - y_u    ) ||
-!            || (  A x - SCALE_c * c ) ||_2 
+!            || (  A x - SCALE_c * c ) ||_2
 !
-!  where GRAD_L = W*W*( x - x0 ) - A(transpose) y or H x + g -  A(transpose) y 
+!  where GRAD_L = W*W*( x - x0 ) - A(transpose) y or H x + g -  A(transpose) y
 !  is the gradient of the Lagrangian
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -7806,7 +8191,7 @@ END DO
              DIMENSION( dims%x_u_start : dims%x_u_end ) :: DIST_X_u
       REAL ( KIND = wp ), INTENT( IN ),                                        &
              DIMENSION( dims%x_u_start : n ) :: Z_u
-      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: Y, C_RES 
+      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: Y, C_RES
       REAL ( KIND = wp ), INTENT( IN ),                                        &
              DIMENSION( dims%c_l_start : dims%c_l_end ) :: Y_l, DIST_C_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
@@ -7823,38 +8208,38 @@ END DO
 !  Problem variables:
 
       DO i = dims%x_free + 1, dims%x_l_start - 1
-        res_dual = res_dual + ( GRAD_L( i ) - Z_l( i ) ) ** 2 
+        res_dual = res_dual + ( GRAD_L( i ) - Z_l( i ) ) ** 2
         res_cs = res_cs + Z_l( i ) * X( i )
       END DO
       DO i = dims%x_l_start, dims%x_u_start - 1
-        res_dual = res_dual + ( GRAD_L( i ) - Z_l( i ) ) ** 2 
+        res_dual = res_dual + ( GRAD_L( i ) - Z_l( i ) ) ** 2
         res_cs = res_cs + Z_l( i ) * DIST_X_l( i )
       END DO
       DO i = dims%x_u_start, dims%x_l_end
-        res_dual = res_dual + ( GRAD_L( i ) - Z_l( i ) - Z_u( i ) ) ** 2 
-        res_cs = res_cs + Z_l( i ) * DIST_X_l( i ) - Z_u( i ) * DIST_X_u( i ) 
+        res_dual = res_dual + ( GRAD_L( i ) - Z_l( i ) - Z_u( i ) ) ** 2
+        res_cs = res_cs + Z_l( i ) * DIST_X_l( i ) - Z_u( i ) * DIST_X_u( i )
       END DO
       DO i = dims%x_l_end + 1, dims%x_u_end
-        res_dual = res_dual + ( GRAD_L( i ) - Z_u( i ) ) ** 2 
+        res_dual = res_dual + ( GRAD_L( i ) - Z_u( i ) ) ** 2
         res_cs = res_cs - Z_u( i ) * DIST_X_u( i )
       END DO
       DO i = dims%x_u_end + 1, n
-        res_dual = res_dual + ( GRAD_L( i ) - Z_u( i ) ) ** 2 
+        res_dual = res_dual + ( GRAD_L( i ) - Z_u( i ) ) ** 2
         res_cs = res_cs + Z_u( i ) * X( i )
       END DO
 
 !  Slack variables:
 
       DO i = dims%c_l_start, dims%c_u_start - 1
-        res_dual = res_dual + ( Y( i ) - Y_l( i ) ) ** 2 
+        res_dual = res_dual + ( Y( i ) - Y_l( i ) ) ** 2
         res_cs = res_cs + Y_l( i ) * DIST_C_l( i )
       END DO
       DO i = dims%c_u_start, dims%c_l_end
-        res_dual = res_dual + ( Y( i ) - Y_l( i ) - Y_u( i ) ) ** 2 
+        res_dual = res_dual + ( Y( i ) - Y_l( i ) - Y_u( i ) ) ** 2
         res_cs = res_cs + Y_l( i ) * DIST_C_l( i ) - Y_u( i ) * DIST_C_u( i )
       END DO
       DO i = dims%c_l_end + 1, dims%c_u_end
-        res_dual = res_dual + ( Y( i ) - Y_u( i ) ) ** 2 
+        res_dual = res_dual + ( Y( i ) - Y_u( i ) ) ** 2
         res_cs = res_cs - Y_u( i ) * DIST_C_u( i )
       END DO
 
@@ -7866,7 +8251,7 @@ END DO
 
       CQP_merit_value = ABS( res_cs ) + tau * res_primal_dual
 
-      RETURN  
+      RETURN
 
 !  End of function CQP_merit_value
 
@@ -7906,12 +8291,12 @@ END DO
         - SUM( LOG( - X( dims%x_u_end + 1 : n ) ) )                            &
         - SUM( LOG( DIST_C_l ) ) - SUM( LOG( DIST_C_u ) )
 
-      RETURN  
+      RETURN
 
 !  End of CQP_potential_value
 
       END FUNCTION CQP_potential_value
- 
+
 !-*-  C Q P _ L A G R A N G I A N _ G R A D I E N T   S U B R O U T I N E  -*-
 
       SUBROUTINE CQP_Lagrangian_gradient( dims, n, m, X, Y, Y_l, Y_u,          &
@@ -7924,9 +8309,9 @@ END DO
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Compute the gradient of the Lagrangian function 
+!  Compute the gradient of the Lagrangian function
 !
-!  GRAD_L = W*W*( x - x0 ) - A(transpose) y or H x + g -  A(transpose) y 
+!  GRAD_L = W*W*( x - x0 ) - A(transpose) y or H x + g -  A(transpose) y
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -7935,7 +8320,7 @@ END DO
       TYPE ( CQP_dims_type ), INTENT( IN ) :: dims
       INTEGER, INTENT( IN ) :: n, m, Hessian_kind, gradient_kind
       REAL ( KIND = wp ), INTENT( IN ) :: dufeas, perturb_h
-      LOGICAL, INTENT( IN ) :: getdua 
+      LOGICAL, INTENT( IN ) :: getdua
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: Y
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: GRAD_L
@@ -7970,7 +8355,7 @@ END DO
 !  Local variables
 
       INTEGER :: i
-      REAL ( KIND = wp ) :: gi 
+      REAL ( KIND = wp ) :: gi
 
 !  Add the product A( transpose ) y to the gradient of the quadratic
 
@@ -7985,8 +8370,12 @@ END DO
         IF ( PRESENT( H_lm ) ) THEN
           CALL LMS_apply_lbfgs( X, H_lm, i, RESULT = GRAD_L )
         ELSE
-          GRAD_L = zero
-          CALL CQP_HX( dims, n, GRAD_L, h_ne, H_val, H_col, H_ptr, X, '+' )
+          IF ( PRESENT( H_col ) .AND. PRESENT( H_ptr ) ) THEN
+            GRAD_L = zero
+            CALL CQP_HX( dims, n, GRAD_L, h_ne, H_val, H_col, H_ptr, X, '+' )
+          ELSE
+            GRAD_L = H_val * X
+          END IF
         END IF
 !write(6, "( ' grad_l ', /, ( 5ES12.4) )" ) GRAD_l
       END IF
@@ -8003,35 +8392,35 @@ END DO
 !  If required, obtain suitable "good" starting values for the dual
 !  variables ( see paper )
 
-      IF ( getdua ) THEN 
+      IF ( getdua ) THEN
 
 !  Problem variables:
 
 !  The variable is a non-negativity
 
         DO i = dims%x_free + 1, dims%x_l_start - 1
-          Z_l( i ) = MAX( dufeas, GRAD_L( i ) / ( one + X( i ) ** 2 ) ) 
+          Z_l( i ) = MAX( dufeas, GRAD_L( i ) / ( one + X( i ) ** 2 ) )
         END DO
 
 !  The variable has just a lower bound
 
         DO i = dims%x_l_start, dims%x_u_start - 1
-          Z_l( i ) = MAX( dufeas, GRAD_L( i ) / ( one + DIST_X_l( i ) ** 2 ) ) 
+          Z_l( i ) = MAX( dufeas, GRAD_L( i ) / ( one + DIST_X_l( i ) ** 2 ) )
         END DO
 
 !  The variable has both lower and upper bounds
 
         DO i = dims%x_u_start, dims%x_l_end
-          gi = GRAD_L( i ) 
-          IF ( ABS( gi ) <= dufeas ) THEN 
-            Z_l( i ) = dufeas ; Z_u( i ) = - dufeas 
-          ELSE IF ( gi > dufeas ) THEN 
+          gi = GRAD_L( i )
+          IF ( ABS( gi ) <= dufeas ) THEN
+            Z_l( i ) = dufeas ; Z_u( i ) = - dufeas
+          ELSE IF ( gi > dufeas ) THEN
             Z_l( i ) = ( gi + dufeas ) / ( one + DIST_X_l( i ) ** 2 )
-            Z_u( i ) = - dufeas 
-          ELSE 
-            Z_l( i ) = dufeas 
+            Z_u( i ) = - dufeas
+          ELSE
+            Z_l( i ) = dufeas
             Z_u( i ) = ( gi - dufeas ) / ( one + DIST_X_u( i ) ** 2 )
-          END IF 
+          END IF
         END DO
 
 !  The variable has just an upper bound
@@ -8051,22 +8440,22 @@ END DO
 !  The variable has just a lower bound
 
         DO i = dims%c_l_start, dims%c_u_start - 1
-          Y_l( i ) = MAX( dufeas, - Y( i ) / ( one + DIST_C_l( i ) ** 2 ) ) 
+          Y_l( i ) = MAX( dufeas, - Y( i ) / ( one + DIST_C_l( i ) ** 2 ) )
         END DO
 
 !  The variable has both lower and upper bounds
 
         DO i = dims%c_u_start, dims%c_l_end
-          gi = - Y( i ) 
-          IF ( ABS( gi ) <= dufeas ) THEN 
-            Y_l( i ) = dufeas ; Y_u( i ) = - dufeas 
-          ELSE IF ( gi > dufeas ) THEN 
+          gi = - Y( i )
+          IF ( ABS( gi ) <= dufeas ) THEN
+            Y_l( i ) = dufeas ; Y_u( i ) = - dufeas
+          ELSE IF ( gi > dufeas ) THEN
             Y_l( i ) = ( gi + dufeas ) / ( one + DIST_C_l( i ) ** 2 )
-            Y_u( i ) = - dufeas 
-          ELSE 
-            Y_l( i ) = dufeas 
+            Y_u( i ) = - dufeas
+          ELSE
+            Y_l( i ) = dufeas
             Y_u( i ) = ( gi - dufeas ) / ( one + DIST_C_u( i ) ** 2 )
-          END IF 
+          END IF
         END DO
 
 !  The variable has just an upper bound
@@ -8074,9 +8463,9 @@ END DO
         DO i = dims%c_l_end + 1, dims%c_u_end
           Y_u( i ) = MIN( - dufeas, - Y( i ) / ( one + DIST_C_u( i ) ** 2 ) )
         END DO
-      END IF 
+      END IF
 
-      RETURN  
+      RETURN
 
 !  End of CQP_Lagrangian_gradient
 
@@ -8098,10 +8487,10 @@ END DO
 !  which balances the complementarity ie, such that
 !
 !      min (x-l)_i(z_l)_i - (gamma_c / nbds)( <x-l,z_l> + <x-u,z_u> ) >= 0
-!       i                                           
+!       i
 !  and
 !      min (x-u)_i(z_u)_i - (gamma_c / nbds)( <x-l,z_l> + <x-u,z_u> ) >= 0 ,
-!       i                                           
+!       i
 !
 !  and which favours feasibility over complementarity, ie, such that
 !
@@ -8143,9 +8532,9 @@ END DO
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
              DIMENSION( dims%c_u_start : dims%c_u_end ) :: Y_u
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
-                          DIMENSION( dims%c_l_start : m ) :: C 
+                          DIMENSION( dims%c_l_start : m ) :: C
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: C_l, C_u
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -8156,13 +8545,13 @@ END DO
       CHARACTER ( LEN = 1 ) :: fail
       LOGICAL :: ok, printd
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
         prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
 
-      alpha_max = one 
+      alpha_max = one
       inform%status = GALAHAD_ok
       IF ( nbnds == 0 ) GO TO 200
       printd = control%out > 0 .AND. print_level >= 6
@@ -8197,7 +8586,7 @@ END DO
 !  Evaluate the point on the path for the current alpha and the complementarity
 !    comp = <x-x_l,z_l> + <x-x_u,z_u> +<c-c_l,z_l> + <c-c_u,y_u>
 
-        comp = zero ; fail = ' ' 
+        comp = zero ; fail = ' '
 
 !  primal and dual variables
 
@@ -8371,7 +8760,7 @@ END DO
           alpha_u = alpha_max
           alpha_max = half * ( alpha_max + alpha_l )
         END IF
-      END DO      
+      END DO
 
  200  CONTINUE
       inform%status = GALAHAD_ok
@@ -8435,7 +8824,7 @@ END DO
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
              DIMENSION( dims%c_u_start : dims%c_u_end ) :: Y_u
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
-                          DIMENSION( dims%c_l_start : m ) :: C 
+                          DIMENSION( dims%c_l_start : m ) :: C
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: C_l, C_u
 
 !  Local variables
@@ -8500,16 +8889,16 @@ END DO
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  For a linear arc (x,z), find the maximum allowable stepsizes alpha_max_b, 
+!  For a linear arc (x,z), find the maximum allowable stepsizes alpha_max_b,
 !  which balances the complementarity ie, such that
 !
 !      min (x-l)_i(z_l)_i - (gamma_c / nbds)( <x-l,z_l> + <x-u,z_u> ) >= 0
-!       i                                           
+!       i
 !  and
 !      min (x-u)_i(z_u)_i - (gamma_c / nbds)( <x-l,z_l> + <x-u,z_u> ) >= 0 ,
-!       i                                           
+!       i
 !
-!  and alpha_max_f, which favours feasibility over complementarity, 
+!  and alpha_max_f, which favours feasibility over complementarity,
 !  ie, such that
 !
 !      <x-l,z_l> + <x-u,z_u> >= infeas * gamma_f
@@ -8525,7 +8914,7 @@ END DO
       REAL ( KIND = wp ), INTENT( IN ) :: gamma_c, gamma_f, infeas
       REAL ( KIND = wp ), INTENT( OUT ) :: alpha_max
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X
-      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X_l, X_u, DX 
+      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X_l, X_u, DX
       REAL ( KIND = wp ), INTENT( IN ),                                        &
              DIMENSION( dims%x_free + 1 : dims%x_l_end ) :: Z_l, DZ_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
@@ -8535,15 +8924,15 @@ END DO
       REAL ( KIND = wp ), INTENT( IN ),                                        &
              DIMENSION( dims%c_u_start : dims%c_u_end ) :: Y_u, DY_u
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
-                          DIMENSION( dims%c_l_start : m ) :: C 
+                          DIMENSION( dims%c_l_start : m ) :: C
       REAL ( KIND = wp ), INTENT( IN ),                                        &
-                          DIMENSION( dims%c_l_start : m ) :: DC 
+                          DIMENSION( dims%c_l_start : m ) :: DC
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: C_l, C_u
       TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
 
-      INTEGER :: i, nroots 
+      INTEGER :: i, nroots
 
 !  Local variables
 
@@ -8551,13 +8940,13 @@ END DO
       REAL ( KIND = wp ) :: coef0_f, coef1_f, coef2_f, root1, root2, tol
       REAL ( KIND = wp ) :: alpha_max_b, alpha_max_f, alpha, infeas_gamma_f
 
-      alpha_max_b = infinity ; alpha_max_f = infinity 
+      alpha_max_b = infinity ; alpha_max_f = infinity
       inform%status = GALAHAD_ok
       IF ( nbnds == 0 ) THEN
         alpha_max = one
         RETURN
       END IF
-      tol = epsmch ** 0.75 
+      tol = epsmch ** 0.75
 
 !  ================================================
 !             part to compute alpha_max_b
@@ -8566,31 +8955,31 @@ END DO
 !  Compute the coefficients for the quadratic expression
 !  for the overall complementarity
 
-      coef0_f = zero ; coef1_f = zero ; coef2_f = zero 
+      coef0_f = zero ; coef1_f = zero ; coef2_f = zero
       DO i = dims%x_free + 1, dims%x_l_end
-        coef0_f = coef0_f + ( X( i ) - X_l( i ) ) * Z_l( i ) 
+        coef0_f = coef0_f + ( X( i ) - X_l( i ) ) * Z_l( i )
         coef1_f = coef1_f + ( X( i ) - X_l( i ) ) * DZ_l( i )                  &
-                          + DX( i ) * Z_l( i ) 
-        coef2_f = coef2_f + DX( i ) * DZ_l( i ) 
-      END DO 
+                          + DX( i ) * Z_l( i )
+        coef2_f = coef2_f + DX( i ) * DZ_l( i )
+      END DO
       DO i = dims%x_u_start, n
-        coef0_f = coef0_f - ( X_u( i ) - X( i ) ) * Z_u( i ) 
+        coef0_f = coef0_f - ( X_u( i ) - X( i ) ) * Z_u( i )
         coef1_f = coef1_f - ( X_u( i ) - X( i ) ) * DZ_u( i )                  &
-                          + DX( i ) * Z_u( i ) 
-        coef2_f = coef2_f + DX( i ) * DZ_u( i ) 
-      END DO 
+                          + DX( i ) * Z_u( i )
+        coef2_f = coef2_f + DX( i ) * DZ_u( i )
+      END DO
       DO i = dims%c_l_start, dims%c_l_end
-        coef0_f = coef0_f + ( C( i ) - C_l( i ) ) * Y_l( i ) 
+        coef0_f = coef0_f + ( C( i ) - C_l( i ) ) * Y_l( i )
         coef1_f = coef1_f + ( C( i ) - C_l( i ) ) * DY_l( i )                  &
-                            + DC( i ) * Y_l( i ) 
-        coef2_f = coef2_f + DC( i ) * DY_l( i ) 
-      END DO 
+                            + DC( i ) * Y_l( i )
+        coef2_f = coef2_f + DC( i ) * DY_l( i )
+      END DO
       DO i = dims%c_u_start, dims%c_u_end
-        coef0_f = coef0_f - ( C_u( i ) - C( i ) ) * Y_u( i ) 
+        coef0_f = coef0_f - ( C_u( i ) - C( i ) ) * Y_u( i )
         coef1_f = coef1_f - ( C_u( i ) - C( i ) ) * DY_u( i )                  &
-                          + DC( i ) * Y_u( i ) 
-        coef2_f = coef2_f + DC( i ) * DY_u( i ) 
-      END DO 
+                          + DC( i ) * Y_u( i )
+        coef2_f = coef2_f + DC( i ) * DY_u( i )
+      END DO
 
 !  Scale these coefficients
 
@@ -8601,121 +8990,121 @@ END DO
 !  for the individual complementarity
 
       DO i = dims%x_free + 1, dims%x_l_end
-        coef0 = compc + ( X( i ) - X_l( i ) ) * Z_l( i ) 
-        coef1 = compl + ( X( i ) - X_l( i ) ) * DZ_l( i ) + DX( i ) * Z_l( i ) 
-        coef2 = compq + DX( i ) * DZ_l( i ) 
+        coef0 = compc + ( X( i ) - X_l( i ) ) * Z_l( i )
+        coef1 = compl + ( X( i ) - X_l( i ) ) * DZ_l( i ) + DX( i ) * Z_l( i )
+        coef2 = compq + DX( i ) * DZ_l( i )
         coef0 = MAX( coef0, zero )
         CALL ROOTS_quadratic( coef0, coef1, coef2, tol, nroots, root1, root2, &
-                              .FALSE. ) 
-        IF ( nroots == 2 ) THEN 
-          IF ( coef2 > zero ) THEN 
-            IF ( root2 > zero ) THEN 
-               alpha = root1 
-            ELSE 
-               alpha = infinity 
-            END IF 
-          ELSE 
-            alpha = root2 
-          END IF 
-        ELSE IF ( nroots == 1 ) THEN 
-          IF ( root1 > zero ) THEN 
-            alpha = root1 
-          ELSE 
-            alpha = infinity 
-          END IF 
-        ELSE 
-          alpha = infinity 
-        END IF 
-        IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
+                              .FALSE. )
+        IF ( nroots == 2 ) THEN
+          IF ( coef2 > zero ) THEN
+            IF ( root2 > zero ) THEN
+               alpha = root1
+            ELSE
+               alpha = infinity
+            END IF
+          ELSE
+            alpha = root2
+          END IF
+        ELSE IF ( nroots == 1 ) THEN
+          IF ( root1 > zero ) THEN
+            alpha = root1
+          ELSE
+            alpha = infinity
+          END IF
+        ELSE
+          alpha = infinity
+        END IF
+        IF ( alpha < alpha_max_b ) alpha_max_b = alpha
       END DO
 
       DO i = dims%x_u_start, n
-        coef0 = compc - ( X_u( i ) - X( i ) ) * Z_u( i ) 
-        coef1 = compl - ( X_u( i ) - X( i ) ) * DZ_u( i ) + DX( i ) * Z_u( i ) 
-        coef2 = compq + DX( i ) * DZ_u( i ) 
+        coef0 = compc - ( X_u( i ) - X( i ) ) * Z_u( i )
+        coef1 = compl - ( X_u( i ) - X( i ) ) * DZ_u( i ) + DX( i ) * Z_u( i )
+        coef2 = compq + DX( i ) * DZ_u( i )
         coef0 = MAX( coef0, zero )
         CALL ROOTS_quadratic( coef0, coef1, coef2, tol, nroots, root1, root2,  &
                               .FALSE. )
-        IF ( nroots == 2 ) THEN 
-          IF ( coef2 > zero ) THEN 
-            IF ( root2 > zero ) THEN 
-               alpha = root1 
-            ELSE 
-               alpha = infinity 
-            END IF 
-          ELSE 
-            alpha = root2 
-          END IF 
-        ELSE IF ( nroots == 1 ) THEN 
-          IF ( root1 > zero ) THEN 
-            alpha = root1 
-          ELSE 
-            alpha = infinity 
-          END IF 
-        ELSE 
-          alpha = infinity 
-        END IF 
-        IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
-      END DO 
+        IF ( nroots == 2 ) THEN
+          IF ( coef2 > zero ) THEN
+            IF ( root2 > zero ) THEN
+               alpha = root1
+            ELSE
+               alpha = infinity
+            END IF
+          ELSE
+            alpha = root2
+          END IF
+        ELSE IF ( nroots == 1 ) THEN
+          IF ( root1 > zero ) THEN
+            alpha = root1
+          ELSE
+            alpha = infinity
+          END IF
+        ELSE
+          alpha = infinity
+        END IF
+        IF ( alpha < alpha_max_b ) alpha_max_b = alpha
+      END DO
 
       DO i = dims%c_l_start, dims%c_l_end
-        coef0 = compc + ( C( i ) - C_l( i ) ) * Y_l( i ) 
-        coef1 = compl + ( C( i ) - C_l( i ) ) * DY_l( i ) + DC( i ) * Y_l( i ) 
-        coef2 = compq + DC( i ) * DY_l( i ) 
+        coef0 = compc + ( C( i ) - C_l( i ) ) * Y_l( i )
+        coef1 = compl + ( C( i ) - C_l( i ) ) * DY_l( i ) + DC( i ) * Y_l( i )
+        coef2 = compq + DC( i ) * DY_l( i )
         coef0 = MAX( coef0, zero )
         CALL ROOTS_quadratic( coef0, coef1, coef2, tol, nroots, root1, root2,  &
-                              .FALSE. ) 
-        IF ( nroots == 2 ) THEN 
-          IF ( coef2 > zero ) THEN 
-            IF ( root2 > zero ) THEN 
-               alpha = root1 
-            ELSE 
-               alpha = infinity 
-            END IF 
-          ELSE 
-            alpha = root2 
-          END IF 
-        ELSE IF ( nroots == 1 ) THEN 
-          IF ( root1 > zero ) THEN 
-            alpha = root1 
-          ELSE 
-            alpha = infinity 
-          END IF 
-        ELSE 
-          alpha = infinity 
-        END IF 
-        IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
+                              .FALSE. )
+        IF ( nroots == 2 ) THEN
+          IF ( coef2 > zero ) THEN
+            IF ( root2 > zero ) THEN
+               alpha = root1
+            ELSE
+               alpha = infinity
+            END IF
+          ELSE
+            alpha = root2
+          END IF
+        ELSE IF ( nroots == 1 ) THEN
+          IF ( root1 > zero ) THEN
+            alpha = root1
+          ELSE
+            alpha = infinity
+          END IF
+        ELSE
+          alpha = infinity
+        END IF
+        IF ( alpha < alpha_max_b ) alpha_max_b = alpha
       END DO
 
       DO i = dims%c_u_start, dims%c_u_end
-        coef0 = compc - ( C_u( i ) - C( i ) ) * Y_u( i ) 
-        coef1 = compl - ( C_u( i ) - C( i ) ) * DY_u( i ) + DC( i ) * Y_u( i ) 
-        coef2 = compq + DC( i ) * DY_u( i ) 
+        coef0 = compc - ( C_u( i ) - C( i ) ) * Y_u( i )
+        coef1 = compl - ( C_u( i ) - C( i ) ) * DY_u( i ) + DC( i ) * Y_u( i )
+        coef2 = compq + DC( i ) * DY_u( i )
         coef0 = MAX( coef0, zero )
         CALL ROOTS_quadratic( coef0, coef1, coef2, tol, nroots, root1, root2,  &
-                              .FALSE. ) 
+                              .FALSE. )
 !       write( 6, "( 3ES10.2, 2ES22.14 )" )  coef2, coef1, coef0, root1, root2
-        IF ( nroots == 2 ) THEN 
-          IF ( coef2 > zero ) THEN 
-            IF ( root2 > zero ) THEN 
-               alpha = root1 
-            ELSE 
-               alpha = infinity 
-            END IF 
-          ELSE 
-            alpha = root2 
-          END IF 
-        ELSE IF ( nroots == 1 ) THEN 
-          IF ( root1 > zero ) THEN 
-            alpha = root1 
-          ELSE 
-            alpha = infinity 
-          END IF 
-        ELSE 
-          alpha = infinity 
-        END IF 
-        IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
-      END DO 
+        IF ( nroots == 2 ) THEN
+          IF ( coef2 > zero ) THEN
+            IF ( root2 > zero ) THEN
+               alpha = root1
+            ELSE
+               alpha = infinity
+            END IF
+          ELSE
+            alpha = root2
+          END IF
+        ELSE IF ( nroots == 1 ) THEN
+          IF ( root1 > zero ) THEN
+            alpha = root1
+          ELSE
+            alpha = infinity
+          END IF
+        ELSE
+          alpha = infinity
+        END IF
+        IF ( alpha < alpha_max_b ) alpha_max_b = alpha
+      END DO
 
       IF ( - compc <= epsmch ** 0.75 ) alpha_max_b = 0.99_wp * alpha_max_b
 
@@ -8726,7 +9115,7 @@ END DO
       infeas_gamma_f = infeas * gamma_f
 
 !  Compute the coefficients for the quadratic expression
-!  for the overall complementarity, remembering to first 
+!  for the overall complementarity, remembering to first
 !  subtract the term for the feasibility
 
       coef0_f = MAX( coef0_f - infeas_gamma_f, zero )
@@ -8736,27 +9125,27 @@ END DO
 !  for the individual complementarity
 !
       CALL ROOTS_quadratic( coef0_f, coef1_f, coef2_f, tol,                    &
-                            nroots, root1, root2, .FALSE. ) 
-      IF ( nroots == 2 ) THEN 
-        IF ( coef2_f > zero ) THEN 
-          IF ( root2 > zero ) THEN 
-            alpha = root1 
-          ELSE 
-            alpha = infinity 
-          END IF 
-        ELSE 
-          alpha = root2 
-        END IF 
-      ELSE IF ( nroots == 1 ) THEN 
-        IF ( root1 > zero ) THEN 
-          alpha = root1 
-        ELSE 
-          alpha = infinity 
-        END IF 
-      ELSE 
-        alpha = infinity 
-      END IF 
-      IF ( alpha < alpha_max_f ) alpha_max_f = alpha 
+                            nroots, root1, root2, .FALSE. )
+      IF ( nroots == 2 ) THEN
+        IF ( coef2_f > zero ) THEN
+          IF ( root2 > zero ) THEN
+            alpha = root1
+          ELSE
+            alpha = infinity
+          END IF
+        ELSE
+          alpha = root2
+        END IF
+      ELSE IF ( nroots == 1 ) THEN
+        IF ( root1 > zero ) THEN
+          alpha = root1
+        ELSE
+          alpha = infinity
+        END IF
+      ELSE
+        alpha = infinity
+      END IF
+      IF ( alpha < alpha_max_f ) alpha_max_f = alpha
       IF ( - compc <= epsmch ** 0.75 ) alpha_max_f = 0.99_wp * alpha_max_f
 
 !  compute the smaller of alpha_max_b and alpha_max_f
@@ -8764,7 +9153,7 @@ END DO
       alpha_max = ( one - two * epsmch ) * MIN( alpha_max_b, alpha_max_f )
 
       RETURN
-  
+
 !  End of subroutine CQP_compute_lmaxstep
 
       END SUBROUTINE CQP_compute_lmaxstep
@@ -8781,16 +9170,16 @@ END DO
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  For a polynomial arc (x,z), find the maximum allowable stepsizes 
+!  For a polynomial arc (x,z), find the maximum allowable stepsizes
 !  alpha_max_b, which balances the complementarity ie, such that
 !
 !      min (x-l)_i(z_l)_i - (gamma_c / nbds)( <x-l,z_l> + <x-u,z_u> ) >= 0
-!       i                                           
+!       i
 !  and
 !      min (x-u)_i(z_u)_i - (gamma_c / nbds)( <x-l,z_l> + <x-u,z_u> ) >= 0 ,
-!       i                                           
+!       i
 !
-!  and alpha_max_f, which favours feasibility over complementarity, 
+!  and alpha_max_f, which favours feasibility over complementarity,
 !  ie, such that
 !
 !      <x-l,z_l> + <x-u,z_u> >= infeas * gamma_f
@@ -8823,7 +9212,7 @@ END DO
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 2 * order ) :: ROOTS
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X_l, X_u
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: C_l, C_u
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: ROOTS_data
 
@@ -8859,7 +9248,7 @@ END DO
         alpha_max = one
       END IF
       IF ( nbnds == 0 ) RETURN
-      alpha_max_b = infinity ; alpha_max_f = infinity 
+      alpha_max_b = infinity ; alpha_max_f = infinity
       scale = gamma_c / REAL( nbnds )
       infeas_gamma_f = infeas * gamma_f
 
@@ -9045,30 +9434,30 @@ END DO
 !$OMP             local_ROOTS_control, local_ROOTS_inform )
         IF ( dims%x_free + 1 <= dims%x_l_end ) THEN
 !$OMP     DO
-          DO i = dims%x_free + 1, dims%x_l_end
-            x0 = X_coef( i, 0 ) - X_l( i )
-            DO j = 0, order
-              c = x0 * Z_l_coef( i, j )
-              DO k = 1, j
-                c = c + X_coef( i, k ) * Z_l_coef( i, j - k )
+            DO i = dims%x_free + 1, dims%x_l_end
+              x0 = X_coef( i, 0 ) - X_l( i )
+              DO j = 0, order
+                c = x0 * Z_l_coef( i, j )
+                DO k = 1, j
+                  c = c + X_coef( i, k ) * Z_l_coef( i, j - k )
+                END DO
+                COEF( j ) = c - scale * CS_coef( j )
               END DO
-              COEF( j ) = c - scale * CS_coef( j )
-            END DO
-            DO j = 1, order
-              opj = order + j
-              c = X_coef( i, j ) * Z_l_coef( i, order )
-              DO k = j + 1, order
-                c = c + X_coef( i, k ) * Z_l_coef( i, opj - k )
+              DO j = 1, order
+                opj = order + j
+                c = X_coef( i, j ) * Z_l_coef( i, order )
+                DO k = j + 1, order
+                  c = c + X_coef( i, k ) * Z_l_coef( i, opj - k )
+                END DO
+                COEF( opj ) = c - scale * CS_coef( opj )
               END DO
-              COEF( opj ) = c - scale * CS_coef( opj )
+              COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$            thread = OMP_get_thread_num( )
+              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
+                          COEF( 0 : 2 * order ), lower, upper,                 &
+                          local_ROOTS_data( thread ), local_ROOTS_control,     &
+                          local_ROOTS_inform( thread ) )
             END DO
-            COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$          thread = OMP_get_thread_num( )
-            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
-                        COEF( 0 : 2 * order ), lower, upper,                   &
-                        local_ROOTS_data( thread ), local_ROOTS_control,       &
-                        local_ROOTS_inform( thread ) )
-          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                            MINVAL( ALPHA_m( dims%x_free + 1 : dims%x_l_end ) ) )
@@ -9077,30 +9466,30 @@ END DO
 
         IF ( dims%x_u_start <= n ) THEN
 !$OMP     DO
-          DO i = dims%x_u_start, n
-            x0 = X_coef( i, 0 ) - X_u( i )
-            DO j = 0, order
-              c = x0 * Z_u_coef( i, j )
-              DO k = 1, j
-                c = c + X_coef( i, k ) * Z_u_coef( i, j - k )
+            DO i = dims%x_u_start, n
+              x0 = X_coef( i, 0 ) - X_u( i )
+              DO j = 0, order
+                c = x0 * Z_u_coef( i, j )
+                DO k = 1, j
+                  c = c + X_coef( i, k ) * Z_u_coef( i, j - k )
+                END DO
+                COEF( j ) = c - scale * CS_coef( j )
               END DO
-              COEF( j ) = c - scale * CS_coef( j )
-            END DO
-            DO j = 1, order
-              opj = order + j
-              c = X_coef( i, j ) * Z_u_coef( i, order )
-              DO k = j + 1, order
-                c = c + X_coef( i, k ) * Z_u_coef( i, opj - k )
+              DO j = 1, order
+                opj = order + j
+                c = X_coef( i, j ) * Z_u_coef( i, order )
+                DO k = j + 1, order
+                  c = c + X_coef( i, k ) * Z_u_coef( i, opj - k )
+                END DO
+                COEF( opj ) = c - scale * CS_coef( opj )
               END DO
-              COEF( opj ) = c - scale * CS_coef( opj )
+              COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$            thread = OMP_get_thread_num( )
+              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
+                          COEF( 0 : 2 * order ), lower, upper,                 &
+                          local_ROOTS_data( thread ), local_ROOTS_control,     &
+                          local_ROOTS_inform( thread ) )
             END DO
-            COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$          thread = OMP_get_thread_num( )
-            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
-                        COEF( 0 : 2 * order ), lower, upper,                   &
-                        local_ROOTS_data( thread ), local_ROOTS_control,       &
-                        local_ROOTS_inform( thread ) )
-          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                            MINVAL( ALPHA_m( dims%x_u_start : n ) ) )
@@ -9109,30 +9498,30 @@ END DO
 
         IF ( dims%c_l_start <= dims%c_l_end ) THEN
 !$OMP     DO
-          DO i = dims%c_l_start, dims%c_l_end
-            c0 = C_coef( i, 0 ) - C_l( i )
-            DO j = 0, order
-              c = c0 * Y_l_coef( i, j )
-              DO k = 1, j
-                c = c + C_coef( i, k ) * Y_l_coef( i, j - k )
+            DO i = dims%c_l_start, dims%c_l_end
+              c0 = C_coef( i, 0 ) - C_l( i )
+              DO j = 0, order
+                c = c0 * Y_l_coef( i, j )
+                DO k = 1, j
+                  c = c + C_coef( i, k ) * Y_l_coef( i, j - k )
+                END DO
+                COEF( j ) = c - scale * CS_coef( j )
               END DO
-              COEF( j ) = c - scale * CS_coef( j )
-            END DO
-            DO j = 1, order
-              opj = order + j
-              c = C_coef( i, j ) * Y_l_coef( i, order )
-              DO k = j + 1, order
-                c = c + C_coef( i, k ) * Y_l_coef( i, opj - k )
+              DO j = 1, order
+                opj = order + j
+                c = C_coef( i, j ) * Y_l_coef( i, order )
+                DO k = j + 1, order
+                  c = c + C_coef( i, k ) * Y_l_coef( i, opj - k )
+                END DO
+                COEF( opj ) = c - scale * CS_coef( opj )
               END DO
-              COEF( opj ) = c - scale * CS_coef( opj )
+              COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$            thread = OMP_get_thread_num( )
+              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
+                          COEF( 0 : 2 * order ), lower, upper,                 &
+                          local_ROOTS_data( thread ), local_ROOTS_control,     &
+                          local_ROOTS_inform( thread ) )
             END DO
-            COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$          thread = OMP_get_thread_num( )
-            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
-                        COEF( 0 : 2 * order ), lower, upper,                   &
-                        local_ROOTS_data( thread ), local_ROOTS_control,       &
-                        local_ROOTS_inform( thread ) )
-          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                            MINVAL( ALPHA_m( dims%c_l_start : dims%c_l_end ) ) )
@@ -9141,30 +9530,30 @@ END DO
 
         IF ( dims%c_u_start <= dims%c_u_end ) THEN
 !$OMP     DO
-          DO i = dims%c_u_start, dims%c_u_end
-            c0 = C_coef( i, 0 ) - C_u( i )
-            DO j = 0, order
-              c = c0 * Y_u_coef( i, j )
-              DO k = 1, j
-                c = c + C_coef( i, k ) * Y_u_coef( i, j - k )
+            DO i = dims%c_u_start, dims%c_u_end
+              c0 = C_coef( i, 0 ) - C_u( i )
+              DO j = 0, order
+                c = c0 * Y_u_coef( i, j )
+                DO k = 1, j
+                  c = c + C_coef( i, k ) * Y_u_coef( i, j - k )
+                END DO
+                COEF( j ) = c - scale * CS_coef( j )
               END DO
-              COEF( j ) = c - scale * CS_coef( j )
-            END DO
-            DO j = 1, order
-              opj = order + j
-              c = C_coef( i, j ) * Y_u_coef( i, order )
-              DO k = j + 1, order
-                c = c + C_coef( i, k ) * Y_u_coef( i, opj - k )
+              DO j = 1, order
+                opj = order + j
+                c = C_coef( i, j ) * Y_u_coef( i, order )
+                DO k = j + 1, order
+                  c = c + C_coef( i, k ) * Y_u_coef( i, opj - k )
+                END DO
+                COEF( opj ) = c - scale * CS_coef( opj )
               END DO
-              COEF( opj ) = c - scale * CS_coef( opj )
+              COEF( 0 ) = MAX( COEF( 0 ), zero )
+!$            thread = OMP_get_thread_num( )
+              ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                  &
+                          COEF( 0 : 2 * order ), lower, upper,                 &
+                          local_ROOTS_data( thread ), local_ROOTS_control,     &
+                          local_ROOTS_inform( thread ) )
             END DO
-            COEF( 0 ) = MAX( COEF( 0 ), zero )
-!$          thread = OMP_get_thread_num( )
-            ALPHA_m( i ) = ROOTS_smallest_root_in_interval(                    &
-                        COEF( 0 : 2 * order ), lower, upper,                   &
-                        local_ROOTS_data( thread ), local_ROOTS_control,       &
-                        local_ROOTS_inform( thread ) )
-          END DO
 !$OMP     END DO
           alpha_max = MIN( alpha_max,                                          &
                             MINVAL( ALPHA_m( dims%c_u_start : dims%c_u_end ) ) )
@@ -9202,7 +9591,7 @@ END DO
                 EXIT
               END IF
             END DO
-            IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
+            IF ( alpha < alpha_max_b ) alpha_max_b = alpha
           ELSE
             lower = zero
             upper = alpha_max
@@ -9241,7 +9630,7 @@ END DO
                 EXIT
               END IF
             END DO
-            IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
+            IF ( alpha < alpha_max_b ) alpha_max_b = alpha
           ELSE
             lower = zero
             upper = alpha_max
@@ -9280,7 +9669,7 @@ END DO
                 EXIT
               END IF
             END DO
-            IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
+            IF ( alpha < alpha_max_b ) alpha_max_b = alpha
           ELSE
             lower = zero
             upper = alpha_max
@@ -9319,7 +9708,7 @@ END DO
                 EXIT
               END IF
             END DO
-            IF ( alpha < alpha_max_b ) alpha_max_b = alpha 
+            IF ( alpha < alpha_max_b ) alpha_max_b = alpha
           ELSE
             lower = zero
             upper = alpha_max
@@ -9336,7 +9725,7 @@ END DO
 !  ================================================
 
 !  Compute the coefficients for the quadratic expression
-!  for the overall complementarity, remembering to first 
+!  for the overall complementarity, remembering to first
 !  subtract the term for the feasibility
 
       IF ( puiseux ) THEN
@@ -9358,7 +9747,7 @@ END DO
             EXIT
           END IF
         END DO
-        IF ( alpha < alpha_max_f ) alpha_max_f = alpha 
+        IF ( alpha < alpha_max_f ) alpha_max_f = alpha
 
 !  compute the smaller of alpha_max_b and alpha_max_f
 
@@ -9374,7 +9763,7 @@ END DO
       END IF
 
       RETURN
-  
+
 !  End of subroutine CQP_compute_pmaxstep
 
       END SUBROUTINE CQP_compute_pmaxstep
@@ -9390,20 +9779,20 @@ END DO
 
 !  Compute indicatirs for active simnple bounds and general constraints
 
-!  C_stat is an INTEGER array of length m, which if present will be 
-!   set on exit to indicate the likely ultimate status of the constraints. 
-!   Possible values are 
-!   C_stat( i ) < 0, the i-th constraint is likely in the active set, 
-!                    on its lower bound, 
+!  C_stat is an INTEGER array of length m, which if present will be
+!   set on exit to indicate the likely ultimate status of the constraints.
+!   Possible values are
+!   C_stat( i ) < 0, the i-th constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is likely not in the active set
 
-!  B_stat is an INTEGER array of length n, which if present will be 
-!   set on exit to indicate the likely ultimate status of the simple bound 
-!   constraints. Possible values are 
-!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set, 
-!                    on its lower bound, 
+!  B_stat is an INTEGER array of length n, which if present will be
+!   set on exit to indicate the likely ultimate status of the simple bound
+!   constraints. Possible values are
+!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is likely not in the active set
@@ -9432,31 +9821,13 @@ END DO
              DIMENSION( dims%x_free + 1 : dims%x_l_end ) ::  Z_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
              DIMENSION( dims%x_u_start : n ) :: Z_u
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       INTEGER, INTENT( INOUT ), OPTIONAL, DIMENSION( m ) :: C_stat
       INTEGER, INTENT( INOUT ), OPTIONAL, DIMENSION( n ) :: B_stat
 
 !  Local variables
 
       INTEGER :: i
-
-!     IF ( printd ) WRITE(  control%out,                                       &
-!       "( /, ' Constraints : ', /, '                   ',                     &
-!    &   '        <------ Bounds ------> ', /                                  &
-!    &   '      # name       state      Lower       Upper     Multiplier' )" )
-!     DO i = dims%c_equality + 1, m 
-!       IF ( printd ) WRITE(  control%out,"( 2I7, 4ES12.4 )" ) i,              &
-!         C_stat( i ), C( i ), C_l( i ), C_u( i ), Y( i )
-!     END DO 
-
-!     IF ( printd ) WRITE(  control%out,                                       &
-!        "( /, ' Solution : ', /,'                    ',                       &
-!       &    '        <------ Bounds ------> ', /                              &
-!       &    '      # name       state      Lower       Upper       Dual' )" )
-!     DO i = dims%x_free + 1, n 
-!       IF ( printd ) WRITE(  control%out,"( 2I7, 4ES12.4 )" ) i,              &
-!         B_stat( i ), X( i ), X_l( i ), X_u( i ), Z( i )
-!     END DO 
 
 !  equality constraints
 
@@ -9469,7 +9840,7 @@ END DO
 !  Compute the required indicator
 
 !  ----------------------------------
-!  Type 1 ("primal") indicator used: 
+!  Type 1 ("primal") indicator used:
 !  ----------------------------------
 
 !    a variable/constraint will be "inactive" if
@@ -9477,7 +9848,7 @@ END DO
 !    for some constant indicator_p_tol close-ish to zero
 
       IF ( control%indicator_type == 1 ) THEN
-        DO i = dims%c_equality + 1, m 
+        DO i = dims%c_equality + 1, m
           IF ( ABS( C( i ) - C_l( i ) ) < control%indicator_tol_p ) THEN
             IF ( ABS( Y_l( i ) ) < control%indicator_tol_p ) THEN
               C_stat( i ) = - 2
@@ -9494,7 +9865,7 @@ END DO
             C_stat( i ) = 0
           END IF
         END DO
-        DO i = dims%x_free + 1, n 
+        DO i = dims%x_free + 1, n
           IF ( ABS( X( i ) - X_l( i ) ) < control%indicator_tol_p ) THEN
             IF ( ABS( Z_l( i ) ) < control%indicator_tol_p ) THEN
               B_stat( i ) = - 2
@@ -9510,14 +9881,14 @@ END DO
           ELSE
             B_stat( i ) = 0
           END IF
-        END DO 
+        END DO
 
 !  --------------------------------------
-!  Type 2 ("primal-dual") indicator used: 
+!  Type 2 ("primal-dual") indicator used:
 !  --------------------------------------
 
 !    a variable/constraint will be "inactive" if
-!        distance to nearest bound 
+!        distance to nearest bound
 !          > indicator_tol_pd * size of corresponding multiplier
 !    for some constant indicator_tol_pd close-ish to one.
 
@@ -9620,11 +9991,11 @@ END DO
         END DO
 
 !  --------------------------------
-!  Type 3 ("Tapia") indicator used: 
+!  Type 3 ("Tapia") indicator used:
 !  --------------------------------
 
 !    a variable/constraint will be "inactive" if
-!        distance to nearest bound now 
+!        distance to nearest bound now
 !          > indicator_tol_tapia * distance to same bound at previous iteration
 !    for some constant indicator_tol_tapia close-ish to one.
 
@@ -9798,6 +10169,26 @@ END DO
       ELSE
       END IF
 
+!     IF ( .TRUE. ) THEN
+!       WRITE(  control%out,                                                   &
+!         "( /, ' Constraints : ', /, '                   ',                   &
+!      &   '        <------ Bounds ------> ', /                                &
+!      &   '      # name       state      Lower       Upper     Multiplier' )" )
+!       DO i = dims%c_equality + 1, m
+!         WRITE(  control%out,"( 2I7, 4ES12.4 )" ) i,                          &
+!           C_stat( i ), C( i ), C_l( i ), C_u( i ), Y( i )
+!       END DO
+
+!       WRITE(  control%out,                                                   &
+!          "( /, ' Solution : ', /,'                    ',                     &
+!         &    '        <------ Bounds ------> ', /                            &
+!         &    '      # name       state      Lower       Upper       Dual' )" )
+!       DO i = dims%x_free + 1, n
+!         WRITE(  control%out,"( 2I7, 4ES12.4 )" ) i,                          &
+!           B_stat( i ), X( i ), X_l( i ), X_u( i ), Z( i )
+!       END DO
+!     END IF
+
       RETURN
 
 !  End of CQP_indicators
@@ -9835,7 +10226,7 @@ END DO
            X_coef, C_coef, Y_coef, Y_l_coef, Y_u_coef, Z_l_coef, Z_u_coef,     &
            BINOMIAL
       TYPE ( SMT_type ), INTENT( INOUT ) :: A_sbls, H_sbls
-      TYPE ( CQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CQP_control_type ), INTENT( IN ) :: control
       TYPE ( CQP_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -10072,57 +10463,57 @@ END DO
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
-      array_name = 'cqp: DC_zh'                                          
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
+      array_name = 'cqp: DC_zh'
       CALL SPACE_resize_array( dims%c_l_start, dims%c_u_end, DC_zh,            &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
-      array_name = 'cqp: DY_zh'                                          
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
+      array_name = 'cqp: DY_zh'
       CALL SPACE_resize_array( 1, m, DY_zh,                                    &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
-      array_name = 'cqp: DY_l_zh'                                        
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
+      array_name = 'cqp: DY_l_zh'
       CALL SPACE_resize_array( dims%c_l_start, dims%c_l_end, DY_l_zh,          &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
-      array_name = 'cqp: DY_u_zh'                                        
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
+      array_name = 'cqp: DY_u_zh'
       CALL SPACE_resize_array( dims%c_u_start, dims%c_u_end, DY_u_zh,          &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
-      array_name = 'cqp: DZ_l_zh'                                        
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
+      array_name = 'cqp: DZ_l_zh'
       CALL SPACE_resize_array( dims%x_free + 1, dims%x_l_end, DZ_l_zh,         &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
-      array_name = 'cqp: DZ_u_zh'                                        
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
+      array_name = 'cqp: DZ_u_zh'
       CALL SPACE_resize_array( dims%x_u_start, n, DZ_u_zh,                     &
              inform%status, inform%alloc_status, array_name = array_name,      &
              deallocate_error_fatal = control%deallocate_error_fatal,          &
              exact_size = control%space_critical,                              &
-             bad_alloc = inform%bad_alloc, out = control%error )              
-      IF ( inform%status /= GALAHAD_ok ) RETURN                            
-                                                                              
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= GALAHAD_ok ) RETURN
+
 !  If H is not diagonal, it will be in coordinate form
 
       n_sbls = n + dims%nc
@@ -10203,7 +10594,7 @@ END DO
                bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= GALAHAD_ok ) RETURN
 
-        array_name = 'cqp: A_s' 
+        array_name = 'cqp: A_s'
         CALL SPACE_resize_array( m, A_s,                                       &
                inform%status, inform%alloc_status, array_name = array_name,    &
                deallocate_error_fatal = control%deallocate_error_fatal,        &
@@ -10234,65 +10625,785 @@ END DO
 
       END SUBROUTINE CQP_workspace
 
+! -----------------------------------------------------------------------------
+! =============================================================================
+! -----------------------------------------------------------------------------
+!              specific interfaces to make calls from C easier
+! -----------------------------------------------------------------------------
+! =============================================================================
+! -----------------------------------------------------------------------------
+
+!-*-*-*-*-  G A L A H A D -  C Q P _ i m p o r t _ S U B R O U T I N E -*-*-*-*-
+
+     SUBROUTINE CQP_import( control, data, status, n, m,                       &
+                            H_type, H_ne, H_row, H_col, H_ptr,                 &
+                            A_type, A_ne, A_row, A_col, A_ptr )
+
+!  import fixed problem data into internal storage prior to solution.
+!  Arguments are as follows:
+
+!  control is a derived type whose components are described in the leading
+!   comments to CQP_solve
+!
+!  data is a scalar variable of type CQP_full_data_type used for internal data
+!
+!  status is a scalar variable of type default intege that indicates the
+!   success or otherwise of the import. Possible values are:
+!
+!    1. The import was succesful, and the package is ready for the solve phase
+!
+!   -1. An allocation error occurred. A message indicating the offending
+!       array is written on unit control.error, and the returned allocation
+!       status and a string containing the name of the offending array
+!       are held in inform.alloc_status and inform.bad_alloc respectively.
+!   -2. A deallocation error occurred.  A message indicating the offending
+!       array is written on unit control.error and the returned allocation
+!       status and a string containing the name of the offending array
+!       are held in inform.alloc_status and inform.bad_alloc respectively.
+!   -3. The restriction n > 0, m >= 0 or requirement that type contains
+!       its relevant string 'DENSE', 'COORDINATE', 'SPARSE_BY_ROWS',
+!       'DIAGONAL' 'SCALED_IDENTITY', 'IDENTITY', 'ZERO', 'NONE' or
+!       'SHIFTED_LEAST_DISTANCE' has been violated.
+!
+!  n is a scalar variable of type default integer, that holds the number of
+!   variables
+!
+!  m is a scalar variable of type default integer, that holds the number of
+!   residuals
+!
+!  H_type is a character string that specifies the Hessian storage scheme
+!   used. It should be one of 'coordinate', 'sparse_by_rows', 'dense'
+!   'diagonal' 'scaled_identity', 'identity', 'zero', 'none' or
+!   'shifted_least_distance', the latter if the Hessian is that of
+!   1/2 sum_j w_j (x_j-x^0_j)^2 rather than of 1/2 x' H x
+!   Lower or upper case variants are allowed.
+!
+!  H_ne is a scalar variable of type default integer, that holds the number of
+!   entries in the  lower triangular part of H in the sparse co-ordinate
+!   storage scheme. It need not be set for any of the other schemes.
+!
+!  H_row is a rank-one array of type default integer, that holds
+!   the row indices of the  lower triangular part of H in the sparse
+!   co-ordinate storage scheme. It need not be set for any of the other
+!   three schemes, and in this case can be of length 0
+!
+!  H_col is a rank-one array of type default integer,
+!   that holds the column indices of the  lower triangular part of H in either
+!   the sparse co-ordinate, or the sparse row-wise storage scheme. It need not
+!   be set when the dense, diagonal, scaled identity, identity or zero schemes
+!   are used, and in this case can be of length 0
+!
+!  H_ptr is a rank-one array of dimension n+1 and type default
+!   integer, that holds the starting position of  each row of the  lower
+!   triangular part of H, as well as the total number of entries plus one,
+!   in the sparse row-wise storage scheme. It need not be set when the
+!   other schemes are used, and in this case can be of length 0
+!
+!  A_type is a character string that specifies the Jacobian storage scheme
+!   used. It should be one of 'coordinate', 'sparse_by_rows', 'dense'
+!   or 'absent', the latter if m = 0; lower or upper case variants are allowed
+!
+!  A_ne is a scalar variable of type default integer, that holds the number of
+!   entries in J in the sparse co-ordinate storage scheme. It need not be set
+!  for any of the other schemes.
+!
+!  A_row is a rank-one array of type default integer, that holds the row
+!   indices J in the sparse co-ordinate storage scheme. It need not be set
+!   for any of the other schemes, and in this case can be of length 0
+!
+!  A_col is a rank-one array of type default integer, that holds the column
+!   indices of J in either the sparse co-ordinate, or the sparse row-wise
+!   storage scheme. It need not be set when the dense scheme is used, and
+!   in this case can be of length 0
+!
+!  A_ptr is a rank-one array of dimension n+1 and type default integer,
+!   that holds the starting position of each row of J, as well as the total
+!   number of entries plus one, in the sparse row-wise storage scheme.
+!   It need not be set when the other schemes are used, and in this case
+!   can be of length 0
+!
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( CQP_control_type ), INTENT( INOUT ) :: control
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     INTEGER, INTENT( IN ) :: n, m, A_ne, H_ne
+     INTEGER, INTENT( OUT ) :: status
+     CHARACTER ( LEN = * ), INTENT( IN ) :: A_type
+     INTEGER, DIMENSION( : ), INTENT( IN ) :: A_row, A_col, A_ptr
+     CHARACTER ( LEN = * ), INTENT( IN ) :: H_type
+     INTEGER, DIMENSION( : ), INTENT( IN ) :: H_row, H_col, H_ptr
+
+!  local variables
+
+     INTEGER :: error
+     LOGICAL :: deallocate_error_fatal, space_critical
+     CHARACTER ( LEN = 80 ) :: array_name
+
+!  copy control to data
+
+     data%cqp_control = control
+
+     error = data%cqp_control%error
+     space_critical = data%cqp_control%space_critical
+     deallocate_error_fatal = data%cqp_control%space_critical
+
+!  allocate vector space if required
+
+     array_name = 'cqp: data%prob%X'
+     CALL SPACE_resize_array( n, data%prob%X,                                  &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%X_l'
+     CALL SPACE_resize_array( n, data%prob%X_l,                                &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%X_u'
+     CALL SPACE_resize_array( n, data%prob%X_u,                                &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%Z'
+     CALL SPACE_resize_array( n, data%prob%Z,                                  &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%C'
+     CALL SPACE_resize_array( m, data%prob%C,                                  &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%C_l'
+     CALL SPACE_resize_array( m, data%prob%C_l,                                &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%C_u'
+     CALL SPACE_resize_array( m, data%prob%C_u,                                &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     array_name = 'cqp: data%prob%Y'
+     CALL SPACE_resize_array( m, data%prob%Y,                                  &
+            data%cqp_inform%status, data%cqp_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%cqp_inform%bad_alloc, out = error )
+     IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+!  put data into the required components of the qpt storage type
+
+     data%prob%n = n ; data%prob%m = m
+
+!  set H appropriately in the qpt storage type
+
+     SELECT CASE ( H_type )
+     CASE ( 'coordinate', 'COORDINATE' )
+       CALL SMT_put( data%prob%H%type, 'COORDINATE',                           &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = H_ne
+       data%prob%Hessian_kind = - 1
+
+       array_name = 'cqp: data%prob%H%row'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%row,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%H%col'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%col,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%H%val'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       data%prob%H%row( : data%prob%H%ne ) = H_row( : data%prob%H%ne )
+       data%prob%H%col( : data%prob%H%ne ) = H_col( : data%prob%H%ne )
+
+     CASE ( 'sparse_by_rows', 'SPARSE_BY_ROWS' )
+       CALL SMT_put( data%prob%H%type, 'SPARSE_BY_ROWS',                       &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = H_ptr( n + 1 ) - 1
+       data%prob%Hessian_kind = - 1
+
+       array_name = 'cqp: data%prob%H%ptr'
+       CALL SPACE_resize_array( n + 1, data%prob%H%ptr,                        &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%H%col'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%col,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%H%val'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       data%prob%H%ptr( : n + 1 ) = H_ptr( : n + 1 )
+       data%prob%H%col( : data%prob%H%ne ) = H_col( : data%prob%H%ne )
+
+     CASE ( 'dense', 'DENSE' )
+       CALL SMT_put( data%prob%H%type, 'DENSE',                                &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = ( n * ( n + 1 ) ) / 2
+       data%prob%Hessian_kind = - 1
+
+       array_name = 'cqp: data%prob%H%val'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     CASE ( 'diagonal', 'DIAGONAL' )
+       CALL SMT_put( data%prob%H%type, 'DIAGONAL',                             &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = n
+       data%prob%Hessian_kind = - 1
+
+       array_name = 'cqp: data%prob%H%val'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     CASE ( 'scaled_identity', 'SCALED_IDENTITY' )
+       CALL SMT_put( data%prob%H%type, 'SCALED_IDENTITY',                      &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = 1
+       data%prob%Hessian_kind = - 1
+
+       array_name = 'cqp: data%prob%H%val'
+       CALL SPACE_resize_array( data%prob%H%ne, data%prob%H%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     CASE ( 'identity', 'IDENTITY' )
+       CALL SMT_put( data%prob%H%type, 'SCALED_IDENTITY',                      &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = 0
+       data%prob%Hessian_kind = - 1
+
+     CASE ( 'zero', 'ZERO', 'none', 'NONE' )
+       CALL SMT_put( data%prob%H%type, 'ZERO',                                 &
+                     data%cqp_inform%alloc_status )
+       data%prob%H%n = n
+       data%prob%H%ne = 0
+       data%prob%Hessian_kind = 0
+     CASE ( 'shifted_least_distance', 'SHIFTED_LEAST_DISTANCE' )
+       data%prob%Hessian_kind = 2
+     CASE DEFAULT
+       data%cqp_inform%status = GALAHAD_error_unknown_storage
+       GO TO 900
+     END SELECT
+
+!  set A appropriately in the qpt storage type
+
+     SELECT CASE ( A_type )
+     CASE ( 'coordinate', 'COORDINATE' )
+       CALL SMT_put( data%prob%A%type, 'COORDINATE',                           &
+                     data%cqp_inform%alloc_status )
+       data%prob%A%n = n ; data%prob%A%m = m
+       data%prob%A%ne = A_ne
+
+       array_name = 'cqp: data%prob%A%row'
+       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%row,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%A%col'
+       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%col,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%A%val'
+       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       data%prob%A%row( : data%prob%A%ne ) = A_row( : data%prob%A%ne )
+       data%prob%A%col( : data%prob%A%ne ) = A_col( : data%prob%A%ne )
+
+     CASE ( 'sparse_by_rows', 'SPARSE_BY_ROWS' )
+       CALL SMT_put( data%prob%A%type, 'SPARSE_BY_ROWS',                       &
+                     data%cqp_inform%alloc_status )
+       data%prob%A%n = n ; data%prob%A%m = m
+       data%prob%A%ne = A_ptr( m + 1 ) - 1
+       array_name = 'cqp: data%prob%A%ptr'
+       CALL SPACE_resize_array( m + 1, data%prob%A%ptr,                        &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%A%col'
+       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%col,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       array_name = 'cqp: data%prob%A%val'
+       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+       data%prob%A%ptr( : m + 1 ) = A_ptr( : m + 1 )
+       data%prob%A%col( : data%prob%A%ne ) = A_col( : data%prob%A%ne )
+
+     CASE ( 'dense', 'DENSE' )
+       CALL SMT_put( data%prob%A%type, 'DENSE',                                &
+                     data%cqp_inform%alloc_status )
+       data%prob%A%n = n ; data%prob%A%m = m
+       data%prob%A%ne = m * n
+
+       array_name = 'cqp: data%prob%A%val'
+       CALL SPACE_resize_array( data%prob%A%ne, data%prob%A%val,               &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal = deallocate_error_fatal,                 &
+              exact_size = space_critical,                                     &
+              bad_alloc = data%cqp_inform%bad_alloc, out = error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+
+     CASE DEFAULT
+       data%cqp_inform%status = GALAHAD_error_unknown_storage
+       GO TO 900
+     END SELECT
+
+     status = GALAHAD_ready_to_solve
+     RETURN
+
+!  error returns
+
+ 900 CONTINUE
+     status = data%cqp_inform%status
+     RETURN
+
+!  End of subroutine CQP_import
+
+     END SUBROUTINE CQP_import
+
+!-  G A L A H A D -  C Q P _ r e s e t _ c o n t r o l   S U B R O U T I N E  -
+
+     SUBROUTINE CQP_reset_control( control, data, status )
+
+!  reset control parameters after import if required.
+!  See CQP_solve for a description of the required arguments
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( CQP_control_type ), INTENT( IN ) :: control
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     INTEGER, INTENT( OUT ) :: status
+
+!  set control in internal data
+
+     data%cqp_control = control
+
+!  flag a successful call
+
+     status = GALAHAD_ready_to_solve
+     RETURN
+
+!  end of subroutine CQP_reset_control
+
+     END SUBROUTINE CQP_reset_control
+
+!-*-*-*-  G A L A H A D -  C Q P _ s o l v e _ q p  S U B R O U T I N E  -*-*-*-
+
+     SUBROUTINE CQP_solve_qp( data, status, H_val, G, f, A_val, C_l, C_u,      &
+                              X_l, X_u, X, C, Y, Z, X_stat, C_stat )
+
+!  solve the quadratic programming problem whose structure was previously
+!  imported. See CQP_solve for a description of the required arguments.
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+!  X is a rank-one array of dimension n and type default
+!   real, that holds the vector of the primal variables, x.
+!   The j-th component of X, j = 1, ... , n, contains (x)_j.
+!
+!  G is a rank-one array of dimension n and type default
+!   real, that holds the vector of linear terms of the objective, g.
+!   The j-th component of G, j = 1, ... , n, contains (g)_j.
+
+     INTEGER, INTENT( OUT ) :: status
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: H_val
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: G
+     REAL ( KIND = wp ), INTENT( IN ) :: f
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: A_val
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: C_l, C_u
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: X_l, X_u
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X, Y, Z
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: C
+     INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( : ) :: C_stat, X_stat
+
+!  local variables
+
+     INTEGER :: m, n
+     CHARACTER ( LEN = 80 ) :: array_name
+
+!  recover the dimensions
+
+     m = data%prob%m ; n = data%prob%n
+
+!  save the constant term of the objective function
+
+     data%prob%f = f
+
+!  save the linear term of the objective function
+
+     IF ( COUNT( G( : n ) == 0.0_wp ) == n ) THEN
+       data%prob%gradient_kind = 0
+     ELSE IF ( COUNT( G( : n ) == 1.0_wp ) == n ) THEN
+       data%prob%gradient_kind = 1
+     ELSE
+       data%prob%gradient_kind = 2
+       array_name = 'cqp: data%prob%G'
+       CALL SPACE_resize_array( n, data%prob%G,                                &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal =                                         &
+                data%cqp_control%deallocate_error_fatal,                       &
+              exact_size = data%cqp_control%space_critical,                    &
+              bad_alloc = data%cqp_inform%bad_alloc,                           &
+              out = data%cqp_control%error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+       data%prob%G( : n ) = G( : n )
+     END IF
+
+!  save the lower and upper simple bounds
+
+     data%prob%X_l( : n ) = X_l( : n )
+     data%prob%X_u( : n ) = X_u( : n )
+
+!  save the lower and upper constraint bounds
+
+     data%prob%C_l( : m ) = C_l( : m )
+     data%prob%C_u( : m ) = C_u( : m )
+
+!  save the initial primal and dual variables and Lagrange multipliers
+
+     data%prob%X( : n ) = X( : n )
+     data%prob%Z( : n ) = Z( : n )
+     data%prob%Y( : m ) = Y( : m )
+
+!  save the Hessian entries
+
+     IF ( data%prob%Hessian_kind /= 2 ) THEN
+       data%prob%H%val( : data%prob%H%ne ) = H_val( : data%prob%H%ne )
+     ELSE
+       data%cqp_inform%status = GALAHAD_error_hessian_type
+       GO TO 900
+     END IF
+
+!  save the constraint Jacobian entries
+
+     data%prob%A%val( : data%prob%A%ne ) = A_val( : data%prob%A%ne )
+
+!  call the solver
+
+     CALL CQP_solve( data%prob, data%cqp_data, data%cqp_control,               &
+                     data%cqp_inform, C_stat = C_stat, B_stat = X_stat )
+
+!  recover the optimal primal and dual variables, Lagrange multipliers and
+!  constraint values
+
+     X( : n ) = data%prob%X( : n )
+     Z( : n ) = data%prob%Z( : n )
+     Y( : m ) = data%prob%Y( : m )
+     C( : m ) = data%prob%C( : m )
+
+     status = data%cqp_inform%status
+     RETURN
+
+!  error returns
+
+ 900 CONTINUE
+     status = data%cqp_inform%status
+     RETURN
+
+!  End of subroutine CQP_solve_qp
+
+     END SUBROUTINE CQP_solve_qp
+
+!-*-*-*-  G A L A H A D -  C Q P _ s o l v e _ s l d  S U B R O U T I N E  -*-*-
+
+     SUBROUTINE CQP_solve_sld( data, status, W, X_0, G, f, A_val, C_l, C_u,    &
+                               X_l, X_u, X, C, Y, Z, X_stat, C_stat )
+
+!  solve the shifted-least-distance problem whose structure was previously
+!  imported. See CQP_solve for a description of the required arguments.
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( OUT ) :: status
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: W, X_0
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: G
+     REAL ( KIND = wp ), INTENT( IN ) :: f
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: A_val
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: C_l, C_u
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: X_l, X_u
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X, Y, Z
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: C
+     INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( : ) :: C_stat, X_stat
+
+!  local variables
+
+     INTEGER :: m, n
+     CHARACTER ( LEN = 80 ) :: array_name
+
+!  recover the dimensions
+
+     m = data%prob%m ; n = data%prob%n
+
+!  save the constant term of the objective function
+
+     data%prob%f = f
+
+!  save the linear term of the objective function
+
+     IF ( COUNT( G( : n ) == 0.0_wp ) == n ) THEN
+       data%prob%gradient_kind = 0
+     ELSE IF ( COUNT( G( : n ) == 1.0_wp ) == n ) THEN
+       data%prob%gradient_kind = 1
+     ELSE
+       data%prob%gradient_kind = 2
+       array_name = 'cqp: data%prob%G'
+       CALL SPACE_resize_array( n, data%prob%G,                                &
+              data%cqp_inform%status, data%cqp_inform%alloc_status,            &
+              array_name = array_name,                                         &
+              deallocate_error_fatal =                                         &
+                data%cqp_control%deallocate_error_fatal,                       &
+              exact_size = data%cqp_control%space_critical,                    &
+              bad_alloc = data%cqp_inform%bad_alloc,                           &
+              out = data%cqp_control%error )
+       IF ( data%cqp_inform%status /= 0 ) GO TO 900
+       data%prob%G( : n ) = G( : n )
+     END IF
+
+!  save the lower and upper simple bounds
+
+     data%prob%X_l( : n ) = X_l( : n )
+     data%prob%X_u( : n ) = X_u( : n )
+
+!  save the lower and upper constraint bounds
+
+     data%prob%C_l( : m ) = C_l( : m )
+     data%prob%C_u( : m ) = C_u( : m )
+
+!  save the initial primal and dual variables and Lagrange multipliers
+
+     data%prob%X( : n ) = X( : n )
+     data%prob%Z( : n ) = Z( : n )
+     data%prob%Y( : m ) = Y( : m )
+
+!  save the Hessian entries
+
+     IF ( data%prob%Hessian_kind == 2 ) THEN
+       IF ( COUNT( W( : n ) == 0.0_wp ) == n ) THEN
+         data%prob%Hessian_kind = 0
+       ELSE IF ( COUNT( W( : n ) == 1.0_wp ) == n ) THEN
+         data%prob%Hessian_kind = 1
+       ELSE
+         array_name = 'cqp: data%prob%WEIGHT'
+         CALL SPACE_resize_array( n, data%prob%WEIGHT,                         &
+                data%cqp_inform%status, data%cqp_inform%alloc_status,          &
+                array_name = array_name,                                       &
+                deallocate_error_fatal =                                       &
+                  data%cqp_control%deallocate_error_fatal,                     &
+                exact_size = data%cqp_control%space_critical,                  &
+                bad_alloc = data%cqp_inform%bad_alloc,                         &
+                out = data%cqp_control%error )
+         IF ( data%cqp_inform%status /= 0 ) GO TO 900
+         data%prob%WEIGHT( : n ) = W( : n )
+       END IF
+
+       IF ( COUNT( X_0( : n ) == 0.0_wp ) == n ) THEN
+         data%prob%target_kind = 0
+       ELSE IF ( COUNT( X_0( : n ) == 1.0_wp ) == n ) THEN
+         data%prob%target_kind = 1
+       ELSE
+         data%prob%target_kind = 2
+         array_name = 'cqp: data%prob%X0'
+         CALL SPACE_resize_array( n, data%prob%X0,                             &
+                data%cqp_inform%status, data%cqp_inform%alloc_status,          &
+                array_name = array_name,                                       &
+                deallocate_error_fatal =                                       &
+                  data%cqp_control%deallocate_error_fatal,                     &
+                exact_size = data%cqp_control%space_critical,                  &
+                bad_alloc = data%cqp_inform%bad_alloc,                         &
+                out = data%cqp_control%error )
+         IF ( data%cqp_inform%status /= 0 ) GO TO 900
+         data%prob%X0( : n ) = X_0( : n )
+       END IF
+     ELSE
+       data%cqp_inform%status = GALAHAD_error_hessian_type
+       GO TO 900
+     END IF
+
+!  save the constraint Jacobian entries
+
+     data%prob%A%val( : data%prob%A%ne ) = A_val( : data%prob%A%ne )
+
+!  call the solver
+
+     CALL CQP_solve( data%prob, data%cqp_data, data%cqp_control,               &
+                     data%cqp_inform, C_stat = C_stat, B_stat = X_stat )
+
+!  recover the optimal primal and dual variables, Lagrange multipliers and
+!  constraint values
+
+     X( : n ) = data%prob%X( : n )
+     Z( : n ) = data%prob%Z( : n )
+     Y( : m ) = data%prob%Y( : m )
+     C( : m ) = data%prob%C( : m )
+
+     status = data%cqp_inform%status
+     RETURN
+
+!  error returns
+
+ 900 CONTINUE
+     status = data%cqp_inform%status
+     RETURN
+
+!  End of subroutine CQP_solve_sld
+
+     END SUBROUTINE CQP_solve_sld
+
+!-  G A L A H A D -  C Q P _ i n f o r m a t i o n   S U B R O U T I N E  -
+
+     SUBROUTINE CQP_information( data, inform, status )
+
+!  return solver information during or after solution by CQP
+!  See CQP_solve for a description of the required arguments
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( CQP_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( CQP_inform_type ), INTENT( OUT ) :: inform
+     INTEGER, INTENT( OUT ) :: status
+
+!  recover inform from internal data
+
+     inform = data%cqp_inform
+
+!  flag a successful call
+
+     status = GALAHAD_ok
+     RETURN
+
+!  end of subroutine CQP_information
+
+     END SUBROUTINE CQP_information
+
 !  End of module CQP
 
     END MODULE GALAHAD_CQP_double
-
-
-!  GRAD_L(dims%c_e)
-!  DIST_X_l(dims%x_l_start,dims%x_l_end)
-!  DIST_X_u(dims%x_u_start,dims%x_u_end)
-!  Z_l(dims%x_free+1,dims%x_l_end)
-!  Z_u(dims%x_u_start,n)
-!  BARRIER_X(dims%x_free+1,n)
-!  Y_l(dims%c_l_start,dims%c_l_end)
-!  DIST_C_l(dims%c_l_end,dims%c_l_start)
-!  Y_u(dims%c_u_start,dims%c_u_end)
-!  DIST_C_u(dims%c_u_start,dims%c_u_end)
-!  C(dims%c_l_start,dims%c_u_end)
-!  BARRIER_C(dims%c_l_start,dims%c_u_end)
-!  SCALE_C(dims%c_l_start,dims%c_u_end)
-!  RHS(dims%v_e)
-!  OPT_alpha(order)
-!  OPT_merit(order)
-!  X_coef(1:n,0:order)
-!  C_coef(dims%c_l_start:dims%c_u_end,0:order)
-!  Y_coef(1:m,0:order)
-!  Y_l_coef(dims%c_l_start:dims%c_l_end,0:order)
-!  Y_u_coef(dims%c_u_start:dims%c_u_end,0:order)
-!  Z_l_coef(dims%x_free+1:dims%x_l_end,0:order)
-!  Z_u_coef(dims%x_u_start:n,0:order)
-!  BINOMIAL(0:order-1,order)
-!  CS_coef(0:2*order)
-!  COEF(0:2*order)
-!  ROOTS(2*order)
-!  DX_zh(1:n)
-!  DY_zh(1:m)
-!  DC_zh(dims%c_l_start:dims%c_u_end)
-!  DY_l_zh(dims%c_l_start:dims%c_l_end)
-!  DY_u_zh(dims%c_u_start:dims%c_u_end)
-!  DZ_l_zh(dims%x_free+1:dims%x_l_end)
-!  DZ_u_zh(dims%x_u_start:n)
-!  
-!  A_sbls%row(A_sbls%ne)
-!  A_sbls%col(A_sbls%ne)
-!  A_sbls%val(A_sbls%ne)
-!  
-!  IF ( stat_required ) THEN
-!    H_s(n)
-!    A_s(m)
-!    Y_last(m)
-!    Z_last(n)
-!  
-!  IF ( Hessian_kind < 0 .AND. .NOT. lbfgs ) THEN
-!    H_sbls%row(H_sbls%ne)
-!    H_sbls%col(H_sbls%ne)
-!  
-!  H_sbls%val(H_sbls%ne)
-
-
-
-
-
-
-

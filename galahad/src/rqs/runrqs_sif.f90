@@ -10,7 +10,7 @@
    USE GALAHAD_USERQS_double
 
 !  Main program for the SIF interface to RQS, a solver for the regularised
-!  quaratic mninimization subproblem
+!  quadratic mninimization subproblem
 
 !  Problem insif characteristics
 
@@ -34,7 +34,7 @@
 
    CALL USE_RQS( insif )
 
-!  Close the data input file 
+!  Close the data input file
 
    CLOSE( insif )
    STOP

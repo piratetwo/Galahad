@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 17/11/2014 AT 11:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 29/10/2020 AT 08:30 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E L S T R   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -14,7 +14,7 @@
     MODULE GALAHAD_USELSTR_double
 
 !     ----------------------------------------------------
-!    | CUTEst/AMPL interface to LSTR, an iterative method | 
+!    | CUTEst/AMPL interface to LSTR, an iterative method |
 !    | for trust-region regularized linear least squares  |
 !     ----------------------------------------------------
 
@@ -27,8 +27,8 @@
       USE GALAHAD_SORT_double, only: SORT_reorder_by_rows
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
       USE GALAHAD_LSTR_double
-      USE GALAHAD_SPECFILE_double 
-      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
+      USE GALAHAD_SPECFILE_double
+      USE GALAHAD_STRING, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
       USE GALAHAD_CONVERT_double
       USE GALAHAD_SYMBOLS,                                                     &
@@ -53,7 +53,7 @@
 
 !  --------------------------------------------------------------------
 !
-!  Form a multilevel incomplete QR factorization of a rectangular 
+!  Form a multilevel incomplete QR factorization of a rectangular
 !  matrix A using the GALAHAD package GALAHAD_LSTR
 !
 !  --------------------------------------------------------------------
@@ -120,7 +120,6 @@
 !  mi35-scale                                    1
 !  mi35-tau1                                     0.0
 !  mi35-tau2                                     0.0
-!  time-limit                                    -1.0
 !  trust-region-radius                           1.0D+20
 !  print-full-solution                           NO
 !  write-solution                                NO
@@ -151,8 +150,8 @@
       CHARACTER ( LEN = 30 ) :: sfilename = 'LSTRSOL.d'
 !     CHARACTER ( LEN = 30 ) :: lfilename = 'LPROWS.d'
       LOGICAL :: do_solve = .TRUE.
-      LOGICAL :: fulsol = .FALSE. 
-      LOGICAL :: transpose = .FALSE. 
+      LOGICAL :: fulsol = .FALSE.
+      LOGICAL :: transpose = .FALSE.
       INTEGER :: preconditioner = 0
       INTEGER :: mi35_size_l = 20
       INTEGER :: mi35_size_r = 20
@@ -173,10 +172,10 @@
 
       TYPE ( SMT_type ) :: A_by_cols, S, A_ls
       TYPE ( LSTR_data_type ) :: LSTR_data
-      TYPE ( LSTR_control_type ) :: LSTR_control        
+      TYPE ( LSTR_control_type ) :: LSTR_control
       TYPE ( LSTR_inform_type ) :: LSTR_inform
       TYPE ( MIQR_data_type ) :: MIQR_data
-      TYPE ( MIQR_control_type ) :: MIQR_control        
+      TYPE ( MIQR_control_type ) :: MIQR_control
       TYPE ( MIQR_inform_type ) :: MIQR_inform
       TYPE ( QPT_problem_type ) :: prob
       TYPE ( CONVERT_control_type ) :: CONVERT_control
@@ -224,9 +223,9 @@
         spec( 18 )%keyword = 'write-result-summary'
         spec( 19 )%keyword = 'result-summary-file-name'
         spec( 20 )%keyword = 'result-summary-file-device'
-        spec( 21 )%keyword = ''
-        spec( 22 )%keyword = ''
-        spec( 23 )%keyword = ''
+        spec( 21 )%keyword = 'mi35-tau1'
+        spec( 22 )%keyword = 'mi35-tau2'
+        spec( 23 )%keyword = 'trust-region-radius'
         spec( 24 )%keyword = ''
         spec( 25 )%keyword = ''
         spec( 26 )%keyword = ''
@@ -268,9 +267,9 @@
         CALL SPECFILE_assign_logical( spec( 18 ), write_result_summary, errout )
         CALL SPECFILE_assign_string ( spec( 19 ), rfilename, errout )
         CALL SPECFILE_assign_integer( spec( 20 ), rfiledevice, errout )
-        CALL SPECFILE_assign_real( spec( 27 ), radius, errout )
-        CALL SPECFILE_assign_real( spec( 28 ), mi35_tau1, errout )
-        CALL SPECFILE_assign_real( spec( 29 ), mi35_tau2, errout )
+        CALL SPECFILE_assign_real( spec( 21 ), mi35_tau1, errout )
+        CALL SPECFILE_assign_real( spec( 22 ), mi35_tau2, errout )
+        CALL SPECFILE_assign_real( spec( 23 ), radius, errout )
       END IF
 
 !  Determine the number of variables and constraints
@@ -322,7 +321,7 @@
       CALL CUTEST_probname( cutest_status, pname )
 !     CALL CUTEST_cnames( cutest_status, n, m, pname, VNAME, CNAME )
       IF ( cutest_status /= 0 ) GO TO 910
-      WRITE( out, "( ' Problem: ', A )" ) pname 
+      WRITE( out, "( ' Problem: ', A )" ) pname
 
 !  Set up the initial estimate of the solution and
 !  right-hand-side of the Kuhn-Tucker system.
@@ -334,21 +333,21 @@
 
 !  Set X0 to zero to determine the constant terms for the problem functions
 
-      prob%X0 = zero 
+      prob%X0 = zero
 
-!  Evaluate the constant terms of the objective (objf) and constraint 
+!  Evaluate the constant terms of the objective (objf) and constraint
 !  functions (C)
 
       CALL CUTEST_cfn( cutest_status, n, m, prob%X0, objf, prob%C( : m ) )
       IF ( cutest_status /= 0 ) GO TO 910
-!     DO i = 1, m 
-!       IF ( EQUATN( i ) ) THEN 
+!     DO i = 1, m
+!       IF ( EQUATN( i ) ) THEN
 !         prob%C_l( i ) = prob%C_l( i ) - prob%C( i )
 !         prob%C_u( i ) = prob%C_l( i )
 !       ELSE
 !         prob%C_l( i ) = prob%C_l( i ) - prob%C( i )
 !         prob%C_u( i ) = prob%C_u( i ) - prob%C( i )
-!       END IF 
+!       END IF
 !     END DO
 
 !  Determine the number of nonzeros in the Jacobian
@@ -370,14 +369,14 @@
 
 !     A_ne = 0
 !     n_total = 0
-!     DO i = 1, m 
-!       IF ( .NOT. EQUATN( i ) ) THEN 
+!     DO i = 1, m
+!       IF ( .NOT. EQUATN( i ) ) THEN
 !         n_total = n_total + 1
 !         A_ne = A_ne + 1
 !         prob%A%row( A_ne ) = i
 !         prob%A%col( A_ne ) = n_total
 !         prob%A%val( A_ne ) = - one
-!       END IF 
+!       END IF
 !     END DO
 
 !  evaluate the problem gradients
@@ -402,12 +401,12 @@
         IF ( prob%A%val( i ) /= zero ) THEN
           IF ( prob%A%row( i ) > 0 ) THEN
             A_ne = A_ne + 1
-            prob%A%row( A_ne ) = prob%A%row( i ) 
+            prob%A%row( A_ne ) = prob%A%row( i )
             prob%A%col( A_ne ) = prob%A%col( i ) + n_total
             prob%A%val( A_ne ) = prob%A%val( i )
           ELSE
             prob%G( prob%A%col( i ) ) = prob%A%val( i )
-          END IF  
+          END IF
         END IF
       END DO
       n_total = n_total + n
@@ -415,14 +414,14 @@
 !  introduce slack variables for inequalities
 
       n_total = n
-      DO i = 1, m 
-        IF ( .NOT. EQUATN( i ) ) THEN 
+      DO i = 1, m
+        IF ( .NOT. EQUATN( i ) ) THEN
           n_total = n_total + 1
           A_ne = A_ne + 1
           prob%A%row( A_ne ) = i
           prob%A%col( A_ne ) = n_total
           prob%A%val( A_ne ) = - one
-        END IF 
+        END IF
       END DO
 
       prob%A%n = n_total ; prob%A%m = m ; prob%A%ne = A_ne
@@ -464,7 +463,7 @@
       IF ( ALLOCATED( prob%A%type ) ) DEALLOCATE( prob%A%type )
       CALL SMT_put( prob%A%type, 'SPARSE_BY_ROWS', smt_stat )
       prob%f = objf
-        
+
 !  ------------------- problem set-up complete ----------------------
 
 !  If required, print out the (raw) problem data
@@ -478,7 +477,7 @@
            OPEN( dfiledevice, FILE = dfilename, FORM = 'FORMATTED',            &
                   STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2160 ) iores, dfilename
           STOP
         END IF
@@ -509,7 +508,7 @@
            OPEN( rfiledevice, FILE = rfilename, FORM = 'FORMATTED',            &
                  STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2160 ) iores, rfilename
           STOP
         END IF
@@ -545,7 +544,7 @@
       ALLOCATE( NNZ_COUNT( 0 : maxc ) )
       NNZ_COUNT = 0
       DO i = 1, m_used
-        j = IW( i ) 
+        j = IW( i )
         NNZ_COUNT( j ) = NNZ_COUNT( j ) + 1
       END DO
 
@@ -557,7 +556,7 @@
 !        OPEN( lfiledevice, FILE = lfilename, FORM = 'FORMATTED',              &
 !              STATUS = 'NEW', IOSTAT = iores )
 !     END IF
-!     IF ( iores /= 0 ) THEN 
+!     IF ( iores /= 0 ) THEN
 !       write( out, 2160 ) iores, lfilename
 !       STOP
 !     END IF
@@ -567,9 +566,9 @@
       DO j = 0, maxc
         IF ( NNZ_COUNT( j ) > 0 ) THEN
 !         WRITE( out, "( 1X, I0, 1X, A, ' have ', I0, ' nonzeros' )" )         &
-!           NNZ_COUNT( j ), rowcol, j 
+!           NNZ_COUNT( j ), rowcol, j
 !         WRITE( lfiledevice, "( 1X, I0, 1X, A, ' have ', I0, ' nonzeros' )" ) &
-!           NNZ_COUNT( j ), rowcol, j 
+!           NNZ_COUNT( j ), rowcol, j
         END IF
       END DO
       DEALLOCATE( NNZ_COUNT )
@@ -577,7 +576,7 @@
 !     STOP
 
 !  Set all default values, and override defaults if requested
- 
+
       CALL LSTR_initialize( LSTR_data, LSTR_control, LSTR_inform )
 
       IF ( is_specfile )                                                       &
@@ -599,14 +598,14 @@
 !         STOP
 !       END IF
 !       prob%X_status = ACTIVE
-        
+
 !       ALLOCATE( prob%C_status( m ), STAT = alloc_stat )
 !       IF ( alloc_stat /= 0 ) THEN
 !         IF ( printe ) WRITE( out, 2150 ) 'X_status', alloc_stat
 !         STOP
 !       END IF
 !       prob%C_status = ACTIVE
-        
+
 !       ALLOCATE( prob%Z_l( n ), prob%Z_u( n ), STAT = alloc_stat )
 !       IF ( alloc_stat /= 0 ) THEN
 !         IF ( printe ) WRITE( out, 2150 ) 'Z_lu', alloc_stat
@@ -614,7 +613,7 @@
 !        END IF
 !       prob%Z_l( : n ) = - infinity
 !       prob%Z_u( : n ) =   infinity
-        
+
 !       ALLOCATE( prob%Y_l( m ), prob%Y_u( m ), STAT = alloc_stat )
 !       IF ( alloc_stat /= 0 ) THEN
 !         IF ( printe ) WRITE( out, 2150 ) 'C_lu', alloc_stat
@@ -675,7 +674,7 @@
 !  Call the factorization package
 
       IF ( do_solve .AND. prob%n > 0 ) THEN
-  
+
 !  if required, compute the preconditioner
 
         CALL CPU_TIME( times ) ; CALL CLOCK_time( clocks )
@@ -690,7 +689,7 @@
             IF ( printe ) WRITE( out, 2150 ) 'X, V, U, RES', alloc_stat
             STOP
           END IF
-          
+
           IF ( transpose ) THEN
             IF ( printo ) WRITE( out,                                          &
               "( /, ' ** diagonal preconditioner used on transpose **' )" )
@@ -739,7 +738,7 @@
             WRITE( out, "( 1X, I0, ' zero diagonals' )" )                      &
               MIQR_inform%zero_diagonals
           n_fact = MIQR_inform%entries_in_factors
-      
+
           IF ( MIQR_inform%status /= GALAHAD_ok ) THEN
             status = MIQR_inform%status
             GO TO 500
@@ -751,9 +750,9 @@
 
 !  convert to column format
 
-          CALL CONVERT_to_column_format( prob%A, A_by_cols,                    &
-                                         CONVERT_control, CONVERT_inform,      &
-                                         IW, n_total, W, n_total )
+          CALL CONVERT_to_sparse_column_format( prob%A, A_by_cols,             &
+                                                CONVERT_control,               &
+                                                CONVERT_inform, IW, W )
 
 !  if required, record the transpose
 
@@ -779,7 +778,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n
 !  check the matrix A, remove null rows/cols and adjust B accordingly
 
 !write(19,*) prob%A%m, prob%A%n
-!write(19,*)  prob%A%ptr( : prob%A%n + 1 ) 
+!write(19,*)  prob%A%ptr( : prob%A%n + 1 )
 !write(19,*)  prob%A%row( :  prob%A%ptr( prob%A%n + 1 ) - 1 )
 !write(19,*)  prob%A%val( :  prob%A%ptr( prob%A%n + 1 ) - 1 )
 
@@ -789,7 +788,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n
                                   A_ls%row, A_ls%val,                          &
                                   control_mi35, info_mi35, b = B )
 write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
-          
+
           IF ( info_mi35%flag < 0 ) THEN
             status = GALAHAD_error_mi35
             IF ( printe ) WRITE( out, "( ' on exit from mi35_check_matrix, ',  &
@@ -843,9 +842,9 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
 
 !  convert to column format
 
-          CALL CONVERT_to_column_format( prob%A, A_by_cols,                    &
-                                         CONVERT_control, CONVERT_inform,      &
-                                         IW, n_total, W, n_total )
+          CALL CONVERT_to_sparse_column_format( prob%A, A_by_cols,             &
+                                                CONVERT_control,               &
+                                                CONVERT_inform, IW, W )
 
 !  if required, record the transpose
 
@@ -886,7 +885,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n
           CALL mi35_check_matrix( A_ls%m, A_ls%n, A_ls%ptr, A_ls%row, A_ls%val,&
                                   control_mi35, info_mi35, b = B )
 write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
-          
+
           IF ( info_mi35%flag < 0 ) THEN
             status = GALAHAD_error_mi35
             IF ( printe ) WRITE( out, "( ' on exit from mi35_check_matrix, ',  &
@@ -1014,7 +1013,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
               U( i ) = val
             END DO
           END IF
-          
+
           write(6,*) ' norm sol ', TWO_NORM( U( : m_used ) )
 
 !  Form w <- R^-T * A^T * u with u = e_m
@@ -1083,7 +1082,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
 
             CASE( 2 )
 
-              W( : A_ls%n ) = V( : A_ls%n ) 
+              W( : A_ls%n ) = V( : A_ls%n )
               RHS( : A_ls%n ) = W( : A_ls%n )
 
               CALL mi35_solve( .TRUE., A_ls%n, keep_mi35, RHS, W, info_mi35 )
@@ -1169,7 +1168,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
               IF ( printe ) WRITE( out, "( ' LSTR_solve exit status = ', I0 )")&
                 LSTR_inform%status
               EXIT
-             
+
            END SELECT
           END DO
 
@@ -1195,7 +1194,7 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
 !  Form u <- u + A * R^-1 * v
 
             CASE( 2 )
-              W( : n_used ) = V( : n_used ) 
+              W( : n_used ) = V( : n_used )
 
               SELECT CASE ( preconditioner )
               CASE ( diagonal_preconditioner )
@@ -1424,5 +1423,3 @@ write(6,*) ' m, n, = ', A_ls%m, A_ls%n, ' check flag ', info_mi35%flag
 !  End of module USELSTR_double
 
    END MODULE GALAHAD_USELSTR_double
-
-

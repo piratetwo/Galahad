@@ -1,0 +1,37 @@
+#  ( Last modified on 16 Oct 2018 at 11:30:08 )
+#
+#  System specifications (Windows + Msys2 + MinGW64)
+#  Requires $MSY2 and $MINGW64 to have been set
+
+SYSTEM="MSYS2"
+KEYSYS="CMINGW"
+
+#
+#  Directory for temporary files
+#
+
+TMP=/tmp
+
+#
+#  basic system commands
+#
+
+MKDIR=$MSY2"/bin/mkdir"
+CP=$MSY2"/bin/cp"
+RM=$MSY2"/bin/rm -f"
+MV=$MSY2"/bin/mv"
+CAT=$MSY2"/bin/cat"
+CHMOD=$MSY2"/bin/chmod"
+SED=$MSY2"/bin/sed"
+LN=$MSY2"/bin/ln"
+LS=$MSY2"/bin/ls"
+AR="$MINGW64/bin/ar"
+ARREPFLAGS="-rcuU"
+RMDIR=$MSY2"/bin/rmdir"
+GREP=$MSY2"/bin/grep"
+AWK=$MSY2"/bin/awk"
+HEAD=$MSY2"/bin/head"
+TAIL=$MSY2"/bin/tail"
+WC=$MSY2"/bin/wc"
+MAKE=$MSY2"/bin/make"
+RANLIB="$MINGW64/bin/ranlib"

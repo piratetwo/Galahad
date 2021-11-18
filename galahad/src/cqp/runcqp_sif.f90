@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.4 - 08/12/2009 AT 12:00 GMT.
+! THIS VERSION: GALAHAD 2.8 - 24/08/2016 AT 12:40 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D   R U N C Q P _ S I F  *-*-*-*-*-*-*-*-*-*-
 
@@ -31,13 +31,9 @@
    OPEN( input, FILE = prbdat, FORM = 'FORMATTED', STATUS = 'OLD'  )
    REWIND input
 
-!  Call the CUTEr interface
+!  Call the CUTEst interface
 
-   CALL USE_CQP( input )
-
-!  Close the data input file 
-
-   CLOSE( input  )
+   CALL USE_CQP( input, close_input = .TRUE. )
    STOP
 
 !  End of RUNCQP_SIF

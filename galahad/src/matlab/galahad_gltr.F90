@@ -1,6 +1,6 @@
 #include <fintrf.h>
 
-!  THIS VERSION: GALAHAD 2.4 - 26/02/2010 AT 16:00 GMT.
+!  THIS VERSION: GALAHAD 3.1 - 20/08/2018 AT 16:50 GMT.
 
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 !
@@ -8,26 +8,26 @@
 !
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 !
-!  Given a symmetric n by n matrix H (and possibly M), an n-vector g, 
-!  a constant f, and a scalar radius, find an approximate solution of 
+!  Given a symmetric n by n matrix H (and possibly M), an n-vector g,
+!  a constant f, and a scalar radius, find an approximate solution of
 !  the TRUST-REGION subproblem
 !    minimize 0.5 * x' * H * x + c' * x + f
 !    subject to ||x||_M <= radius
 !  using an iterative method.
 !  Here ||x||_M^2 = x' * M * x and M is positive definite; if M is
-!  not given, M=I and ||x||_M is thus taken to be the Euclidean (l_2-)norm 
-!  sqrt(x' * x). H need not be definite. Advantage is taken of sparse H. 
+!  not given, M=I and ||x||_M is thus taken to be the Euclidean (l_2-)norm
+!  sqrt(x' * x). H need not be definite. Advantage is taken of sparse H.
 !
 !  Simple usage -
 !
 !  to solve the trust-region subproblem in the M norm
-!   [ x, obj, inform ] 
+!   [ x, obj, inform ]
 !     = galahad_gltr( H, c, f, radius, control, M )
 !
 !  Sophisticated usage -
 !
 !  to initialize data and control structures prior to solution
-!   [ control ] 
+!   [ control ]
 !     = galahad_gltr( 'initial' )
 !
 !  to solve the problem using existing data structures
@@ -47,7 +47,7 @@
 !    control: a structure containing control parameters.
 !            The components are of the form control.value, where
 !            value is the name of the corresponding component of
-!            the derived type GLTR_CONTROL as described in the 
+!            the derived type GLTR_CONTROL as described in the
 !            manual for the fortran 90 package GALAHAD_GLTR.
 !            See: http://galahad.rl.ac.uk/galahad-www/doc/gltr.pdf
 !          M: the n by n symmetric, positive-definite matrix M
@@ -61,8 +61,8 @@
 !   inform: a structure containing information parameters
 !      The components are of the form inform.value, where
 !      value is the name of the corresponding component of
-!      the derived type GLTR_INFORM as described in the manual for 
-!      the fortran 90 package GALAHAD_GLTR. 
+!      the derived type GLTR_INFORM as described in the manual for
+!      the fortran 90 package GALAHAD_GLTR.
 !      See: http://galahad.rl.ac.uk/galahad-www/doc/gltr.pdf
 !
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -73,7 +73,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.3.1. March 2nd 2009
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
       SUBROUTINE mexFunction( nlhs, plhs, nrhs, prhs )
@@ -106,7 +106,8 @@
 
 !  local variables
 
-      INTEGER :: i, j, l, n, info
+      INTEGER :: i, j, l, info
+      INTEGER * 4 :: i4, n
       mwSize :: h_arg, c_arg, f_arg, radius_arg, con_arg, m_arg
       mwSize :: x_arg, obj_arg, i_arg
       mwSize :: s_len
@@ -116,7 +117,7 @@
       mwPointer :: g_pr, f_pr, radius_pr
 
       CHARACTER ( len = 80 ) :: output_unit, filename
-      LOGICAL :: filexx, opened, initial_set = .FALSE.
+      LOGICAL :: opened, initial_set = .FALSE.
       INTEGER :: iores
       REAL ( KIND = wp ) :: val
       CHARACTER ( len = 8 ) :: mode
@@ -129,8 +130,8 @@
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: R, VECTOR, H_VECTOR
       TYPE ( SMT_type ) :: H, M
       TYPE ( GLTR_data_type ), SAVE :: data
-      TYPE ( GLTR_control_type ), SAVE :: control        
-      TYPE ( GLTR_info_type ) :: inform
+      TYPE ( GLTR_control_type ), SAVE :: control
+      TYPE ( GLTR_inform_type ) :: inform
 
       TYPE ( PSLS_data_type ), SAVE :: PSLS_data
       TYPE ( PSLS_control_type ), SAVE :: PSLS_control
@@ -190,7 +191,7 @@
 
       IF ( .NOT. TRIM( mode ) == 'final' ) THEN
 
-!  Check that GLTR_initialize has been called 
+!  Check that GLTR_initialize has been called
 
         IF ( .NOT. initial_set )                                               &
           CALL mexErrMsgTxt( ' "initial" must be called first' )
@@ -202,7 +203,6 @@
           c_in = prhs( con_arg )
           IF ( .NOT. mxIsStruct( c_in ) )                                      &
             CALL mexErrMsgTxt( ' control input argument must be a structure' )
-          END IF
           CALL GLTR_matlab_control_set( c_in, control, s_len )
         END IF
 
@@ -210,30 +210,17 @@
 
         IF ( control%error > 0 ) THEN
           WRITE( output_unit, "( I0 )" ) control%error
-          filename = "output_gltr." // TRIM( output_unit ) 
-          INQUIRE( FILE = filename, EXIST = filexx )
-          IF ( filexx ) THEN
-             OPEN( control%error, FILE = filename, FORM = 'FORMATTED',         &
-                    STATUS = 'OLD', IOSTAT = iores )
-          ELSE
-             OPEN( control%error, FILE = filename, FORM = 'FORMATTED',         &
-                     STATUS = 'NEW', IOSTAT = iores )
-          END IF
+          OPEN( control%error, FILE = filename, FORM = 'FORMATTED',            &
+                STATUS = 'REPLACE', IOSTAT = iores )
         END IF
 
         IF ( control%out > 0 ) THEN
           INQUIRE( control%out, OPENED = opened )
           IF ( .NOT. opened ) THEN
             WRITE( output_unit, "( I0 )" ) control%out
-            filename = "output_gltr." // TRIM( output_unit ) 
-            INQUIRE( FILE = filename, EXIST = filexx )
-            IF ( filexx ) THEN
-               OPEN( control%out, FILE = filename, FORM = 'FORMATTED',         &
-                      STATUS = 'OLD', IOSTAT = iores )
-            ELSE
-               OPEN( control%out, FILE = filename, FORM = 'FORMATTED',         &
-                       STATUS = 'NEW', IOSTAT = iores )
-            END IF
+            filename = "output_gltr." // TRIM( output_unit )
+            OPEN( control%out, FILE = filename, FORM = 'FORMATTED',            &
+                  STATUS = 'REPLACE', IOSTAT = iores )
           END IF
         END IF
 
@@ -251,8 +238,13 @@
         CALL MATLAB_transfer_matrix( h_in, H, col_ptr, .TRUE. )
         n = H%n
 
+        IF ( n <= 0 ) THEN
+           CALL mexErrMsgTxt( ' n <= 0' )
+        END IF
+
+
 !  Check to ensure the input for M is a number
-            
+
         IF ( nrhs >= m_arg ) THEN
           m_in = prhs( m_arg )
           IF ( mxIsNumeric( m_in ) == 0 )                                      &
@@ -303,6 +295,7 @@
         IF ( .NOT. control%unitm ) THEN
           IF ( TRIM( mode ) == 'initial' .OR. TRIM( mode ) == 'all' )          &
             CALL PSLS_initialize( PSLS_data, PSLS_control, PSLS_inform )
+          PSLS_control%definite_linear_solver = 'sils'
           PSLS_control%preconditioner = 5
           CALL PSLS_form_and_factorize( M, PSLS_data, PSLS_control,            &
                                         PSLS_inform )
@@ -328,7 +321,7 @@
             H_VECTOR( : n ) = 0.0_wp
             DO l = 1, H%ne
               i = H%row( l ) ; j = H%col( l ) ; val = H%val( l )
-              H_VECTOR( i ) = H_vECTOR( i ) + val * VECTOR( j )
+              H_VECTOR( i ) = H_VECTOR( i ) + val * VECTOR( j )
               IF ( i /= j ) H_VECTOR( j ) = H_VECTOR( j ) + val * VECTOR( i )
             END DO
             VECTOR( : n ) = H_VECTOR( : n )
@@ -341,31 +334,37 @@
 
 !  Print details to Matlab window
 
-       IF ( control%out > 0 ) THEN
-         REWIND( control%out, err = 500 )
+        IF ( control%out > 0 ) THEN
+          REWIND( control%out, err = 500 )
           DO
             READ( control%out, "( A )", end = 500 ) str
             i = mexPrintf( TRIM( str ) // ACHAR( 10 ) )
           END DO
         END IF
-   500 CONTINUE
+    500 CONTINUE
 
 !  Output solution
 
-        i = 1
-        plhs( x_arg ) = MATLAB_create_real( n, i )
+        i4 = 1
+        plhs( x_arg ) = MATLAB_create_real( n, i4 )
         x_pr = mxGetPr( plhs( x_arg ) )
         CALL MATLAB_copy_to_ptr( X, x_pr, n )
 
 !  Output optimal objective
 
-        plhs( obj_arg ) = MATLAB_create_real( i )
+        plhs( obj_arg ) = MATLAB_create_real( i4 )
         obj_pr = mxGetPr( plhs( obj_arg ) )
         CALL MATLAB_copy_to_ptr( f, obj_pr )
 
 !  Record output information
 
-       CALL GLTR_matlab_inform_get( inform, GLTR_pointer )
+        CALL GLTR_matlab_inform_get( inform, GLTR_pointer )
+
+!  Check for errors
+
+        IF ( inform%status < 0 )                                               &
+          CALL mexErrMsgTxt( ' Call to gltr_solve failed ' )
+      END IF
 
 !  all components now set
 
@@ -400,4 +399,3 @@
       RETURN
 
       END SUBROUTINE mexFunction
-

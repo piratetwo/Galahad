@@ -1,6 +1,6 @@
 #include <fintrf.h>
 
-!  THIS VERSION: GALAHAD 2.4 - 09/03/2010 AT 08:00 GMT.
+!  THIS VERSION: GALAHAD 3.1 - 20/08/2018 AT 16:50 GMT.
 
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 !
@@ -8,25 +8,25 @@
 !
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 !
-!  Given a symmetric n by n matrix H (and possibly M), optionally an 
+!  Given a symmetric n by n matrix H (and possibly M), optionally an
 !  m by n matrix A, an n-vector g, a constant f, and a scalar radius,
 !  find the solution of the TRUST-REGION subproblem
 !    minimize 0.5 * x' * H * x + c' * x + f
 !    subject to ||x||_M <= radius (and perhaps Ax=0).
 !  Here ||x||_M^2 = x' * M * x and M is diagonally dominant; if M is
-!  not given, M=I and ||x||_M is thus taken to be the Euclidean (l_2-)norm 
-!  sqrt(x' * x). H need not be definite. Advantage is taken of sparse A and H. 
+!  not given, M=I and ||x||_M is thus taken to be the Euclidean (l_2-)norm
+!  sqrt(x' * x). H need not be definite. Advantage is taken of sparse A and H.
 !
 !  Simple usage -
 !
 !  to solve the trust-region subproblem in the Euclidean norm
-!   [ x, inform ] 
+!   [ x, inform ]
 !     = galahad_trs( H, c, f, radius, control, M, A )
 !
 !  Sophisticated usage -
 !
 !  to initialize data and control structures prior to solution
-!   [ control ] 
+!   [ control ]
 !     = galahad_trs( 'initial' )
 !
 !  to solve the problem using existing data structures
@@ -62,8 +62,8 @@
 !      value is the name of the corresponding component of the
 !      derived type TRS_inform_type as described in the manual
 !      for the fortran 90 package GALAHAD_TRS. The components
-!      of inform.time, inform.history, inform.IR_inform and 
-!      inform.SLS_inform are themselves structures, holding the 
+!      of inform.time, inform.history, inform.IR_inform and
+!      inform.SLS_inform are themselves structures, holding the
 !      components of the derived types TRS_time_type, TRS_history_type,
 !      IR_inform_type and SLS_inform_type, respectively.
 !      See: http://galahad.rl.ac.uk/galahad-www/doc/trs.pdf
@@ -76,7 +76,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.3.1. February 18th 2009
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
       SUBROUTINE mexFunction( nlhs, plhs, nrhs, prhs )
@@ -100,11 +100,15 @@
       mwSize :: mxGetString, mxIsNumeric
       mwPointer :: mxGetPr
 
+      INTEGER ::  mexPrintf
+      CHARACTER ( LEN = 200 ) :: str
+
 ! -----------------------------------------------------------------------
 
 !  local variables
 
-      INTEGER :: i, n, info
+      INTEGER :: i, info
+      INTEGER * 4 :: i4, n
       mwSize :: h_arg, c_arg, f_arg, radius_arg, con_arg, a_arg, m_arg
       mwSize :: x_arg, i_arg, s_len
 
@@ -113,19 +117,19 @@
 
       INTEGER, PARAMETER :: history_max = 100
       CHARACTER ( len = 80 ) :: output_unit, filename
-      LOGICAL :: filexx, opened, initial_set = .FALSE.
+      LOGICAL :: opened, initial_set = .FALSE.
       INTEGER :: iores
       CHARACTER ( len = 8 ) :: mode
       TYPE ( TRS_pointer_type ) :: TRS_pointer
       mwPointer, ALLOCATABLE :: col_ptr( : )
-      
+
 !  arguments for TRS
 
       REAL ( KIND = wp ) :: radius, f
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: C, X
       TYPE ( SMT_type ) :: H, M, A
       TYPE ( TRS_data_type ), SAVE :: data
-      TYPE ( TRS_control_type ), SAVE :: control        
+      TYPE ( TRS_control_type ), SAVE :: control
       TYPE ( TRS_inform_type ) :: inform
 
 !  Test input/output arguments
@@ -179,7 +183,7 @@
 
       IF ( .NOT. TRIM( mode ) == 'final' ) THEN
 
-!  Check that TRS_initialize has been called 
+!  Check that TRS_initialize has been called
 
         IF ( .NOT. initial_set )                                               &
           CALL mexErrMsgTxt( ' "initial" must be called first' )
@@ -198,30 +202,18 @@
 
         IF ( control%error > 0 ) THEN
           WRITE( output_unit, "( I0 )" ) control%error
-          filename = "output_trs." // TRIM( output_unit ) 
-          INQUIRE( FILE = filename, EXIST = filexx )
-          IF ( filexx ) THEN
-             OPEN( control%error, FILE = filename, FORM = 'FORMATTED',         &
-                    STATUS = 'OLD', IOSTAT = iores )
-          ELSE
-             OPEN( control%error, FILE = filename, FORM = 'FORMATTED',         &
-                     STATUS = 'NEW', IOSTAT = iores )
-          END IF
+          filename = "output_trs." // TRIM( output_unit )
+          OPEN( control%error, FILE = filename, FORM = 'FORMATTED',            &
+                STATUS = 'REPLACE', IOSTAT = iores )
         END IF
 
         IF ( control%out > 0 ) THEN
           INQUIRE( control%out, OPENED = opened )
           IF ( .NOT. opened ) THEN
             WRITE( output_unit, "( I0 )" ) control%out
-            filename = "output_trs." // TRIM( output_unit ) 
-            INQUIRE( FILE = filename, EXIST = filexx )
-            IF ( filexx ) THEN
-               OPEN( control%out, FILE = filename, FORM = 'FORMATTED',         &
-                      STATUS = 'OLD', IOSTAT = iores )
-            ELSE
-               OPEN( control%out, FILE = filename, FORM = 'FORMATTED',         &
-                       STATUS = 'NEW', IOSTAT = iores )
-            END IF
+            filename = "output_trs." // TRIM( output_unit )
+            OPEN( control%out, FILE = filename, FORM = 'FORMATTED',            &
+                  STATUS = 'REPLACE', IOSTAT = iores )
           END IF
         END IF
 
@@ -302,14 +294,25 @@
         ELSE IF ( nrhs >= m_arg ) THEN
           CALL TRS_solve( n, radius, f, C, H, X, data, control, inform,        &
                           M = M )
-        ELSE 
+        ELSE
           CALL TRS_solve( n, radius, f, C, H, X, data, control, inform )
         END IF
 
+!  Print details to Matlab window
+
+       IF ( control%out > 0 ) THEN
+         REWIND( control%out, err = 500 )
+          DO
+            READ( control%out, "( A )", end = 500 ) str
+            i = mexPrintf( TRIM( str ) // ACHAR( 10 ) )
+          END DO
+        END IF
+   500 CONTINUE
+
 !  Output solution
 
-         i = 1
-         plhs( x_arg ) = MATLAB_create_real( n, i )
+         i4 = 1
+         plhs( x_arg ) = MATLAB_create_real( n, i4 )
          x_pr = mxGetPr( plhs( x_arg ) )
          CALL MATLAB_copy_to_ptr( X, x_pr, n )
 

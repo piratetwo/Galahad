@@ -10,7 +10,7 @@
 !   originally released with GALAHAD Version 2.0. April 25th 2006
 !   renamed gls, October 7th 2009
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_GLS_double
@@ -27,16 +27,16 @@
      USE GALAHAD_SMT_double
 
      IMPLICIT NONE
- 
+
      PRIVATE
      PUBLIC :: GLS_initialize, GLS_analyse, GLS_solve, GLS_finalize,           &
                GLS_fredholm_alternative, GLS_special_rows_and_cols, SMT_type
-   
+
 !--------------------
 !   P r e c i s i o n
 !--------------------
 
-     INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+     INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
 
 !  Set other parameters
 
@@ -45,7 +45,9 @@
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: half = 0.5_wp
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: one = 1.0_wp
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: two = 2.0_wp
+     REAL ( KIND = wp ), PRIVATE, PARAMETER :: ten = 10.0_wp
      REAL ( KIND = wp ), PRIVATE, PARAMETER :: eps = EPSILON( one )
+     REAL ( KIND = wp ), PRIVATE, PARAMETER :: alternative_tol = ten ** ( - 10 )
 
 !-------------------------------------------------
 !  D e r i v e d   t y p e   d e f i n i t i o n s
@@ -66,6 +68,7 @@
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: IFIRST       ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: IP           ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: IPC          ! length n
+       INTEGER, ALLOCATABLE, DIMENSION( : ) :: IPC2         ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: IPTR         ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: IQ           ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: IRN          ! length n
@@ -76,7 +79,7 @@
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: LENRL        ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: NEXTC        ! length n
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: NEXTR        ! length n
-       INTEGER, ALLOCATABLE, DIMENSION( : ) :: LENOFF       ! length 1/n 
+       INTEGER, ALLOCATABLE, DIMENSION( : ) :: LENOFF       ! length 1/n
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: A ! length licn
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: W ! length n
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: R ! length n
@@ -87,7 +90,7 @@
                          ! increased if they are too small                   NEW
        REAL ( KIND = wp ) :: reduce ! if previously allocated internal workspace
                          !  arrays are greater than reduce times the currently
-                         !  required sizes, they are reset to current 
+                         !  required sizes, they are reset to current
                          !  requirments                                      NEW
        REAL ( KIND = wp ) :: u     ! Pivot threshold
        REAL ( KIND = wp ) :: switch ! Density for switch to full code        NEW
@@ -115,9 +118,9 @@
 
      TYPE, PUBLIC :: GLS_ainfo
        REAL ( KIND = wp ) :: ops   ! Number of operations in elimination      NO
-       INTEGER :: flag   ! Flags success or failure case                     
+       INTEGER :: flag   ! Flags success or failure case
        INTEGER :: more    ! More information on failure
-       INTEGER :: len_analyse ! Size for analysis            
+       INTEGER :: len_analyse ! Size for analysis
        INTEGER :: len_factorize  ! Size for factorize
        INTEGER :: ncmpa   ! Number of compresses
        INTEGER :: rank    ! Estimated rank
@@ -152,10 +155,10 @@
 !   I n t e r f a c e  B l o c k
 !--------------------------------
 
-     INTERFACE 
-     
+     INTERFACE
+
        SUBROUTINE MA33ID( ICNTL, CNTL )
-       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( OUT ), DIMENSION( 10 ) :: ICNTL
        REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 5 ) :: CNTL
        END SUBROUTINE MA33ID
@@ -163,7 +166,7 @@
        SUBROUTINE MA33AD( n, ICN, A, licn, LENR, LENRL, IDISP, IP, IQ, IRN,    &
                           lirn, LENC, IFIRST, LASTR, NEXTR, LASTC, NEXTC,      &
                           IPTR, IPC, u, iflag, ICNTL, CNTL, INFO, RINFO )
-       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( IN ) :: n, licn, lirn
        INTEGER, INTENT( OUT ) :: iflag
        REAL ( KIND = wp ), INTENT( INOUT ) :: u
@@ -184,7 +187,7 @@
 
        SUBROUTINE MA33CD( n, ICN, A, licn, LENR, LENRL, LENOFF, IDISP,         &
                           IP, IQ, X, W, mtype, RINFO )
-       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( IN ) :: n, licn, mtype
        INTEGER, INTENT( IN ), DIMENSION( licn ) :: ICN
        INTEGER, INTENT( IN ), DIMENSION( n ) :: LENR, LENRL, LENOFF
@@ -197,7 +200,7 @@
        END SUBROUTINE MA33CD
 
        SUBROUTINE MC20AD( nc, maxa, A, INUM, JPTR, JNUM, jdisp )
-       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( IN ) :: nc, maxa, jdisp
        INTEGER, INTENT( INOUT ), DIMENSION( maxa ) :: INUM, JNUM
        INTEGER, INTENT( OUT ), DIMENSION( nc ) :: JPTR
@@ -254,7 +257,7 @@
        CONTROL%reduce = two
      END IF
 
-     RETURN  
+     RETURN
 
 !  End of SILS_initialize
 
@@ -388,6 +391,18 @@
        END IF
      ELSE
        ALLOCATE( FACTORS%IPC( FACTORS%n ), stat = stat )
+       IF ( stat /= 0 ) GO TO 100
+     END IF
+
+     IF ( ALLOCATED( FACTORS%IPC2 ) ) THEN
+       IF ( SIZE( FACTORS%IPC2 ) /= FACTORS%n ) THEN
+         DEALLOCATE( FACTORS%IPC2, stat = stat )
+         IF ( stat /= 0 ) GO TO 100
+         ALLOCATE( FACTORS%IPC2( FACTORS%n ), stat = stat )
+         IF ( stat /= 0 ) GO TO 100
+       END IF
+     ELSE
+       ALLOCATE( FACTORS%IPC2( FACTORS%n ), stat = stat )
        IF ( stat /= 0 ) GO TO 100
      END IF
 
@@ -602,7 +617,7 @@
        CALL MC20AD( FACTORS%n, MATRIX%ne, FACTORS%A, FACTORS%ICN,              &
                     FACTORS%IPC, FACTORS%IRN, 0 )
 
-!  Use LENR and IP as temporary workspace 
+!  Use LENR and IP as temporary workspace
 
        FACTORS%LENR = 0
        FACTORS%IP = 0
@@ -702,7 +717,7 @@
                       FACTORS%LENR, FACTORS%LENRL, FACTORS%IDISP, FACTORS%IP,  &
                       FACTORS%IQ, FACTORS%IRN, FACTORS%lirn, FACTORS%LENC,     &
                       FACTORS%IFIRST, FACTORS%LASTR, FACTORS%NEXTR,            &
-                      FACTORS%IPC, FACTORS%IPC, FACTORS%LASTC, FACTORS%IPC,    &
+                      FACTORS%IPC, FACTORS%IPC2, FACTORS%LASTC, FACTORS%IPC,   &
                       u, iflag, FACTORS%ICNTL, FACTORS%CNTL,                   &
                       FACTORS%INFO, FACTORS%RINFO )
        END IF
@@ -826,8 +841,8 @@
      AINFO%flag = - 4
      AINFO%stat = stat
      IF ( CONTROL%ldiag > 0 .AND. CONTROL%lp >= 0 )                           &
-       WRITE( CONTROL%lp, '( /, A, I3, /, A, I12 )' )                         & 
-        ' Error return from GLS_ANALYSE with AINFO%flag = ', AINFO%flag,      & 
+       WRITE( CONTROL%lp, '( /, A, I3, /, A, I12 )' )                         &
+        ' Error return from GLS_ANALYSE with AINFO%flag = ', AINFO%flag,      &
         ' ALLOCATE or DEALLOCATE failed with STAT=', stat
 
      FACTORS%got_factors = .FALSE.
@@ -846,20 +861,20 @@
 !  rows and columns of a sparse, unsymmetric matrix.
 
 !  *******************************************************************
-!  COPYRIGHT (c) 2006 Hyprotech UK and CCLRC 
+!  COPYRIGHT (c) 2006 Hyprotech UK and CCLRC
 !  All rights reserved.
-! 
+!
 !  None of the comments in this Copyright notice between the lines
 !  of asterisks shall be removed or altered in any way.
-! 
+!
 !  This Package is intended for compilation without modification,
 !  so most of the embedded comments have been removed.
-! 
+!
 !  ALL USE IS SUBJECT TO LICENCE. For full details of an HSL ARCHIVE
 !  Licence, see http://hsl.rl.ac.uk/archive/cou.html
-! 
+!
 !  Please note that for an HSL ARCHIVE Licence:
-! 
+!
 !  1. The Package must not be copied for use by any other person.
 !     Supply of any part of the library by the Licensee to a third party
 !     shall be subject to prior written agreement between AEA
@@ -908,8 +923,8 @@
          IW2( i ) = LENROW( i )
        END DO
 
-!  Permute LENROW according to IP.  Set off-sets for new position of row iold 
-!  in IW1( iold ) and put old row indices in IW11 in positions corresponding to 
+!  Permute LENROW according to IP.  Set off-sets for new position of row iold
+!  in IW1( iold ) and put old row indices in IW11 in positions corresponding to
 !  the new position of this row in A/ICN.
 
        jj = 1
@@ -933,8 +948,8 @@
 !  Permute A and ICN in place, changing to new column numbers.
 
 !  Each pass through the main loop places a closed chain of column indices
-!  in their new (and final) positions. This is recorded by setting the IW11 
-!  entry to zero so that any which are subsequently encountered during this 
+!  in their new (and final) positions. This is recorded by setting the IW11
+!  entry to zero so that any which are subsequently encountered during this
 !  major scan can be bypassed
 
        DO i = 1, nz
@@ -948,12 +963,12 @@
          IF ( IW1( iold ) /= 0 ) THEN
            aval = A( i )
 
-!  Each pass through this loop places one (permuted) column index in its 
+!  Each pass through this loop places one (permuted) column index in its
 !  final position  .. viz. ipos.
 
            DO ichain = 1, nz
 
-!  newpos is the original position in A/ICN of the element to be placed in 
+!  newpos is the original position in A/ICN of the element to be placed in
 !  position ipos.  It is also the position of the next element in the chain
 
              newpos = ipos + IW1( iold )
@@ -986,23 +1001,23 @@
                                    ICNTL, INFO )
 
 !  A threadsafe version of Iain Duff's HSL package MC23 to permute a given
-!  sparse, unsymmetric matrix.to block-triangular form
+!  sparse, unsymmetric matrix to block-triangular form
 
 !  *******************************************************************
-!  COPYRIGHT (c) 2006 Hyprotech UK and CCLRC 
+!  COPYRIGHT (c) 2006 Hyprotech UK and CCLRC
 !  All rights reserved.
-! 
+!
 !  None of the comments in this Copyright notice between the lines
 !  of asterisks shall be removed or altered in any way.
-! 
+!
 !  This Package is intended for compilation without modification,
 !  so most of the embedded comments have been removed.
-! 
+!
 !  ALL USE IS SUBJECT TO LICENCE. For full details of an HSL ARCHIVE
 !  Licence, see http://hsl.rl.ac.uk/archive/cou.html
-! 
+!
 !  Please note that for an HSL ARCHIVE Licence:
-! 
+!
 !  1. The Package must not be copied for use by any other person.
 !     Supply of any part of the library by the Licensee to a third party
 !     shall be subject to prior written agreement between AEA
@@ -1041,10 +1056,11 @@
 
        INTEGER :: i, i1, i2, ibeg, iblock, iend, ii, ilend, inew, iold, irowb, &
                   irowe, j, jj, jnew, jnpos, jold, k, leni, nz, large, lp,     &
-                  num, numnz
+                  num, numnz, nza
        LOGICAL :: abort
        EXTERNAL :: MC13ED, MC21BD
 
+       nza = SUM( LENR( : n ) )
        INFO( 1 ) = 0
        INFO( 2 ) = 0
        num = 0
@@ -1060,7 +1076,7 @@
          IW11( i ) = IW11( i - 1 ) + LENR( i - 1 )
        END DO
 
-!  IDISP( 1 ) points to the first position in A/ICN after the off-diagonal 
+!  IDISP( 1 ) points to the first position in A/ICN after the off-diagonal
 !  blocks and untreated rows
 
        IDISP( 1 ) = IW11( n ) + LENR( n )
@@ -1082,7 +1098,7 @@
        END IF
 
 !  IW12 and LENR are permutations of IW11 and LENR/LENOFF suitable for entry
-!  to MC13ED since matrix with these row pointer and length arrays has maximum 
+!  to MC13ED since matrix with these row pointer and length arrays has maximum
 !  number of non-zeros on the diagonal
 
        DO ii = 1, n
@@ -1106,7 +1122,7 @@
          END DO
          LENOFF( 1 ) = - 1
 
-!  IDISP(1) is the first position after the last element in the off-diagonal 
+!  IDISP(1) is the first position after the last element in the off-diagonal
 !  blocks and untreated rows
 
          nz = IDISP( 1 ) - 1
@@ -1153,20 +1169,21 @@
 !  large is the dimension of the largest block encountered so far
 
        large = 0
-       DO k = 1, num
-         iblock = num - k + 1
+       DO iblock = num, 1, - 1
 
 !  i1 and i2 are the first and last row (in permuted form) of block iblock
 
          i1 = IW4( iblock )
-         i2 = n
-         IF ( k /= 1 ) i2 = IW4( iblock + 1 ) - 1
+         IF ( iblock == num ) THEN
+           i2 = n
+         ELSE
+           i2 = IW4( iblock + 1 ) - 1
+         END IF
          large = MAX( large, i2 - i1 + 1 )
 
 !  Go through the rows of block iblock in reverse order
 
-         DO ii = i1, i2
-           inew = i2 - ii + i1
+         DO inew = i2, i1, - 1
 
 !  Deal with row inew in permuted form - row iold in original matrix.
 
@@ -1176,7 +1193,7 @@
 
            IF ( iend - IDISP( 1 ) < LENOFF( iold ) ) THEN
 
-!  In-place compress moves separated off-diagonal elements and untreated rows 
+!  In-place compress moves separated off-diagonal elements and untreated rows
 !  to the front of storage
 
              jnpos = ibeg
@@ -1198,10 +1215,10 @@
              DO i = 2, n
                IW11( i ) = IW11( i - 1 ) + LENOFF( i - 1 )
              END DO
+           END IF
 
 !  Row iold is now split into diagonal and off-diagonal parts
 
-           END IF
            irowb = IW11( iold )
            leni = 0
            irowe = irowb + LENOFF( iold ) - 1
@@ -1245,9 +1262,9 @@
        IP( n ) = - IP( n )
 
 !  IDISP( 2 ) is the position of the first element in the diagonal blocks
- 
+
        IDISP( 2 ) = iend
- 
+
 !  This compress moves all off-diagonal elements to the front of the array
 
        IF ( ibeg > licn ) GO TO 900
@@ -1418,7 +1435,7 @@
                         FACTORS%W, mtype, FACTORS%RINFO )
 !                       FACTORS%W, mtype == 0, FACTORS%RINFO )
            X = FACTORS%R( : MATRIX%n )
-         END IF  
+         END IF
        END IF
      END DO
 
@@ -1472,14 +1489,14 @@
                     FACTORS%A, FACTORS%licn,                                   &
                     FACTORS%LENR, FACTORS%LENRL, FACTORS%LENOFF,               &
                     FACTORS%IDISP, FACTORS%IP, FACTORS%IQ, X,                  &
-                    FACTORS%W, FACTORS%RINFO, 1.0D-10, alternative )
+                    FACTORS%W, FACTORS%RINFO, alternative_tol, alternative )
      ELSE
        FACTORS%R = RHS
        CALL GLS_fredholm_alternative_main( FACTORS%n, FACTORS%ICN,             &
                     FACTORS%A, FACTORS%licn,                                   &
                     FACTORS%LENR, FACTORS%LENRL, FACTORS%LENOFF,               &
                     FACTORS%IDISP, FACTORS%IP, FACTORS%IQ, FACTORS%R,          &
-                    FACTORS%W, FACTORS%RINFO, 1.0D-10, alternative )
+                    FACTORS%W, FACTORS%RINFO, alternative_tol, alternative )
        IF ( alternative ) THEN
          X( : MATRIX%m ) = FACTORS%R( : MATRIX%m )
        ELSE
@@ -1530,6 +1547,10 @@
      END IF
      IF ( ALLOCATED( FACTORS%IPC ) )    THEN
        DEALLOCATE( FACTORS%IPC, stat = alloc_stat )
+       IF ( alloc_stat /= 0 ) info = alloc_stat
+     END IF
+     IF ( ALLOCATED( FACTORS%IPC2 ) )    THEN
+       DEALLOCATE( FACTORS%IPC2, stat = alloc_stat )
        IF ( alloc_stat /= 0 ) info = alloc_stat
      END IF
      IF ( ALLOCATED( FACTORS%IPTR ) )   THEN
@@ -1592,7 +1613,7 @@
      IF ( info /= 0 .AND.CONTROL%ldiag > 0 .and. CONTROL%lp >= 0  )            &
        WRITE( CONTROL%lp, '( /, 2A, I0 )' ) ' Error return from GLS_finalize:',&
         ' DEALLOCATE failed with STAT=', info
-   
+
      RETURN
 
 !  End of GLS_finalize
@@ -1636,372 +1657,372 @@
 
      END SUBROUTINE GLS_special_rows_and_cols
 
-!-*-*-*-*-*-   G L S _ P A R T _ S O L V E   S U B R O U T I N E   -*-*-*-*-*-
-
-     SUBROUTINE GLS_part_solve( N, ICN, A, LICN, LENR, LENRL, LENOFF, IDISP,   &
-                                IP, IQ, X, W, transpose, RINFO )
-
-! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-! GLS_part_solve uses the factors produced by GLS_factorize to solve
-!     Ax=b or A(transpose) x=b when the matrix P1 A Q1 (PAQ) is block
-!     lower triangular (including the case of only one diagonal block)
-!     This is based on the Iain Duff's HSL package MA33CD
- 
-! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-! n    is an INTEGER variable set to the order of the matrix
-! ICN  is an INTEGER array of length licn. entries idisp(1) to idisp(2) should 
-!      be unchanged since the last call to GLS_factorize. If the matrix has more
-!      than one diagonal block, then column indices corresponding to non-zeros 
-!      in sub-diagonal blocks of paq must appear in positions 1 to IDISP(1)-1. 
-!      For the same row those entries must be contiguous, with those in row i 
-!      preceding those in row i+1 (i=1,...,n-1) and no wasted space between 
-!      rows. Entries may be in any order within each row
-! A    is a REAL array of length licn.  Entries IDISP(1) to IDISP(2) should be 
-!      unchanged since the last call to GLS_factorize. If the matrix has more 
-!      than one diagonal block, then the values of the non-zeros in sub-diagonal
-!      blocks must be in positions 1 to IDISP(1)-1 in the order given by ICN
-! licn is an INTEGER variable set to the size of arrays ICN and A
-! LENR is an INTEGER arrays of length n such that LENR(i) will equal the
-!      total number of non-zeros in row i of L and row i of U. 
-!      This should be unchanged since the last call to GLS_factorize
-! LENRL is an INTEGER arrays of length n such that LENRL(i) will hold the
-!      number of non-zeros in row i of L.
-!      This should be unchanged since the last call to GLS_factorize
-! LENOFF is an INTEGER array of length n. if the matrix PAQ (or P1*A*Q1) has 
-!      more than one diagonal block, then LENOFF(i), i=1,...,n should be set 
-!      to the number of non-zeros in row i of the matrix paq which are in 
-!      sub-diagonal blocks. If there is only one diagonal block then LENOFF(1) 
-!      may be set to -1, in which case the other entries of LENOFF are never 
-!      accessed. This should be unchanged since the last call to GLS_factorize
-! IDISP is an INTEGER array of length 2 for which IDISP(1) are the first and 
-!      last positions in A/ICN for the LU decomposition of A.
-!      This should be unchanged since the last call to GLS_factorize
-! IP   is an INTEGER array of length n for which IP(i) indicates the row of A 
-!      that is the ith row in PAQ. A negative value indicates that row -i is 
-!      the last row of a block (except the last).
-!      This should be unchanged since the last call to GLS_factorize
-! IQ   is an INTEGER array of length n for which ABS(IP(j)) indicates the
-!      column of A that is the jth column of PAQ. For rows, i say, in which
-!      structural or numerical singularity is detected IQ(i) is negated.
-!      This should be unchanged since the last call to GLS_factorize
-! X    is a REAL array of length n. it must be set by the user to the values of 
-!      the right hand side vector b for the equations being solved.
-!      On exit, it will be equal to the solution x required
-! W    is a real/double precision array of length n which is used as workspace
-! transpose is a logical variable which must be set by the user. If it is
-!      false, then the solution to the system A x = b is returned, otherwise
-!      the subroutine will return the solution to the system a(transpose) x = b
-
-! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-!  Dummy arguments
-
-     INTEGER, INTENT( IN ) :: licn, n
-     LOGICAL, INTENT( IN ) :: transpose
-     REAL ( KIND = wp ), INTENT( IN ), DIMENSION( licn ) :: A
-     REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X
-     REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: W
-     INTEGER, INTENT( IN ), DIMENSION( n ) :: IQ, LENOFF, LENR, LENRL
-     INTEGER, INTENT( INOUT ), DIMENSION( n ) :: IP
-     INTEGER, INTENT( IN ), DIMENSION( licn ) :: ICN
-     INTEGER, INTENT( IN ), DIMENSION( 2 ) :: IDISP
-     REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 5 ) :: RINFO
-
-!  Local variables
-
-     INTEGER :: block, row_in_block, next_block_start, col, row, nzs_row, numblk
-     INTEGER :: first_nz_in_offdiag_row, last_nz_in_offdiag_row
-     INTEGER :: first_nz_in_lu_row, last_nz_in_lu_row
-     INTEGER :: first_row_in_block, last_row_in_block
-     INTEGER :: start_of_row_in_block, end_of_row_in_block
-     INTEGER :: pivot_entry_row_in_block
-     REAL ( KIND = wp ) :: wi
-!    REAL ( KIND = wp ) :: wrow
-     LOGICAL :: is_last_row_in_block, block_form
-
-!  the final value of RINFO(3) is the maximum residual for an inconsistent
-!  set of equations
-
-     RINFO( 3 ) = zero
-
-!  block_form is true if block-triangular form is being used. If block_form
-!   is false, LENOFF will not be subsequently accessed
-
-     block_form = LENOFF( 1 ) >= 0
-
-!  ----------------
-!  solve   A x = b
-!  ----------------
-
-     IF ( .NOT. transpose ) THEN
+!!-*-*-*-*-*-   G L S _ P A R T _ S O L V E   S U B R O U T I N E   -*-*-*-*-*-
 !
-!  is_last_row_in_block is used to indicate when the last row in a block has 
-!  been reached. It is then set to true whereafter backsubstitution is 
-!  performed on the block
-
-       is_last_row_in_block = .FALSE.
-
-!  IP(n) is negated so that the last row of the last block is recognised. 
-
-       IP( n ) = - IP( n )
-       W( : n ) = X( ABS( IP( : n ) ) )  ! preorder W(i) = X(IP(i))
-
-!  first_nz_in_offdiag_row holds the position of the first non-zero in the 
-!  current row of the off-diagonal blocks.
-
-       first_nz_in_offdiag_row = 1
-
-!  first_row_in_block holds the index of the first row in the current block
-
-       first_row_in_block = 1
-
-!  first_nz_in_lu_row holds the position of the first non-zero in the current 
-!  row of the LU decomposition of the diagonal blocks
-
-       first_nz_in_lu_row = IDISP( 1 )
-
-!  if row block is not the last row of a block, a pass through this loop adds 
-!  the inner product of row block of the off-diagonal blocks and w to w and 
-!  performs forward elimination using row block of the LU decomposition. 
-!  If block is the last row of a block then, after performing these operations, 
-!  backsubstitution is performed using the rows of the block.
-
-!  -----------------------------------------------
-
-!   ( ...                  ) ( x_prev )    ( . )
-!   (  A_offdiag   L U  0  ) (   x    )  = ( w )
-!   ( ...                  ) (   .    )    ( . )
-
-!  -----------------------------------------------
-
-       DO block = 1, n
-         wi = W( block )
-         IF ( block_form ) THEN
-
-!  operations using lower triangular blocks: last_nz_in_offdiag_row is the 
-!  end of row block in the off-diagonal blocks, i.e.,
-
-!    w <- w - A_offdiag x_prev
-
-           IF ( LENOFF( block ) /= 0 ) THEN
-             last_nz_in_offdiag_row                                            &
-               = first_nz_in_offdiag_row + LENOFF( block ) - 1
-             wi = wi - DOT_PRODUCT(                                            &
-               A( first_nz_in_offdiag_row : last_nz_in_offdiag_row ),          &
-               W( ICN( first_nz_in_offdiag_row : last_nz_in_offdiag_row ) ) )
-
-!  first_nz_in_offdiag_row is set the beginning of the next off-diagonal row
-
-             first_nz_in_offdiag_row = last_nz_in_offdiag_row + 1
-           END IF
-         END IF
-
-!  set is_last_row_in_block to true if we are on the last row of the block
-
-         IF ( IP( block ) < 0 ) is_last_row_in_block = .TRUE.
-
-!  forward substitution phase. last_nz_in_lu_row is the end of the unit
-!  lower triangular L part of the row block in the LU decomposition, i.e.,
-
-!      w <- L^{-1} w
-
-         IF ( LENRL( block ) /= 0 ) THEN
-           last_nz_in_lu_row = first_nz_in_lu_row + LENRL( block ) - 1
-           wi = wi +                                                           &
-             DOT_PRODUCT( A( first_nz_in_lu_row : last_nz_in_lu_row ),         &
-                          W( ICN( first_nz_in_lu_row : last_nz_in_lu_row ) ) )
-         END IF
-
-!  first_nz_in_lu_row is adjusted to point to the start of the next row
-
-         first_nz_in_lu_row = first_nz_in_lu_row + LENR( block )
-         W( block ) = wi
-         IF ( .NOT. is_last_row_in_block ) CYCLE
-
-!  back-substitution phase
-
-         start_of_row_in_block = first_nz_in_lu_row
-
-!  are there any singularities in this block (they always occur at the end)?  
-!  If not, continue with the back substitution
-
-         DO last_row_in_block = block, first_row_in_block, - 1
-           IF ( IQ( last_row_in_block ) > 0 ) GO TO 10
-           start_of_row_in_block                                               &
-             = start_of_row_in_block - LENR( last_row_in_block )
-           RINFO( 3 ) = MAX( RINFO( 3 ), ABS( W( last_row_in_block ) ) )
-           W( last_row_in_block ) = zero
-         END DO
-
-!  the entire block is singular
-
-         first_row_in_block = block + 1
-         is_last_row_in_block = .FALSE.
-         CYCLE
-
-!  each pass through this loop performs the back-substitution operations for
-!  a single row, starting at the end of the block and working through it in 
-!  reverse order, i.e.,
-
-!      w <- U^{-1} w
-
-  10     CONTINUE
-         DO row_in_block = last_row_in_block, first_row_in_block, - 1
-           end_of_row_in_block = start_of_row_in_block - 1
-           start_of_row_in_block = start_of_row_in_block - LENR( row_in_block )
-           pivot_entry_row_in_block                                            &
-             = start_of_row_in_block + LENRL( row_in_block )
-
-!  jump if row row_in_block of U has no non-zeros
-
-           W( row_in_block ) = W( row_in_block ) - DOT_PRODUCT(                &
-             A( pivot_entry_row_in_block + 1 : end_of_row_in_block ),          &
-             W( ICN( pivot_entry_row_in_block + 1 : end_of_row_in_block ) ) )
-           W( row_in_block ) = W( row_in_block ) / A( pivot_entry_row_in_block )
-         END DO
-         first_row_in_block = block + 1
-         is_last_row_in_block = .FALSE.
-       END DO
-
-       X( ABS( IQ( 1 : n ) ) ) = W( 1 : n ) ! reorder the solution vector
-       IP( n ) = - IP( n )                  ! restor IP(n) on exit
-
-!  -------------------------
-!  solve A(transpose) x = b
-!  -------------------------
-
-     ELSE
-       W( 1 : n ) = X( ABS( IQ( 1 : n ) ) )  ! preorder W(i) = X(IQ(i))
-
-!  first_nz_in_offdiag_row gives the start of the current row in the 
-!  off-diagonal blocks, first_nz_in_lu_row is the beginning of the block after
-!  the last one, last_row_in_block is the last row in the current block, and
-!  next_block_start points to the position after the last non-zero in the 
-!  current block
-
-!  -----------------------------------------------
-
-!   (  .  A_offdiag^T  . ) (   .    )    (  w_prev )
-!   (      U^T L^T     . ) (   x    )  = (    w    )
-!   (        0         . ) (   .    )    (    .    )
-
-!  -----------------------------------------------
-
-       first_nz_in_offdiag_row = IDISP( 1 )  
-       first_nz_in_lu_row = IDISP( 2 ) + 1
-       last_row_in_block = n
-       next_block_start = first_nz_in_lu_row
-
-!  each pass through this loop operates with one diagonal block and the 
-!  off-diagonal part of the matrix corresponding to the rows of this block. 
-!  The blocks are taken in reverse order and the number of times the loop 
-!  is entered is min(n,# blocks+1)
-
-       DO numblk = 1, n
-         IF ( last_row_in_block /= 0 ) THEN
-           first_nz_in_lu_row = first_nz_in_lu_row - LENR( last_row_in_block )
-
-!  this loop finds the index of the first row in the current block. 
-!  first_nz_in_lu_row is set to the position of the beginning of this first row
-
-           DO row_in_block = last_row_in_block - 1, last_row_in_block - n, - 1
-             IF ( row_in_block == 0 ) EXIT
-             IF ( IP( row_in_block ) < 0 ) EXIT
-             first_nz_in_lu_row = first_nz_in_lu_row - LENR( row_in_block )
-           END DO
-           first_row_in_block = row_in_block + 1
-           start_of_row_in_block = first_nz_in_lu_row
-
-!  forward elimination: each pass through this loop performs the operations 
-!  for one row of the block
-
-           DO row_in_block = first_row_in_block, last_row_in_block
-
-!  if the corresponding entry of w is zero then the operations can be avoided
-
-             IF ( W( row_in_block ) /= zero ) THEN
-
-!  deal with case where rows row_in_block ...last_row_in_bloc are singular
-
-               IF ( IQ( row_in_block ) < 0 ) THEN  
-                 DO row = row_in_block, last_row_in_block
-                   RINFO( 3 ) = MAX( RINFO( 3 ), ABS( W( row ) ) )
-                   W( row ) = zero
-                 END DO
-                 EXIT
-               ELSE
-                 pivot_entry_row_in_block                                      &
-                   = start_of_row_in_block + LENRL( row_in_block )
-                 wi = W( row_in_block ) / A( pivot_entry_row_in_block )
-                 IF ( LENR( row_in_block ) - LENRL( row_in_block ) /= 1 ) THEN
-
-!  loop over the U transpose part of row row_in_block, i.e.,
-
-!    w <- U^-T w
-
-                   DO nzs_row = pivot_entry_row_in_block + 1,                  &
-                                start_of_row_in_block + LENR( row_in_block ) - 1
-                     col = ICN( nzs_row )
-                     W( col ) = W( col ) - A( nzs_row ) * wi
-                   END DO
-                 END IF
-                 W( row_in_block ) = wi
-               END IF
-             END IF
-             start_of_row_in_block                                             &
-               = start_of_row_in_block + LENR( row_in_block )
-           END DO
-
-!  back substitution: this loop does the back substitution on the rows of the 
-!  block in the reverse order doing it simultaneously on the L transpose part
-!  of the diagonal blocks and the off-diagonal blocks
-
-           start_of_row_in_block = next_block_start
-           DO row_in_block = last_row_in_block, first_row_in_block, - 1
-             start_of_row_in_block                                             &
-               = start_of_row_in_block - LENR( row_in_block )
-
-!  loop to the end of the L transpose part of row row_in_block, i.e.,
-
-!    w <- L^-T w
-
-             IF ( LENRL( row_in_block ) /= 0 ) THEN
-               DO nzs_row = start_of_row_in_block,                             &
-                       start_of_row_in_block + LENRL( row_in_block ) - 1
-                 col = ICN( nzs_row )
-                 W( col ) = W( col ) + A( nzs_row ) * W( row_in_block )
-               END DO
-             END IF
-
-!  update the residuals using the lower triangular block, i.e.,
-
-!   w_prev <- w_prev - A_offdiag^T w
-
-             IF ( block_form ) THEN
-               IF ( LENOFF( row_in_block ) /= 0 ) THEN
-                 last_nz_in_offdiag_row = first_nz_in_offdiag_row - 1   
-                 first_nz_in_offdiag_row                                       &
-                   = first_nz_in_offdiag_row - LENOFF( row_in_block )
-                 DO nzs_row = first_nz_in_offdiag_row, last_nz_in_offdiag_row
-                   col = ICN( nzs_row )
-                   W( col ) = W( col ) - A( nzs_row ) * W( row_in_block )
-                 END DO
-               END IF
-             END IF
-           END DO
-           next_block_start = start_of_row_in_block
-           last_row_in_block = first_row_in_block - 1
-         END IF
-       END DO
-       X( ABS( IP( 1 : n ) ) ) = W( 1 : n )  ! reorder the solution vector
-     END IF
-     RETURN
-
-!  End of GLS_part_solve
-
-     END SUBROUTINE GLS_part_solve
+!     SUBROUTINE GLS_part_solve( N, ICN, A, LICN, LENR, LENRL, LENOFF, IDISP,   &
+!                                IP, IQ, X, W, transpose, RINFO )
+!
+!! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+!
+!! GLS_part_solve uses the factors produced by GLS_factorize to solve
+!!     Ax=b or A(transpose) x=b when the matrix P1 A Q1 (PAQ) is block
+!!     lower triangular (including the case of only one diagonal block)
+!!     This is based on the Iain Duff's HSL package MA33CD
+!
+!! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+!
+!! n    is an INTEGER variable set to the order of the matrix
+!! ICN  is an INTEGER array of length licn. entries idisp(1) to idisp(2) should
+!!      be unchanged since the last call to GLS_factorize. If the matrix has more
+!!      than one diagonal block, then column indices corresponding to non-zeros
+!!      in sub-diagonal blocks of paq must appear in positions 1 to IDISP(1)-1.
+!!      For the same row those entries must be contiguous, with those in row i
+!!      preceding those in row i+1 (i=1,...,n-1) and no wasted space between
+!!      rows. Entries may be in any order within each row
+!! A    is a REAL array of length licn.  Entries IDISP(1) to IDISP(2) should be
+!!      unchanged since the last call to GLS_factorize. If the matrix has more
+!!      than one diagonal block, then the values of the non-zeros in sub-diagonal
+!!      blocks must be in positions 1 to IDISP(1)-1 in the order given by ICN
+!! licn is an INTEGER variable set to the size of arrays ICN and A
+!! LENR is an INTEGER arrays of length n such that LENR(i) will equal the
+!!      total number of non-zeros in row i of L and row i of U.
+!!      This should be unchanged since the last call to GLS_factorize
+!! LENRL is an INTEGER arrays of length n such that LENRL(i) will hold the
+!!      number of non-zeros in row i of L.
+!!      This should be unchanged since the last call to GLS_factorize
+!! LENOFF is an INTEGER array of length n. if the matrix PAQ (or P1*A*Q1) has
+!!      more than one diagonal block, then LENOFF(i), i=1,...,n should be set
+!!      to the number of non-zeros in row i of the matrix paq which are in
+!!      sub-diagonal blocks. If there is only one diagonal block then LENOFF(1)
+!!      may be set to -1, in which case the other entries of LENOFF are never
+!!      accessed. This should be unchanged since the last call to GLS_factorize
+!! IDISP is an INTEGER array of length 2 for which IDISP(1) are the first and
+!!      last positions in A/ICN for the LU decomposition of A.
+!!      This should be unchanged since the last call to GLS_factorize
+!! IP   is an INTEGER array of length n for which IP(i) indicates the row of A
+!!      that is the ith row in PAQ. A negative value indicates that row -i is
+!!      the last row of a block (except the last).
+!!      This should be unchanged since the last call to GLS_factorize
+!! IQ   is an INTEGER array of length n for which ABS(IP(j)) indicates the
+!!      column of A that is the jth column of PAQ. For rows, i say, in which
+!!      structural or numerical singularity is detected IQ(i) is negated.
+!!      This should be unchanged since the last call to GLS_factorize
+!! X    is a REAL array of length n. it must be set by the user to the values of
+!!      the right hand side vector b for the equations being solved.
+!!      On exit, it will be equal to the solution x required
+!! W    is a real/double precision array of length n which is used as workspace
+!! transpose is a logical variable which must be set by the user. If it is
+!!      false, then the solution to the system A x = b is returned, otherwise
+!!      the subroutine will return the solution to the system a(transpose) x = b
+!
+!! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+!
+!!  Dummy arguments
+!
+!     INTEGER, INTENT( IN ) :: licn, n
+!     LOGICAL, INTENT( IN ) :: transpose
+!     REAL ( KIND = wp ), INTENT( IN ), DIMENSION( licn ) :: A
+!     REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X
+!     REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: W
+!     INTEGER, INTENT( IN ), DIMENSION( n ) :: IQ, LENOFF, LENR, LENRL
+!     INTEGER, INTENT( INOUT ), DIMENSION( n ) :: IP
+!     INTEGER, INTENT( IN ), DIMENSION( licn ) :: ICN
+!     INTEGER, INTENT( IN ), DIMENSION( 2 ) :: IDISP
+!     REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 5 ) :: RINFO
+!
+!!  Local variables
+!
+!     INTEGER :: block, row_in_block, next_block_start, col, row, nzs_row, numblk
+!     INTEGER :: first_nz_in_offdiag_row, last_nz_in_offdiag_row
+!     INTEGER :: first_nz_in_lu_row, last_nz_in_lu_row
+!     INTEGER :: first_row_in_block, last_row_in_block
+!     INTEGER :: start_of_row_in_block, end_of_row_in_block
+!     INTEGER :: pivot_entry_row_in_block
+!     REAL ( KIND = wp ) :: wi
+!!    REAL ( KIND = wp ) :: wrow
+!     LOGICAL :: is_last_row_in_block, block_form
+!
+!!  the final value of RINFO(3) is the maximum residual for an inconsistent
+!!  set of equations
+!
+!     RINFO( 3 ) = zero
+!
+!!  block_form is true if block-triangular form is being used. If block_form
+!!   is false, LENOFF will not be subsequently accessed
+!
+!     block_form = LENOFF( 1 ) >= 0
+!
+!!  ----------------
+!!  solve   A x = b
+!!  ----------------
+!
+!     IF ( .NOT. transpose ) THEN
+!!
+!!  is_last_row_in_block is used to indicate when the last row in a block has
+!!  been reached. It is then set to true whereafter backsubstitution is
+!!  performed on the block
+!
+!       is_last_row_in_block = .FALSE.
+!
+!!  IP(n) is negated so that the last row of the last block is recognised.
+!
+!       IP( n ) = - IP( n )
+!       W( : n ) = X( ABS( IP( : n ) ) )  ! preorder W(i) = X(IP(i))
+!
+!!  first_nz_in_offdiag_row holds the position of the first non-zero in the
+!!  current row of the off-diagonal blocks.
+!
+!       first_nz_in_offdiag_row = 1
+!
+!!  first_row_in_block holds the index of the first row in the current block
+!
+!       first_row_in_block = 1
+!
+!!  first_nz_in_lu_row holds the position of the first non-zero in the current
+!!  row of the LU decomposition of the diagonal blocks
+!
+!       first_nz_in_lu_row = IDISP( 1 )
+!
+!!  if row block is not the last row of a block, a pass through this loop adds
+!!  the inner product of row block of the off-diagonal blocks and w to w and
+!!  performs forward elimination using row block of the LU decomposition.
+!!  If block is the last row of a block then, after performing these operations,
+!!  backsubstitution is performed using the rows of the block.
+!
+!!  -----------------------------------------------
+!
+!!   ( ...                  ) ( x_prev )    ( . )
+!!   (  A_offdiag   L U  0  ) (   x    )  = ( w )
+!!   ( ...                  ) (   .    )    ( . )
+!
+!!  -----------------------------------------------
+!
+!       DO block = 1, n
+!         wi = W( block )
+!         IF ( block_form ) THEN
+!
+!!  operations using lower triangular blocks: last_nz_in_offdiag_row is the
+!!  end of row block in the off-diagonal blocks, i.e.,
+!
+!!    w <- w - A_offdiag x_prev
+!
+!           IF ( LENOFF( block ) /= 0 ) THEN
+!             last_nz_in_offdiag_row                                            &
+!               = first_nz_in_offdiag_row + LENOFF( block ) - 1
+!             wi = wi - DOT_PRODUCT(                                            &
+!               A( first_nz_in_offdiag_row : last_nz_in_offdiag_row ),          &
+!               W( ICN( first_nz_in_offdiag_row : last_nz_in_offdiag_row ) ) )
+!
+!!  first_nz_in_offdiag_row is set the beginning of the next off-diagonal row
+!
+!             first_nz_in_offdiag_row = last_nz_in_offdiag_row + 1
+!           END IF
+!         END IF
+!
+!!  set is_last_row_in_block to true if we are on the last row of the block
+!
+!         IF ( IP( block ) < 0 ) is_last_row_in_block = .TRUE.
+!
+!!  forward substitution phase. last_nz_in_lu_row is the end of the unit
+!!  lower triangular L part of the row block in the LU decomposition, i.e.,
+!
+!!      w <- L^{-1} w
+!
+!         IF ( LENRL( block ) /= 0 ) THEN
+!           last_nz_in_lu_row = first_nz_in_lu_row + LENRL( block ) - 1
+!           wi = wi +                                                           &
+!             DOT_PRODUCT( A( first_nz_in_lu_row : last_nz_in_lu_row ),         &
+!                          W( ICN( first_nz_in_lu_row : last_nz_in_lu_row ) ) )
+!         END IF
+!
+!!  first_nz_in_lu_row is adjusted to point to the start of the next row
+!
+!         first_nz_in_lu_row = first_nz_in_lu_row + LENR( block )
+!         W( block ) = wi
+!         IF ( .NOT. is_last_row_in_block ) CYCLE
+!
+!!  back-substitution phase
+!
+!         start_of_row_in_block = first_nz_in_lu_row
+!
+!!  are there any singularities in this block (they always occur at the end)?
+!!  If not, continue with the back substitution
+!
+!         DO last_row_in_block = block, first_row_in_block, - 1
+!           IF ( IQ( last_row_in_block ) > 0 ) GO TO 10
+!           start_of_row_in_block                                               &
+!             = start_of_row_in_block - LENR( last_row_in_block )
+!           RINFO( 3 ) = MAX( RINFO( 3 ), ABS( W( last_row_in_block ) ) )
+!           W( last_row_in_block ) = zero
+!         END DO
+!
+!!  the entire block is singular
+!
+!         first_row_in_block = block + 1
+!         is_last_row_in_block = .FALSE.
+!         CYCLE
+!
+!!  each pass through this loop performs the back-substitution operations for
+!!  a single row, starting at the end of the block and working through it in
+!!  reverse order, i.e.,
+!
+!!      w <- U^{-1} w
+!
+!  10     CONTINUE
+!         DO row_in_block = last_row_in_block, first_row_in_block, - 1
+!           end_of_row_in_block = start_of_row_in_block - 1
+!           start_of_row_in_block = start_of_row_in_block - LENR( row_in_block )
+!           pivot_entry_row_in_block                                            &
+!             = start_of_row_in_block + LENRL( row_in_block )
+!
+!!  jump if row row_in_block of U has no non-zeros
+!
+!           W( row_in_block ) = W( row_in_block ) - DOT_PRODUCT(                &
+!             A( pivot_entry_row_in_block + 1 : end_of_row_in_block ),          &
+!             W( ICN( pivot_entry_row_in_block + 1 : end_of_row_in_block ) ) )
+!           W( row_in_block ) = W( row_in_block ) / A( pivot_entry_row_in_block )
+!         END DO
+!         first_row_in_block = block + 1
+!         is_last_row_in_block = .FALSE.
+!       END DO
+!
+!       X( ABS( IQ( 1 : n ) ) ) = W( 1 : n ) ! reorder the solution vector
+!       IP( n ) = - IP( n )                  ! restor IP(n) on exit
+!
+!!  -------------------------
+!!  solve A(transpose) x = b
+!!  -------------------------
+!
+!     ELSE
+!       W( 1 : n ) = X( ABS( IQ( 1 : n ) ) )  ! preorder W(i) = X(IQ(i))
+!
+!!  first_nz_in_offdiag_row gives the start of the current row in the
+!!  off-diagonal blocks, first_nz_in_lu_row is the beginning of the block after
+!!  the last one, last_row_in_block is the last row in the current block, and
+!!  next_block_start points to the position after the last non-zero in the
+!!  current block
+!
+!!  -----------------------------------------------
+!
+!!   (  .  A_offdiag^T  . ) (   .    )    (  w_prev )
+!!   (      U^T L^T     . ) (   x    )  = (    w    )
+!!   (        0         . ) (   .    )    (    .    )
+!
+!!  -----------------------------------------------
+!
+!       first_nz_in_offdiag_row = IDISP( 1 )
+!       first_nz_in_lu_row = IDISP( 2 ) + 1
+!       last_row_in_block = n
+!       next_block_start = first_nz_in_lu_row
+!
+!!  each pass through this loop operates with one diagonal block and the
+!!  off-diagonal part of the matrix corresponding to the rows of this block.
+!!  The blocks are taken in reverse order and the number of times the loop
+!!  is entered is min(n,# blocks+1)
+!
+!       DO numblk = 1, n
+!         IF ( last_row_in_block /= 0 ) THEN
+!           first_nz_in_lu_row = first_nz_in_lu_row - LENR( last_row_in_block )
+!
+!!  this loop finds the index of the first row in the current block.
+!!  first_nz_in_lu_row is set to the position of the beginning of this first row
+!
+!           DO row_in_block = last_row_in_block - 1, last_row_in_block - n, - 1
+!             IF ( row_in_block == 0 ) EXIT
+!             IF ( IP( row_in_block ) < 0 ) EXIT
+!             first_nz_in_lu_row = first_nz_in_lu_row - LENR( row_in_block )
+!           END DO
+!           first_row_in_block = row_in_block + 1
+!           start_of_row_in_block = first_nz_in_lu_row
+!
+!!  forward elimination: each pass through this loop performs the operations
+!!  for one row of the block
+!
+!           DO row_in_block = first_row_in_block, last_row_in_block
+!
+!!  if the corresponding entry of w is zero then the operations can be avoided
+!
+!             IF ( W( row_in_block ) /= zero ) THEN
+!
+!!  deal with case where rows row_in_block ...last_row_in_bloc are singular
+!
+!               IF ( IQ( row_in_block ) < 0 ) THEN
+!                 DO row = row_in_block, last_row_in_block
+!                   RINFO( 3 ) = MAX( RINFO( 3 ), ABS( W( row ) ) )
+!                   W( row ) = zero
+!                 END DO
+!                 EXIT
+!               ELSE
+!                 pivot_entry_row_in_block                                      &
+!                   = start_of_row_in_block + LENRL( row_in_block )
+!                 wi = W( row_in_block ) / A( pivot_entry_row_in_block )
+!                 IF ( LENR( row_in_block ) - LENRL( row_in_block ) /= 1 ) THEN
+!
+!!  loop over the U transpose part of row row_in_block, i.e.,
+!
+!!    w <- U^-T w
+!
+!                   DO nzs_row = pivot_entry_row_in_block + 1,                  &
+!                                start_of_row_in_block + LENR( row_in_block ) - 1
+!                     col = ICN( nzs_row )
+!                     W( col ) = W( col ) - A( nzs_row ) * wi
+!                   END DO
+!                 END IF
+!                 W( row_in_block ) = wi
+!               END IF
+!             END IF
+!             start_of_row_in_block                                             &
+!               = start_of_row_in_block + LENR( row_in_block )
+!           END DO
+!
+!!  back substitution: this loop does the back substitution on the rows of the
+!!  block in the reverse order doing it simultaneously on the L transpose part
+!!  of the diagonal blocks and the off-diagonal blocks
+!
+!           start_of_row_in_block = next_block_start
+!           DO row_in_block = last_row_in_block, first_row_in_block, - 1
+!             start_of_row_in_block                                             &
+!               = start_of_row_in_block - LENR( row_in_block )
+!
+!!  loop to the end of the L transpose part of row row_in_block, i.e.,
+!
+!!    w <- L^-T w
+!
+!             IF ( LENRL( row_in_block ) /= 0 ) THEN
+!               DO nzs_row = start_of_row_in_block,                             &
+!                       start_of_row_in_block + LENRL( row_in_block ) - 1
+!                 col = ICN( nzs_row )
+!                 W( col ) = W( col ) + A( nzs_row ) * W( row_in_block )
+!               END DO
+!             END IF
+!
+!!  update the residuals using the lower triangular block, i.e.,
+!
+!!   w_prev <- w_prev - A_offdiag^T w
+!
+!             IF ( block_form ) THEN
+!               IF ( LENOFF( row_in_block ) /= 0 ) THEN
+!                 last_nz_in_offdiag_row = first_nz_in_offdiag_row - 1
+!                 first_nz_in_offdiag_row                                       &
+!                   = first_nz_in_offdiag_row - LENOFF( row_in_block )
+!                 DO nzs_row = first_nz_in_offdiag_row, last_nz_in_offdiag_row
+!                   col = ICN( nzs_row )
+!                   W( col ) = W( col ) - A( nzs_row ) * W( row_in_block )
+!                 END DO
+!               END IF
+!             END IF
+!           END DO
+!           next_block_start = start_of_row_in_block
+!           last_row_in_block = first_row_in_block - 1
+!         END IF
+!       END DO
+!       X( ABS( IP( 1 : n ) ) ) = W( 1 : n )  ! reorder the solution vector
+!     END IF
+!     RETURN
+!
+!!  End of GLS_part_solve
+!
+!     END SUBROUTINE GLS_part_solve
 
 !-*-  G L S _ F R E D H O L M _ A L T E R N A T I V E _ M A I N   S U B R  -*-
 
@@ -2012,56 +2033,56 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-! GLS_fredholm_alternative_main uses the factors produced by GLS_factorize 
-!     to find either x so that Ax=b or an "alternative" y so that A^T y = 0 
+! GLS_fredholm_alternative_main uses the factors produced by GLS_factorize
+!     to find either x so that Ax=b or an "alternative" y so that A^T y = 0
 !     and b^T y > 0. This is based on the Iain Duff's HSL package MA33CD
- 
+
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 ! n    is an INTEGER variable set to the order of the matrix
-! ICN  is an INTEGER array of length licn. entries idisp(1) to idisp(2) should 
+! ICN  is an INTEGER array of length licn. entries idisp(1) to idisp(2) should
 !      be unchanged since the last call to GLS_factorize. If the matrix has more
-!      than one diagonal block, then column indices corresponding to non-zeros 
-!      in sub-diagonal blocks of paq must appear in positions 1 to IDISP(1)-1. 
-!      For the same row those entries must be contiguous, with those in row i 
-!      preceding those in row i+1 (i=1,...,n-1) and no wasted space between 
+!      than one diagonal block, then column indices corresponding to non-zeros
+!      in sub-diagonal blocks of paq must appear in positions 1 to IDISP(1)-1.
+!      For the same row those entries must be contiguous, with those in row i
+!      preceding those in row i+1 (i=1,...,n-1) and no wasted space between
 !      rows. Entries may be in any order within each row
-! A    is a REAL array of length licn.  Entries IDISP(1) to IDISP(2) should be 
-!      unchanged since the last call to GLS_factorize. If the matrix has more 
+! A    is a REAL array of length licn.  Entries IDISP(1) to IDISP(2) should be
+!      unchanged since the last call to GLS_factorize. If the matrix has more
 !      than one diagonal block, then the values of the non-zeros in sub-diagonal
 !      blocks must be in positions 1 to IDISP(1)-1 in the order given by ICN
 ! licn is an INTEGER variable set to the size of arrays ICN and A
 ! LENR is an INTEGER arrays of length n such that LENR(i) will equal the
-!      total number of non-zeros in row i of L and row i of U. 
+!      total number of non-zeros in row i of L and row i of U.
 !      This should be unchanged since the last call to GLS_factorize
 ! LENRL is an INTEGER arrays of length n such that LENRL(i) will hold the
 !      number of non-zeros in row i of L.
 !      This should be unchanged since the last call to GLS_factorize
-! LENOFF is an INTEGER array of length n. if the matrix PAQ (or P1*A*Q1) has 
-!      more than one diagonal block, then LENOFF(i), i=1,...,n should be set 
-!      to the number of non-zeros in row i of the matrix paq which are in 
-!      sub-diagonal blocks. If there is only one diagonal block then LENOFF(1) 
-!      may be set to -1, in which case the other entries of LENOFF are never 
+! LENOFF is an INTEGER array of length n. if the matrix PAQ (or P1*A*Q1) has
+!      more than one diagonal block, then LENOFF(i), i=1,...,n should be set
+!      to the number of non-zeros in row i of the matrix paq which are in
+!      sub-diagonal blocks. If there is only one diagonal block then LENOFF(1)
+!      may be set to -1, in which case the other entries of LENOFF are never
 !      accessed. This should be unchanged since the last call to GLS_factorize
-! IDISP is an INTEGER array of length 2 for which IDISP(1) are the first and 
+! IDISP is an INTEGER array of length 2 for which IDISP(1) are the first and
 !      last positions in A/ICN for the LU decomposition of A.
 !      This should be unchanged since the last call to GLS_factorize
-! IP   is an INTEGER array of length n for which IP(i) indicates the row of A 
-!      that is the ith row in PAQ. A negative value indicates that row -i is 
+! IP   is an INTEGER array of length n for which IP(i) indicates the row of A
+!      that is the ith row in PAQ. A negative value indicates that row -i is
 !      the last row of a block (except the last).
 !      This should be unchanged since the last call to GLS_factorize
 ! IQ   is an INTEGER array of length n for which ABS(IP(j)) indicates the
 !      column of A that is the jth column of PAQ. For rows, i say, in which
 !      structural or numerical singularity is detected IQ(i) is negated.
 !      This should be unchanged since the last call to GLS_factorize
-! X    is a REAL array of length n. it must be set by the user to the values of 
+! X    is a REAL array of length n. it must be set by the user to the values of
 !      the right hand side vector b for the equations being solved.
 !      On exit, it will be equal to the solution x required
 ! W    is a real/double precision array of length n which is used as workspace
-! alternative_tol is a REAL variable that specifies the largest size of the 
+! alternative_tol is a REAL variable that specifies the largest size of the
 !      residuual ||A x - b|| that will be permitted before declaring that there
 !       is an "alternative" y for which A^T y and b^T y > 0
-! alternative is a LOGICAL variable that will be true if there is an 
+! alternative is a LOGICAL variable that will be true if there is an
 !      "alternative"
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -2106,18 +2127,18 @@
 !  Try to solve  A x = b
 !  ---------------------
 
-!  is_last_row_in_block is used to indicate when the last row in a block has 
-!  been reached. It is then set to true whereafter backsubstitution is 
+!  is_last_row_in_block is used to indicate when the last row in a block has
+!  been reached. It is then set to true whereafter backsubstitution is
 !  performed on the block
 
      is_last_row_in_block = .FALSE.
 
-!  IP(n) is negated so that the last row of the last block is recognised. 
+!  IP(n) is negated so that the last row of the last block is recognised.
 
      IP( n ) = - IP( n )
      W( : n ) = X( ABS( IP( : n ) ) )  ! preorder W(i) = X(IP(i))
 
-!  first_nz_in_offdiag_row holds the position of the first non-zero in the 
+!  first_nz_in_offdiag_row holds the position of the first non-zero in the
 !  current row of the off-diagonal blocks.
 
      first_nz_in_offdiag_row = 1
@@ -2126,15 +2147,15 @@
 
      first_row_in_block = 1
 
-!  first_nz_in_lu_row holds the position of the first non-zero in the current 
+!  first_nz_in_lu_row holds the position of the first non-zero in the current
 !  row of the LU decomposition of the diagonal blocks
 
      first_nz_in_lu_row = IDISP( 1 )
 
-!  if row block is not the last row of a block, a pass through this loop adds 
-!  the inner product of row block of the off-diagonal blocks and w to w and 
-!  performs forward elimination using row block of the LU decomposition. 
-!  If block is the last row of a block then, after performing these operations, 
+!  if row block is not the last row of a block, a pass through this loop adds
+!  the inner product of row block of the off-diagonal blocks and w to w and
+!  performs forward elimination using row block of the LU decomposition.
+!  If block is the last row of a block then, after performing these operations,
 !  backsubstitution is performed using the rows of the block.
 
 !  -----------------------------------------------
@@ -2149,7 +2170,7 @@
        wi = W( block )
        IF ( block_form ) THEN
 
-!  operations using lower triangular blocks: last_nz_in_offdiag_row is the 
+!  operations using lower triangular blocks: last_nz_in_offdiag_row is the
 !  end of row block in the off-diagonal blocks, i.e.,
 
 !    w <- w - A_offdiag x_prev
@@ -2193,7 +2214,7 @@
 
        start_of_row_in_block = first_nz_in_lu_row
 
-!  are there any singularities in this block (they always occur at the end)?  
+!  are there any singularities in this block (they always occur at the end)?
 !  If not, continue with the back substitution
 
        DO last_row_in_block = block, first_row_in_block, - 1
@@ -2215,7 +2236,7 @@
        CYCLE
 
 !  each pass through this loop performs the back-substitution operations for
-!  a single row, starting at the end of the block and working through it in 
+!  a single row, starting at the end of the block and working through it in
 !  reverse order, i.e.,
 
 !    w <- U^{-1} w
@@ -2257,10 +2278,10 @@
      W( last_row_in_block ) = wi
 !    stop
 
-!  first_nz_in_offdiag_row gives the start of the current row in the 
+!  first_nz_in_offdiag_row gives the start of the current row in the
 !  off-diagonal blocks, first_nz_in_lu_row is the beginning of the block after
 !  the last one, last_row_in_block is the last row in the current block, and
-!  next_block_start points to the position after the last non-zero in the 
+!  next_block_start points to the position after the last non-zero in the
 !  current block
 
 !  -----------------------------------------------
@@ -2271,21 +2292,21 @@
 
 !  -----------------------------------------------
 
-     first_nz_in_offdiag_row = IDISP( 1 )  
+     first_nz_in_offdiag_row = IDISP( 1 )
      first_nz_in_lu_row = IDISP( 2 ) + 1
      last_row_in_block = n
      next_block_start = first_nz_in_lu_row
 
-!  each pass through this loop operates with one diagonal block and the 
-!  off-diagonal part of the matrix corresponding to the rows of this block. 
-!  The blocks are taken in reverse order and the number of times the loop 
+!  each pass through this loop operates with one diagonal block and the
+!  off-diagonal part of the matrix corresponding to the rows of this block.
+!  The blocks are taken in reverse order and the number of times the loop
 !  is entered is min(n,# blocks+1)
 
      DO numblk = 1, n
        IF ( last_row_in_block /= 0 ) THEN
          first_nz_in_lu_row = first_nz_in_lu_row - LENR( last_row_in_block )
 
-!  this loop finds the index of the first row in the current block. 
+!  this loop finds the index of the first row in the current block.
 !  first_nz_in_lu_row is set to the position of the beginning of this first row
 
          DO row_in_block = last_row_in_block - 1, last_row_in_block - n, - 1
@@ -2296,7 +2317,7 @@
          first_row_in_block = row_in_block + 1
          start_of_row_in_block = first_nz_in_lu_row
 
-!  forward elimination: each pass through this loop performs the operations 
+!  forward elimination: each pass through this loop performs the operations
 !  for one row of the block
 
          DO row_in_block = first_row_in_block, last_row_in_block
@@ -2307,7 +2328,7 @@
 
 !  deal with case where rows row_in_block ...last_row_in_bloc are singular
 
-             IF ( IQ( row_in_block ) < 0 ) THEN  
+             IF ( IQ( row_in_block ) < 0 ) THEN
 !              DO row = row_in_block, last_row_in_block
 !                RINFO( 3 ) = MAX( RINFO( 3 ), ABS( W( row ) ) )
 !                W( row ) = zero
@@ -2336,7 +2357,7 @@
              = start_of_row_in_block + LENR( row_in_block )
          END DO
 
-!  back substitution: this loop does the back substitution on the rows of the 
+!  back substitution: this loop does the back substitution on the rows of the
 !  block in the reverse order doing it simultaneously on the L transpose part
 !  of the diagonal blocks and the off-diagonal blocks
 
@@ -2363,7 +2384,7 @@
 
            IF ( block_form ) THEN
              IF ( LENOFF( row_in_block ) /= 0 ) THEN
-               last_nz_in_offdiag_row = first_nz_in_offdiag_row - 1   
+               last_nz_in_offdiag_row = first_nz_in_offdiag_row - 1
                first_nz_in_offdiag_row                                         &
                  = first_nz_in_offdiag_row - LENOFF( row_in_block )
                DO nzs_row = first_nz_in_offdiag_row, last_nz_in_offdiag_row
@@ -2402,8 +2423,3 @@
 !  IW( : 6 ) -> LASTC
 !  IW( : 7 ) -> NEXTC
 !  IW( : 8 ) -> IPTR
-
-
-
-
-

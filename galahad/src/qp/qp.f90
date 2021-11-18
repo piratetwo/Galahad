@@ -8,7 +8,7 @@
 !  History -
 !   originally released in GALAHAD Version 2.4. January 5th 2011
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_QP_double
@@ -37,15 +37,15 @@
 
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS, ACTIVE => GALAHAD_ACTIVE, TRACE => GALAHAD_TRACE,   &
-                           DEBUG => GALAHAD_DEBUG  
+                           DEBUG => GALAHAD_DEBUG
       USE GALAHAD_SPACE_double
-      USE GALAHAD_SPECFILE_double 
+      USE GALAHAD_SPECFILE_double
       USE GALAHAD_QPT_double
       USE GALAHAD_QPD_double, QP_data_type => QPD_data_type
       USE GALAHAD_SORT_double, ONLY: SORT_reorder_by_rows
       USE GALAHAD_SCALE_double
       USE GALAHAD_PRESOLVE_double
-      USE GALAHAD_MOP_double
+      USE GALAHAD_MOP_double, ONLY: mop_AX
       USE GALAHAD_QPA_double
       USE GALAHAD_QPB_double
       USE GALAHAD_QPC_double
@@ -86,14 +86,14 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: QP_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -118,12 +118,12 @@
 
         INTEGER :: scale = 0
 
-!    specifies the unit number to write generated SIF file describing the 
+!    specifies the unit number to write generated SIF file describing the
 !     current problem
 
         INTEGER :: sif_file_device = 52
 
-!   any bound larger than infinity in modulus will be regarded as infinite 
+!   any bound larger than infinity in modulus will be regarded as infinite
 
         REAL ( KIND = wp ) :: infinity = ten ** 19
 
@@ -142,7 +142,7 @@
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
-!   if %generate_sif_file is .true. if a SIF file describing the current 
+!   if %generate_sif_file is .true. if a SIF file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_sif_file = .FALSE.
@@ -151,7 +151,7 @@
 !   qpa, qpb, qpc, cqp, dqp, ccqp
 
         CHARACTER ( LEN = 30 ) :: quadratic_programming_solver =               &
-           "ccqp" // REPEAT( ' ', 26 )
+           "qpc" // REPEAT( ' ', 27 )
 
 !  name of generated SIF file containing input problem
 
@@ -159,7 +159,7 @@
          "QPPROB.SIF"  // REPEAT( ' ', 19 )
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -238,9 +238,9 @@
 
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: QP_inform_type
 
@@ -256,7 +256,7 @@
 
         CHARACTER ( LEN = 80 ) :: bad_alloc = REPEAT( ' ', 80 )
 
-!  the value of the objective function at the best estimate of the solution 
+!  the value of the objective function at the best estimate of the solution
 !   determined by QP_solve
 
         REAL ( KIND = wp ) :: obj = HUGE( one )
@@ -319,7 +319,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Default control data for QP. This routine should be called before QP_solve
-! 
+!
 !  ---------------------------------------------------------------------------
 !
 !  Arguments:
@@ -331,7 +331,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
       TYPE ( QP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( QP_control_type ), INTENT( OUT ) :: control        
+      TYPE ( QP_control_type ), INTENT( OUT ) :: control
       TYPE ( QP_inform_type ), INTENT( OUT ) :: inform
 
 !  Set control parameters
@@ -357,7 +357,7 @@
 
       inform%status = GALAHAD_ok
 
-      RETURN  
+      RETURN
 
 !  End of QP_initialize
 
@@ -367,10 +367,10 @@
 
       SUBROUTINE QP_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by QP_initialize could (roughly) 
+!  The defauly values as given by QP_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN QP SPECIFICATIONS (DEFAULT)
@@ -391,10 +391,10 @@
 
 !  Dummy arguments
 
-      TYPE ( QP_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( QP_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
-      
+
 
 !  Programming: Nick Gould and Ph. Toint, January 2002.
 
@@ -424,8 +424,8 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
-      spec( scale )%keyword = 'scale-problem' 
+      spec( print_level )%keyword = 'print-level'
+      spec( scale )%keyword = 'scale-problem'
       spec( sif_file_device )%keyword = 'sif-file-device'
 
 !  Real key-words
@@ -567,7 +567,7 @@
 !
 !  or linear/separable objective
 !
-!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f  
+!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f
 !
 !  where
 !
@@ -577,18 +577,18 @@
 !
 !  where x is a vector of n components ( x_1, .... , x_n ),
 !  A is an m by n matrix, and any of the bounds (c_l)_i, (c_u)_i
-!  (x_l)_i, (x_u)_i may be infinite. The subroutine is particularly 
+!  (x_l)_i, (x_u)_i may be infinite. The subroutine is particularly
 !  appropriate when H and/or A are sparse.
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Arguments:
 !
-!  prob is a structure of type QPT_problem_type, whose components hold 
+!  prob is a structure of type QPT_problem_type, whose components hold
 !   information about the problem on input, and its solution on output.
 !   The following components must be set:
 !
-!   %new_problem_structure is a LOGICAL variable, which must be set to 
+!   %new_problem_structure is a LOGICAL variable, which must be set to
 !    .TRUE. by the user if this is the first problem with this "structure"
 !    to be solved since the last call to QP_initialize, and .FALSE. if
 !    a previous call to a problem with the same "structure" (but different
@@ -596,23 +596,23 @@
 !
 !   %n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !   %m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
+!
 !   %Hessian_kind is an INTEGER variable which defines the type of objective
 !    function to be used. Possible values are
 !
-!     0  all the weights will be zero, and the analytic centre of the 
+!     0  all the weights will be zero, and the analytic centre of the
 !        feasible region will be found. %WEIGHT (see below) need not be set
 !
 !     1  all the weights will be one. %WEIGHT (see below) need not be set
 !
 !     2  the weights will be those given by %WEIGHT (see below)
 !
-!    <0  the Hessian H will be used 
+!    <0  the Hessian H will be used
 !
-!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of H (except for the L-BFGS case). Eight storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -623,7 +623,7 @@
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
 !       H%col( : )   the column indices of the components of H
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !
 !    ii) sparse, by rows
@@ -642,7 +642,7 @@
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -679,22 +679,22 @@
 !
 !       The Hessian in this case is available via the component %H_lm below
 !
-!    On exit, the components will most likely have been reordered. 
+!    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above,
-!    except for scheme (ix), for which a permutation will be set within H_lm. 
+!    except for scheme (ix), for which a permutation will be set within H_lm.
 !    However, if scheme (i) is used for input, the output H%row will contain
 !    the row numbers corresponding to the values in H%val, and thus in this
 !    case the output matrix will be available in both formats (i) and (ii).
-!    
+!
 !   %H_lm is a structure of type LMS_data_type, whose components hold the
 !     L-BFGS Hessian. Access to this structure is via the module GALAHAD_LMS,
 !     and this component needs only be set if %H%type( 1 : 5 ) = 'LBFGS.'
 !
 !   %WEIGHT is a REAL array, which need only be set if %Hessian_kind is larger
 !    than 1. If this is so, it must be of length at least %n, and contain the
-!    weights W for the objective function. 
-!  
-!   %target_kind is an INTEGER variable which defines possible special 
+!    weights W for the objective function.
+!
+!   %target_kind is an INTEGER variable which defines possible special
 !     targets X0. Possible values are
 !
 !     0  X0 will be a vector of zeros.
@@ -706,30 +706,30 @@
 !     any other value - the values of X0 will be those given by %X0 (see below)
 !
 !   %X0 is a REAL array, which need only be set if %Hessian_kind is larger
-!    that 0 and %target_kind /= 0,1. If this is so, it must be of length at 
-!    least %n, and contain the targets X^0 for the objective function. 
-!  
+!    that 0 and %target_kind /= 0,1. If this is so, it must be of length at
+!    least %n, and contain the targets X^0 for the objective function.
+!
 !   %gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term g will be zero, and the analytic centre of the 
+!     0  the linear term g will be zero, and the analytic centre of the
 !        feasible region will be found if in addition %Hessian_kind is 0.
 !        %G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        %G (see below) need not be set
 !
 !     any other value - the gradients will be those given by %G (see below)
 !
-!   %G is a REAL array, which need only be set if %gradient_kind is not 0 
+!   %G is a REAL array, which need only be set if %gradient_kind is not 0
 !    or 1. If this is so, it must be of length at least %n, and contain the
-!    linear terms g for the objective function. 
-!  
+!    linear terms g for the objective function.
+!
 !   %f is a REAL variable, which must be set by the user to the value of
 !    the constant term f in the objective function. On exit, it may have
 !    been changed to reflect variables which have been fixed.
 !
-!   %A is a structure of type SMT_type used to hold the matrix A. 
+!   %A is a structure of type SMT_type used to hold the matrix A.
 !    Three storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -758,68 +758,68 @@
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
 !    However, if scheme (i) is used for input, the output A%row will contain
 !    the row numbers corresponding to the values in A%val, and thus in this
-!    case the output matrix will be available in both formats (i) and (ii).   
-! 
-!   %C is a REAL array of length %m, which is used to store the values of 
-!    A x. It need not be set on entry. On exit, it will have been filled 
+!    case the output matrix will be available in both formats (i) and (ii).
+!
+!   %C is a REAL array of length %m, which is used to store the values of
+!    A x. It need not be set on entry. On exit, it will have been filled
 !    with appropriate values.
 !
 !   %X is a REAL array of length %n, which must be set by the user
-!    to estimaes of the solution, x. On successful exit, it will contain 
+!    to estimaes of the solution, x. On successful exit, it will contain
 !    the required solution, x.
 !
 !   %C_l, %C_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays c_l and c_u of lower and upper bounds on A x.
-!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %C_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %C_u to a value larger than 
-!    control%infinity. On exit, %C_l and %C_u will most likely have been 
+!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %C_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %C_u to a value larger than
+!    control%infinity. On exit, %C_l and %C_u will most likely have been
 !    reordered.
-!   
+!
 !   %Y is a REAL array of length %m, which must be set by the user to
-!    appropriate estimates of the values of the Lagrange multipliers 
-!    corresponding to the general constraints c_l <= A x <= c_u. 
-!    On successful exit, it will contain the required vector of Lagrange 
+!    appropriate estimates of the values of the Lagrange multipliers
+!    corresponding to the general constraints c_l <= A x <= c_u.
+!    On successful exit, it will contain the required vector of Lagrange
 !    multipliers.
 !
 !   %X_l, %X_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays x_l and x_u of lower and upper bounds on x.
-!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %X_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %X_u to a value larger than 
-!    control%infinity. On exit, %X_l and %X_u will most likely have been 
+!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %X_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %X_u to a value larger than
+!    control%infinity. On exit, %X_l and %X_u will most likely have been
 !    reordered.
-!   
+!
 !   %Z is a REAL array of length %n, which must be set by the user to
-!    appropriate estimates of the values of the dual variables 
-!    (Lagrange multipliers corresponding to the simple bound constraints 
+!    appropriate estimates of the values of the dual variables
+!    (Lagrange multipliers corresponding to the simple bound constraints
 !    x_l <= x <= x_u). On successful exit, it will contain
-!   the required vector of dual variables. 
+!   the required vector of dual variables.
 !
 !  data is a structure of type QP_data_type which holds private internal data
 !
-!  control is a structure of type QP_control_type that controls the 
+!  control is a structure of type QP_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
-!   the elements may be set by a call to QP_initialize. See QP_initialize 
+!   the elements may be set by a call to QP_initialize. See QP_initialize
 !   for details
 !
-!  inform is a structure of type QP_inform_type that provides 
-!    information on exit from QP_solve. The component status 
+!  inform is a structure of type QP_inform_type that provides
+!    information on exit from QP_solve. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination with a locally optimal solution.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -828,7 +828,7 @@
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!   - 3 one of the restrictions 
+!   - 3 one of the restrictions
 !        prob%n     >=  1
 !        prob%m     >=  0
 !        prob%A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE' }
@@ -843,37 +843,37 @@
 !
 !    -8 The analytic center appears to be unbounded.
 !
-!    -9 The analysis phase of the factorization failed; the return status 
+!    -9 The analysis phase of the factorization failed; the return status
 !       from the factorization package is given in the component factor_status.
-!      
+!
 !   -10 The factorization failed; the return status from the factorization
 !       package is given in the component factor_status.
-!      
-!   -11 The solve of a required linear system failed; the return status from 
+!
+!   -11 The solve of a required linear system failed; the return status from
 !       the factorization package is given in the component factor_status.
-!      
-!   -16 The problem is so ill-conditoned that further progress is impossible.  
+!
+!   -16 The problem is so ill-conditoned that further progress is impossible.
 !
 !   -17 The step is too small to make further impact.
 !
-!   -18 Too many iterations have been performed. 
+!   -18 Too many iterations have been performed.
 !
-!   -19 Too much elapsed CPU or system clock time has passed. 
+!   -19 Too much elapsed CPU or system clock time has passed.
 !
-!  C_stat is an optional INTEGER array of length m, which if present will be 
-!   set on exit to indicate the likely ultimate status of the constraints. 
-!   Possible values are 
-!   C_stat( i ) < 0, the i-th constraint is likely in the active set, 
-!                    on its lower bound, 
+!  C_stat is an optional INTEGER array of length m, which if present will be
+!   set on exit to indicate the likely ultimate status of the constraints.
+!   Possible values are
+!   C_stat( i ) < 0, the i-th constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is likely not in the active set
 !
-!  B_stat is an optional INTEGER array of length m, which if present will be 
-!   set on exit to indicate the likely ultimate status of the simple bound 
-!   constraints. Possible values are 
-!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set, 
-!                    on its lower bound, 
+!  B_stat is an optional INTEGER array of length n, which if present will be
+!   set on exit to indicate the likely ultimate status of the simple bound
+!   constraints. Possible values are
+!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is likely not in the active set
@@ -884,7 +884,7 @@
 
       TYPE ( QPT_problem_type ), INTENT( INOUT ) :: prob
       TYPE ( QP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( QP_control_type ), INTENT( IN ) :: control        
+      TYPE ( QP_control_type ), INTENT( IN ) :: control
       TYPE ( QP_inform_type ), INTENT( OUT ) :: inform
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%m ) :: C_stat
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%n ) :: B_stat
@@ -898,7 +898,7 @@
       LOGICAL :: printi, stat_required, presolve, lbfgs
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -908,7 +908,7 @@
         WRITE( control%out, "( A, ' entering QP_solve ' )" ) prefix
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
       IF ( control%generate_sif_file ) THEN
         CALL QPD_SIF( prob, control%sif_file_name, control%sif_file_device,    &
@@ -929,7 +929,7 @@
 
 !  basic single line of output per iteration
 
-      printi = control%out > 0 .AND. control%print_level >= 1 
+      printi = control%out > 0 .AND. control%print_level >= 1
 
 !  ensure that input parameters are within allowed ranges
 
@@ -940,9 +940,9 @@
         IF ( control%error > 0 .AND. control%print_level > 0 )                 &
           WRITE( control%error,                                                &
            "( ' ', /, A, '   **  Error return ', I0, ' from QP ' )" )          &
-          prefix, inform%status 
-        GO TO 800 
-      END IF 
+          prefix, inform%status
+        GO TO 800
+      END IF
 
 !  is an L-BFGS Hessian used?
 
@@ -974,7 +974,7 @@
         prob%A%ne = prob%A%ptr( prob%m + 1 ) - 1
       END IF
 
-!  if required, write out problem 
+!  if required, write out problem
 
       IF ( control%out > 0 .AND. control%print_level >= 20 )                   &
         CALL QPT_summarize_problem( control%out, prob )
@@ -1040,7 +1040,7 @@
                exact_size = control%space_critical,                            &
                bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= GALAHAD_ok ) GO TO 900
-        
+
         array_name = 'qp: prob%C_status'
         CALL SPACE_resize_array( prob%m, prob%C_status, inform%status,         &
                inform%alloc_status, array_name = array_name,                   &
@@ -1048,7 +1048,7 @@
                exact_size = control%space_critical,                            &
                bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= GALAHAD_ok ) GO TO 900
-        
+
         array_name = 'qp: prob%Z_l'
         CALL SPACE_resize_array( prob%n, prob%Z_l, inform%status,              &
                inform%alloc_status, array_name = array_name,                   &
@@ -1091,7 +1091,7 @@
 !  --------------------
 !  presolve if required
 !  --------------------
-        
+
         IF ( printi ) WRITE( control%out,                                      &
          "( A, ' dimensions prior to presolve:',                               &
        &    ' n = ', I0, ', m = ', I0, ', a_ne = ', I0, ', h_ne = ', I0 )" )   &
@@ -1145,7 +1145,7 @@
                prefix, inform%PRESOLVE_inform%status
           inform%status = GALAHAD_error_presolve ; GO TO 800
         END IF
-        
+
         IF ( SMT_get( prob%H%type ) == 'NONE' .OR.                             &
              SMT_get( prob%H%type ) == 'ZERO' .OR.                             &
              SMT_get( prob%H%type ) == 'IDENTITY' ) THEN
@@ -1244,7 +1244,7 @@
 
 !  == QPA ==
 
-        CASE ( 'qpa', 'QPA' ) 
+        CASE ( 'qpa', 'QPA' )
           IF ( printi ) WRITE( control%out,                                    &
               "( A, ' ** GALAHAD QPA solver used **' )" ) prefix
           IF ( stat_required ) THEN
@@ -1259,13 +1259,13 @@
                inform%QPA_inform%status /= GALAHAD_error_tiny_step ) THEN
             IF ( printi ) WRITE( control%out,                                  &
               "( A, ' GALAHAD QPA solve error status = ', I0 )" ) prefix,      &
-              inform%QPA_inform%status 
+              inform%QPA_inform%status
             inform%status = GALAHAD_error_qpa ; GO TO 800
           END IF
 
 !  == QPB ==
 
-        CASE ( 'qpb', 'QPB' ) 
+        CASE ( 'qpb', 'QPB' )
           IF ( printi ) WRITE( control%out,                                    &
               "( A, ' ** GALAHAD QPB solver used **' )" ) prefix
           CALL QPB_solve( prob, data, control%QPB_control, inform%QPB_inform,  &
@@ -1275,13 +1275,13 @@
                inform%QPB_inform%status /= GALAHAD_error_tiny_step ) THEN
             IF ( printi ) WRITE( control%out,                                  &
               "( A, ' GALAHAD QPB solve error status = ', I0 )" ) prefix,      &
-              inform%QPB_inform%status 
+              inform%QPB_inform%status
             inform%status = GALAHAD_error_qpb ; GO TO 800
           END IF
 
 !  == QPC ==
 
-        CASE ( 'qpc', 'QPC' ) 
+        CASE ( 'qpc', 'QPC' )
           IF ( printi ) WRITE( control%out,                                    &
               "( A, ' ** GALAHAD QPC solver used **' )" ) prefix
           IF ( stat_required ) THEN
@@ -1296,13 +1296,13 @@
                inform%QPC_inform%status /= GALAHAD_error_tiny_step ) THEN
             IF ( printi ) WRITE( control%out,                                  &
               "( A, ' GALAHAD QPC solve error status = ', I0 )" ) prefix,      &
-              inform%QPC_inform%status 
+              inform%QPC_inform%status
             inform%status = GALAHAD_error_qpc ; GO TO 800
           END IF
 
 !  == CQP ==
 
-        CASE ( 'cqp', 'CQP' ) 
+        CASE ( 'cqp', 'CQP' )
           IF ( printi ) WRITE( control%out,                                    &
               "( A, ' ** GALAHAD CQP solver used **' )" ) prefix
           CALL CQP_solve( prob, data, control%CQP_control, inform%CQP_inform,  &
@@ -1312,13 +1312,13 @@
                inform%CQP_inform%status /= GALAHAD_error_tiny_step ) THEN
             IF ( printi ) WRITE( control%out,                                  &
               "( A, ' GALAHAD CQP solve error status = ', I0 )" ) prefix,      &
-              inform%CQP_inform%status 
+              inform%CQP_inform%status
             inform%status = GALAHAD_error_cqp ; GO TO 800
           END IF
 
 !  == DQP ==
 
-        CASE ( 'dqp', 'DQP' ) 
+        CASE ( 'dqp', 'DQP' )
           IF ( printi ) WRITE( control%out,                                    &
               "( A, ' ** GALAHAD DQP solver used **' )" ) prefix
           CALL DQP_solve( prob, data, control%DQP_control, inform%DQP_inform,  &
@@ -1328,13 +1328,13 @@
                inform%DQP_inform%status /= GALAHAD_error_tiny_step ) THEN
             IF ( printi ) WRITE( control%out,                                  &
               "( A, ' GALAHAD DQP solve error status = ', I0 )" ) prefix,      &
-              inform%DQP_inform%status 
+              inform%DQP_inform%status
             inform%status = GALAHAD_error_dqp ; GO TO 800
           END IF
 
 !  == CCQP ==
 
-        CASE ( 'ccqp', 'CCQP' ) 
+        CASE ( 'ccqp', 'CCQP' )
           IF ( printi ) WRITE( control%out,                                    &
               "( A, ' ** GALAHAD CCQP solver used **' )" ) prefix
           CALL CCQP_solve( prob, data, control%CCQP_control,                   &
@@ -1344,7 +1344,7 @@
                inform%CCQP_inform%status /= GALAHAD_error_tiny_step ) THEN
             IF ( printi ) WRITE( control%out,                                  &
               "( A, ' GALAHAD CCQP solve error status = ', I0 )" ) prefix,     &
-              inform%CCQP_inform%status 
+              inform%CCQP_inform%status
             inform%status = GALAHAD_error_ccqp ; GO TO 800
           END IF
 
@@ -1447,7 +1447,7 @@
             inform%complementary_slackness =                                   &
               MAX( inform%complementary_slackness,                             &
                  MIN( ABS( ( prob%C_l( i ) - val ) * prob%Y( i ) ),            &
-                      ABS( ( prob%C_u( i ) - val ) * prob%Y( i ) ) ) ) 
+                      ABS( ( prob%C_u( i ) - val ) * prob%Y( i ) ) ) )
           ELSE
             inform%complementary_slackness =                                   &
               MAX( inform%complementary_slackness,                             &
@@ -1507,21 +1507,21 @@
 
 !  return
 
-  800 CONTINUE 
+  800 CONTINUE
       CALL CPU_TIME( time_end ) ; CALL CLOCK_time( clock_end )
-      inform%time%total = inform%time%total + time_end - time_start 
+      inform%time%total = inform%time%total + time_end - time_start
       inform%time%clock_total                                                  &
         = inform%time%clock_total + clock_end - clock_start
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving QP_solve ' )" ) prefix
 
-      RETURN  
+      RETURN
 
 !  allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate
-!     CALL CPU_TIME( time_now ) ; inform%time%total = time_now - time_start 
+!     CALL CPU_TIME( time_now ) ; inform%time%total = time_now - time_start
       IF ( printi ) WRITE( control%out,                                        &
         "( A, ' ** Message from -QP_solve-', /,  A,                            &
        &      ' Allocation error, for ', A, /, A, ' status = ', I0 ) " )       &
@@ -1529,7 +1529,7 @@
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving QP_solve ' )" ) prefix
 
-      RETURN  
+      RETURN
 
 !  End of QP_solve
 
@@ -1559,14 +1559,14 @@
 !  Dummy arguments
 
       TYPE ( QP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( QP_control_type ), INTENT( IN ) :: control        
+      TYPE ( QP_control_type ), INTENT( IN ) :: control
       TYPE ( QP_inform_type ), INTENT( INOUT ) :: inform
- 
+
 !  Local variables
 
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  Deallocate all arrays allocated by SCALE, PRESOLVE, QPA, QPB, QPC, 
+!  Deallocate all arrays allocated by SCALE, PRESOLVE, QPA, QPB, QPC,
 !  CQP, DQP and CCQP
 
       CALL SCALE_terminate( data%SCALE_data, control%SCALE_control,            &
@@ -1660,14 +1660,3 @@
 !  End of module QP
 
    END MODULE GALAHAD_QP_double
-
-
-
-
-
-
-
-
-
-
-

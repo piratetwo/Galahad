@@ -8,7 +8,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.1, November 4th, 2007
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_LSTR_double
@@ -71,14 +71,14 @@
 !  Derived type definitions
 !--------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: LSTR_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -123,13 +123,13 @@
 
         INTEGER :: extra_vectors = 0
 
-!   the iteration stops successfully when ||A^Tr|| is less than 
+!   the iteration stops successfully when ||A^Tr|| is less than
 !     max( stop_relative * ||A^Tr initial ||, stop_absolute )
 
         REAL ( KIND = wp ) :: stop_relative = epsmch
         REAL ( KIND = wp ) :: stop_absolute = zero
 
-!   an estimate of the solution that gives at least %fraction_opt times 
+!   an estimate of the solution that gives at least %fraction_opt times
 !    the optimal objective value will be found
 
         REAL ( KIND = wp ) :: fraction_opt = one
@@ -153,15 +153,15 @@
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: LSTR_inform_type
 
@@ -186,7 +186,7 @@
 
         INTEGER :: iter_pass2 = - 1
 
-!  the total number of inner iterations performed 
+!  the total number of inner iterations performed
 
         INTEGER :: biters = - 1
 
@@ -233,7 +233,7 @@
         REAL ( KIND = wp ) :: s, c, s_w, c_w, zeta_bar, gamma, z_norm
         REAL ( KIND = wp ) :: eta_bar, lambda_km1, lambda_bar, ww, radius2
         REAL ( KIND = wp ) :: error_tol, stop, decrease_st
-        REAL ( KIND = wp ) :: time_start, time_now
+        REAL :: time_start, time_now
         REAL ( KIND = wp ) :: clock_start, clock_now
         LOGICAL :: set_printi, printi, set_printd, printd, interior, header
         LOGICAL :: prev_steihaug_toint, save_vectors, try_warm
@@ -262,7 +262,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  .  Set initial values for the LSTR control parameters  .
-!   
+!
 !  Argument:
 !  =========
 !
@@ -277,7 +277,7 @@
 !-----------------------------------------------
 
       TYPE ( LSTR_data_type ), INTENT( INOUT ) :: data
-      TYPE ( LSTR_control_type ), INTENT( OUT ) :: control        
+      TYPE ( LSTR_control_type ), INTENT( OUT ) :: control
       TYPE ( LSTR_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -285,21 +285,6 @@
 !  Set initial control parameter values
 
       control%stop_relative = SQRT( EPSILON( one ) )
-      control%stop_absolute = zero
-      control%fraction_opt = one
-      control%steihaug_toint = .TRUE.
-      control%space_critical = .FALSE.
-      control%deallocate_error_fatal  = .FALSE.
-      control%error = 6
-      control%out = 6
-      control%extra_vectors = 0
-      control%print_level = 0
-      control%itmin = - 1
-      control%itmax = - 1
-      control%itmax_on_boundary = - 1
-      control%bitmax = - 1
-      control%prefix = '""     '
-
       data%branch = 1
       data%prev_steihaug_toint = .TRUE.
 
@@ -313,10 +298,10 @@
 
       SUBROUTINE LSTR_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The default values as given by LSTR_initialize could (roughly) 
+!  The default values as given by LSTR_initialize could (roughly)
 !  have been set as:
 
 !  BEGIN LSTR SPECIFICATIONS (DEFAULT)
@@ -326,11 +311,11 @@
 !   start-print                                     -1
 !   stop-print                                      -1
 !   minimum-number-of-iterations                    -1
-!   maximum-number-of-iterations                    -1           
+!   maximum-number-of-iterations                    -1
 !   maximum-number-of-boundary-iterations           -1
-!   maximum-number-of-inner-iterations              -1           
+!   maximum-number-of-inner-iterations              -1
 !   number-extra-n-vectors-used                     0
-!   relative-accuracy-required                      1.0E-8 
+!   relative-accuracy-required                      1.0E-8
 !   absolute-accuracy-required                      0.0
 !   fraction-optimality-required                    1.0
 !   maximum-time-limit                              -1.0
@@ -344,7 +329,7 @@
 !   D u m m y   A r g u m e n t s
 !-----------------------------------------------
 
-      TYPE ( LSTR_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( LSTR_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -370,7 +355,7 @@
       INTEGER, PARAMETER :: fraction_opt = stop_absolute + 1
       INTEGER, PARAMETER :: time_limit = fraction_opt + 1
       INTEGER, PARAMETER :: steihaug_toint = time_limit + 1
-      INTEGER, PARAMETER :: space_critical = steihaug_toint + 1 
+      INTEGER, PARAMETER :: space_critical = steihaug_toint + 1
       INTEGER, PARAMETER :: deallocate_error_fatal = space_critical + 1
       INTEGER, PARAMETER :: prefix = deallocate_error_fatal + 1
       INTEGER, PARAMETER :: lspec = prefix
@@ -385,7 +370,7 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
       spec( start_print )%keyword = 'start-print'
       spec( stop_print  )%keyword = 'stop-print'
       spec( print_gap )%keyword = 'iterations-between-printing'
@@ -473,7 +458,7 @@
       CALL SPECFILE_assign_value( spec( time_limit ),                          &
                                   control%time_limit,                          &
                                   control%error )
-     
+
 !  Set logical values
 
       CALL SPECFILE_assign_value( spec( steihaug_toint ),                      &
@@ -522,7 +507,7 @@
 !               3 on exit, the product A^T with U must be added to V with
 !                   the result kept in V, and the subroutine re-entered.
 !               4 The iteration will be restarted. Reset U to b and re-enter.
-!                 This exit will only occur if control%steihaug_toint is 
+!                 This exit will only occur if control%steihaug_toint is
 !                 .FALSE. and the solution lies on the trust-region boundary
 !               5 The iteration is to be restarted. Set U to b.
 !               0 the solution has been found
@@ -548,7 +533,7 @@
 !    "Algorithm 583. LSQR: sparse linear equations and least squares problems",
 !    ACM Transactions on Mathematical Software, Vol 8, No 2 (1982), pp 195-209.
 !
-!  The bi-diagonalisation is due to Golub and Kahan (SIMUM 2, 1965, pp 205-224) 
+!  The bi-diagonalisation is due to Golub and Kahan (SIMUM 2, 1965, pp 205-224)
 !  (normalisation ||u_k|| = 1 = ||v_k||, 2-norm throughout).
 !
 !    Bi-diagonalisation initialization -
@@ -573,29 +558,29 @@
 !         (                    beta_k   alpha_k  )
 !         (                             beta_k+1 )
 !
-!  To solve min || A x - b ||^2 find an approximation in the expanding 
+!  To solve min || A x - b ||^2 find an approximation in the expanding
 !  subspace x = V_k y => solve min || B_k y - beta_1 e_1 || =>
 !  solve || R_k y - f_k ||, where for some product of plane-rotations Q_k,
 !
 !   Q_k ( B_k : beta_1 e_1 ) = ( R_k     f_k    ),  f_k = ( f_k-1 )  and
 !                              (     phibar_k+1 )         ( phi_k )
 !
-!         ( rho_1  theta_2                   )           
+!         ( rho_1  theta_2                   )
 !   R_k = (            .        .            )
-!         (                 rho_k-1  theta_k )     
-!         (                           rho_k  )           
+!         (                 rho_k-1  theta_k )
+!         (                           rho_k  )
 !
 !  Thus R_k y_k = f_k or x_k = V_k R_k^-1 f_k = D_k f_k, where
 !
 !    V_k R_k^-1 = D_k = ( d_1 d_2 .... d_k ).
 !
-!  Hence 
+!  Hence
 !
 !    x_k = D_k-1 f_k-1 + d_k phi_k = x_k-1 + phi_k d_k.
 !
 !  Fortunately the precise (upper-bi-diagonal) form of R_k =>
 !
-!    d_k = ( v_k - theta_k d_k-1 ) / rho_k 
+!    d_k = ( v_k - theta_k d_k-1 ) / rho_k
 !
 !  A small saving can be made by defining w_k = rho_k d_k =>
 !
@@ -613,7 +598,7 @@
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X, V
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: U
       TYPE ( LSTR_data_type ), INTENT( INOUT ) :: data
-      TYPE ( LSTR_control_type ), INTENT( IN ) :: control        
+      TYPE ( LSTR_control_type ), INTENT( IN ) :: control
       TYPE ( LSTR_inform_type ), INTENT( INOUT ) :: inform
 
 !---------------------------------
@@ -625,7 +610,7 @@
       REAL ( KIND = wp ) :: st_step, other_root, phi_bar_k, dec_tol, rbiters
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -638,27 +623,27 @@
       IF ( inform%status == 5 ) data%branch = 8
 
       SELECT CASE ( data%branch )
-      CASE ( 1 ) 
+      CASE ( 1 )
         GO TO 100
-      CASE ( 2 )  
+      CASE ( 2 )
         GO TO 200
-      CASE ( 3 )  
+      CASE ( 3 )
         GO TO 300
-      CASE ( 4 )  
+      CASE ( 4 )
         GO TO 400
-      CASE ( 5 )  
+      CASE ( 5 )
         GO TO 500
-      CASE ( 6 )  
+      CASE ( 6 )
         GO TO 600
-      CASE ( 7 )  
+      CASE ( 7 )
         GO TO 700
-      CASE ( 8 )  
+      CASE ( 8 )
         GO TO 800
       END SELECT
 
 !  On initial entry, set constants
 
-  100 CONTINUE 
+  100 CONTINUE
 
 !  Check for obvious errors
 
@@ -897,7 +882,7 @@
 
 !  Continue bi-diagonalisation initialization: alpha_1 v_1 = A^T u_1
 
-  200 CONTINUE 
+  200 CONTINUE
 
 !  Normalize v_1 and initialize w
 
@@ -955,7 +940,7 @@
         data%header = data%printd .OR. inform%iter == data%start_print .OR.    &
                       MOD( inform%iter - data%start_print, 25 ) == 0
 
-!  check that the time limit has not been exceeded 
+!  check that the time limit has not been exceeded
 
         CALL CPU_time( data%time_now ) ; CALL CLOCK_time( data%clock_now )
         data%time_now = data%time_now - data%time_start
@@ -987,7 +972,7 @@
             data%U_extra( : m ) = U
         END IF
 
-!  Bi-diagonalisation iteration: 
+!  Bi-diagonalisation iteration:
 !    beta_k+1 u_k+1 = A v_k - alpha_k u_k
 
 !  ** Return ** to obtain the product u <- u + A * v
@@ -998,7 +983,7 @@
 
 !  Normalize u
 
-  300   CONTINUE 
+  300   CONTINUE
         data%beta_kp1 = TWO_NORM( U )
         IF ( .NOT. control%steihaug_toint )                                    &
           data%B_offdiag( inform%iter ) = data%beta_kp1
@@ -1006,7 +991,7 @@
         IF ( data%beta_kp1 > zero ) THEN
           U = U / data%beta_kp1
 
-!  Continue bi-diagonalisation iteration: 
+!  Continue bi-diagonalisation iteration:
 !    alpha_k+1 v_k+1 = A^T u_k+1 - beta_k+1 v_k
 
 !  ** Return ** to obtain the product v <- v + A^T * u
@@ -1018,7 +1003,7 @@
 
 !  Normalize v
 
-  400   CONTINUE 
+  400   CONTINUE
         data%alpha_kp1 = TWO_NORM( V )
         IF ( .NOT. control%steihaug_toint )                                    &
           data%B_diag( inform%iter + 1 ) = data%alpha_kp1
@@ -1030,7 +1015,7 @@
 
         IF ( data%interior ) THEN
 
-!  Apply a plane rotation Q to B_k to remove the new sub-diagonal 
+!  Apply a plane rotation Q to B_k to remove the new sub-diagonal
 !  entry and thus create the new entries in R_k and f_k
 
 !  Construct the plane rotation Q to eliminate beta_k+1 from ( rho_bar beta_k+1)
@@ -1059,12 +1044,12 @@
             data%gamma = data%s_w * data%rho_k
             data%lambda_bar = data%c_w * data%rho_k
 
-!  Compute the norm of ||x_k|| - see Paige and Saunders ACM TOMS 8(1) 1982, 
+!  Compute the norm of ||x_k|| - see Paige and Saunders ACM TOMS 8(1) 1982,
 !  Sec 5.2 for a brief summary
 
             num = data%phi_k - data%gamma * zeta
             data%zeta_bar = num / data%lambda_bar
-            x_kp1_norm = ROOT_SUM_SQUARES( data%z_norm, data%zeta_bar ) 
+            x_kp1_norm = ROOT_SUM_SQUARES( data%z_norm, data%zeta_bar )
           ELSE
             data%lambda_bar = data%rho_k
             data%z_norm = zero
@@ -1135,7 +1120,7 @@
 
             data%ww = one + data%ww * rat ** 2
 
-!  Compute the norms ||r_k|| and ||A^T r_k|| - see Paige and Saunders 
+!  Compute the norms ||r_k|| and ||A^T r_k|| - see Paige and Saunders
 !  ACM TOMS 8(1) 1982, Sec 5.1
 
             inform%r_norm  = ABS( data%phi_bar )
@@ -1160,7 +1145,7 @@
             data%try_warm, data%printd, control%out, prefix, data%bitmax,      &
             data%biter, data%bstatus )
 
-!  Record statistics about the number of inner iterations performed 
+!  Record statistics about the number of inner iterations performed
 
           IF ( INFORM%biters > 0 ) THEN
             rbiters = INFORM%biters
@@ -1198,7 +1183,7 @@
             ELSE
               WRITE( control%out, 2010 ) prefix
             END IF
-          END IF 
+          END IF
           IF ( data%interior ) THEN
             WRITE( control%out, "( A, I7, ES16.8, 2ES9.2 )" ) prefix,          &
                inform%iter, inform%r_norm, inform%ATr_norm, inform%x_norm
@@ -1276,7 +1261,7 @@
       END IF
 
 !  =================================================
-!  Second pass to recover the solution x_k = V_k y_k 
+!  Second pass to recover the solution x_k = V_k y_k
 !  from the vectors V_k = ( v_1 : ... : v_k )
 !  =================================================
 
@@ -1291,7 +1276,7 @@
         V = zero
       ELSE
 
-!  Reentry with  data%extra_vectors saved vectors: loop over saved v_i to 
+!  Reentry with  data%extra_vectors saved vectors: loop over saved v_i to
 !  update x_k = sum_i v_i y_i
 
         inform%iter_pass2 = MIN( data%end_pass2, data%extra_vectors )
@@ -1315,7 +1300,7 @@
 
   590   CONTINUE
 
-!  Bi-diagonalisation iteration: 
+!  Bi-diagonalisation iteration:
 !    alpha_k v_k = A^T u_k - beta_k v_k-1
 
 !  ** Return ** to obtain the product v <- v + A^T * u
@@ -1325,7 +1310,7 @@
 
 !  Normalize v_k
 
-  600   CONTINUE 
+  600   CONTINUE
         inform%iter_pass2 = inform%iter_pass2 + 1
         V = V / data%B_diag( inform%iter_pass2 )
 
@@ -1337,7 +1322,7 @@
 
         IF ( inform%iter_pass2 >= data%end_pass2 ) GO TO 900
 
-!  Bi-diagonalisation iteration: 
+!  Bi-diagonalisation iteration:
 !    beta_k+1 u_k+1 = A v_k - alpha_k u_k
 
 !  ** Return ** to obtain the product u <- u + A * v
@@ -1348,7 +1333,7 @@
 
 !  Normalize u_k+1 and scale v_k
 
-  700   CONTINUE 
+  700   CONTINUE
         U = U / data%B_offdiag( inform%iter_pass2 )
         V = - data%B_offdiag( inform%iter_pass2 ) * V
 
@@ -1362,7 +1347,7 @@
 !  Re-entry for solution with smaller trust-region radius
 !  ======================================================
 
-  800 CONTINUE 
+  800 CONTINUE
       IF ( control%steihaug_toint ) GO TO 100
       IF ( data%prev_steihaug_toint ) GO TO 100
       inform%iter = 0
@@ -1504,7 +1489,7 @@
 !-----------------------------------------------
 
       TYPE ( LSTR_data_type ), INTENT( INOUT ) :: data
-      TYPE ( LSTR_control_type ), INTENT( IN ) :: control        
+      TYPE ( LSTR_control_type ), INTENT( IN ) :: control
       TYPE ( LSTR_inform_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
@@ -1619,12 +1604,12 @@
 !     min || (        B       ) y( lambda ) - beta e_1 ||^2            (*)
 !         || ( srqt(lambda) I )                        ||
 !
-!  and where 
+!  and where
 !
-!              || y(lambda) || = radius                               (**) 
+!              || y(lambda) || = radius                               (**)
 !
-!  So pick lambda to define y(lambda) via (*) and adjust it to enforce 
-!  the scalar equation (*) using Newton's method. This requires that we 
+!  So pick lambda to define y(lambda) via (*) and adjust it to enforce
+!  the scalar equation (*) using Newton's method. This requires that we
 !  can solve (*), which we do by reducing
 !
 !      (        B         beta e_1 ) -> ( R  f )
@@ -1640,7 +1625,7 @@
 !-----------------------------------------------
 
       INTEGER, INTENT( IN ) :: n, itmax, out
-      INTEGER, INTENT( OUT ) :: status, iter 
+      INTEGER, INTENT( OUT ) :: status, iter
       LOGICAL, INTENT( IN ) :: debug, try_warm
       REAL ( KIND = wp ), INTENT( IN ) :: radius, beta, error_tol
       REAL ( KIND = wp ), INTENT( INOUT ) :: lambda
@@ -1666,9 +1651,9 @@
       IF ( try_warm .AND. lambda >= zero ) THEN
         it1 = 2
 
-!  Transform the bi-diagonal subproblem to upper-traingular form R(lambda) 
+!  Transform the bi-diagonal subproblem to upper-traingular form R(lambda)
 !  for the current lambda
-        
+
         CALL LSTR_transform_bidiagonal( n, B_diag, B_offdiag, beta,            &
                                         SQRT( lambda ), R_diag, R_offdiag, F, G)
 
@@ -1680,7 +1665,7 @@
         IF ( debug ) WRITE( out, "( A, I7, ES22.14, 2ES12.4 )" )               &
           prefix, 1, error, lambda, y_norm
 
-!  Test for convergence 
+!  Test for convergence
 
         IF ( ABS( error ) < error_tol ) THEN
           iter = 1
@@ -1721,9 +1706,9 @@
 
       DO iter = it1, itmax
 
-!  Transform the bi-diagonal subproblem to upper-traingular form R(lambda) 
+!  Transform the bi-diagonal subproblem to upper-traingular form R(lambda)
 !  for the current lambda
-        
+
         CALL LSTR_transform_bidiagonal( n, B_diag, B_offdiag, beta,            &
                                         SQRT( lambda ), R_diag, R_offdiag, F, G)
 
@@ -1735,7 +1720,7 @@
         IF ( debug ) WRITE( out, "( A, I7, ES22.14, 2ES12.4 )" )               &
           prefix, iter, error, lambda, y_norm
 
-!  Test for convergence 
+!  Test for convergence
 
         IF ( ABS( error ) < error_tol ) THEN
           status = 0
@@ -1795,17 +1780,17 @@
 !         (                   B_offdiag_n  B_diag_n  )
 !         (                              B_offdiag_n )
 !
-!  Reduce 
+!  Reduce
 !
 !      (    B      beta e_1 ) -> ( R  f )
 !      ( omega I      0     )    ( 0  g )
 !
 !  to n by n upper bi-diagonal form, where
 !
-!         ( R_diag_1  R_offdiag_2                   )           
+!         ( R_diag_1  R_offdiag_2                   )
 !     R = (            .        .                   )
-!         (                 R_diag_n-1  R_offdiag_n )     
-!         (                               R_diag_n  )           
+!         (                 R_diag_n-1  R_offdiag_n )
+!         (                               R_diag_n  )
 !
 !
 !  by pre-multiplying by plane rotations
@@ -1846,7 +1831,7 @@
 !       (      b        0     )
 !       (    omega      0     )
 
-!  in rows k, (k+1) and (n+1), where b = B_offdiag_k. Proceed as in 
+!  in rows k, (k+1) and (n+1), where b = B_offdiag_k. Proceed as in
 !  Paige and Saunders, ACM TOMS, Vol 8, No 2 (1982), pp 195-209, Section 2
 
         b = B_offdiag( k )
@@ -1944,4 +1929,3 @@
 !-*-*-*-*-*-  End of G A L A H A D _ L S T R  double  M O D U L E  *-*-*-*-*-*-
 
    END MODULE GALAHAD_LSTR_double
-

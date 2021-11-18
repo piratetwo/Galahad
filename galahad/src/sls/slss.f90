@@ -1,33 +1,29 @@
-  PROGRAM SLS_EXAMPLE   !  GALAHAD 2.4 - 06/08/2009 AT 11:30 GMT.
+   PROGRAM SLS_EXAMPLE   !  GALAHAD 3.3 - 05/05/2021 AT 16:00 GMT.
    USE GALAHAD_SLS_double
    IMPLICIT NONE
-   INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+   INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
    TYPE ( SMT_type ) :: matrix
    TYPE ( SLS_data_type ) :: data
    TYPE ( SLS_control_type ) control
    TYPE ( SLS_inform_type ) :: inform
-   INTEGER :: i, n, ne, s
-   REAL ( KIND = wp ), ALLOCATABLE :: B( : ), X( : )
+   INTEGER, PARAMETER :: n = 5
+   INTEGER, PARAMETER :: ne = 7
+   REAL ( KIND = wp ) :: B( n ), X( n )
+   INTEGER :: i, s
 ! Read matrix order and number of entries
-   READ( 5, * ) n, ne
    matrix%n = n
    matrix%ne = ne
-! Allocate arrays of appropriate sizes
+! Allocate and set matrix
    ALLOCATE( matrix%val( ne ), matrix%row( ne ), matrix%col( ne ) )
-   ALLOCATE( B( n ), X( n ) )
-! Read matrix and right-hand side
-   READ( 5, * ) ( matrix%row( i ), matrix%col( i ), matrix%val( i ),  i = 1, ne )
-!  B = 1.0_wp
-   READ( 5, * ) B
-   CALL SMT_put( matrix%type, 'COORDINATE', s )     ! Specify co-ordinate 
-! Specify the solver (in this case HSL_MA57)
-!  CALL SLS_initialize( 'ma57', data, control, inform )
-!  CALL SLS_initialize( 'ma97', data, control, inform )
-   CALL SLS_initialize( 'ssids', data, control, inform )
-   control%ordering = 1
-!  control%scaling = -1
-!  control%print_level = 2
-!  control%print_level_solver = 2
+   matrix%row( : ne ) = (/ 1, 1, 2, 2, 3, 3, 5 /)
+   matrix%col( : ne ) = (/ 1, 2, 3, 5, 3, 4, 5 /)
+   matrix%val( : ne ) = (/ 2.0_wp, 3.0_wp, 4.0_wp, 6.0_wp, 1.0_wp,             &
+                           5.0_wp, 1.0_wp /)
+   CALL SMT_put( matrix%type, 'COORDINATE', s )     ! Specify co-ordinate
+! Set right-hand side
+   B( : n ) = (/ 8.0_wp, 45.0_wp, 31.0_wp, 15.0_wp, 17.0_wp /)
+! Specify the solver (in this case sils)
+   CALL SLS_initialize( 'sils', data, control, inform )
 ! Analyse
    CALL SLS_analyse( matrix, data, control, inform )
    IF ( inform%status < 0 ) THEN
@@ -51,6 +47,6 @@
      ' Solution is', X
 ! Clean up
    CALL SLS_terminate( data, control, inform )
-   DEALLOCATE(  matrix%type, matrix%val, matrix%row, matrix%col, X, B )
+   DEALLOCATE( matrix%type, matrix%val, matrix%row, matrix%col )
    STOP
    END PROGRAM SLS_EXAMPLE

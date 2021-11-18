@@ -1,24 +1,29 @@
 In order to get GALAHAD working, here is what you need to do.
 
+    ===========
+    PREPARATION
+    ===========
+
 [-1. If you are hoping for advice about installing GALAHAD
-   under Windows, see README.windows. If this isn't what you wanted, 
+   under Windows, see README.windows. If this isn't what you wanted,
    try Dilipan Sebastiampillai's document lanb2win.pdf.]
 
 0. You will definitely need the package auxiliary package ARCHDefs.
    If you plan to use GALAHAD to solve problems written as .SIF
-   files, you will also need the package SiFDec. If, in addition, 
-   you plan to use the CUTEst interfaces to the GALAHAD FILTRANE, QP and/or
-   regularization routines, you will also need the package CUTEst. See 
+   files, you will also need the package SiFDec. If, in addition,
+   you plan to use the CUTEst interfaces to the GALAHAD FILTRANE, QP,
+   least-squares, regularization and/or unconstrained minimization routines,
+   you will also need the package CUTEst. See
 
-     http://ccpforge.cse.rl.ac.uk/gf/project/cutest/wiki
+     https://github.com/ralna/CUTEst/wiki
 
-   for details of how to obtain these. CUTEst is not necessary if you simply 
+   for details of how to obtain these. CUTEst is not necessary if you simply
    wish to use LANCELOT B to solve problems written as .SIF files.
 
-   You should download the necessary packages ARCHDefs, SIFDecode and 
+   You should download the necessary packages ARCHDefs, SIFDecode and
    CUTEst as described in the above Wiki, and set the environment variables
    $ARCHDEFS, $SIFDECODE and $CUTEST as described - (see steps 0 and 1 in the
-   README that comes with SIFDecode/CUTEst for more details - i.e., 
+   README that comes with SIFDecode/CUTEst for more details - i.e.,
 
    for the C shell (csh):
 
@@ -32,10 +37,10 @@ In order to get GALAHAD working, here is what you need to do.
     export SIFDECODE=[full path to ./sifdecode directory]
     export CUTEST=[full path to ./cutest directory]
 
-   ** NOTE THAT YOU DO NOT NEED TO INSTALL THESE PACKAGES, AS THE GALAHAD 
+   ** NOTE THAT YOU DO NOT NEED TO INSTALL THESE PACKAGES, AS THE GALAHAD
       INSTALLATION WILL DO THIS FOR YOU IN A PROPERLY-INTEGRATED WAY **
 
-   If you plan to use the AMPL interface, you must have installed a working 
+   If you plan to use the AMPL interface, you must have installed a working
    version of the AMPL interface library, see
 
      ftp://netlib.bell-labs.com/netlib/ampl/solvers.tar
@@ -47,27 +52,27 @@ In order to get GALAHAD working, here is what you need to do.
 
       http://www.gnu.org/software/make/make.html !
 
-   GALAHAD is designed to be installed by any variant of the make 
+   GALAHAD is designed to be installed by any variant of the make
    program that we are aware of, but such are the incompatibilities
    introduced by different vendors, we cannot be sure that make
-   will work properly on your system. However, if you have 
+   will work properly on your system. However, if you have
    GNU make (sometimes known as gmake), we have high confidence that
    your installation will be trouble free. Fortunately GNU make is the
    defualt version of make available with most modern operating systems]
 
-2. Put the file 
+2. Put the file
 
      galahad.tar.gz
 
-   in a suitable directory for which the ./galahad 
-   directory will be a sub-directory. 
+   in a suitable directory for which the ./galahad
+   directory will be a sub-directory.
 
 3. Issue the command
 
      tar xzvf galahad.tar.gz
 
-4. Set the environment variable GALAHAD to point at the 
-   ./galahad directory, i.e., 
+4. Set the environment variable GALAHAD to point at the
+   ./galahad directory, i.e.,
 
    for the C shell (csh):
 
@@ -78,16 +83,33 @@ In order to get GALAHAD working, here is what you need to do.
     export GALAHAD=[full path to ./galahad directory]
 
    Make this a permanent setting by inserting this command
-   in your in your .cshrc/.bashrc file (or whichever shell resource file 
-   is appropriate for you) and "source" the file. See 
+   in your in your .cshrc/.bashrc file (or whichever shell resource file
+   is appropriate for you) and "source" the file. See
    ./galahad/doc/README.cshrc and ./galahad/doc/README.bashrc for
    more details.
 
-5. If you are intending to use the AMPL interface, set the environment 
-   variable AMPLDIR to point to the directory in which you have installed 
-   the AMPL interface library i.e., 
+5. You should also dowload a subset of the HSL Archive packages, ad02,
+   ma27 and ma33, needed by GALAHAD. This is *NOT* open source software,
+   but the packages are availble as a bundle, WITHOUT CHARGE, by
+   registering at
 
-   for the C shell (csh):
+     http://www.hsl.rl.ac.uk/download/hslarchive-galahad/latest
+
+   You will need to provide a valid email address, and once you have
+   registered you will be sent an email message providing a link
+   to the software as a file in either zip or tar.gz format.
+
+   Once you have downloaded this file, it should be uncompressed
+   in the directory ./  (The destination can be changed by editing the
+   environment variable $HSL_ARCHIVE in the file
+
+     $GALAHAD/src/makedefs/packages.default
+
+   see 8 below.)
+
+6. If you are intending to use the AMPL interface, set the environment
+   variable AMPLDIR to point to the directory in which you have installed
+   the AMPL interface library i.e.,
 
     setenv AMPLDIR [full path to the AMPL interface library directory]
 
@@ -96,12 +118,12 @@ In order to get GALAHAD working, here is what you need to do.
     export AMPLDIR=[full path to the AMPL interface library directory]
 
    Make this a permanent setting by inserting this command
-   in your in your .cshrc/.bashrc file (or whichever shell resource file 
-   is appropriate for you) and "source" the file. Again, see 
+   in your in your .cshrc/.bashrc file (or whichever shell resource file
+   is appropriate for you) and "source" the file. Again, see
    ./galahad/doc/README.cshrc and ./galahad/doc/README.bashrc for
    more details.
 
-   [ -*-NB-*- If you plan to use AMPL with the Lahey lf95, Fujistu frt or 
+   [ -*-NB-*- If you plan to use AMPL with the Lahey lf95, Fujistu frt or
       Intel ifort compiler, change
 
       extern void MAIN__( VOID );
@@ -110,65 +132,137 @@ In order to get GALAHAD working, here is what you need to do.
 
       extern int MAIN__( int, char** );
 
-    ( *note* the double underscore) 
+    ( *note* the double underscore)
 
-    somewhere around line 790 in $AMPLDIR/asl.h, as otherwise there will be 
+    somewhere around line 790 in $AMPLDIR/asl.h, as otherwise there will be
     clashes between GALAHAD and AMPL C interfaces ]
 
-6. Add the directory 
+7. Add the directory
 
      $GALAHAD/bin
 
    to your search path (preferably in your .cshrc or similar
    file) so that you will be able to use the GALAHAD/CUTEst
-   interfaces. Again, see ./galahad/doc/README.cshrc or 
+   interfaces. Again, see ./galahad/doc/README.cshrc or
    ./galahad/doc/README.bashrc for more details.
 
-7. Look at the file ./galahad/src/makedefs/packages to see if
-   you need to provide the source code for additional external packages, 
-   and to find instructions on how to get them and where to put them. 
+8. On installation the file
+
+     $GALAHAD/src/makedefs/packages.default
+
+    will be copied to
+
+     $GALAHAD/src/makedefs/packages
+
+   Before installation, you can examine (and edit if you wish) the
+   file to see how you might provide the source code for additional
+   external third-party packages, and to find instructions on how to
+   get them and where to put them.
 
    ================ IMPORTANT NEWS FOR POTENTIAL HSL USERS ==============
 
-   All the optional HSL software used by GALAHAD is available as a single 
-   tar.gz or gzip file. These files may be DOWNLOADED WITHOUT CHARGE FOR 
-   PERSONAL USE by any academic with a recognised academic email address. 
+   All the optional HSL software used by GALAHAD is available as a single
+   tar.gz or gzip file. These files may be DOWNLOADED WITHOUT CHARGE FOR
+   PERSONAL USE by any academic with a recognised academic email address.
    See
-   
+
        http://www.hsl.rl.ac.uk/download/hsl-galahad/latest/d/
 
-   for registration details. 
+   (or  http://www.hsl.rl.ac.uk/download/hsl-galahad/latest/s/ for a
+   single precision version) for registration details. Once you have
+   registered you will be sent an email message providing a link
+   to the software as a file in either zip or tar.gz format; there may
+   be a delay in receiving the file, as it has to manually authorized
+   by the HSL manager.
 
-   This tar.gz/gzip file should be uncompressed in a convenient location.
-   The file ./galahad/src/makedefs/packages ** MUST BE EDITED ** to activate 
-   the HSL packages.
+   Once you have downloaded this file, it should be uncompressed in a
+   convenient location, and we recommend that you choose the directory ./
+   The file ./galahad/src/makedefs/packages.default ** MUST BE EDITED **
+   to activate the HSL packages.
 
-8. You may also optionally provide binary code for a number of external
+   Once GALAHAD has been installed, any further changes to optional
+   software should be recorded in the file ./galahad/src/makedefs/packages,
+   and GALAHAD recompiled so that the changes take effect (see 13 below).
+
+9. You may also optionally provide binary code for a number of external
    packages that might make GALAHAD run faster. These include the
-   BLAS ((basic linear algebra subprograms), LAPACK, METIS, PARDISO and WSMP.
-   Don't worry if you cannot provide thses; GALAHAD will compile non-optimised
-   versions of the necessary ones (BLAS, LAPACK) and provide dummy versions
-   of the others. See ./galahad/doc/README.external for more details.
+   BLAS ((basic linear algebra subprograms), LAPACK, METIS, PARDISO,
+   MKL PARDISO, and WSMP.  Don't worry if you cannot provide thses; GALAHAD 
+   will compile non-optimised versions of the necessary ones (BLAS, LAPACK) 
+   and provide dummy versions of the others. See 
+   ./galahad/doc/README.external for more details.
 
-9. If you plan to use the (limited) Matlab interfaces, make sure that
+10. If you plan to use the (limited) Matlab interfaces, make sure that
    the MATLAB environment variable points to your system Matlab directory,
    and that $GALAHAD/src/matlab is on your Matlab path. See README.matlab
    for more details.
 
-10. To install GALAHAD for a particular machine/os/compiler
-   combination, move into the $GALAHAD directory, 
+11 If you are running on a Linux/OSX system, you may need to install the
+   Open-MPI Portable Hardware Locality (HWLOC) development package
+
+      https://www.open-mpi.org/projects/hwloc/
+
+   This is readily available in many Linux distributions, e.g., via
+
+      sudo apt-get install libhwloc-dev
+
+   on Debian/Ubuntu systems, or
+
+      sudo rpm --install libhwloc-dev
+
+   for Redhat ones. Check with your system administrator if you need help!
+
+   If it *really* is impossible to install libhwloc-dev, you should edit
+   the file $GALAHAD/src/spral/config.h and replace the line
+
+   #define HAVE_HWLOC 1
+
+   with
+
+   #undef HAVE_HWLOC
+
+   Alternatively, during the GALAHAD install (13 below), when you get to
+   the prompt
+
+     Would you like to review and modify the C compiler settings (y/N)?
+
+   answer y, and change the variable HWLOC to read
+
+     HWLOC='un'
+
+   Currently this is done automatically for ifort/icc and
+   gfortran/gcc to avoid compiler bugs
+
+12. For Windows systems that use MSYS/MINGW, you will also need to set the
+   environment variable MSYS2 to point to the folder that contains the
+   Unix-style shell and commands, and MINGW64 to the folder that holds
+   ths commands relating to the GCC/Gfortran compilers. For example,
+
+    export MSYS2="/usr"
+    export MINGW64="/c/msys64/mingw64"
+
+    ============
+    INSTALLATION
+    ============
+
+13. To install GALAHAD for a particular machine/os/compiler
+   combination, move into the $GALAHAD directory,
    issue the command
 
-     $ARCHDEFS/install_optsuite
+     $ARCHDEFS/install_optrove
 
-   and answer the questions as prompted. This command sets up 
-   machine/os/compiler-specific files, and (optionally) compiles all 
+   and answer the questions as prompted. This command sets up
+   machine/os/compiler-specific files, and (optionally) compiles all
    (or suitable sub-components) of GALAHAD (and SiFDec/CUTEst if required).
 
-   You may issue the $ARCHDEFS/install_optsuite command for as many
-   machine/os/compiler combinations as you wish to support.
+   You may issue the $ARCHDEFS/install_optrove command for as many
+   machine/os/compiler combinations as you wish to support, and you
+   will have access to each independently of the others.
 
-11. To recompile the whole of GALAHAD, move into the directory
+   On completion of the installation, please read the message that
+   gives full details of environment variables that need to be set.
+
+14. To recompile the whole of GALAHAD, move into the directory
 
      $GALAHAD/src
 
@@ -176,16 +270,16 @@ In order to get GALAHAD working, here is what you need to do.
 
      make -f $GALAHAD/makefiles/#
 
-   where # is a string of the form 
+   where # is a string of the form
 
-      machine.os.compiler 
+      machine.os.compiler
 
-   created during one of the installations described in 10 above.
+   created during one of the installations described in 13 above.
    If you want the single-precision version, the appropriate command is
 
      make -f $GALAHAD/makefiles/# PRECIS=single
 
-12. To recompile LANCELOT B, move into the directory
+15. To recompile LANCELOT B, move into the directory
 
      $GALAHAD/src/
 
@@ -193,7 +287,7 @@ In order to get GALAHAD working, here is what you need to do.
 
      make -f $GALAHAD/makefiles/# lancelotb
 
-    where # is as in 11 above. To recompile all the QP routines, or the
+    where # is as in 13 above. To recompile all the QP routines, or the
     individual packages QPA, QPB or PRESOLVE, the required commands are
 
      make -f $GALAHAD/makefiles/# qp
@@ -201,12 +295,25 @@ In order to get GALAHAD working, here is what you need to do.
      make -f $GALAHAD/makefiles/# qpb
      make -f $GALAHAD/makefiles/# pre
 
-    To recompile the FILTRANE package and its dependencies, the required 
+    To recompile the FILTRANE package and its dependencies, the required
     command is
 
      make -f $GALAHAD/makefiles/# filtrane
 
-13. To run the QP codes qpa/qpb/qpc on the CUTEst example EXAMPLE.SIF
+16. Both the makefiles and the run scripts use default values for a
+    variety of variables. If you wish to use non-default values, you
+    should edit the appropiate files 
+     $GALAHAD/makefiles/#
+    and
+     $GALAHAD/bin/sys/#
+
+    Consult the file  $GALAHAD/doc/README.non-defaults for some suggestions
+
+    =========
+    EXECUTION
+    =========
+
+17. To run the QP codes qpa/qpb/qpc on the CUTEst example EXAMPLE.SIF
    issue the command
 
      sdgal # qpa [other options] EXAMPLE[.SIF]
@@ -215,58 +322,62 @@ In order to get GALAHAD working, here is what you need to do.
 
      sdgal # qpa [other options] EXAMPLE[.SIF]
 
-   or  
+   or
 
      sdgal # qpc [other options] EXAMPLE[.SIF]
 
-   where # is as in 11 above, from the directory containing the SIF file.
+   where # is as in 14 above, from the directory containing the SIF file.
 
    To rerun the most recently decoded example, issue the command
 
      gal # qpa -n [other options]
 
-   or  
+   or
 
      gal # qpb -n [other options]
 
    See README.SIF for more details.
 
-14. To run/rerun LANCELOT B on the CUTE example EXAMPLE.SIF
+18. To run/rerun LANCELOT B on the CUTE example EXAMPLE.SIF
    issue the command
 
-     sdgal # lanb [other options] EXAMPLE[.SIF]
+     sdgal # lancelot [other options] EXAMPLE[.SIF]
 
-   where # is as in 11 above, from the directory containing the SIF file.
+   where # is as in 14 above, from the directory containing the SIF file.
 
    To rerun the most recently decoded example, issue the command
 
-     gal # lanb [other options]
+     gal # lancelot [other options]
 
    See README.SIF for more details.
 
-15. To run/rerun FILTRANE on the CUTE example EXAMPLE.SIF
+19. To run/rerun FILTRANE on the CUTE example EXAMPLE.SIF
    issue the command
 
-     sdgal # filt [other options] EXAMPLE[.SIF]
+     sdgal # filtrane [other options] EXAMPLE[.SIF]
 
-   where # is as in 11 above, from the directory containing the SIF file.
+   where # is as in 14 above, from the directory containing the SIF file.
 
    To rerun the most recently decoded example, issue the command
 
-     gal # filt [other options]
+     gal # filtrane [other options]
 
    See README.SIF for more details.
 
-16. To test that the installation of GALAHAD has been successful, you can
-    move into the directory 
+    =======
+    TESTING
+    =======
+
+20. To test that the installation of GALAHAD has been successful, you can
+    move into the directory
 
       $GALAHAD/src
 
     and issue the command
 
-      make -f $GALAHAD/makefiles/# test
+      make -f $GALAHAD/makefiles/# tests
 
-    where # is as above -- for a single precision installation, the command is
+    where # is as 14 above - for a single precision installation, the command is
 
       make -f $GALAHAD/makefiles/# test PRECIS=single
 
@@ -275,25 +386,34 @@ In order to get GALAHAD working, here is what you need to do.
     $GALAHAD/src/qp , and to test FILTRANE, do the same in the directory
     $GALAHAD/src/filtrane .
 
-17. Postscript documentation for each package is available in the
+21. If you are not using CUTEst, the GALAHAD link library for the
+    precision you compiled with is in $GALAHAD/objects/#/(precision)/
+    where (precision) is double or single, and # is as above.
+    You should add this to your LIBPATH environment variable,
+    and may then link the library with the -lgalahad compiler flag.
+    Access to optional auxiliary libraries is via
+     -lgalahad_hsl -lgalahad_pardiso -lgalahad_wsmp -lgalahad_metis
+     -lgalahad_lapack -lgalahad_blas
+    as appropriate.
+
+    =============
+    DOCUMENTATION
+    =============
+
+22. Postscript documentation for each package is available in the
     directory $GALAHAD/doc . Man pages for sdgal and gal are in
     $GALAHAD/man/man1 . You may wish to add $GALAHAD/man to your
     MANPATH environment variable.
 
-18. If you are not using CUTEst, the GALAHAD link library for the
-    precision you compiled with is in $GALAHAD/objects/#/(precision)/
-    where (precision) is double or single, and # is as above.
-    You should add this to your LIBPATH environment variable, 
-    and may then link the library with the -lgalahad compiler flag.
-    Access to optional auxiliary libraries is via 
-     -lgalahad_hsl -lgalahad_pardiso -lgalahad_wsmp -lgalahad_metis 
-     -lgalahad_lapack -lgalahad_blas
-    as appropriate.
+23. If you like using graphical user-interfaces, why not try the GALAHAD
+     python GUI(see $GAHALAD/doc/README.gui for details). This has not
+     been kept fully up to date, so is probably of limited use.
 
-19. If you like using graphical user-interfaces, why not try the GALAHAD 
-     python GUI(see $GAHALAD/doc/README.gui for details).
+    ====
+    NEWS
+    ====
 
-20. Refer to the GALAHAD WWW page 
+24. Refer to the GALAHAD WWW page
 
       http://galahad.rl.ac.uk/galahad-www/
 
@@ -307,4 +427,4 @@ Philippe Toint
 
 For GALAHAD productions
 25 April 2002
-This version: 21 March 2013
+This version: 3 June 2021

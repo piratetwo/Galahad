@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 15/10/2014 AT 13:20 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ Q P A  M O D U L E  -*-*-*-*-*-*-*-*-*-*-
 
@@ -9,9 +9,9 @@
 !   originally released pre GALAHAD Version 1.0. May 21st 1999
 !   update released with GALAHAD Version 2.0. February 16th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
-!  
+!
 
    MODULE GALAHAD_QPA_double
 
@@ -20,9 +20,9 @@
 !     | Solve the l_1 quadratic program             |
 !     |                                             |
 !     |    minimize   1/2 x(T) H x + g(T) x + f     |
-!     |                + rho_g min( A x - c_l , 0 ) | 
+!     |                + rho_g min( A x - c_l , 0 ) |
 !     |                + rho_g max( A x - c_u , 0 ) |
-!     |                + rho_b min(  x - x_l , 0 )  | 
+!     |                + rho_b min(  x - x_l , 0 )  |
 !     |                + rho_b max(  x - x_u , 0 )  |
 !     |                                             |
 !     | using an active-set method based on         |
@@ -39,8 +39,8 @@
       USE GALAHAD_QPT_double
       USE GALAHAD_RAND_double
       USE GALAHAD_ROOTS_double, ONLY : ROOTS_quadratic
-      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_are,             &
-                                       STRING_exponent, STRING_real_7
+      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_are,                    &
+                                STRING_exponent, STRING_real_7
       USE GALAHAD_SORT_double, ONLY: SORT_heapsort_build,                      &
          SORT_heapsort_smallest, SORT_inplace_permute, SORT_inverse_permute
       USE GALAHAD_SLS_double
@@ -49,7 +49,7 @@
       USE GALAHAD_QPP_double, QPA_dims_type => QPP_dims_type
       USE GALAHAD_QPD_double, QPA_data_type => QPD_data_type,                  &
                               QPA_HX => QPD_HX
-   
+
       IMPLICIT NONE
 
       PRIVATE
@@ -108,8 +108,8 @@
 
       TYPE, PUBLIC :: QPA_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -128,24 +128,24 @@
 
         INTEGER :: stop_print = - 1
 
-!   at most maxit inner iterations are allowed 
+!   at most maxit inner iterations are allowed
 
         INTEGER :: maxit = 1000
 
 !   the factorization to be used. Possible values are
 
-!      0  automatic 
+!      0  automatic
 !      1  Schur-complement factorization
-!      2  augmented-system factorization                              
+!      2  augmented-system factorization
 
         INTEGER :: factor = 0
 
 !   the maximum number of nonzeros in a column of A which is permitted
-!    with the Schur-complement factorization                          
+!    with the Schur-complement factorization
 
         INTEGER :: max_col = 35
 
-!   the maximum permitted size of the Schur complement before a 
+!   the maximum permitted size of the Schur complement before a
 !    refactorization is performed
 
         INTEGER :: max_sc = 75
@@ -162,8 +162,8 @@
 
         INTEGER :: itref_max = 1
 
-!   the infeasibility will be checked for improvement every 
-!    infeas_check_interval iterations (see infeas_g_improved_by_factor 
+!   the infeasibility will be checked for improvement every
+!    infeas_check_interval iterations (see infeas_g_improved_by_factor
 !    and infeas_b_improved_by_factor below)
 
         INTEGER :: infeas_check_interval = 100
@@ -173,10 +173,10 @@
 !
         INTEGER :: cg_maxit = - 1
 
-!   the preconditioner to be used for the CG is defined by precon. 
+!   the preconditioner to be used for the CG is defined by precon.
 !    Possible values are
 
-!      0  automatic 
+!      0  automatic
 !      1  no preconditioner, i.e, the identity within full factorization
 !      2  full factorization
 !      3  band within full factorization
@@ -189,8 +189,8 @@
         INTEGER :: nsemib = 5
 
 !   if the ratio of the number of nonzeros in the factors of the reference
-!    matrix to the number of nonzeros in the matrix itself exceeds 
-!    full_max_fill, and the preconditioner is being selected automatically 
+!    matrix to the number of nonzeros in the matrix itself exceeds
+!    full_max_fill, and the preconditioner is being selected automatically
 !    (precon = 0), a banded approximation will be used instead
 
         INTEGER :: full_max_fill = 10
@@ -203,7 +203,7 @@
 
         INTEGER :: deletion_strategy = 0
 
-!   indicate whether and how much of the input problem should be restored 
+!   indicate whether and how much of the input problem should be restored
 !    on output. Possible values are
 
 !      0 nothing restored
@@ -216,10 +216,10 @@
 
         INTEGER :: monitor_residuals = 1
 !
-!   indicates whether a cold or warm start should be made. Possible values are 
+!   indicates whether a cold or warm start should be made. Possible values are
 !
-!     0 warm start - the values set in C_stat and B_stat indicate which 
-!       constraints will be included in the initial working set. 
+!     0 warm start - the values set in C_stat and B_stat indicate which
+!       constraints will be included in the initial working set.
 !     1 cold start from the value set in X; constraints active
 !       at X will determine the initial working set.
 !     2 cold start with no active constraints
@@ -228,45 +228,45 @@
 
         INTEGER :: cold_start = 3
 
-!    specifies the unit number to write generated SIF file describing the 
+!    specifies the unit number to write generated SIF file describing the
 !     current problem
 
         INTEGER :: sif_file_device = 52
 
-!   any bound larger than infinity in modulus will be regarded as infinite 
+!   any bound larger than infinity in modulus will be regarded as infinite
 
         REAL ( KIND = wp ) :: infinity = ten ** 19
 
-!   any constraint violated by less than feas_tol will be considered to be 
+!   any constraint violated by less than feas_tol will be considered to be
 !    satisfied
 
         REAL ( KIND = wp ) :: feas_tol = epsmch
 
-!   if the objective function value is smaller than obj_unbounded, it will be 
+!   if the objective function value is smaller than obj_unbounded, it will be
 !    flagged as unbounded from below.
 
         REAL ( KIND = wp ) :: obj_unbounded = one / epsmch
 
-!   if the problem is currently infeasible and solve_qp (see below) is .TRUE., 
-!    the current penalty parameter for the general constraints will be 
+!   if the problem is currently infeasible and solve_qp (see below) is .TRUE.,
+!    the current penalty parameter for the general constraints will be
 !    increased by increase_rho_g_factor when needed
 
         REAL ( KIND = wp ) :: increase_rho_g_factor = two
 
 !   if the infeasibility of the general constraints has not dropped by a factor
-!     of infeas_g_improved_by_factor over the previous infeas_check_interval 
+!     of infeas_g_improved_by_factor over the previous infeas_check_interval
 !     iterations, the current corresponding penalty parameter will be increased
 
         REAL ( KIND = wp ) :: infeas_g_improved_by_factor = 0.75_wp
 
-!   if the problem is currently infeasible and solve_qp or solve_within_bounds 
+!   if the problem is currently infeasible and solve_qp or solve_within_bounds
 !     (see below) is .TRUE., the current penalty parameter for the simple bound
 !     constraints will be increased by increase_rho_b_factor when needed
 
         REAL ( KIND = wp ) :: increase_rho_b_factor = two
 
-!   if the infeasibility of the simple bounds has not dropped by a factor of 
-!    infeas_b_improved_by_factor over the previous infeas_check_interval 
+!   if the infeasibility of the simple bounds has not dropped by a factor of
+!    infeas_b_improved_by_factor over the previous infeas_check_interval
 !    iterations, the current corresponding penalty parameter will be increased
 !
         REAL ( KIND = wp ) :: infeas_b_improved_by_factor = 0.75_wp
@@ -276,7 +276,7 @@
 
         REAL ( KIND = wp ) :: pivot_tol = epsmch
 
-!   the threshold pivot used by the matrix factorization when attempting to 
+!   the threshold pivot used by the matrix factorization when attempting to
 !    detect linearly dependent constraints.
 
         REAL ( KIND = wp ) :: pivot_tol_for_dependencies = half
@@ -287,16 +287,16 @@
         REAL ( KIND = wp ) :: zero_pivot = epsmch
 
 !   the search direction is considered as an acceptable approximation
-!    to the minimizer of the model if the gradient of the model in the 
-!    preconditioning(inverse) norm is less than 
+!    to the minimizer of the model if the gradient of the model in the
+!    preconditioning(inverse) norm is less than
 !     max( inner_stop_relative * initial preconditioning(inverse)
 !                                 gradient norm, inner_stop_absolute )
 
         REAL ( KIND = wp ) :: inner_stop_relative = point01
         REAL ( KIND = wp ) :: inner_stop_absolute = epsmch
 
-!   any dual variable or Lagrange multiplier which is less than multiplier_tol 
-!    outside its optimal interval will be regarded as being acceptable when 
+!   any dual variable or Lagrange multiplier which is less than multiplier_tol
+!    outside its optimal interval will be regarded as being acceptable when
 !    checking for optimality
 
         REAL ( KIND = wp ) :: multiplier_tol = epsmch
@@ -309,19 +309,19 @@
 
         REAL ( KIND = wp ) :: clock_time_limit = - one
 
-!   any problem bound with the value zero will be treated as if it were a 
+!   any problem bound with the value zero will be treated as if it were a
 !    general value if true
 
         LOGICAL :: treat_zero_bounds_as_general = .FALSE.
 
-!   if solve_qp is .TRUE., the value of prob%rho_g and prob%rho_b will be 
-!    increased as many times as are needed to ensure that the output 
+!   if solve_qp is .TRUE., the value of prob%rho_g and prob%rho_b will be
+!    increased as many times as are needed to ensure that the output
 !    solution is feasible
 
         LOGICAL :: solve_qp = .FALSE.
 
-!   if solve_within_bounds is  .TRUE., the value of prob%rho_b will be 
-!    increased as many times as are needed to ensure that the output 
+!   if solve_within_bounds is  .TRUE., the value of prob%rho_b will be
+!    increased as many times as are needed to ensure that the output
 !    solution is feasible with respect to the simple bounds
 
         LOGICAL :: solve_within_bounds = .FALSE.
@@ -333,7 +333,7 @@
 
         LOGICAL :: randomize = .TRUE.
 
-!   if %array_syntax_worse_than_do_loop is true, f77-style do loops will be 
+!   if %array_syntax_worse_than_do_loop is true, f77-style do loops will be
 !    used rather than f90-style array syntax for vector operations    (OBSOLETE)
 
         LOGICAL :: array_syntax_worse_than_do_loop = .FALSE.
@@ -348,7 +348,7 @@
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
-!   if %generate_sif_file is .true. if a SIF file describing the current 
+!   if %generate_sif_file is .true. if a SIF file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_sif_file = .FALSE.
@@ -369,7 +369,7 @@
          "QPAPROB.SIF"  // REPEAT( ' ', 19 )
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -430,9 +430,9 @@
         REAL ( KIND = WP ) :: clock_solve = 0.0
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: QPA_inform_type
 
@@ -476,7 +476,7 @@
 
         INTEGER :: nfacts = 0
 
-!  the total number of factorizations which were modified to ensure that the 
+!  the total number of factorizations which were modified to ensure that the
 !   matrix was an appropriate preconditioner
 
         INTEGER :: nmods = 0
@@ -489,7 +489,7 @@
 
         INTEGER :: num_b_infeas = - 1
 
-!  the value of the objective function at the best estimate of the solution 
+!  the value of the objective function at the best estimate of the solution
 !   determined by QPB_solve
 
         REAL ( KIND = wp ) :: obj = biginf
@@ -525,7 +525,7 @@
 !
 !  Default control data for QPA. This routine should be called before
 !  QPA_solve
-! 
+!
 !  --------------------------------------------------------------------
 !
 !  Arguments:
@@ -539,7 +539,7 @@
 !  Dummy arguments
 
       TYPE ( QPA_data_type ), INTENT( INOUT ) :: data
-      TYPE ( QPA_control_type ), INTENT( OUT ) :: control        
+      TYPE ( QPA_control_type ), INTENT( OUT ) :: control
       TYPE ( QPA_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -567,7 +567,7 @@
       control%SLS_control%zero_tolerance = control%zero_pivot
       control%SLS_control%prefix = '" - SLS:"                    '
 
-      RETURN  
+      RETURN
 
 !  End of QPA_initialize
 
@@ -577,10 +577,10 @@
 
       SUBROUTINE QPA_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by QPA_initialize could (roughly) 
+!  The defauly values as given by QPA_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN QPA SPECIFICATIONS (DEFAULT)
@@ -633,7 +633,7 @@
 
 !  Dummy arguments
 
-      TYPE ( QPA_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( QPA_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -651,7 +651,7 @@
 
       spec(  1 )%keyword = 'error-printout-device'
       spec(  2 )%keyword = 'printout-device'
-      spec(  3 )%keyword = 'print-level' 
+      spec(  3 )%keyword = 'print-level'
       spec(  4 )%keyword = 'maximum-number-of-iterations'
       spec(  5 )%keyword = 'start-print'
       spec(  6 )%keyword = 'stop-print'
@@ -766,19 +766,19 @@
       CALL SPECFILE_assign_value( spec( 22 ), control%infinity,                &
                                   control%error )
       CALL SPECFILE_assign_value( spec( 23 ), control%feas_tol,                &
-                                  control%error )     
+                                  control%error )
       CALL SPECFILE_assign_value( spec( 24 ), control%obj_unbounded,           &
                                   control%error )
       CALL SPECFILE_assign_value( spec( 25 ), control%increase_rho_g_factor,   &
-                                  control%error )     
+                                  control%error )
       CALL SPECFILE_assign_value( spec( 26 ), control%increase_rho_g_factor,   &
-                                  control%error )     
+                                  control%error )
       CALL SPECFILE_assign_value( spec( 27 ),                                  &
                                   control%infeas_g_improved_by_factor,         &
-                                  control%error )     
+                                  control%error )
       CALL SPECFILE_assign_value( spec( 28 ),                                  &
                                   control%infeas_b_improved_by_factor,         &
-                                  control%error )     
+                                  control%error )
       CALL SPECFILE_assign_value( spec( 29 ), control%pivot_tol,               &
                                   control%error )
       CALL SPECFILE_assign_value( spec( 30 ),                                  &
@@ -847,9 +847,9 @@
 !                  + rho_b min(  x - x_l , 0  ) + rho_b max(  x - x_u , 0  )
 !
 !  where x is a vector of n components ( x_1, .... , x_n ), f, rho_g/rho_b are
-!  constants, g is an n-vector, H is a symmetric matrix, A is an m by n matrix, 
+!  constants, g is an n-vector, H is a symmetric matrix, A is an m by n matrix,
 !  and any of the bounds c_l, c_u, x_l, x_u may be infinite, using an active
-!  set method. The subroutine is particularly appropriate when A and H are 
+!  set method. The subroutine is particularly appropriate when A and H are
 !  sparse, and when we do not anticipate a large number of active set
 !  changes prior to optimality
 !
@@ -857,11 +857,11 @@
 !
 !  Arguments:
 !
-!  prob is a structure of type QPT_problem_type, whose components hold 
+!  prob is a structure of type QPT_problem_type, whose components hold
 !   information about the problem on input, and its solution on output.
 !   The following components must be set:
 !
-!   %new_problem_structure is a LOGICAL variable, which must be set to 
+!   %new_problem_structure is a LOGICAL variable, which must be set to
 !    .TRUE. by the user if this is the first problem with this "structure"
 !    to be solved since the last call to QPA_initialize, and .FALSE. if
 !    a previous call to a problem with the same "structure" (but different
@@ -869,11 +869,11 @@
 !
 !   %n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !   %m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
-!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!
+!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of H. Four storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -884,7 +884,7 @@
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
 !       H%col( : )   the column indices of the components of H
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !
 !    ii) sparse, by rows
@@ -903,7 +903,7 @@
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -918,24 +918,24 @@
 !    However, if scheme (i) is used for input, the output H%row will contain
 !    the row numbers corresponding to the values in H%val, and thus in this
 !    case the output matrix will be available in both formats (i) and (ii).
-!    
+!
 !   %G is a REAL array of length %n, which must be set by
 !    the user to the value of the gradient, g, of the linear term of the
 !    quadratic objective function. The i-th component of G, i = 1, ....,
-!    n, should contain the value of g_i.  
+!    n, should contain the value of g_i.
 !    On exit, G will most likely have been reordered.
-!   
+!
 !   %f is a REAL variable, which must be set by the user to the value of
 !    the constant term f in the objective function. On exit, it may have
 !    been changed to reflect variables which have been fixed.
 !
-!   %rho_g is a REAL variable, which must be set by the user to the 
+!   %rho_g is a REAL variable, which must be set by the user to the
 !    required value of the penalty parameter for the general constraints
 !
-!   %rho_b is a REAL variable, which must be set by the user to the 
+!   %rho_b is a REAL variable, which must be set by the user to the
 !    required value of the penalty parameter for the simple bound constraints
 !
-!   %A is a structure of type SMT_type used to hold the matrix A. 
+!   %A is a structure of type SMT_type used to hold the matrix A.
 !    Three storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -964,17 +964,17 @@
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
 !    However, if scheme (i) is used for input, the output A%row will contain
 !    the row numbers corresponding to the values in A%val, and thus in this
-!    case the output matrix will be available in both formats (i) and (ii).   
-! 
-!   %C is a REAL array of length %m, which is used to store the values of 
-!    A x. It need not be set on entry. On exit, it will have been filled 
+!    case the output matrix will be available in both formats (i) and (ii).
+!
+!   %C is a REAL array of length %m, which is used to store the values of
+!    A x. It need not be set on entry. On exit, it will have been filled
 !    with appropriate values.
 !
 !   %X is a REAL array of length %n, which must be set by the user
@@ -983,37 +983,37 @@
 !
 !   %C_l, %C_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays c_l and c_u of lower and upper bounds on A x.
-!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %C_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %C_u to a value larger than 
-!    control%infinity. On exit, %C_l and %C_u will most likely have been 
+!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %C_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %C_u to a value larger than
+!    control%infinity. On exit, %C_l and %C_u will most likely have been
 !    reordered.
-!   
+!
 !   %Y is a REAL array of length %m, which must be set by the user to
-!    appropriate estimates of the values of the Lagrange multipliers 
-!    corresponding to the general constraints c_l <= A x <= c_u. 
-!    On successful exit, it will contain the required vector of Lagrange 
+!    appropriate estimates of the values of the Lagrange multipliers
+!    corresponding to the general constraints c_l <= A x <= c_u.
+!    On successful exit, it will contain the required vector of Lagrange
 !    multipliers.
 !
 !   %X_l, %X_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays x_l and x_u of lower and upper bounds on x.
-!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %X_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %X_u to a value larger than 
-!    control%infinity. On exit, %X_l and %X_u will most likely have been 
+!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %X_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %X_u to a value larger than
+!    control%infinity. On exit, %X_l and %X_u will most likely have been
 !    reordered.
-!   
+!
 !   %Z is a REAL array of length %n, which must be set by the user to
-!    appropriate estimates of the values of the dual variables 
-!    (Lagrange multipliers corresponding to the simple bound constraints 
+!    appropriate estimates of the values of the dual variables
+!    (Lagrange multipliers corresponding to the simple bound constraints
 !    x_l <= x <= x_u). On successful exit, it will contain
-!   the required vector of dual variables. 
+!   the required vector of dual variables.
 !
 !  C_stat is a INTEGER array of length m, which may be set by the user
 !   on entry to QPA_solve to indicate which of the constraints are to
@@ -1021,37 +1021,37 @@
 !   the component control%cold_start must be set to 0 on entry; C_stat
 !   need not be set if control%cold_start is nonzero. On exit,
 !   C_stat will indicate which constraints are in the final working set.
-!   Possible entry/exit values are 
-!   C_stat( i ) < 0, the i-th constraint is in the working set, 
-!                    on its lower bound, 
+!   Possible entry/exit values are
+!   C_stat( i ) < 0, the i-th constraint is in the working set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is in the working set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is not in the working set
 !
 !  B_stat is a INTEGER array of length n, which may be set by the user
-!   on entry to QPA_solve to indicate which of the simple bound constraints 
+!   on entry to QPA_solve to indicate which of the simple bound constraints
 !   are to be included in the initial working set. If this facility is required,
 !   the component control%cold_start must be set to 0 on entry; B_stat
 !   need not be set if control%cold_start is nonzero. On exit,
 !   B_stat will indicate which constraints are in the final working set.
-!   Possible entry/exit values are 
-!   B_stat( i ) < 0, the i-th bound constraint is in the working set, 
-!                    on its lower bound, 
+!   Possible entry/exit values are
+!   B_stat( i ) < 0, the i-th bound constraint is in the working set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is in the working set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is not in the working set
 !
 !  data is a structure of type QPA_data_type which holds private internal data
 !
-!  control is a structure of type QPA_control_type that controls the 
+!  control is a structure of type QPA_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
 !   the elements may be set by a call to QPA_initialize. See the preamble
 !   for details
 !
-!  inform is a structure of type QPA_inform_type that provides 
-!    information on exit from QPA_solve. The component status 
+!  inform is a structure of type QPA_inform_type that provides
+!    information on exit from QPA_solve. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination with a locally optimal solution.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -1060,7 +1060,7 @@
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!   - 3 one of the restrictions 
+!   - 3 one of the restrictions
 !          prob%n     >=  1
 !          prob%m     >=  0
 !          prob%A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE' }
@@ -1072,16 +1072,16 @@
 !    -7 The objective function appears to be unbounded from below on the
 !       feasible set.
 !
-!    -9 The analysis phase of the factorization failed; the return status 
+!    -9 The analysis phase of the factorization failed; the return status
 !       from the factorization package is given in the component factor_status.
-!      
+!
 !   -10 The factorization failed; the return status from the factorization
 !       package is given in the component factor_status.
-!      
+!
 !   -16 The problem is so ill-conditoned that further progress is impossible.
 !
 !   -18 Too many iterations have been performed. This may happen if
-!       control%maxit is too small, but may also be symptomatic of 
+!       control%maxit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !   -23 an entry from the strict upper triangle of H has been input.
@@ -1106,11 +1106,12 @@
       INTEGER :: hd_start, hd_end, hnd_start, hnd_end, type, n_pcg
       REAL ( KIND = wp ) :: a_x, a_norms
       REAL :: time_start, time_record, time_now, time_inner_start
-      REAL ( KIND = WP ) :: clock_start, clock_record, clock_now, clock_inner_start
+      REAL ( KIND = WP ) :: clock_start, clock_record
+      REAL ( KIND = WP ) :: clock_now, clock_inner_start
       LOGICAL :: printi
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -1120,7 +1121,7 @@
         WRITE( control%out, "( A, ' -- entering QPA_solve ' )" ) prefix
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
       IF ( control%generate_sif_file ) THEN
         CALL QPD_SIF( prob, control%sif_file_name, control%sif_file_device,    &
@@ -1136,17 +1137,17 @@
 
 !  Initialize counts
 
-      inform%status = GALAHAD_ok 
+      inform%status = GALAHAD_ok
       inform%alloc_status = 0 ; inform%bad_alloc = ''
-      inform%major_iter = 0 ; inform%iter = 0 ; inform%cg_iter = 0 ; 
+      inform%major_iter = 0 ; inform%iter = 0 ; inform%cg_iter = 0 ;
       inform%nfacts = 0 ; inform%nmods = 0
       inform%factorization_integer = - 1 ; inform%factorization_real = - 1
       inform%factorization_status = 0
-      inform%obj = prob%f 
+      inform%obj = prob%f
 
 !  Basic single line of output per iteration
 
-      printi = control%out > 0 .AND. control%print_level >= 1 
+      printi = control%out > 0 .AND. control%print_level >= 1
 
 !  Ensure that input parameters are within allowed ranges
 
@@ -1155,11 +1156,11 @@
            .NOT. QPT_keyword_A( prob%A%type ) ) THEN
         inform%status = GALAHAD_error_restrictions
         IF ( control%error > 0 .AND. control%print_level > 0 )                 &
-          WRITE( control%error, 2010 ) prefix, inform%status 
+          WRITE( control%error, 2010 ) prefix, inform%status
         GO TO 800
-      END IF 
+      END IF
 
-!  If required, write out problem 
+!  If required, write out problem
 
       IF ( control%out > 0 .AND. control%print_level >= 20 ) THEN
         WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) prob%n, prob%m
@@ -1233,7 +1234,7 @@
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( SMT_get( prob%H%type ) == 'DIAGONAL' ) THEN
@@ -1243,7 +1244,7 @@
         ELSE IF ( SMT_get( prob%H%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
         ELSE
-          data%h_ne = prob%H%ne 
+          data%h_ne = prob%H%ne
         END IF
 
         IF ( printi ) WRITE( control%out,                                      &
@@ -1257,11 +1258,11 @@
         CALL QPP_reorder( data%QPP_map, data%QPP_control,                      &
                           data%QPP_inform, data%dims,                          &
                           prob, .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%preprocess = inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
+
 !  Test for satisfactory termination
 
         IF ( data%QPP_inform%status /= GALAHAD_ok ) THEN
@@ -1270,14 +1271,14 @@
             WRITE( control%out, "( A, ' status ', I3, ' after QPP_reorder ')" )&
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           IF ( control%out > 0 .AND. control%print_level > 0 .AND.             &
                inform%status == GALAHAD_error_upper_entry )                    &
              WRITE( control%error, "( /, A, '  Warning - an entry from ',      &
             &  'strict upper triangle of H given ' )" ) prefix
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  Record array lengths
 
@@ -1286,7 +1287,7 @@
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( SMT_get( prob%H%type ) == 'DIAGONAL' ) THEN
@@ -1296,7 +1297,7 @@
         ELSE IF ( SMT_get( prob%H%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
         ELSE
-          data%h_ne = prob%H%ne 
+          data%h_ne = prob%H%ne
         END IF
 
         IF ( printi ) WRITE( control%out,                                      &
@@ -1311,23 +1312,23 @@
       ELSE
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
         CALL QPP_apply( data%QPP_map, data%QPP_inform, prob, get_all = .TRUE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%preprocess =                                               &
           inform%time%preprocess + time_now - time_record
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-   
-!  Test for satisfactory termination  
-  
-        IF ( data%QPP_inform%status /= GALAHAD_ok ) THEN  
-          inform%status = data%QPP_inform%status  
+
+!  Test for satisfactory termination
+
+        IF ( data%QPP_inform%status /= GALAHAD_ok ) THEN
+          inform%status = data%QPP_inform%status
           IF ( control%out > 0 .AND. control%print_level >= 5 )                &
             WRITE( control%out, "( A, ' status ', I3, ' after QPP_apply ')" )  &
-             prefix, data%QPP_inform%status  
+             prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status   
-          GO TO 800   
-        END IF   
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
+        END IF
       END IF
 
 !  Permute initial working sets if provided
@@ -1399,7 +1400,7 @@
         DO ii = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1
           a_x = a_x + prob%A%val( ii ) * prob%X( prob%A%col( ii ) )
           a_norms = a_norms + prob%A%val( ii ) ** 2
-        END DO 
+        END DO
 !       write(6,*) 'l', i, a_x, prob%C_l( i )
 !       write(6,*) 'u', i, a_x, prob%C_u( i )
         data%RES_l( i ) = a_x - prob%C_l( i )
@@ -1526,7 +1527,7 @@
 !  cold start with only equality constraints active
 
       ELSE IF ( control%cold_start == 3 ) THEN
-        B_stat = 0 
+        B_stat = 0
         C_stat( : MIN( data%dims%c_equality, prob%n ) ) = 1
         C_stat( MIN( data%dims%c_equality, prob%n ) + 1 : ) = 0
 
@@ -1534,7 +1535,7 @@
 
       ELSE IF ( control%cold_start == 4 ) THEN
         B_stat = 0 ; C_stat = 0
-        l = 0 
+        l = 0
 
 !  equality constraints
 
@@ -1608,12 +1609,12 @@
                                  data%SLS_control, C_stat, B_stat,             &
                                  data%IBREAK, data%P, data%SOL, data%D,        &
                                  prefix, control, inform, n_depen )
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%preprocess =                                               &
         inform%time%preprocess + time_now - time_record
       inform%time%clock_preprocess =                                         &
         inform%time%clock_preprocess + clock_now - clock_record
-      
+
 !  Allocate more real workspace arrays
 
       array_name = 'qpa: data%H_s'
@@ -1888,7 +1889,7 @@
       data%auto_prec = control%precon == 0
       data%auto_fact = control%factor == 0
 
-!  If the Hessian has semi-bandwidth smaller than nsemib and the preconditioner 
+!  If the Hessian has semi-bandwidth smaller than nsemib and the preconditioner
 !  is to be picked automatically, use the full Hessian. Otherwise, use the
 !  Hessian of the specified semi-bandwidth.
 
@@ -1903,78 +1904,78 @@
 !  Check to see if the Hessian is banded
 
  dod :  DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = data%dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = data%dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = data%dims%x_free + 1
             hd_end    = data%dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = data%dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = data%dims%x_l_start
             hd_end    = data%dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = data%dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = data%dims%x_u_start
             hd_end    = data%dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = data%dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = data%dims%x_l_end + 1
             hd_end    = data%dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = data%dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = data%dims%x_u_end + 1
             hd_end    = data%dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = prob%n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, prob%n )
           DO i = hd_start, hd_end
             DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 2
               IF ( ABS( i - prob%H%col( l ) ) > control%nsemib ) THEN
                 data%prec_hist = 1
                 EXIT dod
-              END IF  
+              END IF
             END DO
           END DO
           IF ( hd_end == prob%n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, prob%n )
           DO i = hnd_start, hnd_end
             DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1
               IF ( ABS( i - prob%H%col( l ) ) > control%nsemib ) THEN
                 data%prec_hist = 1
                 EXIT dod
-              END IF  
+              END IF
             END DO
           END DO
           IF ( hd_end == prob%n ) EXIT
-    
+
         END DO dod
 
       END IF
@@ -2010,38 +2011,38 @@
 
 !  Restore the problem to its original form
 
-  750 CONTINUE 
+  750 CONTINUE
       CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
       CALL SORT_inverse_permute( data%QPP_map%m, data%QPP_map%c_map,           &
                                  IX = C_stat( : data%QPP_map%m ) )
       B_stat( prob%n + 1 : data%QPP_map%n ) = - 1
       CALL SORT_inverse_permute( data%QPP_map%n, data%QPP_map%x_map,           &
                                  IX = B_stat( : data%QPP_map%n ) )
-        
+
 !  Full restore
 
-      IF ( control%restore_problem >= 2 ) THEN  
+      IF ( control%restore_problem >= 2 ) THEN
         CALL QPP_restore( data%QPP_map, data%QPP_inform, prob,                 &
-                          get_all = .TRUE. )  
-  
-!  Restore vectors and scalars  
-  
-      ELSE IF ( control%restore_problem == 1 ) THEN  
+                          get_all = .TRUE. )
+
+!  Restore vectors and scalars
+
+      ELSE IF ( control%restore_problem == 1 ) THEN
         CALL QPP_restore( data%QPP_map, data%QPP_inform,                       &
                            prob, get_g = .TRUE.,                               &
                            get_x = .TRUE., get_x_bounds = .TRUE.,              &
                            get_y = .TRUE., get_z = .TRUE.,                     &
-                           get_c = .TRUE., get_c_bounds = .TRUE. )  
-  
-!  Solution recovery  
-  
-      ELSE  
+                           get_c = .TRUE., get_c_bounds = .TRUE. )
+
+!  Solution recovery
+
+      ELSE
         CALL QPP_restore( data%QPP_map, data%QPP_inform, prob,                 &
                           get_x = .TRUE., get_y = .TRUE., get_z = .TRUE.,      &
                           get_c = .TRUE. )
       END IF
 !     CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%preprocess = inform%time%preprocess + time_now - time_record
       inform%time%clock_preprocess =                                           &
         inform%time%clock_preprocess + clock_now - clock_record
@@ -2049,11 +2050,11 @@
 
 !  Compute total time
 
-  800 CONTINUE 
+  800 CONTINUE
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
+        inform%time%clock_total + clock_now - clock_start
 
       IF ( printi ) WRITE( control%out,                                        &
            "( /, 14X, ' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=',            &
@@ -2068,16 +2069,16 @@
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( ' leaving QPA_solve ' )" )
-      RETURN  
+      RETURN
 
 !  Allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + time_now - time_start
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
+        inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
          "( A, ' ** Message from -QPA_solve-', /,                              &
         &   A, ' Allocation error, for ', A, /, A, ' status = ', I0 )" )       &
@@ -2085,11 +2086,11 @@
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( ' leaving QPA_solve ' )" )
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
- 2010 FORMAT( ' ', /, A, '   **  Error return ',I3,' from QPA ' ) 
+ 2010 FORMAT( ' ', /, A, '   **  Error return ',I3,' from QPA ' )
 
 !  End of QPA_solve
 
@@ -2122,9 +2123,9 @@
 !               + rho_b min(  x - x_l , 0  ) + rho_b max(  x - x_u , 0  )
 !
 !  where x is a vector of n components ( x_1, .... , x_n ), f, rho_g/rho_b are
-!  constant, g is an n-vector, H is a symmetric matrix, A is an m by n matrix, 
+!  constant, g is an n-vector, H is a symmetric matrix, A is an m by n matrix,
 !  and any of the bounds c_l, c_u, x_l, x_u may be infinite, using an active
-!  set method. The subroutine is particularly appropriate when A and H are 
+!  set method. The subroutine is particularly appropriate when A and H are
 !  sparse, and when we do not anticipate a large number of active set
 !  changes prior to optimality
 !
@@ -2132,7 +2133,7 @@
 
 !  Dummy arguments
 
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       TYPE ( QPA_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( QPA_dims_type ), INTENT( IN ) :: dims
       TYPE ( RAND_seed ), INTENT( INOUT ) :: seed
@@ -2175,7 +2176,7 @@
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( :, : ) :: D
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_norms
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
-                          DIMENSION( dims%c_l_end ) ::  RES_l  
+                          DIMENSION( dims%c_l_end ) ::  RES_l
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
                           DIMENSION( dims%c_u_start : m ) ::  RES_u
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( lbreak ) :: BREAKP
@@ -2193,7 +2194,7 @@
       TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( INOUT ) :: K
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
@@ -2232,7 +2233,7 @@
           CALL RAND_random_real(  seed, .TRUE., randm )
           c_l( i ) = c_l( i ) - rand_max * randm
         END DO
-  
+
         DO i = dims%c_u_start, m
           CALL RAND_random_real(  seed, .TRUE., randm )
           c_u( i ) = c_u( i ) + rand_max * randm
@@ -2254,7 +2255,7 @@
 
 !  Solution loop: gradually reduce any perturbations
 !  =============
- 
+
       pass = 0 ; icrit = 0 ; ncrit = 9
       last_infeas_g = biginf / two ; last_infeas_b = biginf / two
       DO
@@ -2297,7 +2298,7 @@
               CALL RAND_random_real( seed, .TRUE., randm )
               c_l( i ) = c_l( i ) + damp * rand_max * randm
             END DO
-            
+
             DO i = dims%c_u_start, m
               CALL RAND_random_real( seed, .TRUE., randm )
               c_u( i ) = c_u( i ) - damp * rand_max * randm
@@ -2309,7 +2310,7 @@
               CALL RAND_random_real( seed, .TRUE., randm )
               x_l( i ) = x_l( i ) + damp * rand_max * randm
             END DO
-      
+
             DO i = dims%x_u_start,  dims%x_u_end
               CALL RAND_random_real( seed, .TRUE., randm )
               x_u( i ) = x_u( i ) - damp * rand_max * randm
@@ -2317,7 +2318,7 @@
           END IF
           EXIT
         END IF
-   
+
         IF ( printi ) WRITE( control%out, "( '' )" )
         IF ( inform%status == 0 ) THEN
           IF ( .NOT. ( control%solve_qp .OR. control%solve_within_bounds )     &
@@ -2341,7 +2342,7 @@
                   CALL RAND_random_real( seed, .TRUE., randm )
                   c_l( i ) = c_l( i ) + damp * rand_max * randm
                 END DO
-              
+
                 DO i = dims%c_u_start, m
                   CALL RAND_random_real( seed, .TRUE., randm )
                   c_u( i ) = c_u( i ) - damp * rand_max * randm
@@ -2353,7 +2354,7 @@
                   CALL RAND_random_real( seed, .TRUE., randm )
                   x_l( i ) = x_l( i ) + damp * rand_max * randm
                 END DO
-      
+
                 DO i = dims%x_u_start,  dims%x_u_end
                   CALL RAND_random_real( seed, .TRUE., randm )
                   x_u( i ) = x_u( i ) - damp * rand_max * randm
@@ -2377,7 +2378,7 @@
                 CALL RAND_random_real( seed, .TRUE., randm )
                 c_l( i ) = c_l( i ) + damp * rand_max * randm
               END DO
-            
+
               DO i = dims%c_u_start, m
                 CALL RAND_random_real( seed, .TRUE., randm )
                 c_u( i ) = c_u( i ) - damp * rand_max * randm
@@ -2389,7 +2390,7 @@
                 CALL RAND_random_real( seed, .TRUE., randm )
                 x_l( i ) = x_l( i ) + damp * rand_max * randm
               END DO
-      
+
               DO i = dims%x_u_start,  dims%x_u_end
                 CALL RAND_random_real( seed, .TRUE., randm )
                 x_u( i ) = x_u( i ) - damp * rand_max * randm
@@ -2491,7 +2492,7 @@
         warm_start = .TRUE.
       END DO
 
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
@@ -2532,9 +2533,9 @@
 !               + rho_b min(  x - x_l , 0  ) + rho_b max(  x - x_u , 0  )
 !
 !  where x is a vector of n components ( x_1, .... , x_n ), f, rho_g/rho_b are
-!  constant, g is an n-vector, H is a symmetric matrix, A is an m by n matrix, 
+!  constant, g is an n-vector, H is a symmetric matrix, A is an m by n matrix,
 !  and any of the bounds c_l, c_u, x_l, x_u may be infinite, using an active
-!  set method. The subroutine is particularly appropriate when A and H are 
+!  set method. The subroutine is particularly appropriate when A and H are
 !  sparse, and when we do not anticipate a large number of active set
 !  changes prior to optimality
 !
@@ -2548,73 +2549,73 @@
 !
 !   %n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !   %m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
+!
 !   %x_free is an INTEGER variable, which must be set by the user to the
 !    number of free variables. RESTRICTION: %x_free >= 0
-!                 
+!
 !   %x_l_start is an INTEGER variable, which must be set by the user to the
 !    index of the first variable with a nonzero lower (or lower range) bound.
 !    RESTRICTION: %x_l_start >= %x_free + 1
-!                 
+!
 !   %x_l_end is an INTEGER variable, which must be set by the user to the
 !    index of the last variable with a nonzero lower (or lower range) bound.
 !    RESTRICTION: %x_l_end >= %x_l_start
-!                 
+!
 !   %x_u_start is an INTEGER variable, which must be set by the user to the
-!    index of the first variable with a nonzero upper (or upper range) bound. 
+!    index of the first variable with a nonzero upper (or upper range) bound.
 !    RESTRICTION: %x_u_start >= %x_l_start
-!                 
+!
 !   %x_u_end is an INTEGER variable, which must be set by the user to the
-!    index of the last variable with a nonzero upper (or upper range) bound. 
+!    index of the last variable with a nonzero upper (or upper range) bound.
 !    RESTRICTION: %x_u_end >= %x_u_start
-!                 
+!
 !   %c_equality is an INTEGER variable, which must be set by the user to the
 !    number of equality constraints, m. RESTRICTION: %c_equality >= 0
-!                 
+!
 !   %c_l_start is an INTEGER variable, which must be set by the user to the
-!    index of the first inequality constraint with a lower (or lower range) 
-!    bound. RESTRICTION: %c_l_start = %c_equality + 1 
+!    index of the first inequality constraint with a lower (or lower range)
+!    bound. RESTRICTION: %c_l_start = %c_equality + 1
 !    (strictly, this information is redundant!)
-!                 
+!
 !   %c_l_end is an INTEGER variable, which must be set by the user to the
-!    index of the last inequality constraint with a lower (or lower range) 
+!    index of the last inequality constraint with a lower (or lower range)
 !    bound. RESTRICTION: %c_l_end >= %c_l_start
-!                 
+!
 !   %c_u_start is an INTEGER variable, which must be set by the user to the
-!    index of the first inequality constraint with an upper (or upper range) 
+!    index of the first inequality constraint with an upper (or upper range)
 !    bound. RESTRICTION: %c_u_start >= %c_l_start
 !    (strictly, this information is redundant!)
-!                 
+!
 !   %c_u_end is an INTEGER variable, which must be set by the user to the
-!    index of the last inequality constraint with an upper (or upper range) 
+!    index of the last inequality constraint with an upper (or upper range)
 !    bound. RESTRICTION: %c_u_end = %m
 !    (strictly, this information is redundant!)
 !
-!   %h_diag_end_free is an INTEGER variable, which must be set by the user to 
-!    the index of the last free variable whose for which the Hessian has a 
+!   %h_diag_end_free is an INTEGER variable, which must be set by the user to
+!    the index of the last free variable whose for which the Hessian has a
 !    diagonal entry
 !
 !   %h_diag_end_nonneg is an INTEGER variable, which must be set by the user to
 !    the index of the last nonnegative variable whose for which the Hessian has
 !    a diagonal entry
 !
-!   %h_diag_end_lower is an INTEGER variable, which must be set by the user to 
-!    the index of the last flower-bounded variable whose for which the Hessian 
+!   %h_diag_end_lower is an INTEGER variable, which must be set by the user to
+!    the index of the last flower-bounded variable whose for which the Hessian
 !    has a diagonal entry
 !
-!   %h_diag_end_range is an INTEGER variable, which must be set by the user to 
-!    the index of the last range variable whose for which the Hessian has a 
+!   %h_diag_end_range is an INTEGER variable, which must be set by the user to
+!    the index of the last range variable whose for which the Hessian has a
 !    diagonal entry
 !
-!   %h_diag_end_upper is an INTEGER variable, which must be set by the user to 
-!    the index of the last upper-bounded variable whose for which the Hessian 
+!   %h_diag_end_upper is an INTEGER variable, which must be set by the user to
+!    the index of the last upper-bounded variable whose for which the Hessian
 !    has a diagonal entry
 !
 !   %h_diag_end_nonpos is an INTEGER variable, which must be set by the user to
-!    the index of the last  nonpositive variable whose for which the Hessian 
+!    the index of the last  nonpositive variable whose for which the Hessian
 !    has a diagonal entry
 !
 !   %np1 is an INTEGER variable, which must be set by the user to the
@@ -2633,7 +2634,7 @@
 !    value n
 !
 !   %c_s is an INTEGER variable, which must be set by the user to the
-!    value dims%x_e + 1 
+!    value dims%x_e + 1
 !
 !   %c_e is an INTEGER variable, which must be set by the user to the
 !    value dims%x_e + nc
@@ -2654,117 +2655,117 @@
 !    value dims%y_e
 !
 !  f is a REAL variable, which must be set by the user to the value of
-!   the constant term f in the objective function. 
+!   the constant term f in the objective function.
 !   This argument is not altered by the subroutine
 !
 !  rho_g and rho_b are REAL variables, which must be set by the
 !   user to the values of the penalty parameters, rho_g and rho_b.
-!  
+!
 !  G is a REAL array of length n, which must be set by
 !   the user to the value of the gradient, g, of the linear term of the
 !   quadratic objective function. The i-th component of G, i = 1, ....,
-!   n, should contain the value of g_i.  The contents of this argument 
+!   n, should contain the value of g_i.  The contents of this argument
 !   are not altered by the subroutine
-!  
+!
 !  A_* is used to hold the matrix A by rows. In particular:
 !      A_col( : )   the column indices of the components of A
 !      A_ptr( : )   pointers to the start of each row, and past the end of
-!                   the last row. 
+!                   the last row.
 !      A_val( : )   the values of the components of A
 !
 !  H_* is used to hold the LOWER TRIANGLULAR PART of H by rows. In particular:
 !      H_col( : )   the column indices of the components of H
 !      H_ptr( : )   pointers to the start of each row, and past the end of
-!                   the last row. 
+!                   the last row.
 !      H_val( : )   the values of the components of H
 !
 !   NB. Each off-diagonal pair of nonzeros should be represented
-!   by a single component of H. 
-!  
-!  X_l, X_u are REAL arrays of length n, which must be set by the user to the 
+!   by a single component of H.
+!
+!  X_l, X_u are REAL arrays of length n, which must be set by the user to the
 !   values of the arrays x_l and x_u of lower and upper bounds on x. Any
 !   bound X_l( i ) or X_u( i ) larger than or equal to biginf in absolute value
 !   will be regarded as being infinite (see the entry control%biginf).
-!   Thus, an infinite lower bound may be specified by setting the appropriate 
-!   component of X_l to a value smaller than -biginf, while an infinite 
+!   Thus, an infinite lower bound may be specified by setting the appropriate
+!   component of X_l to a value smaller than -biginf, while an infinite
 !   upper bound can be specified by setting the appropriate element of X_u
 !   to a value larger than biginf. If X_u( i ) < X_l( i ), X_u( i ) will be
-!   reset to X_l( i ). Otherwise, the contents of these arguments are not 
+!   reset to X_l( i ). Otherwise, the contents of these arguments are not
 !   altered by the subroutine
-!  
-!  C_l, C_u are  REAL array of length m, which must be set by the user to the 
+!
+!  C_l, C_u are  REAL array of length m, which must be set by the user to the
 !  values of the arrays bl and bu of lower and upper bounds on A x.
 !   Any bound bl_i or bu_i larger than or equal to biginf in absolute value
 !   will be regarded as being infinite (see the entry control%biginf).
-!   Thus, an infinite lower bound may be specified by setting the appropriate 
-!   component of C_u to a value smaller than -biginf, while an infinite 
+!   Thus, an infinite lower bound may be specified by setting the appropriate
+!   component of C_u to a value smaller than -biginf, while an infinite
 !   upper bound can be specified by setting the appropriate element of BU
 !   to a value larger than biginf. If C_u( i ) < C_l( i ), C_u( i ) will be
-!   reset to C_u( i ). Otherwise, the contents of these arguments are not 
+!   reset to C_u( i ). Otherwise, the contents of these arguments are not
 !   altered by the subroutine
-!  
+!
 !  X is a REAL array of length n, which must be set by
-!   the user on entry to QPA_solve to give an initial estimate of the 
-!   optimization parameters, x. The i-th component of X should contain 
-!   the initial estimate of x_i, for i = 1, .... , n.  The estimate need 
-!   not satisfy the simple bound constraints and may be perturbed by 
-!   QPA_solve prior to the start of the minimization.  On exit from 
-!   QPA_solve, X will contain the best estimate of the optimization 
+!   the user on entry to QPA_solve to give an initial estimate of the
+!   optimization parameters, x. The i-th component of X should contain
+!   the initial estimate of x_i, for i = 1, .... , n.  The estimate need
+!   not satisfy the simple bound constraints and may be perturbed by
+!   QPA_solve prior to the start of the minimization.  On exit from
+!   QPA_solve, X will contain the best estimate of the optimization
 !   parameters found
-!  
+!
 !  Y is a REAL array of length m, which need not be set on entry.
 !   On exit, the i-th component of Y contains the best estimate of the
 !   the Lagrange multiplier connected to constraint i.
-!  
+!
 !  Z is a REAL array of length n, which need not be set on entry.
 !   On exit, the i-th component of Z contains the best estimate of the
 !   the Dual variable connected to simple bound constraint i.
-!  
+!
 !  C_stat is a INTEGER array of length m, which may be set by the user
 !   on entry to QPA_solve to indicate which of the constraints are to
 !   be included in the initial working set. If this facility is required,
 !   the component control%warm_start must be set .TRUE. on entry; C_stat
 !   need not be set if control%warm_start is .FALSE. . On exit,
 !   C_stat will indicate which constraints are in the final working set.
-!   Possible entry/exit values are 
-!   C_stat( i ) < 0, the i-th constraint is in the working set, 
-!                    on its lower bound, 
+!   Possible entry/exit values are
+!   C_stat( i ) < 0, the i-th constraint is in the working set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is in the working set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is not in the working set
 !
 !  B_stat is a INTEGER array of length n, which may be set by the user
-!   on entry to QPA_solve to indicate which of the simple bound constraints 
+!   on entry to QPA_solve to indicate which of the simple bound constraints
 !   are to be included in the initial working set. If this facility is required,
 !   the component control%warm_start must be set .TRUE. on entry; B_stat
 !   need not be set if control%warm_start is .FALSE. . On exit,
 !   B_stat will indicate which constraints are in the final working set.
-!   Possible entry/exit values are 
-!   B_stat( i ) < 0, the i-th bound constraint is in the working set, 
-!                    on its lower bound, 
+!   Possible entry/exit values are
+!   B_stat( i ) < 0, the i-th bound constraint is in the working set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is in the working set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is not in the working set
 !
-!  control is a structure of type QPA_control_type that controls the 
+!  control is a structure of type QPA_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
-!   the elements may be set by a call to QPA_initialize. See QPA_initialize 
+!   the elements may be set by a call to QPA_initialize. See QPA_initialize
 !   for details
 !
-!  inform is a structure of type QPA_inform_type that provides 
-!    information on exit from QPA_solve. The component status 
+!  inform is a structure of type QPA_inform_type that provides
+!    information on exit from QPA_solve. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination with a locally optimal solution.
 !
 !     1 The objective function is unbounded below along the line
 !       starting at X and pointing in the direction ??
 !
 !     2 Too many iterations have been performed. This may happen if
-!       control%maxit is too small, but may also be symptomatic of 
+!       control%maxit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
-!     3 one of the restrictions 
+!     3 one of the restrictions
 !          n     >=  1
 !          m     >=  0
 !       has been violated.
@@ -2783,7 +2784,7 @@
 
 !  Dummy arguments
 
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       TYPE ( QPA_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( QPA_dims_type ), INTENT( IN ) :: dims
       INTEGER, INTENT( IN ) :: n, m, m_link, k_n_max, lbreak, pass, n_pcg
@@ -2826,7 +2827,7 @@
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( :, : ) :: D
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_norms
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
-                          DIMENSION( dims%c_l_end ) ::  RES_l  
+                          DIMENSION( dims%c_l_end ) ::  RES_l
       REAL ( KIND = wp ), INTENT( INOUT ),                                     &
                           DIMENSION( dims%c_u_start : m ) ::  RES_u
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( lbreak ) :: BREAKP
@@ -2844,7 +2845,7 @@
       TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( INOUT ) :: K
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
@@ -2962,7 +2963,7 @@
         stop_print = control%stop_print
       END IF
 
-      out = control%out ; error = control%error 
+      out = control%out ; error = control%error
       set_printe = error > 0 .AND. control%print_level >= 1
 
 !  Initialize counts
@@ -2972,19 +2973,19 @@
 
 !  Basic single line of output per iteration
 
-      set_printi = out > 0 .AND. control%print_level >= 1 
+      set_printi = out > 0 .AND. control%print_level >= 1
 
 !  As per printi, but with additional timings for various operations
 
-      set_printt = out > 0 .AND. control%print_level >= 2 
+      set_printt = out > 0 .AND. control%print_level >= 2
 
 !  As per printm, but with checking of residuals, etc
 
-      set_printm = out > 0 .AND. control%print_level >= 3 
+      set_printm = out > 0 .AND. control%print_level >= 3
 
 !  Full debugging printing with significant arrays printed
 
-      set_printd = out > 0 .AND. control%print_level >= 4 
+      set_printd = out > 0 .AND. control%print_level >= 4
 
       IF ( inform%iter >= start_print .AND. inform%iter < stop_print ) THEN
         printe = set_printe ; printi = set_printi ; printt = set_printt
@@ -3035,7 +3036,7 @@
       IF ( max_col < 0 ) max_col = n
 
 !  Determine which constraints occur in the reference set
-    
+
       warmer_start = warm_start
       K_part%m_ref = 0
 
@@ -3157,9 +3158,9 @@
 
       K_part%k_ref = n + K_part%m_ref ; SCU_mat%n = K_part%k_ref
 
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 !                      Start of Major iteration
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 
       mult_zero = - control%multiplier_tol
 !     tiny_cosine = epsmch ** 0.75
@@ -3189,13 +3190,13 @@
 
 !  Check that the CPU time limit has not been reached
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
                time_now - time_start > control%cpu_time_limit ) .OR.           &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit ; EXIT major
-        END IF 
+        END IF
 
 !  Set automatic choices for the factorizations and preconditioner
 
@@ -3274,9 +3275,9 @@
             TRIM( STRING_pleural( dof ) )
         itref_max = control%itref_max
 
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 !                      Start of Minor iteration
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 
         minor : DO
 
@@ -3296,7 +3297,7 @@
             inform%num_g_infeas =                                              &
               COUNT( ABS( RES_l( : dims%c_equality ) ) > feas_tol ) +          &
               COUNT( RES_l( dims%c_equality + 1 : ) < - feas_tol ) +           &
-              COUNT( RES_u < - feas_tol ) 
+              COUNT( RES_u < - feas_tol )
             inform%num_b_infeas =                                              &
               COUNT( X( dims%x_free + 1 : dims%x_l_start - 1 ) < - feas_tol ) +&
               COUNT( X( dims%x_l_start : dims%x_l_end )                        &
@@ -3304,7 +3305,7 @@
               COUNT( X_u( dims%x_u_start : dims%x_u_end )                      &
                      - X( dims%x_u_start : dims%x_u_end ) < - feas_tol ) +     &
               COUNT( X( dims%x_u_end + 1 : n ) > feas_tol )
-          
+
             inform%infeas_g = SUM( ABS( RES_l( : dims%c_equality ) ) ) -       &
               SUM( MIN( RES_l( dims%c_equality + 1 : ), zero ) ) -             &
               SUM( MIN( RES_u, zero ) )
@@ -3317,8 +3318,8 @@
               SUM( MIN( - X( dims%x_u_end + 1 : n ), zero ) )
 
             inform%merit = inform%obj + rho_g * inform%infeas_g                &
-                                      + rho_b * inform%infeas_b 
-          
+                                      + rho_b * inform%infeas_b
+
             IF ( printt .OR. ( printi .AND. pcount == 0 ) )                    &
               WRITE( out, 2000 ) prefix, precon, prefix
             IF ( printi ) THEN
@@ -3362,13 +3363,13 @@
 
 !  Check that the CPU time limit has not been reached
 
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           IF ( ( control%cpu_time_limit >= zero .AND.                          &
                  time_now - time_start > control%cpu_time_limit ) .OR.         &
                ( control%clock_time_limit >= zero .AND.                        &
                  clock_now - clock_start > control%clock_time_limit ) ) THEN
             inform%status = GALAHAD_error_cpu_limit ; EXIT major
-          END IF 
+          END IF
 
 !  Check to see if the infeasibility warrants further action
 
@@ -3413,7 +3414,7 @@
 !  ==========
 
 !  Ensure that the initial point satisfies the working set of constraints
-      
+
           IF ( warmer_start ) THEN
 !           write(6,"('============ warmer start !!! ')" )
             warmer_start = .FALSE.
@@ -3456,7 +3457,7 @@
                 END IF
               END DO
 !             write( 6, "( I6, ES12.4 )" ) ( i, S( i ), i = 1, K_part%k_ref )
-          
+
 !  Find a point that satisfies the constraints
 
               S_perm( PERM( : K_part%k_ref ) ) = S( : K_part%k_ref )
@@ -3467,8 +3468,8 @@
                            out, printm, RES_print, inform )
               inform%factorization_status = inform%status
               IF ( printm ) WRITE( out, "( ' ' )" )
-  
-              S( : K_part%k_ref ) = S_perm( PERM( : K_part%k_ref ) ) 
+
+              S( : K_part%k_ref ) = S_perm( PERM( : K_part%k_ref ) )
               X = S( : n )
 
 !  From this point, try to minimize the quadratic on the current working set
@@ -3489,7 +3490,7 @@
                                pcg_iter, negative_curvature, pcg_status,       &
                                RES_print( : K_part%n_free + K_part%c_ref ) )
                 itref_max = iii - 1
-  
+
                 IF ( pcg_status < 0 ) THEN
                   IF ( printt ) WRITE( out, "( /, A,                           &
                  &  ' Warning return from QPA_pcg, status = ', I0 )")          &
@@ -3520,16 +3521,16 @@
                       ELSE
                         jumpto_factorize_reference = 1
                         GO TO 10
-                      END IF  
+                      END IF
                     END IF
                     warmer_start = .TRUE.
                     EXIT minor
-                  END IF          
-                END IF          
+                  END IF
+                END IF
                 IF ( pcg_status == 0 .OR. pcg_status == 1 ) X = S( : n )
                 inner_stop_absolute = control%inner_stop_absolute
                 inner_stop_relative = control%inner_stop_relative
-              END IF          
+              END IF
 
 !  Since this is not the first iteration, simply try to move back onto the
 !  current working set
@@ -3594,7 +3595,7 @@
 !  Find a point that satisfies the constraints
 
               n_all = SCU_mat%n + SCU_mat%m
-      
+
               S_perm( PERM( : n_all ) ) = S( : n_all )
               iii = itref_max
               CALL QPA_iterative_refinement(                                   &
@@ -3603,9 +3604,9 @@
                                   DX( : n_all ), VECTOR( : SCU_mat%n ),        &
                                   SLS_control, SLS_data, K_part, .FALSE.,      &
                                   iii, out, printm, RES_print, inform )
-              
+
               S( : n_all ) = RES( PERM( : n_all ) )
-      
+
               X = X + S( : n )
 
             END IF
@@ -3619,16 +3620,16 @@
               END DO
               RES_l( i ) = a_x - C_l( i )
             END DO
-      
+
             DO i = dims%c_u_start, dims%c_l_end
               a_x = zero
               DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
                 a_x = a_x + A_val( ii ) * X( A_col( ii ) )
-              END DO 
+              END DO
               RES_l( i ) = a_x - C_l( i )
               RES_u( i ) = C_u( i ) - a_x
             END DO
-      
+
             DO i = dims%c_l_end + 1, m
               a_x = zero
               DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
@@ -3678,7 +3679,7 @@
                 END IF
                 res_max = MAX( res_max, ABS( a_x ) )
               END IF
-              
+
             END DO
 
 !  other constraints
@@ -3736,13 +3737,13 @@
               END DO
             END DO
             inform%obj = f + half * DOT_PRODUCT( GRAD + G, X )
-  
+
             linesearch_inform = 0
 
             inform%num_g_infeas =                                              &
               COUNT( ABS( RES_l( : dims%c_equality ) ) > feas_tol ) +          &
               COUNT( RES_l( dims%c_equality + 1 : ) < - feas_tol ) +           &
-              COUNT( RES_u < - feas_tol ) 
+              COUNT( RES_u < - feas_tol )
             inform%num_b_infeas =                                              &
               COUNT( X( dims%x_free + 1 : dims%x_l_start - 1 ) < - feas_tol ) +&
               COUNT( X( dims%x_l_start : dims%x_l_end )                        &
@@ -3753,7 +3754,7 @@
 
             inform%infeas_g = SUM( ABS( RES_l( : dims%c_equality ) ) ) -       &
               SUM( MIN( RES_l( dims%c_equality + 1 : ), zero ) ) -             &
-              SUM( MIN( RES_u, zero ) ) 
+              SUM( MIN( RES_u, zero ) )
             inform%infeas_b = -                                                &
               SUM( MIN( X( dims%x_free + 1 : dims%x_l_start - 1 ), zero ) ) -  &
               SUM( MIN( X( dims%x_l_start : dims%x_l_end )                     &
@@ -3763,7 +3764,7 @@
               SUM( MIN( - X( dims%x_u_end + 1 : n ), zero ) )
 
             inform%merit = inform%obj + rho_g * inform%infeas_g                &
-                                      + rho_b * inform%infeas_b 
+                                      + rho_b * inform%infeas_b
 
             IF ( printt .OR. ( printi .AND. pcount == 0 ) )                    &
                WRITE( out, 2000 ) prefix, precon, prefix
@@ -3820,7 +3821,7 @@
                 END DO
               END IF
             END DO
-      
+
 !  constraints with lower bounds
 
             DO i = dims%c_equality + 1, dims%c_u_start - 1
@@ -3847,7 +3848,7 @@
                 END IF
               END IF
             END DO
-      
+
 !  constraints with lower and upper bounds
 
             DO i = dims%c_u_start, dims%c_l_end
@@ -3886,7 +3887,7 @@
                 END IF
               END IF
             END DO
-      
+
 !  constraints with upper bounds
 
             DO i = dims%c_l_end + 1, m
@@ -4060,7 +4061,7 @@
                 cg_maxit = control%cg_maxit
               END IF
               CALL CPU_TIME( time_record ) ; CALL CLOCK_TIME( clock_record )
-    
+
               iii = itref_max
               CALL QPA_pcg( dims, n, S, RHS, R_pcg, X_pcg, P_pcg, S_perm,      &
                              RES, B, DX, VECTOR, PERM, SCU_mat, SCU_data,      &
@@ -4101,7 +4102,7 @@
                     ELSE
                       jumpto_factorize_reference = 1
                       GO TO 10
-                    END IF  
+                    END IF
                   END IF
 
                   IF ( printt .OR. ( printi .AND. pcount == 0 ) )              &
@@ -4109,7 +4110,7 @@
 !                 write(6,*) ' minor_start, pcount ', minor_start, pcount
 
                   IF ( printi ) THEN
-                    CALL CLOCK_TIME( clock_now ) 
+                    CALL CLOCK_TIME( clock_now )
                     WRITE( out, 2050 ) prefix, inform%iter, inform%merit,      &
                       t_opt,                                                   &
                       STRING_exponent( inform%infeas_g + inform%infeas_b ),    &
@@ -4118,15 +4119,15 @@
                   END IF
                   warmer_start = .TRUE.
                   EXIT minor
-                END IF          
-              END IF          
+                END IF
+              END IF
               inform%cg_iter = inform%cg_iter + pcg_iter
 
               IF ( printm ) WRITE( out,                                        &
                "(/, '   |           equality subproblem solved             |', &
          &       /, '   |--------------------------------------------------|', &
          &         / )" )
-    
+
               CALL CPU_TIME( time_now ) ; CALL CLOCK_TIME( clock_now )
               time_now = time_now - time_record
               inform%time%solve = inform%time%solve + time_now
@@ -4199,7 +4200,7 @@
                   j = REF( i )
                   IF ( j > 0 ) THEN
                     IF ( j <= m ) THEN
-                      a_x = A_s( j ) 
+                      a_x = A_s( j )
                     ELSE
                       a_x = S( j - m )
                     END IF
@@ -4210,7 +4211,7 @@
                   j = SC( i )
                   IF ( j > 0 ) THEN
                     IF ( j <= m ) THEN
-                      a_x = A_s( j ) 
+                      a_x = A_s( j )
                     ELSE
                       a_x = S( j - m )
                     END IF
@@ -4246,7 +4247,7 @@
                   IF ( i /= j ) H_s( j ) = H_s( j ) + H_val( ii ) * S( i )
                 END DO
               END DO
-    
+
               IF ( printd ) write( out, "( ' slope ', ES12.4 )" ) &
                               - DOT_PRODUCT( RHS( : n ), S( : n ) )
               g_s = DOT_PRODUCT( GRAD, S( : n ) )
@@ -4270,7 +4271,7 @@
                 EXIT major
               END IF
 
-!  If we have truncated the CG early, but not picked up any constraints, make 
+!  If we have truncated the CG early, but not picked up any constraints, make
 !  sure that we solve the CG more accurately in future
 
               IF ( still_adding .AND. linesearch_inform == - 1 ) THEN
@@ -4305,12 +4306,12 @@
                     RES_l( i ), a_x - C_l( i ),                                &
                     ABS( - RES_l( i ) + a_x - C_l( i ) )
                 END DO
-          
+
                 DO i = dims%c_u_start, dims%c_l_end
                   a_x = zero
                   DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
                     a_x = a_x + A_val( ii ) * X( A_col( ii ) )
-                  END DO 
+                  END DO
                   res_max = MAX( res_max, ABS( - RES_l( i ) + a_x - C_l( i ) ),&
                                           ABS( - RES_u( i ) + C_u( i ) - a_x ) )
                   IF ( printd ) WRITE( out, "( i5, 'l', 3ES12.4 )" ) i,        &
@@ -4320,7 +4321,7 @@
                     RES_u( i ), C_u( i ) - a_x,                                &
                     ABS( - RES_u( i ) + C_u( i ) - a_x )
                 END DO
-          
+
                 DO i = dims%c_l_end + 1, m
                   a_x = zero
                   DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
@@ -4331,7 +4332,7 @@
                     RES_u( i ), C_u( i ) - a_x,                                &
                     ABS( - RES_u( i ) + C_u( i ) - a_x )
                 END DO
-    
+
                 WRITE( out, "( ' ++ errors in computed residuals', ES12.4 )" ) &
                   res_max
               END IF
@@ -4345,32 +4346,32 @@
           inform%num_g_infeas =                                                &
             COUNT( ABS( RES_l( : dims%c_equality ) ) > feas_tol ) +            &
             COUNT( RES_l( dims%c_equality + 1 : ) < - feas_tol ) +             &
-            COUNT( RES_u < - feas_tol ) 
+            COUNT( RES_u < - feas_tol )
           inform%num_b_infeas =                                                &
             COUNT( X( dims%x_free + 1 : dims%x_l_start - 1 ) < - feas_tol ) +  &
             COUNT( X( dims%x_l_start : dims%x_l_end )                          &
                    - X_l( dims%x_l_start : dims%x_l_end ) < - feas_tol ) +     &
             COUNT( X_u( dims%x_u_start : dims%x_u_end )                        &
                    - X( dims%x_u_start : dims%x_u_end ) < - feas_tol ) +       &
-            COUNT( X( dims%x_u_end + 1 : n ) > feas_tol )                 
-                                                                               
+            COUNT( X( dims%x_u_end + 1 : n ) > feas_tol )
+
           inform%infeas_g = SUM( ABS( RES_l( : dims%c_equality ) ) ) -         &
             SUM( MIN( RES_l( dims%c_equality + 1 : ), zero ) ) -               &
-            SUM( MIN( RES_u, zero ) ) 
+            SUM( MIN( RES_u, zero ) )
           inform%infeas_b = -                                                  &
             SUM( MIN( X( dims%x_free + 1 : dims%x_l_start - 1 ), zero ) ) -    &
             SUM( MIN( X( dims%x_l_start : dims%x_l_end )                       &
                       - X_l( dims%x_l_start : dims%x_l_end ), zero ) ) -       &
             SUM( MIN( X_u( dims%x_u_start : dims%x_u_end )                     &
                       - X( dims%x_u_start : dims%x_u_end ), zero ) ) -         &
-            SUM( MIN( - X( dims%x_u_end + 1 : n ), zero ) )               
+            SUM( MIN( - X( dims%x_u_end + 1 : n ), zero ) )
 
           inform%merit = inform%obj + rho_g * inform%infeas_g                  &
-                                    + rho_b * inform%infeas_b 
+                                    + rho_b * inform%infeas_b
 
           move_infeasible = .FALSE.
           sc_data = '            '
-          
+
 !  -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !  Update the Schur complement following a change in the working set
 !  -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -4435,7 +4436,7 @@
 
 !  The minimizer for the current working set has been found.
 !  Choose a constraint to delete, by looking for constraints with
-!  Lagrange multipliers whose values lie outside [0,rho_g] or [0,rho_b] 
+!  Lagrange multipliers whose values lie outside [0,rho_g] or [0,rho_b]
 !  as appropriate
 
 !  Pick the appropriate deletion strategy
@@ -4446,7 +4447,7 @@
 
             CASE ( 0 )
 
-              mult_min = mult_zero ; mult_max = zero 
+              mult_min = mult_zero ; mult_max = zero
               j_min = 0
 
 !  consider constraints in the Schur complement
@@ -4485,7 +4486,7 @@
                   END IF
                 END IF
               END DO
-  
+
 !  now consider constraints in the reference set
 
               DO i = K_part%m_ref, 1, - 1
@@ -4533,7 +4534,7 @@
                   END IF
                 END IF
                 GO TO 20
-              END IF 
+              END IF
 
 !  LIFO strategy used
 
@@ -4582,7 +4583,7 @@
                   END IF
                 END IF
               END DO
-  
+
 !  now consider constraints in the reference set
 
               DO i = K_part%m_ref, 1, - 1
@@ -4682,7 +4683,7 @@
                   END IF
                 END IF
               END DO
-  
+
 !  now consider constraints in the reference set
 
               DO i = K_part%m_ref, 1, - 1
@@ -4742,11 +4743,11 @@
                   END IF
                 END IF
                 GO TO 20
-              END IF 
+              END IF
 
             END SELECT
 
-!  If the are no multipliers outside [0,rho_g] or [0,rho_b] 
+!  If the are no multipliers outside [0,rho_g] or [0,rho_b]
 !  (as appropriate), we have found the optimal solution
 !  --------------------------------------------------------
 
@@ -4773,7 +4774,7 @@
                 Y( i ) = - rho_g
               END IF
             END DO
-      
+
 !  constraints with lower bounds
 
             DO i = dims%c_equality + 1, dims%c_u_start - 1
@@ -4784,7 +4785,7 @@
               END IF
               IF ( RES_l( i ) < zero ) Y( i ) = rho_g
             END DO
-      
+
 !  constraints with lower and upper bounds
 
             DO i = dims%c_u_start, dims%c_l_end
@@ -4799,7 +4800,7 @@
                 Y( i ) = - rho_g
               END IF
             END DO
-      
+
 !  constraints with upper bounds
 
             DO i = dims%c_l_end + 1, m
@@ -4870,7 +4871,7 @@
               IF ( - X( i ) < zero ) Z( i ) = - rho_b
             END DO
 
-!  Now set the multipliers for constraints in the working set 
+!  Now set the multipliers for constraints in the working set
 
             DO i = 1, K_part%m_ref
               j = REF( i )
@@ -4914,7 +4915,7 @@
               prefix, prefix, prefix, rho_g, prefix, rho_b, prefix, mult_max,  &
               prefix
             EXIT major
-  
+
 !  There is a multiplier outside [0,rho_g] (or [0,rho_b])
 !  ----------------------------------------------------
 
@@ -5051,7 +5052,7 @@
                 END IF
                 res_max = MAX( res_max, ABS( a_x ) )
               END IF
-              
+
             END DO
 
 !  other constraints
@@ -5108,7 +5109,7 @@
              &     ' working constituents is ', ES10.2 )" ) res_max
               warmer_start = .TRUE.
               EXIT minor
-            ELSE 
+            ELSE
               IF ( printm ) WRITE( out, "( ' maximum residual of',             &
            &       ' working constituents is ', ES10.2 )" ) res_max
             END IF
@@ -5183,7 +5184,7 @@
                 END IF
               END IF
             END DO
-            
+
 !  other constraints
 
             DO i = 1, SCU_mat%m
@@ -5267,9 +5268,9 @@
 
   410   CONTINUE
 
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 !                      End of Minor iteration
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 
 !  Prepare for the next major iteration by computing the new reference set
 
@@ -5282,9 +5283,9 @@
 
       END DO major  ! end of minimization
 
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 !                      End of Major iteration
-!  ------------------------------------------------------------------------ 
+!  ------------------------------------------------------------------------
 
 !  Confirm optimal value found
 
@@ -5350,7 +5351,7 @@
             S( n + i ) = zero
           END IF
         END DO
-            
+
 !  other constraints
 
         DO i = 1, SCU_mat%m
@@ -5419,7 +5420,7 @@
                             DX( : n_all ), VECTOR( : SCU_mat%n ),             &
                             SLS_control, SLS_data, K_part, .FALSE.,           &
                             iii, out, printm, RES_print, inform )
-        
+
         S( : n_all ) = RES( PERM( : n_all ) )
         X = X + S( : n )
 
@@ -5437,16 +5438,16 @@
             END DO
             RES_l( i ) = a_x - C_l( i )
           END DO
-          
+
           DO i = dims%c_u_start, dims%c_l_end
             a_x = zero
             DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
               a_x = a_x + A_val( ii ) * X( A_col( ii ) )
-            END DO 
+            END DO
             RES_l( i ) = a_x - C_l( i )
             RES_u( i ) = C_u( i ) - a_x
           END DO
-          
+
           DO i = dims%c_l_end + 1, m
             a_x = zero
             DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
@@ -5466,13 +5467,13 @@
             END DO
           END DO
           inform%obj = f + half * DOT_PRODUCT( GRAD + G, X )
-          
+
           linesearch_inform = 0
-          
+
           inform%num_g_infeas =                                              &
             COUNT( ABS( RES_l( : dims%c_equality ) ) > feas_tol ) +          &
             COUNT( RES_l( dims%c_equality + 1 : ) < - feas_tol ) +           &
-            COUNT( RES_u < - feas_tol ) 
+            COUNT( RES_u < - feas_tol )
           inform%num_b_infeas =                                                &
             COUNT( X( dims%x_free + 1 : dims%x_l_start - 1 ) < - feas_tol ) +  &
             COUNT( X( dims%x_l_start : dims%x_l_end )                          &
@@ -5480,10 +5481,10 @@
             COUNT( X_u( dims%x_u_start : dims%x_u_end )                        &
                    - X( dims%x_u_start : dims%x_u_end ) < - feas_tol ) +       &
             COUNT( X( dims%x_u_end + 1 : n ) > feas_tol )
-          
+
           inform%infeas_g = SUM( ABS( RES_l( : dims%c_equality ) ) ) -         &
             SUM( MIN( RES_l( dims%c_equality + 1 : ), zero ) ) -               &
-            SUM( MIN( RES_u, zero ) ) 
+            SUM( MIN( RES_u, zero ) )
           inform%infeas_b = -                                                  &
             SUM( MIN( X( dims%x_free + 1 : dims%x_l_start - 1 ), zero ) ) -    &
             SUM( MIN( X( dims%x_l_start : dims%x_l_end )                       &
@@ -5493,8 +5494,8 @@
             SUM( MIN( - X( dims%x_u_end + 1 : n ), zero ) )
 
           inform%merit = inform%obj + rho_g * inform%infeas_g                  &
-                                    + rho_b * inform%infeas_b 
-          
+                                    + rho_b * inform%infeas_b
+
           IF ( printt .OR. ( printi .AND. pcount == 0 ) ) &
              WRITE( out, 2000 ) prefix, precon, prefix
           IF ( printi .AND. .NOT. (  minor_start .AND. pcount == 0 ) ) THEN
@@ -5527,16 +5528,16 @@
                          inform, pcg_iter, negative_curvature, pcg_status,     &
                          RES_print( : K_part%n_free + K_part%c_ref ) )
           itref_max = iii - 1
-        
+
           IF ( pcg_status < 0 ) THEN
             IF ( printt ) WRITE( out, "( /, A,                                 &
            &  ' Warning return from QPA_pcg, status = ', I0 )" )               &
               prefix, pcg_status
-          END IF          
+          END IF
           IF ( pcg_status == 0 .OR. pcg_status == 1 ) X = S( : n )
           inner_stop_absolute = control%inner_stop_absolute
           inner_stop_relative = control%inner_stop_relative
-        END IF          
+        END IF
 
 !  Compute the resulting residuals
 
@@ -5547,16 +5548,16 @@
           END DO
           RES_l( i ) = a_x - C_l( i )
         END DO
-        
+
         DO i = dims%c_u_start, dims%c_l_end
           a_x = zero
           DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
             a_x = a_x + A_val( ii ) * X( A_col( ii ) )
-          END DO 
+          END DO
           RES_l( i ) = a_x - C_l( i )
           RES_u( i ) = C_u( i ) - a_x
         END DO
-        
+
         DO i = dims%c_l_end + 1, m
           a_x = zero
           DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
@@ -5576,9 +5577,9 @@
           END DO
         END DO
         inform%obj = f + half * DOT_PRODUCT( GRAD + G, X )
-        
+
         linesearch_inform = 0
-        
+
         inform%num_g_infeas =                                                  &
           COUNT( ABS( RES_l( : dims%c_equality ) ) > feas_tol ) +              &
           COUNT( RES_l( dims%c_equality + 1 : ) < - feas_tol ) +               &
@@ -5590,10 +5591,10 @@
           COUNT( X_u( dims%x_u_start : dims%x_u_end )                          &
                  - X( dims%x_u_start : dims%x_u_end ) < - feas_tol ) +         &
           COUNT( X( dims%x_u_end + 1 : n ) > feas_tol )
-        
+
         inform%infeas_g = SUM( ABS( RES_l( : dims%c_equality ) ) ) -           &
           SUM( MIN( RES_l( dims%c_equality + 1 : ), zero ) ) -                 &
-          SUM( MIN( RES_u, zero ) ) 
+          SUM( MIN( RES_u, zero ) )
         inform%infeas_b = -                                                    &
           SUM( MIN( X( dims%x_free + 1 : dims%x_l_start - 1 ), zero ) ) -      &
           SUM( MIN( X( dims%x_l_start : dims%x_l_end )                         &
@@ -5603,8 +5604,8 @@
           SUM( MIN( - X( dims%x_u_end + 1 : n ), zero ) )
 
         inform%merit = inform%obj + rho_g * inform%infeas_g                    &
-                                  + rho_b * inform%infeas_b 
-        
+                                  + rho_b * inform%infeas_b
+
         IF ( printi ) WRITE( out, 2000 ) prefix, precon, prefix
 !       write(6,*) ' minor_start, pcount ', minor_start, pcount
         IF ( printi .AND. .NOT. (  minor_start .AND. pcount == 0 ) ) THEN
@@ -5650,7 +5651,7 @@
         itref_max = iii - 1
         X_p = S( : n )
 
-!  Now set the parametric multipliers for constraints in the working set 
+!  Now set the parametric multipliers for constraints in the working set
 
         Y_p = zero ; Z_p = zero
         DO i = 1, K_part%m_ref
@@ -5745,7 +5746,7 @@
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( ' leaving QPA_solve_main ' )" )
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
@@ -5792,7 +5793,7 @@
 !  Dummy arguments
 
       TYPE ( QPA_data_type ), INTENT( INOUT ) :: data
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       TYPE ( QPA_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -6144,7 +6145,7 @@
 !  Non-executable statement
 
  2900 FORMAT( ' ** Message from -QPA_terminate-', /,                           &
-                 ' Allocation error, for ', A, ', status = ', I0 ) 
+                 ' Allocation error, for ', A, ', status = ', I0 )
 
 !  End of subroutine QPA_terminate
 
@@ -6170,7 +6171,7 @@
 !
 !  along the arc x(t) = x + t s  (t >= 0)
 !
-!  where x is a vector of n components ( x_1, .... , x_n ), 
+!  where x is a vector of n components ( x_1, .... , x_n ),
 !  H is a symmetric matrix, and A is an m by n matrix.
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -6180,49 +6181,49 @@
 !  dims is a structure of type QPA_data_type, whose components hold SCALAR
 !   information about the problem on input. The components will be unaltered
 !   on exit. See QPA_solve_main for details.
-!                 
-!  f is a REAL variable, which must be set by the user to the value 
+!
+!  f is a REAL variable, which must be set by the user to the value
 !   of 1/2 <x, H x> + <c, x> at x
 !
-!  g_s is a REAL variable, which must be set by the user to the value 
+!  g_s is a REAL variable, which must be set by the user to the value
 !   of the inner product <s, Hx + c>
 !
-!  s_hs is a REAL variable, which must be set by the user to the value 
+!  s_hs is a REAL variable, which must be set by the user to the value
 !   of the inner product <s, Hs>
 !
-!  s_norm is a REAL variable, which must be set by the user to the value 
+!  s_norm is a REAL variable, which must be set by the user to the value
 !   of the two norm of s, ||s||_2
 !
-!  rho_g is a REAL variable, which must be set by the user to the value 
+!  rho_g is a REAL variable, which must be set by the user to the value
 !   of the penalty parameter rho_g for the general constraints
 !
-!  rho_b is a REAL variable, which must be set by the user to the value 
+!  rho_b is a REAL variable, which must be set by the user to the value
 !   of the penalty parameter rho_g for the simple bound constraints
 !
-!  X is a REAL array of length n, which must be set by the user to the 
+!  X is a REAL array of length n, which must be set by the user to the
 !   value of x
 !
-!  X_l is a REAL array of length n, that must be set by 
+!  X_l is a REAL array of length n, that must be set by
 !   the user to the value of x_l for all components which have lower bounds
 !
 !  X_u is a REAL array of  length n, that must be set
 !   by the user to the value of x_u for all components which have upper bounds
 !
-!  RES_l is a REAL array of extent 1:dims%c_l_end, that must be set by 
+!  RES_l is a REAL array of extent 1:dims%c_l_end, that must be set by
 !   the user to the value of A x - c_l for all components which have
 !   lower bounds/are equalities
 !
-!  RES_u is a REAL array of extent dims%c_u_start : m, that must be 
+!  RES_u is a REAL array of extent dims%c_u_start : m, that must be
 !   set by the user to the value of c_u - A x for all components which have
 !   upper bounds
 !
-!  S is a REAL array of length n, which must be set by the user to the 
+!  S is a REAL array of length n, which must be set by the user to the
 !   value of s
 !
-!  A_s is a REAL array of length m, which must be set by the user to the 
+!  A_s is a REAL array of length m, which must be set by the user to the
 !   value of A s
 !
-!  A_norms is a REAL array of length m, which must be set by the user to 
+!  A_norms is a REAL array of length m, which must be set by the user to
 !   the estimates of the norms of the rows of $A$.
 !
 !  C_stat, B_stat, REF are INTEGER arrays described in QPA_solve
@@ -6231,7 +6232,7 @@
 !
 !  BREAKP is a REAL workspace array of length lbreak
 !
-!  lbreak is an INTEGER that must be at least 
+!  lbreak is an INTEGER that must be at least
 !   m + dims%x_l_end - dims%x_u_start + 1
 !
 !  t_opt  is a REAL variable, which gives the required value of t on exit
@@ -6254,7 +6255,7 @@
 !          the i-th constraint is active
 !   i in [-m,0) the minimizer given in t_opt occurs at a breakpoint at which
 !          the -i-th constraint is active (on its upper bound)
-!   i in (m,m+n] the minimizer given in t_opt occurs at a breakpoint at which 
+!   i in (m,m+n] the minimizer given in t_opt occurs at a breakpoint at which
 !          the i-m-th bound is active
 !   i in [-m+n,-m) the minimizer given in t_opt occurs at a breakpoint at which
 !          the -i-m-th bound is active (on its upper bound)
@@ -6274,7 +6275,7 @@
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_norms
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X, X_l, X_u, S
       REAL ( KIND = wp ), INTENT( IN ),                                        &
-                          DIMENSION( dims%c_l_end ) ::  RES_l  
+                          DIMENSION( dims%c_l_end ) ::  RES_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
                           DIMENSION( dims%c_u_start : m ) ::  RES_u
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_s
@@ -6422,7 +6423,7 @@
         IF ( ABS( as ) < too_small ) CYCLE
 
         IF ( res + t_pert * as < zero ) slope_infeas_g = slope_infeas_g - as
-!       IF ( res + t_pert * as < zero ) write(6,*) ' slope_term = u ', i 
+!       IF ( res + t_pert * as < zero ) write(6,*) ' slope_term = u ', i
 
 !  Find if the step will change the status of the constraint
 
@@ -6631,7 +6632,7 @@
 
 !  Order the breakpoints in increasing size using a heapsort. Build the heap
 
-      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, INDA = IBREAK )
+      CALL SORT_heapsort_build( nbreak, BREAKP, inheap, ix = IBREAK )
       cluster_start = 1
       cluster_end = 0
       cluster = '      0      0'
@@ -6689,7 +6690,7 @@
         t_old = t_break
         IF ( nbreak > 0 ) THEN
           t_break = BREAKP( 1 )
-          CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, INDA = IBREAK )
+          CALL SORT_heapsort_smallest( nbreak, BREAKP, inheap, ix = IBREAK )
           cluster_end = cluster_end + 1
           cluster_start = cluster_end
         ELSE
@@ -6715,7 +6716,7 @@
 
             fun = val + t_opt * ( slope + half * t_opt * curv )
             val = val + half * t_opt * slope
-          
+
             IF ( print_detail ) WRITE( out, 2000 )
             IF ( print_1line ) WRITE( out, &
               "( 3X, I7, ES12.4, A14, 3ES12.4 )" ) &
@@ -6775,7 +6776,7 @@
 
           DO
             ibreakp = IBREAK( nbreak )
-  
+
             IF ( ibreakp < 0 ) THEN
               ibreakp = - ibreakp
               IF ( ibreakp <= dims%c_equality ) THEN
@@ -6804,7 +6805,7 @@
 
             IF ( BREAKP( 1 ) >= feasep ) EXIT
             CALL SORT_heapsort_smallest( nbreak, BREAKP( : nbreak ), inheap,   &
-                                    INDA = IBREAK )
+                                         ix = IBREAK )
             cluster_end = cluster_end + 1
           END DO
 
@@ -6814,7 +6815,7 @@
           fun = val + t_break * ( slope_old + half * t_break * curv )
           gradient = slope + t_break * curv
           WRITE( cluster, "( 2I7 )" ) cluster_start, cluster_end
-  
+
           IF ( print_detail ) THEN
             CALL QPA_p_val_and_slope( dims, n, m,                              &
                                       f, g_s, s_hs, rho_g, rho_b, X,           &
@@ -6868,7 +6869,7 @@
 
         beyond_first_breakpoint = .TRUE.
 
-!  See if the current cluster yields a sufficiently independent 
+!  See if the current cluster yields a sufficiently independent
 !  constraint gradient
 
         active_ok = QPA_most_independent( m, n,                      &
@@ -6916,11 +6917,11 @@
         f + rho_g * infeas_g + rho_b * infeas_b, val
 
 !  ==========================================================================
-!  This part of the code is to cope with the possibility that rounding errors 
+!  This part of the code is to cope with the possibility that rounding errors
 !  have so dominated the search that a descent point has not been found. A
 !  more cautious search will be performed.
 !  ==========================================================================
-      
+
       iter = 0 ; t_break = zero ; active = 0 ; t_opt = zero
 
 !  Compute the initial function, slope and curvature
@@ -6942,7 +6943,7 @@
       cluster = '      0      0'
 
 !  =========================================================================
-!  Start the main recovery loop to find the first local minimizer of the 
+!  Start the main recovery loop to find the first local minimizer of the
 !  piecewise quadratic function. Consider the problem over successive pieces
 !  =========================================================================
 
@@ -7021,7 +7022,7 @@
                                             t_old, val_old, t_opt, val,        &
                                             too_small, out, print_detail )
             END IF
-          
+
             IF ( print_detail ) WRITE( out, 2000 )
             IF ( print_1line ) WRITE( out, &
               "( 3X, I7, ES12.4, A14, 3ES12.4 )" ) &
@@ -7125,7 +7126,7 @@
 
         beyond_first_breakpoint = .TRUE.
 
-!  See if the current cluster yields a sufficiently independent 
+!  See if the current cluster yields a sufficiently independent
 !  constraint gradient
 
         active_ok = QPA_most_independent( m, n,                                &
@@ -7173,7 +7174,7 @@
 !  End of subroutine QPA_linesearch
 
       END SUBROUTINE QPA_linesearch
-      
+
 !-*-   Q P A _ L I N E S E A R C H _ I N T E R V A L   S U B R O U T I N E   -*-
 
       SUBROUTINE QPA_linesearch_interval( dims, n, m,                          &
@@ -7192,7 +7193,7 @@
 !
 !  along the arc x(t) = x + t s  in the interval (t_lower, t_opt)
 !  returning the minimizer in t_opt,
-!  where x is a vector of n components ( x_1, .... , x_n ), 
+!  where x is a vector of n components ( x_1, .... , x_n ),
 !  H is a symmetric matrix, and A is an m by n matrix.
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -7207,7 +7208,7 @@
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_s
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X, X_l, X_u, S
       REAL ( KIND = wp ), INTENT( IN ),                                        &
-                          DIMENSION( dims%c_l_end ) ::  RES_l  
+                          DIMENSION( dims%c_l_end ) ::  RES_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
                           DIMENSION( dims%c_u_start : m ) ::  RES_u
 
@@ -7223,7 +7224,7 @@
 !  A dumb bisection algorithm - this shouldn't get used very often,
 !  so this is probably not catastrophic (famous last words)!
 
-      DO 
+      DO
         IF ( print_debug )                                                     &
           WRITE( out, "( 4ES20.12 )" ) t_lower, t_opt, val_lower, val_opt
         IF ( ( t_opt - t_lower <= min_interval .AND. t_lower > zero ) .OR.     &
@@ -7242,13 +7243,13 @@
           t_opt = t_new ; val_opt = val_new
         END IF
       END DO
-     
+
       RETURN
 
 !  End of subroutine QPA_linesearch_interval
 
       END SUBROUTINE QPA_linesearch_interval
-      
+
 !-*-*-*-   Q P A _ M O S T _ I N D E P E N D E N T   F U N C T I O N   -*-*-*-
 
       FUNCTION QPA_most_independent( m, n, cluster_start, cluster_end, s_norm, &
@@ -7263,7 +7264,7 @@
 !  with a direction s amongst those whose indices lie in the
 !  set IBREAK( i ), i = cluster_start, cluster_end. The directional
 !  derivatives <a_i,s>, and the norms of the a_i are input in A_s and A_norms
-!  while ||s||_2 is input in s_norm  
+!  while ||s||_2 is input in s_norm
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -7282,7 +7283,7 @@
 
       INTEGER :: i, j
       REAL ( KIND = wp ) :: cos_current, small_cos, small_cosine
-     
+
       small_cosine = epsmch ** 0.4
       cos_best = zero
       cluster_best = 0
@@ -7305,7 +7306,7 @@
 
         IF ( cos_current < small_cos ) CYCLE
 
-!  The normal of this member of the cluster currently makes the largest 
+!  The normal of this member of the cluster currently makes the largest
 !  cosine with the search direction
 
         IF ( cos_current > cos_best ) THEN
@@ -7318,9 +7319,9 @@
       IF ( print_debug )                                                       &
         WRITE( out, "( ' cosine and s for term ', I5, ' is ', 2ES12.4 )" )     &
           ABS( QPA_most_independent ), cos_best, s_norm
-      
+
       RETURN
-      
+
 !  End of function QPA_most_independent
 
       END FUNCTION QPA_most_independent
@@ -7346,7 +7347,7 @@
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_s
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X, X_l, X_u, S
       REAL ( KIND = wp ), INTENT( IN ),                                        &
-                          DIMENSION( dims%c_l_end ) ::  RES_l  
+                          DIMENSION( dims%c_l_end ) ::  RES_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
                           DIMENSION( dims%c_u_start : m ) ::  RES_u
 
@@ -7470,7 +7471,7 @@
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: A_s
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: X, X_l, X_u, S
       REAL ( KIND = wp ), INTENT( IN ),                                        &
-                          DIMENSION( dims%c_l_end ) ::  RES_l  
+                          DIMENSION( dims%c_l_end ) ::  RES_l
       REAL ( KIND = wp ), INTENT( IN ),                                        &
                           DIMENSION( dims%c_u_start : m ) ::  RES_u
 
@@ -7640,7 +7641,7 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Determine which, if any, of the gradients of constraint in the working set 
+!  Determine which, if any, of the gradients of constraint in the working set
 !  are dependent and, optionally if so, if they are consistent with a given
 !  right-hand side
 !
@@ -7669,7 +7670,7 @@
       TYPE ( SMT_type ), INTENT( INOUT ) :: K
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
       TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       TYPE ( QPA_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -7687,9 +7688,9 @@
 
 !  Analyse the sparsity pattern. Find the number of free variables
 
-      n_free = COUNT( B_stat == 0 )     
+      n_free = COUNT( B_stat == 0 )
 
-!  Find the number of constraints in the working set, and set the dimensions 
+!  Find the number of constraints in the working set, and set the dimensions
 !  of K. Also record the indices of the working constraints
 
       m_working = 0
@@ -7757,7 +7758,7 @@
         ELSE
           P( i ) = 0
         END IF
-      END DO  
+      END DO
 
 !  Allocate the arrays for the analysis phase
 
@@ -7838,7 +7839,7 @@
 
 !  Analyse the sparsity pattern of the matrix
 
-      CALL SMT_put( K%type, 'COORDINATE', i ) 
+      CALL SMT_put( K%type, 'COORDINATE', i )
 
       piv = SLS_control%pivot_control
       u = SLS_control%relative_pivot_tolerance
@@ -7866,7 +7867,7 @@
              prefix, inform%SLS_inform%status
       IF ( inform%factorization_status < 0 ) THEN
          inform%status = GALAHAD_error_analysis ; GO TO 990
-      ELSE IF ( inform%factorization_status > 0 ) THEN 
+      ELSE IF ( inform%factorization_status > 0 ) THEN
         IF ( out > 0 .AND. control%print_level >= 1 ) WRITE( out,              &
            "( /, A, ' ** Warning ', I0, ' from SLS_analyse' )" )               &
           prefix, inform%factorization_status
@@ -7890,7 +7891,7 @@
 
 !  Record the storage required
 
-      inform%nfacts = inform%nfacts + 1 
+      inform%nfacts = inform%nfacts + 1
       inform%factorization_integer = inform%SLS_inform%integer_size_factors
       inform%factorization_real = inform%SLS_inform%real_size_factors
 
@@ -7929,10 +7930,10 @@
 
 !  Find the largest diagonal (of the inverse)
 
-      dmax = zero  ; twobytwo = .FALSE. 
+      dmax = zero  ; twobytwo = .FALSE.
 
 !  Loop over the diagonal blocks
-  
+
       DO i = 1, inform%SLS_inform%rank
         IF ( twobytwo ) THEN
           twobytwo = .FALSE.
@@ -7947,7 +7948,7 @@
             CALL ROOTS_quadratic( D( 1, i ) * D( 1, i + 1 ) - D( 2, i ) ** 2,  &
               - D( 1, i ) - D( 1, i + 1 ), one, epsmch, nroots, root1, root2,  &
               roots_debug )
-            IF ( root1 /= zero ) dmax = MAX( ABS( one / root1 ), dmax ) 
+            IF ( root1 /= zero ) dmax = MAX( ABS( one / root1 ), dmax )
             IF ( root2 /= zero ) dmax = MAX( ABS( one / root2 ), dmax )
 
 !  A 1x1 block
@@ -7967,13 +7968,13 @@
 
 !  Compute the smallest and largest eigenvalues of the block diagonal factor
 
-      n_depen = 0 ; twobytwo = .FALSE. 
+      n_depen = 0 ; twobytwo = .FALSE.
       big = one / ( MAX( dmax, one ) * MAX( control%zero_pivot, epsmch ) )
 
       dmax = zero ; dmin = HUGE( one )
 
 !  Loop over the diagonal blocks
-  
+
       DO i = 1, inform%SLS_inform%rank
         IF ( twobytwo ) THEN
           twobytwo = .FALSE.
@@ -8030,7 +8031,7 @@
                 C_stat( WORKING( pmin - n_free ) ) = 0
                 IF ( out > 0 .AND. control%print_level >= 3 ) THEN
                   WRITE( out, "( '2x2 block ', 2i7, ' eval = infinity' )" )    &
-                    pmin - n_free, pmax - n_free 
+                    pmin - n_free, pmax - n_free
                 END IF
               ELSE
                 IF ( out > 0 .AND. control%print_level >= 5 )                  &
@@ -8049,7 +8050,7 @@
                 C_stat( WORKING( pmin - n_free ) ) = 0
                 IF ( out > 0 .AND. control%print_level >= 3 ) THEN
                   WRITE( out, "( '2x2 block ', 2i7, ' eval = infinity' )" )    &
-                    pmin - n_free, pmax - n_free 
+                    pmin - n_free, pmax - n_free
                 END IF
               ELSE
                 IF ( out > 0 .AND. control%print_level >= 5 )                  &
@@ -8076,7 +8077,7 @@
           ELSE
             dmax = MAX( ABS( D( 1, i ) ), dmax )
             dmin = MIN( ABS( D( 1, i ) ), dmin )
-            IF ( ABS( D( 1, i ) ) >= big ) THEN    
+            IF ( ABS( D( 1, i ) ) >= big ) THEN
               n_depen = n_depen + 1
               C_stat( WORKING( P( i ) - n_free ) ) = 0
               IF ( out > 0 .AND. control%print_level >= 3 ) THEN
@@ -8103,7 +8104,7 @@
 
           dmax = MAX( ABS( D( 1, i ) ), dmax )
           dmin = MIN( ABS( D( 1, i ) ), dmin )
-          IF ( ABS( D( 1, i ) ) >= big ) THEN    
+          IF ( ABS( D( 1, i ) ) >= big ) THEN
             n_depen = n_depen + 1
             C_stat( WORKING( P( i ) - n_free ) ) = 0
             IF ( out > 0 .AND. control%print_level >= 3 ) THEN
@@ -8111,7 +8112,7 @@
                 P( i ) - n_free, one / ABS( D( 1, i ) )
             END IF
             IF ( rhs ) D( 1, i ) = zero
-          ELSE IF ( D( 1, i ) == zero ) THEN    
+          ELSE IF ( D( 1, i ) == zero ) THEN
             n_depen = n_depen + 1
             C_stat( WORKING( P( i ) - n_free ) ) = 0
             IF ( out > 0 .AND. control%print_level >= 3 ) THEN
@@ -8178,7 +8179,7 @@
           ELSE
             P( i ) = 0
           END IF
-        END DO  
+        END DO
 
 !  Compute the residuals
 
@@ -8228,11 +8229,11 @@
         WRITE( out, 2000 ) prefix, m_working - n_depen, m, prefix, n - n_free, n
       END IF
 
-      RETURN  
- 
+      RETURN
+
 !  Allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate
       IF ( out > 0 .AND. control%print_level >= 1 )                            &
        WRITE( out, "( ' ** Message from -QPA_remove_dependent-',               &
@@ -8241,8 +8242,8 @@
 
 !  Error return
 
-  990 CONTINUE 
-      RETURN  
+  990 CONTINUE
+      RETURN
 
 !  Non-executable statements
 
@@ -8371,7 +8372,7 @@
           END IF
           jumpto = jumpto + 1
         END DO
-    
+
 !  Refine the solution using the correction
 
         X = X + DX
@@ -8410,7 +8411,7 @@
       SUBROUTINE QPA_ir( K, SLS_data, K_part, X, B, RES, x_r0, y0, x_f0, z0,   &
                          SLS_control, itref_max, out, print, RES_print, inform )
 
-!  Solve the reference linear system K x = b, with b input in X, and x 
+!  Solve the reference linear system K x = b, with b input in X, and x
 !  output in X, using iterative refinement. B and RES are used as workspace
 
 !  Dummy arguments
@@ -8470,9 +8471,9 @@
           ELSE
             x_r = .FALSE. ; y = .FALSE. ; x_f = .FALSE.
           END IF
-  
+
           CALL QPA_K_residuals( K, K_part, X, B, RES, xs_r, ys, xs_f, zs )
-  
+
           IF ( print ) WRITE( out, "( '  subnorm residual = ', ES12.4 )" )     &
               MAXVAL( ABS( RES ) )
 
@@ -8494,7 +8495,7 @@
               xs_r = .FALSE.
               ys = .FALSE.
             ELSE
-              xs_r = xs_r .AND. x_r 
+              xs_r = xs_r .AND. x_r
               ys = ys .AND. y
             END IF
             x_f = .FALSE.
@@ -8571,7 +8572,7 @@
 !  Adjust the right-hand side to form
 
 !    ( b_r )    ( b_r )   ( G_o^T )
-!    (  c  ) <- (  c  ) - (  A_f  ) d   
+!    (  c  ) <- (  c  ) - (  A_f  ) d
 !    ( b_f )    ( b_f )   (  L^T  )
 
 !  where G_f = L + D + L^T
@@ -8607,12 +8608,12 @@
               RES_print( i ) = RES_print( i ) - val * X( j )
               RES_print( j ) = RES_print( j ) - val * X( i )
             END DO
-            
+
             DO l =  K_part%k_free_od + 1,  K_part%k_free_d
               i = K%row( l )
               RES_print( i ) = RES_print( i ) - K%val( l ) * X( K%col( l ) )
             END DO
-            
+
             IF (  K_part%k_free_d <  K_part%k_free_p ) THEN
               IF ( k%val(  K_part%k_free_p ) /= zero ) THEN
                 DO l = K_part%k_free_d + 1, K_part%k_free_p
@@ -8657,11 +8658,11 @@
 
 !  Compute the residuals
 
-!           (  G_r   A_r^T | G_o^T   ) ( x_r )   
-!           (  A_r         |  A_f    ) (  y  )   
+!           (  G_r   A_r^T | G_o^T   ) ( x_r )
+!           (  A_r         |  A_f    ) (  y  )
 ! res = b - (------------------------) ( --- )
-!           (  G_o   A_f^T |  G_f  I ) ( x_f )   
-!           (              |   I     ) (  z  )   
+!           (  G_o   A_f^T |  G_f  I ) ( x_f )
+!           (              |   I     ) (  z  )
 
 !  The logical arguments  x_r, y, x_f, z should be set .TRUE. if all the
 !  components of the corresponding vectors have the value zero, and .FALSE.
@@ -8690,12 +8691,12 @@
           RES( i ) = RES( i ) - val * X( j )
           RES( j ) = RES( j ) - val * X( i )
         END DO
-        
+
         DO l =  K_part%k_free_od + 1,  K_part%k_free_d
           i = K%row( l )
           RES( i ) = RES( i ) - K%val( l ) * X( K%col( l ) )
         END DO
-        
+
         IF (  K_part%k_free_d <  K_part%k_free_p ) THEN
           IF ( k%val(  K_part%k_free_p ) /= zero ) THEN
             DO l = K_part%k_free_d + 1, K_part%k_free_p
@@ -8711,7 +8712,7 @@
         RES( i ) = RES( i ) - val * X( j )
         RES( j ) = RES( j ) - val * X( i )
       END DO
-      
+
       IF ( .NOT. x_f ) THEN
         DO l =  K_part%k_fixed_od + 1,  K_part%k_fixed_d
           i = K%row( l )
@@ -8747,7 +8748,7 @@
 
 !  Dummy arguments
 
-      INTEGER, INTENT( IN ) :: i, j      
+      INTEGER, INTENT( IN ) :: i, j
       INTEGER, INTENT( OUT ) :: row, col
 
       IF ( i >= j ) THEN
@@ -8785,7 +8786,7 @@
 !   R        the residual vector H x + c
 !   P, HP, R_perm, RES, B, G and DX  internal workspace vector
 !   control  a structure containing control information. See QPA_initialize.
-!            Only the components out, error, stop_relative, and 
+!            Only the components out, error, stop_relative, and
 !            stop_absolute need be given
 !   print_level  the level of output required. <= 0 gives no output
 !   cg_maxit the maximum number of CG iterations allowed
@@ -8828,7 +8829,7 @@
       TYPE ( SMT_type ), INTENT( IN ) :: K
       TYPE ( QPA_partition_type ), INTENT( IN ) :: K_part
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       REAL ( KIND = wp ), INTENT( OUT ),                                       &
                           DIMENSION( K_part%n_free + K_part%c_ref ) :: RES_print
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
@@ -8885,13 +8886,13 @@ main: DO
       IF ( printd ) WRITE( control%out,                                        &
          "( '   |................. precondition  ..................| ' )" )
 
-      DO 
+      DO
         IF ( iter > 0 .OR. start_from_x ) THEN
           R_perm( PERM( : n ) ) = R
         ELSE
           R_perm( PERM( : n ) ) = - RHS
         END IF
-  
+
         CALL QPA_iterative_refinement( K, SCU_mat, SCU_data, R_perm, G_perm,   &
                                         B, SOL, DX, HP, SLS_control,           &
                                         SLS_data, K_part, .TRUE., itref_max,   &
@@ -8905,10 +8906,10 @@ main: DO
         ELSE
           rminvr = - DOT_PRODUCT( RHS, SOL( : n ) )
         END IF
-  
+
         IF ( ABS( rminvr ) < teneps ) rminvr = zero
         IF ( rminvr >= zero ) EXIT
-        IF ( itref_max > ir_max - 1 ) THEN 
+        IF ( itref_max > ir_max - 1 ) THEN
           IF ( printi ) write( control%out,                                    &
             "( ' inner product = ', ES12.4 )" ) rminvr
           status = - 3
@@ -8919,7 +8920,7 @@ main: DO
             "( ' increasing itref_max to ', I3 )" ) itref_max
         END IF
       END DO
-      pgnorm = SIGN( SQRT( ABS( rminvr ) ), rminvr ) 
+      pgnorm = SIGN( SQRT( ABS( rminvr ) ), rminvr )
 
       IF ( iter > 0 ) THEN
         beta = rminvr / rminvr_old
@@ -8936,7 +8937,7 @@ main: DO
 
       IF ( printi ) THEN
         IF ( MOD( iter, 25 ) == 0 .OR.printm ) WRITE( control%out, 2000 ) prefix
-        
+
         IF ( iter /= 0 ) THEN
           WRITE( control%out, "( A, I9, ES16.8, 3ES9.2, ES10.2 )" )            &
                  prefix, iter, f, pgnorm, alpha, norm_p, rayleigh
@@ -8990,9 +8991,9 @@ main: DO
 
       iter = iter + 1
 
-!  ------------------------------ 
+!  ------------------------------
 !  Obtain the product of H with p
-!  ------------------------------ 
+!  ------------------------------
 
 !  Obtain the curvature
 
@@ -9113,8 +9114,8 @@ main: DO
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  This subroutine computes the Schur-complement matrix 
-!            S = A D(inv) A(trans) 
+!  This subroutine computes the Schur-complement matrix
+!            S = A D(inv) A(trans)
 !  given the matrix A and vector of weights D
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -9124,13 +9125,13 @@ main: DO
 !  m is the number of rows in matrix A.
 !  n is the number of columns in matrix A, and the number of rows and
 !    columns in matrix S.
-!  Abycol_ne is the number of entries in matrix A. It is the length of 
+!  Abycol_ne is the number of entries in matrix A. It is the length of
 !     arrays Abycol_val and Abycol_row.
 !  Abycol_val holds the values of the entries in matrix A.
 !  Abycol_row holds the row indices of the corresponding entries in A
 !  Abycol_ptr points to the start of each column of A.
 !  ls is the length of arrays S and S_row.
-!  S_val is set to the values of the entries in the lower triangle of S, 
+!  S_val is set to the values of the entries in the lower triangle of S,
 !   ordered by columns
 !  S_row is set to the row numbers of the entries in the lower triangle of S
 !  S_colptr is set to point to the start of each column of S.
@@ -9191,7 +9192,7 @@ main: DO
                 prefix, prefix, n_free, prefix
         RETURN
       END IF
-      
+
       IF ( m < 0 ) THEN
         ierr = 2
         IF ( control%error > 0 .AND. control_print_level >= 1 )                &
@@ -9202,7 +9203,7 @@ main: DO
                 prefix, prefix, m,  prefix
         RETURN
       END IF
-      
+
 !  Ensure that the diagonals of K are ordered correctly
 
       DO i = 1, n_free
@@ -9393,7 +9394,7 @@ main: DO
         END DO
 
 !  Regenerate structure of A by columns but in row order within each column.
-!  Order the row indices in Abycol_row using S_val/S_row to create 
+!  Order the row indices in Abycol_row using S_val/S_row to create
 !  Abycol_val/Abycol_row
 
         i1 = ls - Abycol_ne + 1
@@ -9468,10 +9469,10 @@ main: DO
                  icount = icount + 1
                  idist = idist - 1
                 END IF
-    
+
                 S_row( ipos ) = j
                 CYCLE
-  
+
               END IF
 
               IF ( S_colptr( j ) >= 0 ) THEN
@@ -9508,9 +9509,9 @@ main: DO
                   ipos = ij
                   S_row( ipos ) = j
                   CYCLE
-  
+
                 END IF
-  
+
                 S_row( ipos ) = j
                 S_val( ipos ) = Abycol_val( jj ) * amult
                 CYCLE
@@ -9527,12 +9528,12 @@ main: DO
           j1 = S_ne + 1
           S_ne = S_ne + D_row( i )
           S_colptr( S_row( j1 : S_ne ) ) = 0
-  
+
           IF ( error ) THEN
            idist = idist + D_row( i )
            S_ne = 0
           END IF
-  
+
           k1 = k2 + 1
         END DO
 
@@ -9558,7 +9559,7 @@ main: DO
           DEALLOCATE( S_row, S_col, S_val )
           ls = S_ne
           ALLOCATE( S_row( ls ), S_col( ls ), S_val( ls ), STAT = alloc_status )
-                    
+
           IF ( alloc_status /= 0 ) THEN
             ierr = 5 ; GO TO 900
           END IF
@@ -9607,7 +9608,7 @@ main: DO
 
 !  Dummy arguments
 
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control        
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       TYPE ( QPA_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( QPA_dims_type ), INTENT( IN ) :: dims
       INTEGER, INTENT( IN ) :: n, m, k_n_max, print_level, m_link, max_col, out
@@ -9670,7 +9671,7 @@ main: DO
 !  so that they are ordered as follows: free variables, Lagrange multipliers,
 !  fixed variables, dual variables
 
-      K_part%n_free = COUNT( B_stat == 0 )     
+      K_part%n_free = COUNT( B_stat == 0 )
       K_part%n_fixed = n - K_part%n_free
 
       i_free =  dims%x_free
@@ -9755,56 +9756,56 @@ main: DO
 !  ................
 
       CASE( : - 1, 1 )
-      
+
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             IF ( B_stat( i ) == 0 ) THEN  ! ** free variable
@@ -9813,19 +9814,19 @@ main: DO
                   K_part%k_free_od = K_part%k_free_od + 1
                 ELSE ! ** fixed variable
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
             ELSE  ! ** fixed variable
               K_part%k_fixed_od = K_part%k_fixed_od +                          &
                                     H_ptr( i + 1 ) - H_ptr( i ) - 1
               K_part%k_fixed_d = K_part%k_fixed_d + 1
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             IF ( B_stat( i ) == 0 ) THEN  ! ** free variable
@@ -9834,13 +9835,13 @@ main: DO
                   K_part%k_free_od = K_part%k_free_od + 1
                 ELSE ! ** fixed variable
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
-                END IF  
+                END IF
               END DO
               K_part%k_free_p = K_part%k_free_p + 1
             ELSE  ! ** fixed variable
               K_part%k_fixed_od = K_part%k_fixed_od +                          &
                                     H_ptr( i + 1 ) - H_ptr( i )
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -9849,7 +9850,7 @@ main: DO
 !  ...................
 
       CASE( 2 )
-      
+
         K_part%k_free_d = K_part%n_free
         K_part%k_fixed_d = K_part%n_fixed
 
@@ -9857,56 +9858,56 @@ main: DO
 !  ............................
 
       CASE( 3 )
-      
+
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             ii = PERM( i )
@@ -9919,7 +9920,7 @@ main: DO
                   ELSE ! ** fixed variable
                     K_part%k_fixed_od = K_part%k_fixed_od + 1
                   END IF
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
             ELSE  ! ** fixed variable
@@ -9928,12 +9929,12 @@ main: DO
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
               END DO
               K_part%k_fixed_d = K_part%k_fixed_d + 1
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             ii = PERM( i )
@@ -9945,8 +9946,8 @@ main: DO
                     K_part%k_free_od = K_part%k_free_od + 1
                   ELSE ! ** fixed variable
                     K_part%k_fixed_od = K_part%k_fixed_od + 1
-                  END IF  
-                END IF  
+                  END IF
+                END IF
               END DO
               K_part%k_free_p = K_part%k_free_p + 1
             ELSE  ! ** fixed variable
@@ -9954,7 +9955,7 @@ main: DO
                 IF ( ABS( ii - PERM( H_col( l ) ) ) <= nsemib )                &
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
               END DO
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -9966,73 +9967,73 @@ main: DO
 
 !       IF ( printi ) WRITE( out, 2440 )
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             IF ( B_stat( i ) == 0 ) THEN  ! ** free variable
               DO l = H_ptr( i ), H_ptr( i + 1 ) - 2
                 IF ( B_stat( H_col( l ) ) /= 0 ) THEN ! ** fixed variable
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
             ELSE  ! ** fixed variable
               K_part%k_fixed_od = K_part%k_fixed_od +                          &
                                     H_ptr( i + 1 ) - H_ptr( i ) - 1
               K_part%k_fixed_d = K_part%k_fixed_d + 1
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             IF ( B_stat( i ) == 0 ) THEN  ! ** free variable
@@ -10040,13 +10041,13 @@ main: DO
                 j = H_col( l )
                 IF ( B_stat( j ) /= 0 ) THEN ! ** fixed variable
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
             ELSE  ! ** fixed variable
               K_part%k_fixed_od = K_part%k_fixed_od +                          &
                                     H_ptr( i + 1 ) - H_ptr( i )
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -10057,54 +10058,54 @@ main: DO
       CASE( 5 )
 
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             ii = PERM( i )
@@ -10116,19 +10117,19 @@ main: DO
                     K_part%k_free_od = K_part%k_free_od + 1
                 ELSE ! ** fixed variable
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
             ELSE  ! ** fixed variable
               K_part%k_fixed_od = K_part%k_fixed_od +                          &
                                     H_ptr( i + 1 ) - H_ptr( i ) - 1
               K_part%k_fixed_d = K_part%k_fixed_d + 1
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             ii = PERM( i )
@@ -10140,13 +10141,13 @@ main: DO
                     K_part%k_free_od = K_part%k_free_od + 1
                 ELSE ! ** fixed variable
                   K_part%k_fixed_od = K_part%k_fixed_od + 1
-                END IF  
+                END IF
               END DO
               K_part%k_free_p = K_part%k_free_p + 1
             ELSE  ! ** fixed variable
               K_part%k_fixed_od = K_part%k_fixed_od +                          &
                                     H_ptr( i + 1 ) - H_ptr( i )
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -10161,7 +10162,7 @@ main: DO
       DO i = 1, m
         IF ( C_stat( i ) /= 0 ) THEN ! ** working constraint
           l = COUNT( B_stat( A_col( A_ptr( i ) : A_ptr( i + 1 ) - 1 ) ) == 0 )
-          K_part%k_free_od = K_part%k_free_od + l 
+          K_part%k_free_od = K_part%k_free_od + l
           K_part%k_fixed_od = K_part%k_fixed_od +                              &
             A_ptr( i + 1 ) - A_ptr( i ) - l
         END IF
@@ -10172,7 +10173,7 @@ main: DO
       K%n  = K_part%n_free + K_part%c_ref
       K%ne = K_part%k_free_od + K_part%k_free_d + K_part%k_free_p +            &
              K_part%k_fixed_od + K_part%k_fixed_d
-  
+
       IF ( printt )                                                            &
         WRITE( out, "( /, A, ' n, n_free, n_fixed            = ', 3I8,         &
      &                 /, A, ' k_free_od, k_free_d, k_free_p = ', 3I8,         &
@@ -10230,7 +10231,7 @@ main: DO
       K_part%k_free_d = K_part%k_free_od
       K_part%k_free_od = 0
 
-!  S is temporarily used to sum the absolute values of the off-diagonal 
+!  S is temporarily used to sum the absolute values of the off-diagonal
 !  terms and the larger of minus the diagonal and zero
 
       S( : K%n ) =  ten ** ( - 5 )
@@ -10244,54 +10245,54 @@ main: DO
 
         G_eq_H = .TRUE.
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             ii = PERM( i )
@@ -10314,7 +10315,7 @@ main: DO
                   CALL QPA_lower( K%row( K_part%k_fixed_od ),                  &
                                    K%col( K_part%k_fixed_od ), ii, jj )
                   K%val( K_part%k_fixed_od ) = H_val( l )
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
               K%row( K_part%k_free_d ) = ii
@@ -10338,12 +10339,12 @@ main: DO
               K%row( K_part%k_fixed_d ) = ii
               K%col( K_part%k_fixed_d ) = ii
               K%val( K_part%k_fixed_d ) = H_val( l )
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             ii = PERM( i )
@@ -10366,7 +10367,7 @@ main: DO
                   CALL QPA_lower( K%row( K_part%k_fixed_od ),                  &
                                    K%col( K_part%k_fixed_od ), ii, jj )
                   K%val( K_part%k_fixed_od ) = H_val( l )
-                END IF  
+                END IF
               END DO
               K_part%k_free_p = K_part%k_free_p + 1
               K%row( K_part%k_free_p ) = ii
@@ -10382,10 +10383,10 @@ main: DO
                 K_part%k_fixed_od = K_part%k_fixed_od + 1
                 CALL QPA_lower( K%row( K_part%k_fixed_od ),                    &
                                  K%col( K_part%k_fixed_od ), ii, jj )
-                                 
+
                 K%val( K_part%k_fixed_od ) = H_val( l )
               END DO
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -10408,7 +10409,7 @@ main: DO
             K%row( K_part%k_fixed_d ) = ii
             K%col( K_part%k_fixed_d ) = ii
             K%val( K_part%k_fixed_d ) = k_diag
-          END IF 
+          END IF
         END DO
 
 !  A band from the full Hessian
@@ -10418,54 +10419,54 @@ main: DO
 
         G_eq_H = .TRUE.
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             ii = PERM( i )
@@ -10481,7 +10482,7 @@ main: DO
                     S( ii ) = S( ii ) + ABS( H_val( l ) )
                     S( jj ) = S( jj ) + ABS( H_val( l ) )
                     IF ( factor == 0 .OR. factor == 1 ) THEN
-                      IF ( printi ) WRITE( control%out, 2220 ) prefix 
+                      IF ( printi ) WRITE( control%out, 2220 ) prefix
                       factor = 2
                     END IF
                   ELSE ! ** fixed variable
@@ -10492,7 +10493,7 @@ main: DO
                   END IF
                 ELSE
                   G_eq_H = .FALSE.
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
               K%row( K_part%k_free_d ) = ii
@@ -10514,18 +10515,18 @@ main: DO
                   K%val( K_part%k_fixed_od ) = H_val( l )
                 ELSE
                   G_eq_H = .FALSE.
-                END IF 
+                END IF
               END DO
               K_part%k_fixed_d = K_part%k_fixed_d + 1
               K%row( K_part%k_fixed_d ) = ii
               K%col( K_part%k_fixed_d ) = ii
               K%val( K_part%k_fixed_d ) = H_val( l )
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             ii = PERM( i )
@@ -10549,10 +10550,10 @@ main: DO
                     CALL QPA_lower( K%row( K_part%k_fixed_od ),                &
                                      K%col( K_part%k_fixed_od ), ii, jj )
                     K%val( K_part%k_fixed_od ) = H_val( l )
-                  END IF  
+                  END IF
                 ELSE
                   G_eq_H = .FALSE.
-                END IF  
+                END IF
               END DO
               K_part%k_free_p = K_part%k_free_p + 1
               K%row( K_part%k_free_p ) = ii
@@ -10574,7 +10575,7 @@ main: DO
                   G_eq_H = .FALSE.
                 END IF
               END DO
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -10586,54 +10587,54 @@ main: DO
 
         G_eq_H = .TRUE.
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             ii = PERM( i )
@@ -10645,7 +10646,7 @@ main: DO
                   CALL QPA_lower( K%row( K_part%k_fixed_od ),                  &
                                    K%col( K_part%k_fixed_od ), ii, jj )
                   K%val( K_part%k_fixed_od ) = H_val( l )
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
               K%row( K_part%k_free_d ) = ii
@@ -10664,12 +10665,12 @@ main: DO
               K%row( K_part%k_fixed_d ) = ii
               K%col( K_part%k_fixed_d ) = ii
               K%val( K_part%k_fixed_d ) = H_val( l )
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             ii = PERM( i )
@@ -10681,7 +10682,7 @@ main: DO
                   CALL QPA_lower( K%row( K_part%k_fixed_od ),                  &
                                    K%col( K_part%k_fixed_od ), ii, jj )
                   K%val( K_part%k_fixed_od ) = H_val( l )
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
               K%row( K_part%k_free_d ) = ii
@@ -10696,7 +10697,7 @@ main: DO
                                  K%col( K_part%k_fixed_od ), ii, jj )
                 K%val( K_part%k_fixed_od ) = H_val( l )
               END DO
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -10708,54 +10709,54 @@ main: DO
 
         G_eq_H = .TRUE.
         DO type = 1, 6
-        
+
           SELECT CASE( type )
           CASE ( 1 )
-        
+
             hd_start  = 1
             hd_end    = dims%h_diag_end_free
             hnd_start = hd_end + 1
             hnd_end   = dims%x_free
-        
+
           CASE ( 2 )
-        
+
             hd_start  = dims%x_free + 1
             hd_end    = dims%h_diag_end_nonneg
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_start - 1
-        
+
           CASE ( 3 )
-        
+
             hd_start  = dims%x_l_start
             hd_end    = dims%h_diag_end_lower
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_start - 1
-        
+
           CASE ( 4 )
-        
+
             hd_start  = dims%x_u_start
             hd_end    = dims%h_diag_end_range
             hnd_start = hd_end + 1
             hnd_end   = dims%x_l_end
-        
+
           CASE ( 5 )
-        
+
             hd_start  = dims%x_l_end + 1
             hd_end    = dims%h_diag_end_upper
             hnd_start = hd_end + 1
             hnd_end   = dims%x_u_end
-        
+
           CASE ( 6 )
-        
+
             hd_start  = dims%x_u_end + 1
             hd_end    = dims%h_diag_end_nonpos
             hnd_start = hd_end + 1
             hnd_end   = n
-        
+
           END SELECT
-    
+
 !  rows with a diagonal entry
-    
+
           hd_end = MIN( hd_end, n )
           DO i = hd_start, hd_end
             ii = PERM( i )
@@ -10782,7 +10783,7 @@ main: DO
                   CALL QPA_lower( K%row( K_part%k_fixed_od ),                  &
                                    K%col( K_part%k_fixed_od ), ii, jj )
                   K%val( K_part%k_fixed_od ) = H_val( l )
-                END IF  
+                END IF
               END DO
               K_part%k_free_d = K_part%k_free_d + 1
               K%row( K_part%k_free_d ) = ii
@@ -10806,12 +10807,12 @@ main: DO
               K%row( K_part%k_fixed_d ) = ii
               K%col( K_part%k_fixed_d ) = ii
               K%val( K_part%k_fixed_d ) = H_val( l )
-            END IF 
+            END IF
           END DO
           IF ( hd_end == n ) EXIT
-    
+
 !  rows without a diagonal entry
-    
+
           hnd_end = MIN( hnd_end, n )
           DO i = hnd_start, hnd_end
             ii = PERM( i )
@@ -10838,7 +10839,7 @@ main: DO
                   CALL QPA_lower( K%row( K_part%k_fixed_od ),                  &
                                    K%col( K_part%k_fixed_od ), ii, jj )
                   K%val( K_part%k_fixed_od ) = H_val( l )
-                END IF  
+                END IF
               END DO
               K_part%k_free_p = K_part%k_free_p + 1
               K%row( K_part%k_free_p ) = ii
@@ -10856,7 +10857,7 @@ main: DO
                                  K%col( K_part%k_fixed_od ), ii, jj )
                 K%val( K_part%k_fixed_od ) = H_val( l )
               END DO
-            END IF 
+            END IF
           END DO
           IF ( hnd_end == n ) EXIT
         END DO
@@ -10894,7 +10895,7 @@ main: DO
       K_part%n_ref = n + K_part%c_ref
 
       IF ( printi .AND. K_part%k_free_od + K_part%n_free /= K_part%k_free_d)   &
-        THEN ; WRITE( out, "( ' too few diagonals ', 2I0 )" )                  &
+        THEN ; WRITE( out, "( ' too few diagonals ', I0, 1X, I0 )" )           &
           K_part%k_free_od + K_part%n_free, K_part%k_free_d
         factor = 2
       END IF
@@ -10935,7 +10936,7 @@ main: DO
 !write(89,*) K%col( : K%ne )
 !write(89,*) K%val( : K%ne )
 
-        CALL SMT_put( K%type, 'COORDINATE', i ) 
+        CALL SMT_put( K%type, 'COORDINATE', i )
         SLS_control = control%SLS_control
 !        IF ( factor == 0 .OR. factor == 1 ) THEN
 !          SLS_control%pivot_control = 2
@@ -11012,7 +11013,7 @@ main: DO
         inform%factorization_integer = 0
         inform%factorization_real = 0
       END IF
-   
+
 !  Factorize the reference matrix
 
   30  CONTINUE
@@ -11027,7 +11028,7 @@ main: DO
 
 !  Record the storage required
 
-        inform%nfacts = inform%nfacts + 1 
+        inform%nfacts = inform%nfacts + 1
         inform%factorization_integer = inform%SLS_inform%integer_size_factors
         inform%factorization_real = inform%SLS_inform%real_size_factors
 
@@ -11117,8 +11118,8 @@ main: DO
           big = one / epsmch
 
 !  Loop over the diagonal blocks
-  
-          twobytwo = .FALSE. 
+
+          twobytwo = .FALSE.
           DO i = 1, K%n
             IF ( twobytwo ) THEN
               twobytwo = .FALSE.
@@ -11133,10 +11134,10 @@ main: DO
                 CALL ROOTS_quadratic(                                          &
                          DIAG( 1, i ) * DIAG( 1, i + 1 ) - DIAG( 2, i ) ** 2,  &
                          - DIAG( 1, i ) - DIAG( 1, i + 1 ), one,               &
-                         epsmch, nroots, root1, root2, roots_debug ) 
+                         epsmch, nroots, root1, root2, roots_debug )
                 IF ( ABS( root1 ) >= big .OR. root1 == zero .OR.               &
                      ABS( root2 ) >= big .OR. root2 == zero ) THEN
-                  modify_k = .TRUE. 
+                  modify_k = .TRUE.
                   zeig = 1
                   EXIT
                 END IF
@@ -11146,7 +11147,7 @@ main: DO
               ELSE
                 root1 = DIAG( 1, i )
                 IF ( ABS( root1 ) >= big .OR. root1 == zero ) THEN
-                  modify_k = .TRUE. 
+                  modify_k = .TRUE.
                   zeig = 1
                   EXIT
                 END IF
@@ -11157,7 +11158,7 @@ main: DO
 
               root1 = DIAG( 1, i )
               IF ( ABS( root1 ) >= big .OR. root1 == zero ) THEN
-                modify_k = .TRUE. 
+                modify_k = .TRUE.
                 zeig = 1
                 EXIT
               END IF
@@ -11166,8 +11167,8 @@ main: DO
           IF ( printt .AND. modify_k ) WRITE( control%out,                     &
             "( A, ' ** Matrix has at least one zero eigenvalue ' )" ) prefix
         END IF
- 
-        IF ( modify_k ) THEN 
+
+        IF ( modify_k ) THEN
           IF ( mo == ' ' ) THEN
             inform%nmods = inform%nmods + 1
             mo = 'm'
@@ -11206,18 +11207,18 @@ main: DO
           IF ( K_part%k_free_p == K_part%k_free_d ) THEN
             GO TO 30
           ELSE
-            GO TO 20         
+            GO TO 20
           END IF
-        END IF 
+        END IF
       END IF
       check_dependent = .FALSE.
 
       inform%status = GALAHAD_ok ; jumpto = 0
-      RETURN  
+      RETURN
 
 !  Allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate ; jumpto = 1
       IF ( printi ) WRITE( control%out,                                        &
          "( A, ' ** Message from -QPA_factorize_reference-', /, A,             &
@@ -11226,12 +11227,12 @@ main: DO
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( ' leaving QPA_solve_main ' )" )
 
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
- 2000 FORMAT( A, '   **  Error return ', I0, ' from ', A15 ) 
- 2100 FORMAT( A, '   **  Warning ', I0, ' from ', A15 ) 
+ 2000 FORMAT( A, '   **  Error return ', I0, ' from ', A15 )
+ 2100 FORMAT( A, '   **  Warning ', I0, ' from ', A15 )
  2200 FORMAT( /, A, ' zero diagonal - switching to augmented system method ', /)
  2210 FORMAT( /, A, ' Schur complement failure ... switching to augmented',    &
                  ' system method ', / )
@@ -11254,7 +11255,7 @@ main: DO
 
 !  Dummy arguments
 
-      TYPE ( QPA_control_type ), INTENT( IN ) :: control     
+      TYPE ( QPA_control_type ), INTENT( IN ) :: control
       TYPE ( QPA_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( QPA_partition_type ), INTENT( INOUT ) :: K_part
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
@@ -11286,14 +11287,14 @@ main: DO
 
       pcount = 0
       C_stat = 0 ; B_stat = 0 ; K_part%c_ref = 0
-        
+
 !  Find the new reference set
 
       new_m_ref = 0
       DO i = 1, K_part%m_ref
         j = REF( i )
         IF ( j > 0 ) THEN
-          new_m_ref = new_m_ref + 1 
+          new_m_ref = new_m_ref + 1
           REF( new_m_ref ) = j
           IF ( j <= m ) THEN
             C_stat( j ) = - new_m_ref
@@ -11303,11 +11304,11 @@ main: DO
           END IF
         END IF
       END DO
-      
+
       DO i = 1, SCU_mat%m
         j = SC( i )
         IF ( j > 0 ) THEN
-          new_m_ref = new_m_ref + 1 
+          new_m_ref = new_m_ref + 1
           REF( new_m_ref ) = j
           IF ( j <= m ) THEN
             C_stat( j ) = - new_m_ref
@@ -11317,8 +11318,8 @@ main: DO
           END IF
         END IF
       END DO
-        
-!  Now, reorder the references set so that general constraints appear 
+
+!  Now, reorder the references set so that general constraints appear
 !  before bounds
 
       ii = new_m_ref
@@ -11333,7 +11334,7 @@ main: DO
           IF ( l > m ) CYCLE
 
 !  A general constraint occurs after a bound; swap them
-           
+
           REF( i ) = l
           REF( jj ) = j
           B_stat( j - m ) = - jj
@@ -11347,7 +11348,7 @@ main: DO
 
       IF ( warmer_start .OR. check_dependent ) THEN
         ii = 0
-        DO 
+        DO
           CALL QPA_remove_dependent( n, m, A_val, A_col, A_ptr, K, SLS_data,   &
                                      SLS_control, C_stat, B_stat, WORKING, P,  &
                                      SOL, D, prefix, control, inform, n_depen )
@@ -11370,7 +11371,7 @@ main: DO
                     WRITE( out, "( ' bound ', i7, ' rejected ' )" ) j - m
                   IF ( B_stat( j - m ) == 0 ) CYCLE
                 END IF
-                new_m_ref = new_m_ref + 1 
+                new_m_ref = new_m_ref + 1
                 REF( new_m_ref ) = j
                 IF ( j <= m ) THEN
                   C_stat( j ) = - new_m_ref
@@ -11379,7 +11380,7 @@ main: DO
                   B_stat( j - m ) = - new_m_ref
                 END IF
               END DO
-            END IF 
+            END IF
             EXIT
           END IF
 !         WRITE(6,"('new_m_ref', I6)" ) new_m_ref
@@ -11449,7 +11450,7 @@ main: DO
       REAL ( KIND = wp ), INTENT( IN ),                                        &
                           DIMENSION( A_ptr( m + 1 ) - 1 ) :: A_val
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( IN ) :: K
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
@@ -11536,7 +11537,7 @@ main: DO
           B_stat( j - m ) = SCU_mat%m + 1
         END IF
         SC( SCU_mat%m + 1 ) = j
-   
+
         IF ( printd ) WRITE( out, "( ' constraint ', i5, ' added in position ',&
        &                              i5 )" ) j, SCU_mat%m + 1
         IF ( printm .AND. PERT( j ) /= zero )                                  &
@@ -11696,7 +11697,7 @@ main: DO
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION ( k_n_max ) :: VECTOR
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m + n ) :: PERT
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( SCU_info_type ), INTENT( INOUT ) :: SCU_info
+      TYPE ( SCU_inform_type ), INTENT( INOUT ) :: SCU_info
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
       TYPE ( SMT_type ), INTENT( IN ) :: K
       TYPE ( SLS_data_type ), INTENT( INOUT ) :: SLS_data
@@ -11820,11 +11821,11 @@ main: DO
 
         s_minus = s_minus + 1
 
-!  Delete the constraint by adding an appropriate row/column 
+!  Delete the constraint by adding an appropriate row/column
 !  to the Schur complement
 
         IF ( j <= m ) THEN
-          jj = - C_stat( j ) 
+          jj = - C_stat( j )
           x_r0 = .TRUE. ; y0 = .FALSE. ; x_f0 = .TRUE. ; z0 = .TRUE.
         ELSE
           jj = - B_stat( j - m )
@@ -11833,7 +11834,7 @@ main: DO
 
         REF( jj ) = - ( SCU_mat%m + 1 )
         SC( SCU_mat%m + 1 ) = - j
-  
+
 !  Exit when SC is too large
 
         IF ( SCU_mat%m == control%max_sc ) THEN

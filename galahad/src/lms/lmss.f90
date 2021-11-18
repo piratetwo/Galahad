@@ -6,21 +6,21 @@
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 ) ! set precision
    INTEGER, PARAMETER :: n = 5, m = 3
    TYPE ( LMS_data_type ) :: data, data2
-   TYPE ( LMS_control_type ) :: control, control2       
+   TYPE ( LMS_control_type ) :: control, control2
    TYPE ( LMS_inform_type ) :: inform, inform2
    REAL ( KIND = wp ), DIMENSION( n ) :: S, Y, U, V
    INTEGER :: iter, fail
-   REAL ( KIND = wp ) :: delta, lambda, sts, stv, ratio, error
+   REAL ( KIND = wp ) :: delta, lambda
    TYPE ( RAND_seed ) :: seed
    CALL RAND_initialize( seed ) ! Initialize the random generator word
    CALL LMS_initialize( data, control, inform ) !  initialize data
    control%memory_length = m ! set the memory length
    control2 = control
    control%method = 1 ! start with L-BFGS
-   CALL LMS_setup( n, data, control, inform )  
+   CALL LMS_setup( n, data, control, inform )
    control2%method = 3 ! then inverse L-BFGS
    control2%any_method =.TRUE. ! allow the 2nd update to change method
-   CALL LMS_setup( n, data2, control2, inform2 ) 
+   CALL LMS_setup( n, data2, control2, inform2 )
    fail = 0 ! count the failures
    DO iter = 1, 5 * n
      IF ( iter == 3 * n ) THEN ! switch to inverse shifted L-BFGS
@@ -57,7 +57,7 @@
        END IF
      END IF
 ! note, the preceeding two calls could have been condensed as
-!    CALL LMS_form( S, Y, delta, data2, control2, inform2, lambda = 0.0_wp ) 
+!    CALL LMS_form( S, Y, delta, data2, control2, inform2, lambda = 0.0_wp )
      CALL LMS_apply( U, V, data2, control2, inform2 ) ! form the new product
      IF ( inform2%status /= 0 ) THEN
        WRITE( 6, "( ' apply error, status = ', I0 )" ) inform2%status
@@ -71,5 +71,5 @@
      WRITE( 6, "( I0, ' failures ' )" ) fail
    END IF
    CALL LMS_terminate( data, control, inform )  !  delete internal workspace
-   CALL LMS_terminate( data2, control2, inform2 ) 
+   CALL LMS_terminate( data2, control2, inform2 )
    END PROGRAM GALAHAD_LMS_example

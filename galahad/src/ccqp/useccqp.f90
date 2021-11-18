@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.7 - 17/07/2015 AT 13:00 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E C C Q P   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -14,7 +14,7 @@
     MODULE GALAHAD_USECCQP_double
 
 !     ----------------------------------------------------------
-!    | CUTEst/AMPL interface to CCQP, an infeasible primal-dual | 
+!    | CUTEst/AMPL interface to CCQP, an infeasible primal-dual |
 !    | interior-point to dual gradient-projection               |
 !    | crossover method for convex quadratic programming        |
 !      ---------------------------------------------------------
@@ -30,8 +30,8 @@
       USE GALAHAD_CCQP_double
       USE GALAHAD_SLS_double
       USE GALAHAD_PRESOLVE_double
-      USE GALAHAD_SPECFILE_double 
-      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
+      USE GALAHAD_SPECFILE_double
+      USE GALAHAD_STRING, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
       USE GALAHAD_SYMBOLS,                                                     &
           ACTIVE                => GALAHAD_ACTIVE,                             &
@@ -91,7 +91,7 @@
       REAL :: time, timeo, times, timet, timep1, timep2, timep3, timep4
       REAL ( KIND = wp ) :: clock, clocko, clocks, clockt
       REAL ( KIND = wp ) :: objf, qfval, stopr, dummy, wnorm, wnorm_old
-      REAL ( KIND = wp ) :: res_c, res_k, max_cs, lambda_lower
+      REAL ( KIND = wp ) :: res_c, res_k, max_cs, max_d, lambda_lower
       LOGICAL :: filexx, printo, printe, is_specfile
 !     LOGICAL :: ldummy
       TYPE ( RAND_seed ) :: seed
@@ -157,7 +157,7 @@
       CHARACTER ( LEN = 30 ) :: sfilename = 'CCQPSOL.d'
       LOGICAL :: do_presolve = .FALSE.
       LOGICAL :: do_solve = .TRUE.
-      LOGICAL :: fulsol = .FALSE. 
+      LOGICAL :: fulsol = .FALSE.
       REAL ( KIND = wp ) :: pert_bnd = zero
       REAL ( KIND = wp ) :: H_pert = zero
       REAL ( KIND = wp ) :: wnorm_stop = 0.0000000000001_wp
@@ -175,7 +175,7 @@
 !  Arrays
 
       TYPE ( CCQP_data_type ) :: data
-      TYPE ( CCQP_control_type ) :: CCQP_control        
+      TYPE ( CCQP_control_type ) :: CCQP_control
       TYPE ( CCQP_inform_type ) :: CCQP_inform
       TYPE ( QPT_problem_type ) :: prob
       TYPE ( PRESOLVE_control_type ) :: PRE_control
@@ -186,7 +186,7 @@
       TYPE ( SCALE_control_type ) :: SCALE_control
       TYPE ( SCALE_inform_type ) :: SCALE_inform
       TYPE ( sls_data_type ) :: sls_data
-      TYPE ( sls_control_type ) :: sls_control        
+      TYPE ( sls_control_type ) :: sls_control
       TYPE ( sls_inform_type ) :: sls_inform
 
 !  Allocatable arrays
@@ -313,7 +313,7 @@
 
       CALL CUTEST_cnames( cutest_status, n, m, pname, VNAME, CNAME )
       IF ( cutest_status /= 0 ) GO TO 910
-      WRITE( out, 2020 ) pname 
+      WRITE( out, 2020 ) pname
 
 !  Set up the initial estimate of the solution and
 !  right-hand-side of the Kuhn-Tucker system.
@@ -325,21 +325,21 @@
 
 !  Set X0 to zero to determine the constant terms for the problem functions
 
-      prob%X0 = zero 
+      prob%X0 = zero
 
-!  Evaluate the constant terms of the objective (objf) and constraint 
+!  Evaluate the constant terms of the objective (objf) and constraint
 !  functions (C)
 
       CALL CUTEST_cfn( cutest_status, n, m, prob%X0, objf, C( : m ) )
       IF ( cutest_status /= 0 ) GO TO 910
-      DO i = 1, m 
-        IF ( EQUATN( i ) ) THEN 
+      DO i = 1, m
+        IF ( EQUATN( i ) ) THEN
           prob%C_l( i ) = prob%C_l( i ) - C( i )
           prob%C_u( i ) = prob%C_l( i )
         ELSE
           prob%C_l( i ) = prob%C_l( i ) - C( i )
           prob%C_u( i ) = prob%C_u( i ) - C( i )
-        END IF 
+        END IF
       END DO
 
 !  Determine the number of nonzeros in the Jacobian
@@ -372,13 +372,13 @@
         IF ( prob%A%val( i ) /= zero ) THEN
           IF ( prob%A%row( i ) > 0 ) THEN
             A_ne = A_ne + 1
-            prob%A%row( A_ne ) = prob%A%row( i ) 
+            prob%A%row( A_ne ) = prob%A%row( i )
             prob%A%col( A_ne ) = prob%A%col( i )
             prob%A%val( A_ne ) = prob%A%val( i )
           ELSE
             prob%G( prob%A%col( i ) ) = prob%A%val( i )
             prob%gradient_kind        = GENERAL
-          END IF  
+          END IF
         END IF
       END DO
 
@@ -410,7 +410,7 @@
 !  Remove Hessian out of range
 
       H_ne = 0
-      DO l = 1, neh    
+      DO l = 1, neh
         i = prob%H%row( l ) ; j = prob%H%col( l )
         IF ( i < 1 .OR. i > n .OR. j < 1 .OR. j > n ) CYCLE
         H_ne = H_ne + 1 ; prob%H%val( H_ne ) = prob%H%val( l )
@@ -435,7 +435,7 @@
 
         CALL SLS_initialize(                                                   &
           CCQP_control%CQP_control%SBLS_control%symmetric_linear_solver,       &
-          sls_data, sls_control, sls_inform ) 
+          sls_data, sls_control, sls_inform )
 !sls_control%print_level = 2
 
         CALL SLS_analyse( prob%H, sls_data, sls_control, sls_inform )
@@ -452,9 +452,9 @@
 !write(6,*) n, sls_inform%rank, sls_inform%negative_eigenvalues, &
 ! sls_inform%status
         IF ( n > sls_inform%rank .OR. sls_inform%negative_eigenvalues > 0 .OR. &
-            sls_inform%status == GALAHAD_error_inertia ) THEN           
+            sls_inform%status == GALAHAD_error_inertia ) THEN
           ALLOCATE( D( n ), O( n ), STAT = alloc_stat )
-          D = 0.0_wp ; O = 0.0_wp       
+          D = 0.0_wp ; O = 0.0_wp
           DO l = 1, prob%H%ne
             i = prob%H%row( l ) ; j = prob%H%col( l )
             IF ( i == j ) THEN
@@ -480,12 +480,12 @@
           END DO
           prob%H%ne = H_ne
 
-!  refactorize H 
+!  refactorize H
 
-          CALL SLS_terminate( sls_data, sls_control, sls_inform ) 
+          CALL SLS_terminate( sls_data, sls_control, sls_inform )
           CALL SLS_initialize(                                                 &
             CCQP_control%CQP_control%SBLS_control%definite_linear_solver,      &
-            sls_data, sls_control, sls_inform ) 
+            sls_data, sls_control, sls_inform )
           CALL SLS_analyse( prob%H, sls_data, sls_control, sls_inform )
           IF ( sls_inform%status < 0 ) THEN
             WRITE( 6, '( A, I0 )' )                                            &
@@ -530,7 +530,7 @@
 
 !  perturb it a bit
 
-          lambda_lower = ABS( lambda_lower ) + MAX( H_pert, wnorm_stop ) 
+          lambda_lower = ABS( lambda_lower ) + MAX( H_pert, wnorm_stop )
           WRITE( out, "( /, ' -- Hessian perturbed by', ES11.4,                &
          &  ' to ensure positive definiteness' )" ) lambda_lower
 
@@ -583,7 +583,7 @@
 !     WRITE( 26, "( ' H_val ', /, ( 5ES12.4 ) )" ) prob%H%val( : H_ne )
 
 !     ALLOCATE( k_val( n_k, n_k ) )
-!     OPEN( in, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD' ) 
+!     OPEN( in, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD' )
 !     REWIND in
 !     DO j = 1, n_k
 !       DO i = 1, n_k
@@ -632,8 +632,8 @@
 ! try negating the constraints
 !prob%A%val( : A_ne ) = - prob%A%val( : A_ne )
 !do i = 1, m
-! dummy = - prob%C_l( i ) 
-! prob%C_l( i ) = - prob%C_u( i ) 
+! dummy = - prob%C_l( i )
+! prob%C_l( i ) = - prob%C_u( i )
 ! prob%C_u( i )  = dummy
 !end do
 
@@ -653,12 +653,12 @@
       IF ( ALLOCATED( prob%A%type ) ) DEALLOCATE( prob%A%type )
       CALL SMT_put( prob%A%type, 'SPARSE_BY_ROWS', smt_stat )
       prob%f    = objf
-        
+
 !     WRITE( out, "( ' maximum element of A = ', ES12.4,                       &
 !    &                ' maximum element of H = ', ES12.4 )" )                  &
 !      MAXVAL( ABS( prob%A%val( : A_ne ) ) ),                                  &
 !      MAXVAL( ABS( prob%H%val( : H_ne ) ) )
-!   END IF  
+!   END IF
 
 !    prob%H%val( : H_ne ) = 100000.0 * prob%H%val( : H_ne )
 !    prob%g = 100000.0 * prob%g
@@ -677,7 +677,7 @@
               prob%X_l( i ) = prob%X_l( i ) - pert_bnd
             IF ( prob%X_u( i ) < infinity )                                    &
               prob%X_u( i ) = prob%X_u( i ) + pert_bnd
-          END IF 
+          END IF
         END DO
 
         DO i = 1, m
@@ -686,9 +686,9 @@
               prob%C_l( i ) = prob%C_l( i ) - pert_bnd
             IF ( prob%C_u( i ) < infinity )                                    &
               prob%C_u( i ) = prob%C_u( i ) + pert_bnd
-          END IF 
+          END IF
         END DO
-      END IF 
+      END IF
 
 !  If required, print out the (raw) problem data
 
@@ -701,7 +701,7 @@
            OPEN( dfiledevice, FILE = dfilename, FORM = 'FORMATTED',            &
                   STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2160 ) iores, dfilename
           STOP
         END IF
@@ -724,6 +724,12 @@
 
         CLOSE( dfiledevice )
       END IF
+      wnorm = 1.0_wp
+      DO i = 1, n
+        IF ( ABS( prob%G( i ) ) > 0.0_wp ) wnorm = MIN( wnorm, ABS( prob%G( i ) ) )
+      END DO
+!      write(6,*) ' gmin, gmax ', wnorm, MAXVAL( ABS( prob%G( : n ) ) )
+!      write(6,*) ' hmin, hmax ', MINVAL( ABS( prob%H%val( : H_ne ) ) ), MAXVAL( ABS( prob%H%val( : H_ne ) ) )
 
 !  If required, append results to a file
 
@@ -736,7 +742,7 @@
            OPEN( rfiledevice, FILE = rfilename, FORM = 'FORMATTED',            &
                  STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2160 ) iores, rfilename
           STOP
         END IF
@@ -747,7 +753,7 @@
       END IF
 
 !  Set all default values, and override defaults if requested
- 
+
       CALL CCQP_initialize( data, CCQP_control, CCQP_inform )
 
       IF ( is_specfile )                                                       &
@@ -797,14 +803,14 @@
           STOP
         END IF
         prob%X_status = ACTIVE
-        
+
         ALLOCATE( prob%C_status( m ), STAT = alloc_stat )
         IF ( alloc_stat /= 0 ) THEN
           IF ( printe ) WRITE( out, 2150 ) 'X_status', alloc_stat
           STOP
         END IF
         prob%C_status = ACTIVE
-        
+
         ALLOCATE( prob%Z_l( n ), prob%Z_u( n ), STAT = alloc_stat )
         IF ( alloc_stat /= 0 ) THEN
           IF ( printe ) WRITE( out, 2150 ) 'Z_lu', alloc_stat
@@ -812,7 +818,7 @@
         END IF
         prob%Z_l( : n ) = - infinity
         prob%Z_u( : n ) =   infinity
-        
+
         ALLOCATE( prob%Y_l( m ), prob%Y_u( m ), STAT = alloc_stat )
         IF ( alloc_stat /= 0 ) THEN
           IF ( printe ) WRITE( out, 2150 ) 'C_lu', alloc_stat
@@ -835,7 +841,7 @@
       IF ( do_presolve ) THEN
 
         CALL CPU_TIME( timep1 )
-        
+
 !       set the control variables
 
         CALL PRESOLVE_initialize( PRE_control, PRE_inform, PRE_data )
@@ -858,9 +864,9 @@
             PRE_inform%status
           STOP
         END IF
-        
+
         CALL CPU_TIME( timep2 )
-        
+
         A_ne = MAX( 0, prob%A%ptr( prob%m + 1 ) - 1 )
         H_ne = MAX( 0, prob%H%ptr( prob%n + 1 ) - 1 )
         IF ( printo ) WRITE( out, 2300 ) prob%n, prob%m, A_ne, H_ne,           &
@@ -877,7 +883,7 @@
 
 !  Call the optimizer
 
-      qfval = objf 
+      qfval = objf
 
       IF ( do_solve .AND. prob%n > 0 ) THEN
 
@@ -905,20 +911,20 @@
         END IF
 
         CALL CPU_TIME( timeo ) ; CALL CLOCK_time( clocko )
-  
+
         IF ( .not. do_presolve ) THEN
           prob%m = m ; prob%n = n
         END IF
-  
+
         DEALLOCATE( prob%X0 )
-    
+
 !       prob%m = m
 !       prob%n = n
-  
+
 !       WRITE( 6, "( ' x ', /, (5ES12.4) )" ) prob%X
 !       WRITE( 6, "( ' y ', /, (5ES12.4) )" ) prob%Y
 !       WRITE( 6, "( ' z ', /, (5ES12.4) )" ) prob%Z
-  
+
 !  =================
 !  solve the problem
 !  =================
@@ -931,9 +937,9 @@
         qfval = CCQP_inform%obj
 
         CALL CPU_TIME( timet ) ; CALL CLOCK_time( clockt )
-  
+
 !  Deallocate arrays from the minimization
-  
+
         status = CCQP_inform%status
         iter = CCQP_inform%CQP_inform%iter + CCQP_inform%DQP_inform%iter
         stopr = CCQP_control%CQP_control%stop_abs_d
@@ -965,7 +971,7 @@
       IF ( do_presolve ) THEN
         IF ( PRE_control%print_level >= DEBUG )                                &
           CALL QPT_write_problem( out, prob )
-        
+
         CALL CPU_TIME( timep3 )
         CALL PRESOLVE_restore( prob, PRE_control, PRE_inform, PRE_data )
         IF ( PRE_inform%status /= 0 .AND. printo )                             &
@@ -1001,6 +1007,8 @@
 !  Compute maximum contraint residual and complementary slackness
 
       res_c = zero ; max_cs = zero
+      max_d = MAX( MAXVAL( ABS( prob%Y( : m ) ) ),                             &
+                   MAXVAL( ABS( prob%Z( : n ) ) ) )
       DO i = 1, m
         dummy = zero
         DO j = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1
@@ -1012,7 +1020,7 @@
           IF ( prob%C_u( i ) < infinity ) THEN
             max_cs = MAX( max_cs,                                              &
                  MIN( ABS( ( prob%C_l( i ) - dummy ) * prob%Y( i ) ),          &
-                      ABS( ( prob%C_u( i ) - dummy ) * prob%Y( i ) ) ) ) 
+                      ABS( ( prob%C_u( i ) - dummy ) * prob%Y( i ) ) ) )
           ELSE
             max_cs = MAX( max_cs,                                              &
                           ABS( ( prob%C_l( i ) - dummy ) * prob%Y( i ) ) )
@@ -1068,7 +1076,7 @@
 !     END DO
 !     WRITE(6,"( ( 5ES12.4 ) ) " ) MAXVAL( ABS( prob%Z ) )
 !     WRITE(6,"( ' G ', /, ( 5ES12.4 ) )" ) prob%G( : n )
-      res_k = MAXVAL( ABS( HX( : n ) - prob%Z( : n ) + AY( : n ) ) ) 
+      res_k = MAXVAL( ABS( HX( : n ) - prob%Z( : n ) + AY( : n ) ) )
       DEALLOCATE( AY, HX )
 
 !  Print details of the solution obtained
@@ -1080,23 +1088,23 @@
            status == GALAHAD_error_tiny_step .OR.                              &
            status == GALAHAD_error_ill_conditioned ) THEN
         l = 4
-        IF ( fulsol ) l = n 
+        IF ( fulsol ) l = n
         IF ( do_presolve ) THEN
           IF ( PRE_control%print_level >= DEBUG ) l = n
         END IF
 
 !  Print details of the primal and dual variables
 
-        WRITE( out, 2090 ) 
-        DO j = 1, 2 
-          IF ( j == 1 ) THEN 
-            ir = 1 ; ic = MIN( l, n ) 
-          ELSE 
-            IF ( ic < n - l ) WRITE( out, 2000 ) 
-            ir = MAX( ic + 1, n - ic + 1 ) ; ic = n 
-          END IF 
-          DO i = ir, ic 
-            state = ' FREE' 
+        WRITE( out, 2090 )
+        DO j = 1, 2
+          IF ( j == 1 ) THEN
+            ir = 1 ; ic = MIN( l, n )
+          ELSE
+            IF ( ic < n - l ) WRITE( out, 2000 )
+            ir = MAX( ic + 1, n - ic + 1 ) ; ic = n
+          END IF
+          DO i = ir, ic
+            state = ' FREE'
             IF ( ABS( prob%X  ( i ) - prob%X_l( i ) ) < ten * stopr )          &
               state = 'LOWER'
             IF ( ABS( prob%X  ( i ) - prob%X_u( i ) ) < ten * stopr )          &
@@ -1105,59 +1113,59 @@
               state = 'FIXED'
             WRITE( out, 2050 ) i, VNAME( i ), state, prob%X( i ),              &
                                prob%X_l( i ), prob%X_u( i ), prob%Z( i ),      &
-                               B_stat( i ) 
-          END DO 
-        END DO 
+                               B_stat( i )
+          END DO
+        END DO
 
 !  Compute the number of fixed and degenerate variables.
 
-        nfixed = 0 ; ndegen = 0 
-        DO i = 1, n 
+        nfixed = 0 ; ndegen = 0
+        DO i = 1, n
           IF ( ABS( prob%X_u( i ) - prob%X_l( i ) ) < stopr ) THEN
-            nfixed = nfixed + 1 
-            IF ( ABS( prob%Z( i ) ) < ten * stopr ) ndegen = ndegen + 1 
+            nfixed = nfixed + 1
+            IF ( ABS( prob%Z( i ) ) < ten * stopr ) ndegen = ndegen + 1
           ELSE IF ( MIN( ABS( prob%X( i ) - prob%X_l( i ) ),                   &
                     ABS( prob%X( i ) - prob%X_u( i ) ) ) <=                    &
                     MAX( ten * stopr, ABS( prob%Z( i ) ) ) ) THEN
-            nfixed = nfixed + 1 
-            IF ( ABS( prob%Z( i ) ) < ten * stopr ) ndegen = ndegen + 1 
-          END IF 
-        END DO 
+            nfixed = nfixed + 1
+            IF ( ABS( prob%Z( i ) ) < ten * stopr ) ndegen = ndegen + 1
+          END IF
+        END DO
 
 !  Print details of the constraints.
 
-        IF ( m > 0 ) THEN 
+        IF ( m > 0 ) THEN
 
-          WRITE( out, 2040 ) 
-          l = 2  ; IF ( fulsol ) l = m 
+          WRITE( out, 2040 )
+          l = 2  ; IF ( fulsol ) l = m
           IF ( do_presolve ) THEN
             IF ( PRE_control%print_level >= DEBUG ) l = m
           END IF
-          DO j = 1, 2 
-            IF ( j == 1 ) THEN 
-              ir = 1 ; ic = MIN( l, m ) 
-            ELSE 
-              IF ( ic < m - l ) WRITE( out, 2000 ) 
-              ir = MAX( ic + 1, m - ic + 1 ) ; ic = m 
-            END IF 
-            DO i = ir, ic 
-              state = ' FREE' 
+          DO j = 1, 2
+            IF ( j == 1 ) THEN
+              ir = 1 ; ic = MIN( l, m )
+            ELSE
+              IF ( ic < m - l ) WRITE( out, 2000 )
+              ir = MAX( ic + 1, m - ic + 1 ) ; ic = m
+            END IF
+            DO i = ir, ic
+              state = ' FREE'
               IF ( ABS( prob%C( I )   - prob%C_l( i ) ) < ten * stopr )        &
-                state = 'LOWER' 
+                state = 'LOWER'
               IF ( ABS( prob%C( I )   - prob%C_u( i ) ) < ten * stopr )        &
-                state = 'UPPER' 
+                state = 'UPPER'
               IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) <       stopr )        &
-                state = 'EQUAL' 
+                state = 'EQUAL'
               WRITE( out, 2130 ) i, CNAME( i ), STATE, prob%C( i ),            &
                                  prob%C_l( i ), prob%C_u( i ), prob%Y( i ),    &
                                  C_stat( i )
-            END DO 
-          END DO 
+            END DO
+          END DO
 
 !  Compute the number of equality, fixed inequality and degenerate constraints
 
           mequal = 0 ; mfixed = 0 ; mdegen = 0 ; mredun = 0
-          DO i = 1, m 
+          DO i = 1, m
            IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) < stopr ) THEN
               mequal = mequal + 1
               IF ( ABS( prob%Y( i ) ) < stopr ) mredun = mredun + 1
@@ -1165,25 +1173,25 @@
                       ABS( prob%C( i ) - prob%C_u( i ) ) ) <=                  &
                  MAX( ten * stopr, ABS( prob%Y( i ) ) ) ) THEN
               mfixed = mfixed + 1
-              IF ( ABS( prob%Y( i ) ) < stopr ) mdegen = mdegen + 1 
+              IF ( ABS( prob%Y( i ) ) < stopr ) mdegen = mdegen + 1
             END IF
 !           IF ( ABS( prob%C( i ) - prob%C_l( i ) ) < ten * stopr .OR.         &
 !                ABS( prob%C( i ) - prob%C_u( i ) ) < ten * stopr ) THEN
-!             IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) < ten * stopr ) THEN 
-!                mequal = mequal + 1 
-!             ELSE 
-!                mfixed = mfixed + 1 
-!             END IF 
-!             IF ( ABS( prob%Y( i ) ) < stopr ) mdegen = mdegen + 1 
-!           END IF 
-          END DO 
-        END IF 
-        WRITE( out, 2100 ) n, nfixed, ndegen 
-        IF ( m > 0 ) THEN 
+!             IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) < ten * stopr ) THEN
+!                mequal = mequal + 1
+!             ELSE
+!                mfixed = mfixed + 1
+!             END IF
+!             IF ( ABS( prob%Y( i ) ) < stopr ) mdegen = mdegen + 1
+!           END IF
+          END DO
+        END IF
+        WRITE( out, 2100 ) n, nfixed, ndegen
+        IF ( m > 0 ) THEN
            WRITE( out, 2110 ) m, mequal, mredun
            IF ( m /= mequal ) WRITE( out, 2120 ) m - mequal, mfixed, mdegen
-        END IF 
-        WRITE( out, 2030 ) qfval, res_c, res_k, max_cs, iter
+        END IF
+        WRITE( out, 2030 ) qfval, max_d, res_c, res_k, max_cs, iter
 
 !  If required, write the solution to a file
 
@@ -1196,45 +1204,45 @@
              OPEN( sfiledevice, FILE = sfilename, FORM = 'FORMATTED',          &
                   STATUS = 'NEW', IOSTAT = iores )
           END IF
-          IF ( iores /= 0 ) THEN 
+          IF ( iores /= 0 ) THEN
             write( out, 2160 ) iores, sfilename
             STOP
           END IF
 
           WRITE( sfiledevice, 2250 ) pname, solv, qfval
-          WRITE( sfiledevice, 2090 ) 
+          WRITE( sfiledevice, 2090 )
 
-          DO i = 1, n 
-            state = ' FREE' 
+          DO i = 1, n
+            state = ' FREE'
             IF ( ABS( prob%X( i )   - prob%X_l( i ) ) < ten * stopr )          &
-              state = 'LOWER' 
+              state = 'LOWER'
             IF ( ABS( prob%X( i )   - prob%X_u( i ) ) < ten * stopr )          &
-              state = 'UPPER' 
+              state = 'UPPER'
             IF ( ABS( prob%X_l( I ) - prob%X_u( I ) ) < stopr )                &
-              state = 'FIXED' 
+              state = 'FIXED'
             WRITE( sfiledevice, 2050 ) i, VNAME( i ), STATE, prob%X( i ),      &
               prob%X_l( i ), prob%X_u( i ), prob%Z( i ), B_stat( i )
-          END DO 
-  
-          IF ( m > 0 ) THEN 
-            WRITE( sfiledevice, 2040 ) 
-            DO i = 1, m 
-              state = ' FREE' 
+          END DO
+
+          IF ( m > 0 ) THEN
+            WRITE( sfiledevice, 2040 )
+            DO i = 1, m
+              state = ' FREE'
               IF ( ABS( prob%C( I ) - prob%C_l( i ) ) < ten * stopr )          &
                 state = 'LOWER'
               IF ( ABS( prob%C( I ) - prob%C_u( i ) ) < ten * stopr )          &
                 state = 'UPPER'
               IF ( ABS( prob%C_l( i ) - prob%C_u( i ) ) < stopr )              &
-                state = 'EQUAL' 
+                state = 'EQUAL'
               WRITE( sfiledevice, 2130 ) i, CNAME( i ), STATE, prob%C( i ),    &
                 prob%C_l( i ), prob%C_u( i ), prob%Y( i ), C_stat( i )
-            END DO 
-          END IF 
-  
-          WRITE( sfiledevice, 2030 ) qfval, res_c, res_k, max_cs, iter
-          CLOSE( sfiledevice ) 
-        END IF 
-      END IF 
+            END DO
+          END IF
+
+          WRITE( sfiledevice, 2030 ) qfval, max_d, res_c, res_k, max_cs, iter
+          CLOSE( sfiledevice )
+        END IF
+      END IF
 
       sls_solv = CCQP_control%CQP_control%SBLS_control%symmetric_linear_solver
       CALL STRING_upper_word( sls_solv )
@@ -1254,9 +1262,9 @@
       times = times - time ; timet = timet - timeo
       clocks = clocks - clock ; clockt = clockt - clocko
       WRITE( out, "( /, ' Total CPU, clock times = ', F8.3, ', ', F8.3 )" )    &
-        times + timet, clocks + clockt 
+        times + timet, clocks + clockt
       WRITE( out, "( ' number of threads = ', I0 )" ) CCQP_inform%threads
-      WRITE( out, 2070 ) pname 
+      WRITE( out, 2070 ) pname
 
 !  Compare the variants used so far
 
@@ -1264,7 +1272,7 @@
                          CCQP_inform%DQP_inform%iter, qfval, status, clocks,   &
                          CCQP_inform%CQP_inform%time%clock_total,              &
                          CCQP_inform%DQP_inform%time%clock_total,              &
-                         clocks + clockt 
+                         clocks + clockt
 
       IF ( write_result_summary ) THEN
         BACKSPACE( rfiledevice )
@@ -1306,10 +1314,11 @@
 !  Non-executable statements
 
  2000 FORMAT( '      . .          .....  ..........',                          &
-              '  ..........  ..........  .......... ' ) 
- 2010 FORMAT( /,' Stopping with inform%status = ', I0 ) 
+              '  ..........  ..........  .......... ' )
+ 2010 FORMAT( /,' Stopping with inform%status = ', I0 )
  2020 FORMAT( /, ' Problem: ', A )
  2030 FORMAT( /, ' Final objective function value  ', ES22.14, /,              &
+                 ' Maximum dual variable           ', ES22.14, /,              &
                  ' Maximum constraint violation    ', ES22.14, /,              &
                  ' Maximum dual infeasibility      ', ES22.14, /,              &
                  ' Maximum complementary slackness ', ES22.14, //,             &
@@ -1317,31 +1326,31 @@
  2040 FORMAT( /, ' Constraints : ', /, '                             ',        &
                  '        <------ Bounds ------> ', /                          &
                  '      # name       state    value   ',                       &
-                 '    Lower       Upper     Multiplier st' ) 
- 2050 FORMAT( I7, 1X, A10, A6, 4ES12.4, I3 ) 
+                 '    Lower       Upper     Multiplier st' )
+ 2050 FORMAT( I7, 1X, A10, A6, 4ES12.4, I3 )
  2070 FORMAT( /, ' Problem: ', A, //,                                          &
                  '       <-iterations->    objective',                         &
                  '           < ---------- time --------- > ', /,               &
                  ' Method   CQP     DQP      value  ',                         &
                  '  status   setup     CQP     DQP   total', /,                &
                  ' ------   ---     ---      -----  ',                         &
-                 '  ------   -----     ---     ---   -----' ) 
- 2080 FORMAT( A5, 2I8, 2X, ES12.4, 1X, I6, 0P, 4F8.2 ) 
+                 '  ------   -----     ---     ---   -----' )
+ 2080 FORMAT( A5, 2I8, 2X, ES12.4, 1X, I6, 0P, 4F8.2 )
  2090 FORMAT( /, ' Solution : ', /, '                              ',          &
                  '        <------ Bounds ------> ', /                          &
                  '      # name       state    value   ',                       &
-                 '    Lower       Upper       Dual     st' ) 
+                 '    Lower       Upper       Dual     st' )
  2100 FORMAT( /, ' Of the ', I0, ' variables, ', I0,                           &
-              ' are on bounds & ', I0, ' are dual degenerate' ) 
+              ' are on bounds & ', I0, ' are dual degenerate' )
  2110 FORMAT( ' Of the ', I0, ' constraints, ', I0,' are equations, & ',       &
               I0, ' are redundant' )
  2120 FORMAT( ' Of the ', I0, ' inequalities, ', I0, ' are on bounds, & ',     &
-              I0, ' are degenerate' ) 
- 2130 FORMAT( I7, 1X, A10, A6, 4ES12.4, I3 ) 
+              I0, ' are degenerate' )
+ 2130 FORMAT( I7, 1X, A10, A6, 4ES12.4, I3 )
  2150 FORMAT( ' Allocation error, variable ', A8, ' status = ', I0 )
  2160 FORMAT( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )
  2180 FORMAT( A10 )
-!2190 FORMAT( A10, I7, 2I6, ES13.4, I6, 0P, F8.2 ) 
+!2190 FORMAT( A10, I7, 2I6, ES13.4, I6, 0P, F8.2 )
  2200 FORMAT( /, ' problem dimensions:  n = ', I0, ', m = ', I0,               &
               ', a_ne = ', I0, ', h_ne = ', I0 )
  2300 FORMAT( ' updated dimensions:  n = ', I0, ', m = ', I0,                  &
@@ -1360,5 +1369,3 @@
 !  End of module USECCQP_double
 
    END MODULE GALAHAD_USECCQP_double
-
-

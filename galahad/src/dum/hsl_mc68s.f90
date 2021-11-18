@@ -66,7 +66,6 @@
   &     '   $GALAHAD/src/makedefs/packages for details.' )" )
 
         info%flag = GALAHAD_unavailable_option
-        info%flag = 0
         info%stat = 0
 
       END SUBROUTINE mc68_order_single

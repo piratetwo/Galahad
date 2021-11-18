@@ -1,4 +1,4 @@
-! THIS VERSION: CUTEST 1.3 - 07/10/2015 AT 08:20 GMT.
+! THIS VERSION: CUTEST 1.6 - 22/02/2018 AT 15:40 GMT.
 
 !-*- C U T E S T  t e s t _ c o n s t r a i n e d _ t o o l s  P R O G R A M -*-
 
@@ -55,7 +55,7 @@
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : , : ) :: J2_val
       LOGICAL, ALLOCATABLE, DIMENSION( : ) :: EQUATION, LINEAR
       CHARACTER ( len = 10 ), ALLOCATABLE, DIMENSION( : ) :: X_names, C_names
-      REAL ( KIND = wp ) :: CPU( 2 ), CALLS( 7 )
+      REAL ( KIND = wp ) :: CPU( 4 ), CALLS( 7 )
 
 !  open the problem data file
 
@@ -252,6 +252,13 @@
       IF ( alloc_stat /= 0 ) GO TO 990
 
 !  compute the sparsity pattern of the Jacobian
+
+      WRITE( out, "( ' Call CUTEST_csjp' )" )
+      CALL CUTEST_csjp( status, J_ne, l_j, J_var, J_fun )
+      IF ( status /= 0 ) GO TO 900
+      CALL WRITE_J_sparsity_pattern( out, J_ne, l_j, J_fun, J_var )
+
+!  compute the sparsity pattern of the Jacobian and objective gradient
 
       WRITE( out, "( ' Call CUTEST_csgrp' )" )
       CALL CUTEST_csgrp( status, n, J_ne, l_j, J_var, J_fun )
@@ -753,7 +760,7 @@
       WRITE( out, "( ' CALL CUTEST_creport' )" )
       CALL CUTEST_creport( status, CALLS, CPU )
       WRITE( out, "( ' CALLS(1-7) =', 7( 1X, I0 ) )" ) INT( CALLS( 1 : 7 ) )
-      WRITE( out, "( ' CPU(1-2) =', 2F7.2 )" ) CPU( 1 : 2 )
+      WRITE( out, "( ' CPU(1-4) =', 4F7.2 )" ) CPU( 1 : 4 )
 
 !  terminal exit
 

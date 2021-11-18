@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 24/12/2013 AT 14:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 29/03/2021 AT 08:30 GMT.
 
 !-*-*-*-*-*-*-*-*- G A L A H A D _ S L S    M O D U L E  -*-*-*-*-*-*-*-*-*-
 
@@ -9,7 +9,7 @@
 !   originally released with GALAHAD Version 2.4. June 15th 2009
 !   LAPACK solvers and band ordering added Version 2.5, November 21st 2011
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_SLS_double
@@ -31,6 +31,7 @@
 !     |               MA97                        |
 !     |               SSIDS from SPRAL            |
 !     |               PARDISO                     |
+!     |               MKL PARDISO                 |
 !     |               WSMP                        |
 !     |               POTR from LAPACK            |
 !     |               SYTR from LAPACK            |
@@ -44,7 +45,7 @@
      USE GALAHAD_SORT_double
      USE GALAHAD_SPACE_double
      USE GALAHAD_SPECFILE_double
-     USE GALAHAD_STRING_double, ONLY: STRING_lower_word
+     USE GALAHAD_STRING, ONLY: STRING_lower_word
      USE GALAHAD_SMT_double
      USE GALAHAD_SILS_double
      USE GALAHAD_BLAS_interface, ONLY : TRSV, TBSV
@@ -58,10 +59,11 @@
      USE HSL_MA97_double
      USE HSL_MC64_double
      USE HSL_MC68_integer
+     USE MKL_PARDISO
      USE SPRAL_SSIDS
 
      IMPLICIT NONE
- 
+
      PRIVATE
      PUBLIC :: SLS_initialize, SLS_analyse, SLS_factorize, SLS_solve,          &
                SLS_fredholm_alternative,                                       &
@@ -74,7 +76,7 @@
 !   P r e c i s i o n
 !--------------------
 
-     INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+     INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
      INTEGER, PARAMETER :: real_bytes = 8
      INTEGER, PARAMETER :: long = SELECTED_INT_KIND( 18 )
 
@@ -101,9 +103,9 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: SLS_control_type
 
@@ -151,7 +153,7 @@
 
        INTEGER :: blas_block_size_solve = blas_block_size_solve_default
 
-!  a child node is merged with its parent if they both involve fewer than 
+!  a child node is merged with its parent if they both involve fewer than
 !  node_amalgamation eliminations
 
        INTEGER :: node_amalgamation = node_amalgamation_default
@@ -184,18 +186,18 @@
 
        REAL ( KIND = wp ) :: array_increase_factor = 2.0_wp
 
-!  if previously allocated internal workspace arrays are greater than 
-!  array_decrease_factor times the currently required sizes, they are reset 
+!  if previously allocated internal workspace arrays are greater than
+!  array_decrease_factor times the currently required sizes, they are reset
 !  to current requirements
 
        REAL ( KIND = wp ) :: array_decrease_factor = 2.0_wp
 
 !  pivot control:
-!   1  Numerical pivoting will be performed. 
-!   2  No pivoting will be performed and an error exit will   
+!   1  Numerical pivoting will be performed.
+!   2  No pivoting will be performed and an error exit will
 !      occur immediately a pivot sign change is detected.
-!   3  No pivoting will be performed and an error exit will 
-!      occur if a zero pivot is detected. 
+!   3  No pivoting will be performed and an error exit will
+!      occur if a zero pivot is detected.
 !   4  No pivoting is performed but pivots are changed to all be positive
 
        INTEGER :: pivot_control = 1
@@ -213,7 +215,7 @@
 
        INTEGER :: ordering = 0
 
-!  controls threshold for detecting full rows in analyse, registered as 
+!  controls threshold for detecting full rows in analyse, registered as
 !  percentage of matrix order. If 100, only fully dense rows detected (default)
 
        INTEGER :: full_row_threshold = full_row_threshold_default
@@ -231,7 +233,7 @@
 
        INTEGER :: scaling = 0
 
-!  the number of scaling iterations performed (default 10 used if 
+!  the number of scaling iterations performed (default 10 used if
 !   %scale_maxit < 0)
 
        INTEGER :: scale_maxit = 0
@@ -257,6 +259,15 @@
 
        REAL ( KIND = wp ) :: zero_tolerance = 0.0_wp
 
+!  any pivot smaller than this is considered zero for positive-definite solvers
+
+       REAL ( KIND = wp ) :: zero_pivot_tolerance = EPSILON( 1.0_wp )
+
+!  any pivot smaller than this is considered to be negative for p-d solvers
+
+       REAL ( KIND = wp ) :: negative_pivot_tolerance                          &
+                               = - 0.5_wp * HUGE( 1.0_wp )
+
 !  used for setting static pivot level
 
        REAL ( KIND = wp ) :: static_pivot_tolerance = 0.0_wp
@@ -274,7 +285,7 @@
 
        INTEGER :: max_iterative_refinements = 0
 
-!  refinement will cease as soon as the residual ||Ax-b|| falls below 
+!  refinement will cease as soon as the residual ||Ax-b|| falls below
 !     max( acceptable_residual_relative * ||b||, acceptable_residual_absolute )
 
        REAL ( KIND = wp ) :: acceptable_residual_relative = 10.0_wp * epsmch
@@ -286,7 +297,7 @@
 
        LOGICAL :: multiple_rhs = .TRUE.
 
-!   if %generate_matrix_file is .true. if a file describing the current 
+!   if %generate_matrix_file is .true. if a file describing the current
 !    matrix is to be generated
 
         LOGICAL :: generate_matrix_file = .FALSE.
@@ -319,15 +330,15 @@
        CHARACTER ( LEN = 500 ) :: out_of_core_restart_file =                   &
                                    'restart_ooc' // REPEAT( ' ', 489 )
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
        CHARACTER ( LEN = 30 ) :: prefix = '""                            '
 
      END TYPE SLS_control_type
-   
+
 !  - - - - - - - - - - - - - - - - - - - - - -
 !   time derived type with component defaults
 !  - - - - - - - - - - - - - - - - - - - - - -
@@ -400,9 +411,9 @@
 
      END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: SLS_inform_type
 
@@ -414,8 +425,8 @@
 !   -20  alegedly +ve definite matrix is not
 !   -29  unavailable option
 !   -31  input order is not a permutation or is faulty in some other way
-!   -32  > control%max_integer_factor_size integer space required for factors 
-!   -33  > control%max_real_factor_size real space required for factors 
+!   -32  > control%max_integer_factor_size integer space required for factors
+!   -33  > control%max_real_factor_size real space required for factors
 !   -40  not possible to alter the diagonals
 !   -41  no access to permutation or pivot sequence used
 !   -42  no access to diagonal perturbations
@@ -541,6 +552,10 @@
 
        INTEGER :: negative_eigenvalues = - 1
 
+!  number of pivots that are considered zero (and ignored)
+
+       INTEGER :: num_zero = 0
+
 !  number of iterative refinements performed
 
        INTEGER :: iterative_refinements = 0
@@ -589,7 +604,7 @@
 
        REAL ( KIND = wp ) :: forward_error = - 1.0_wp
 
-!  has an "alternative" y: A y = 0 and yT b > 0 been found when trying to 
+!  has an "alternative" y: A y = 0 and yT b > 0 been found when trying to
 !  solve A x = b ?
 
        LOGICAL :: alternative = .FALSE.
@@ -654,8 +669,13 @@
 !  the output scalars and arrays from pardiso
 
        INTEGER :: pardiso_error = 0
-       INTEGER, DIMENSION( 64 ) :: pardiso_iparm = - 1
-       REAL ( KIND = wp ), DIMENSION( 64 ) :: pardiso_dparm = - 1.0_wp
+       INTEGER, DIMENSION( 64 ) :: pardiso_IPARM = - 1
+       REAL ( KIND = wp ), DIMENSION( 64 ) :: pardiso_DPARM = - 1.0_wp
+
+!  the output scalars and arrays from mkl_pardiso
+
+       INTEGER :: mkl_pardiso_error = 0
+       INTEGER, DIMENSION( 64 ) :: mkl_pardiso_IPARM = - 1
 
 !  the output scalars and arrays from wsmp
 
@@ -668,13 +688,13 @@
        INTEGER :: lapack_error = 0
 
      END TYPE SLS_inform_type
-     
+
 !  ...................
-!   data derived type 
+!   data derived type
 !  ...................
 
      TYPE, PUBLIC :: SLS_data_type
-       PRIVATE 
+       PRIVATE
        INTEGER :: len_solver = - 1
        INTEGER :: n, ne, matrix_ne, matrix_scale_ne, pardiso_mtype, mc61_lirn
        INTEGER :: mc61_liw, mc77_liw, mc77_ldw, sytr_lwork
@@ -683,13 +703,17 @@
        INTEGER :: set_res = - 1
        INTEGER :: set_res2 = - 1
        LOGICAL :: got_maps_scale = .FALSE.
-       INTEGER, DIMENSION( 64 ) :: PARDISO_PT
-       INTEGER, DIMENSION( 64 ) :: pardiso_iparm = - 1
+       INTEGER ( KIND = long ), DIMENSION( 64 ) :: pardiso_PT
+       TYPE ( MKL_PARDISO_HANDLE ), DIMENSION( 64 ) :: mkl_pardiso_PT
+       INTEGER, DIMENSION( 1 ) :: idum
+       INTEGER, DIMENSION( 64 ) :: pardiso_IPARM = - 1
+       INTEGER, DIMENSION( 64 ) :: mkl_pardiso_IPARM = - 1
        INTEGER, DIMENSION( 0 ) :: wsmp_aux
-       INTEGER, DIMENSION( 64 ) :: wsmp_iparm = 0
+       INTEGER, DIMENSION( 64 ) :: wsmp_IPARM = 0
        INTEGER, DIMENSION( 10 ) :: mc61_ICNTL                                  &
-         = (/ 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 /)
-       REAL ( KIND = wp ), DIMENSION( 5 ) :: mc61_CNTL                        &
+         = (/ 6, 6, 0, 0, 0, 0, 0, 0, 0, 0 /)
+       REAL ( KIND = wp ), DIMENSION( 1 ) :: ddum
+       REAL ( KIND = wp ), DIMENSION( 5 ) :: mc61_CNTL                         &
          = (/ 2.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, 0.0_wp /)
        INTEGER, DIMENSION( 10 ) :: mc77_ICNTL                                  &
          = (/ 6, 6, - 1, 0, 0, 1, 10, 0, 0, 0 /)
@@ -701,11 +725,12 @@
        INTEGER, ALLOCATABLE, DIMENSION( : , : ) :: MAP
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: mc64_PERM
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: mc61_IW, mc77_IW
-       REAL ( KIND = wp ), DIMENSION( 64 ) :: pardiso_dparm = 0.0_wp
-       REAL ( KIND = wp ), DIMENSION( 64 ) :: wsmp_dparm = - 1.0_wp
+       REAL ( KIND = wp ), DIMENSION( 64 ) :: pardiso_DPARM = 0.0_wp
+       REAL ( KIND = wp ), DIMENSION( 64 ) :: wsmp_DPARM = - 1.0_wp
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: RESIDUALS
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: RESIDUALS_zero
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: B
+       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: B1
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: RES
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: SCALE
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: WORK
@@ -760,25 +785,25 @@
        TYPE ( MC68_info ) :: mc68_info
 
      END TYPE SLS_data_type
-     
+
 !----------------------------------
 !   I n t e r f a c e  B l o c k s
 !----------------------------------
 
      INTERFACE SLS_solve
        MODULE PROCEDURE SLS_solve_ir, SLS_solve_ir_multiple
-     END INTERFACE 
-     
+     END INTERFACE
+
 
    CONTAINS
 
 !-*-*-*-*-*-   S L S _ I N I T I A L I Z E   S U B R O U T I N E   -*-*-*-*-*-
-   
+
      SUBROUTINE SLS_initialize( solver, data, control, inform )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Set initial values, including default control data and solver used, for SLS. 
+!  Set initial values, including default control data and solver used, for SLS.
 !  This routine must be called before the first call to SLS_analyse
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -831,6 +856,7 @@
 !  = MA87 =
 
      CASE ( 'ma87' )
+       control%zero_pivot_tolerance = SQRT( EPSILON( 1.0_wp ) )
 
 !  = MA97 =
 
@@ -852,7 +878,7 @@
 
 !  = PARDISO =
 
-     CASE ( 'pardiso' )
+     CASE ( 'pardiso', 'mkl_pardiso' )
        control%node_amalgamation = 80
 
 !  = WSMP =
@@ -874,19 +900,19 @@
 
      END SELECT
 
-     RETURN  
+     RETURN
 
 !  End of SLS_initialize
 
      END SUBROUTINE SLS_initialize
-   
+
 !-*-*-   S L S _ I N I T I A L I Z E _ S O L V E R  S U B R O U T I N E   -*-*-
-   
+
      SUBROUTINE SLS_initialize_solver( solver, data, inform )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Set initial values, including default control data and solver used, for SLS. 
+!  Set initial values, including default control data and solver used, for SLS.
 !  This routine must be called before the first call to SLS_analyse
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -952,7 +978,7 @@
 
 !  = PARDISO =
 
-     CASE ( 'pardiso' )
+     CASE ( 'pardiso', 'mkl_pardiso' )
        data%must_be_definite = .FALSE.
 
 !  = WSMP =
@@ -981,15 +1007,15 @@
        inform%status = GALAHAD_error_unknown_solver
      END SELECT
 
-     RETURN  
+     RETURN
 
 !  End of SLS_initialize_solver
 
      END SUBROUTINE SLS_initialize_solver
-   
+
 !-*-   S L S _ C O P Y _ C O N T R O L _ T O _ S I L S  S U B R O U T I N E  -*-
 
-     SUBROUTINE SLS_copy_control_to_sils( control, control_sils ) 
+     SUBROUTINE SLS_copy_control_to_sils( control, control_sils )
 
 !  copy control parameters to their SILS equivalents
 
@@ -999,21 +1025,21 @@
      TYPE ( SILS_control ), INTENT( INOUT ) :: control_sils
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_sils%lp = control%error  
-       control_sils%wp = control%warning  
-       control_sils%mp = control%out  
-       control_sils%sp = control%statistics  
+       control_sils%lp = control%error
+       control_sils%wp = control%warning
+       control_sils%mp = control%out
+       control_sils%sp = control%statistics
      ELSE
        control_sils%lp = - 1
        control_sils%wp = - 1
        control_sils%mp = - 1
        control_sils%sp = - 1
      END IF
-     control_sils%ldiag = control%print_level_solver  
-     control_sils%factorblocking = control%blas_block_size_factorize  
+     control_sils%ldiag = control%print_level_solver
+     control_sils%factorblocking = control%blas_block_size_factorize
      IF ( control_sils%factorblocking < 1 )                                    &
        control_sils%factorblocking = blas_block_size_factor_default
-     control_sils%solveblocking = control%blas_block_size_solve  
+     control_sils%solveblocking = control%blas_block_size_solve
      IF ( control_sils%solveblocking < 1 )                                     &
        control_sils%solveblocking = blas_block_size_solve_default
      control_sils%la = MAX( control%min_real_factor_size, 1 )
@@ -1024,19 +1050,19 @@
        control_sils%liw = min_integer_factor_size_default
      control_sils%maxla = INT( control%max_real_factor_size )
      control_sils%maxliw = INT( control%max_integer_factor_size )
-     control_sils%pivoting = control%pivot_control  
-     control_sils%thresh = control%full_row_threshold  
+     control_sils%pivoting = control%pivot_control
+     control_sils%thresh = control%full_row_threshold
      IF ( control_sils%thresh < 1 .OR.                                         &
           control_sils%thresh > 100 )                                          &
        control_sils%thresh = full_row_threshold_default
      IF ( control%ordering < 0 ) control_sils%ordering = - control%ordering
-     IF ( control%scaling <= 0 ) control_sils%scaling = - control%scaling  
-     control_sils%u= control%relative_pivot_tolerance  
-     control_sils%multiplier = control%array_increase_factor  
-     control_sils%reduce = control%array_decrease_factor  
-     control_sils%static_tolerance= control%static_pivot_tolerance  
+     IF ( control%scaling <= 0 ) control_sils%scaling = - control%scaling
+     control_sils%u= control%relative_pivot_tolerance
+     control_sils%multiplier = control%array_increase_factor
+     control_sils%reduce = control%array_decrease_factor
+     control_sils%static_tolerance= control%static_pivot_tolerance
      control_sils%static_level = control%static_level_switch
-     control_sils%tolerance = control%zero_tolerance   
+     control_sils%tolerance = control%zero_tolerance
 
      RETURN
 
@@ -1046,7 +1072,7 @@
 
 !-*-   S L S _ C O P Y _ C O N T R O L _ T O _ M A 5 7  S U B R O U T I N E  -*-
 
-     SUBROUTINE SLS_copy_control_to_ma57( control, control_ma57 ) 
+     SUBROUTINE SLS_copy_control_to_ma57( control, control_ma57 )
 
 !  copy control parameters to their MA57 equivalents
 
@@ -1057,21 +1083,21 @@
 
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_ma57%lp = control%error  
-       control_ma57%wp = control%warning  
-       control_ma57%mp = control%out  
-       control_ma57%sp = control%statistics  
+       control_ma57%lp = control%error
+       control_ma57%wp = control%warning
+       control_ma57%mp = control%out
+       control_ma57%sp = control%statistics
      ELSE
        control_ma57%lp = - 1
        control_ma57%wp = - 1
        control_ma57%mp = - 1
        control_ma57%sp = - 1
      END IF
-     control_ma57%ldiag = control%print_level_solver  
-     control_ma57%factorblocking = control%blas_block_size_factorize  
+     control_ma57%ldiag = control%print_level_solver
+     control_ma57%factorblocking = control%blas_block_size_factorize
      IF ( control_ma57%factorblocking < 1 )                                    &
        control_ma57%factorblocking = blas_block_size_factor_default
-     control_ma57%solveblocking = control%blas_block_size_solve  
+     control_ma57%solveblocking = control%blas_block_size_solve
      IF ( control_ma57%solveblocking < 1 )                                     &
        control_ma57%solveblocking = blas_block_size_solve_default
      control_ma57%la = control%min_real_factor_size
@@ -1082,19 +1108,19 @@
        control_ma57%liw = min_integer_factor_size_default
      control_ma57%maxla = INT( control%max_real_factor_size )
      control_ma57%maxliw = INT( control%max_integer_factor_size )
-     control_ma57%pivoting = control%pivot_control  
-     control_ma57%thresh = control%full_row_threshold  
+     control_ma57%pivoting = control%pivot_control
+     control_ma57%thresh = control%full_row_threshold
      IF ( control_ma57%thresh < 1 .OR.                                         &
           control_ma57%thresh > 100 )                                          &
        control_ma57%thresh = full_row_threshold_default
      IF ( control%ordering < 0 ) control_ma57%ordering = - control%ordering
-     IF ( control%scaling <= 0 ) control_ma57%scaling = - control%scaling  
-     control_ma57%u= control%relative_pivot_tolerance  
-     control_ma57%multiplier = control%array_increase_factor  
-     control_ma57%reduce = control%array_decrease_factor  
-     control_ma57%static_tolerance= control%static_pivot_tolerance  
+     IF ( control%scaling <= 0 ) control_ma57%scaling = - control%scaling
+     control_ma57%u= control%relative_pivot_tolerance
+     control_ma57%multiplier = control%array_increase_factor
+     control_ma57%reduce = control%array_decrease_factor
+     control_ma57%static_tolerance= control%static_pivot_tolerance
      control_ma57%static_level = control%static_level_switch
-     control_ma57%tolerance = control%zero_tolerance   
+     control_ma57%tolerance = control%zero_tolerance
      control_ma57%consist = control%consistency_tolerance
 
      RETURN
@@ -1105,7 +1131,7 @@
 
 !-*-   S L S _ C O P Y _ C O N T R O L _ T O _ M A 7 7  S U B R O U T I N E  -*-
 
-     SUBROUTINE SLS_copy_control_to_ma77( control, control_ma77 ) 
+     SUBROUTINE SLS_copy_control_to_ma77( control, control_ma77 )
 
 !  copy control parameters to their MA77 equivalents
 
@@ -1115,9 +1141,9 @@
      TYPE ( MA77_control ), INTENT( INOUT ) :: control_ma77
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_ma77%unit_error = control%error  
-       control_ma77%unit_warning = control%warning  
-       control_ma77%unit_diagnostics = control%out  
+       control_ma77%unit_error = control%error
+       control_ma77%unit_warning = control%warning
+       control_ma77%unit_diagnostics = control%out
      ELSE
        control_ma77%unit_error = - 1
        control_ma77%unit_warning = - 1
@@ -1147,7 +1173,7 @@
 
 !-*-   S L S _ C O P Y _ C O N T R O L _ T O _ M A 8 6  S U B R O U T I N E  -*-
 
-     SUBROUTINE SLS_copy_control_to_ma86( control, control_ma86 ) 
+     SUBROUTINE SLS_copy_control_to_ma86( control, control_ma86 )
 
 !  copy control parameters to their MA86 equivalents
 
@@ -1157,9 +1183,9 @@
      TYPE ( MA86_control ), INTENT( INOUT ) :: control_ma86
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_ma86%unit_error = control%error  
-       control_ma86%unit_warning = control%warning  
-       control_ma86%unit_diagnostics = control%out  
+       control_ma86%unit_error = control%error
+       control_ma86%unit_warning = control%warning
+       control_ma86%unit_diagnostics = control%out
      ELSE
        control_ma86%unit_error = - 1
        control_ma86%unit_warning = - 1
@@ -1193,7 +1219,7 @@
        control_ma86%umin = 0.0_wp
        control_ma86%action = .FALSE.
      ELSE IF ( control%pivot_control == 4 ) THEN
-       control_ma86%static = control%static_pivot_tolerance  
+       control_ma86%static = control%static_pivot_tolerance
        control_ma86%u = 0.0_wp
        control_ma86%umin = 0.0_wp
        control_ma86%action = .TRUE.
@@ -1203,7 +1229,7 @@
        control_ma86%umin = control%minimum_pivot_tolerance
        control_ma86%action = .TRUE.
      END IF
-    
+
      RETURN
 
 !  End of SLS_copy_control_to_ma86
@@ -1212,7 +1238,7 @@
 
 !-*-   S L S _ C O P Y _ C O N T R O L _ T O _ M A 8 7  S U B R O U T I N E  -*-
 
-     SUBROUTINE SLS_copy_control_to_ma87( control, control_ma87 ) 
+     SUBROUTINE SLS_copy_control_to_ma87( control, control_ma87 )
 
 !  copy control parameters to their MA87 equivalents
 
@@ -1222,9 +1248,9 @@
      TYPE ( MA87_control ), INTENT( INOUT ) :: control_ma87
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_ma87%unit_error = control%error  
-       control_ma87%unit_warning = control%warning  
-       control_ma87%unit_diagnostics = control%out  
+       control_ma87%unit_error = control%error
+       control_ma87%unit_warning = control%warning
+       control_ma87%unit_diagnostics = control%out
      ELSE
        control_ma87%unit_error = - 1
        control_ma87%unit_warning = - 1
@@ -1240,6 +1266,12 @@
      control_ma87%pool_size = control%initial_pool_size
      IF ( control_ma87%pool_size < 1 )                                         &
         control_ma87%pool_size = initial_pool_size_default
+     IF ( control%pivot_control == 4 ) THEN
+        control_ma87%diag_zero_plus = control%zero_pivot_tolerance
+        control_ma87%diag_zero_minus = control%negative_pivot_tolerance
+!write(6,*) ' diag_zero_plus ', control_ma87%diag_zero_plus
+!write(6,*) ' diag_zero_minus ', control_ma87%diag_zero_minus
+     END IF
 
      RETURN
 
@@ -1249,7 +1281,7 @@
 
 !-*-   S L S _ C O P Y _ C O N T R O L _ T O _ M A 9 7  S U B R O U T I N E  -*-
 
-     SUBROUTINE SLS_copy_control_to_ma97( control, control_ma97 ) 
+     SUBROUTINE SLS_copy_control_to_ma97( control, control_ma97 )
 
 !  copy control parameters to their MA97 equivalents
 
@@ -1259,9 +1291,9 @@
      TYPE ( MA97_control ), INTENT( INOUT ) :: control_ma97
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_ma97%unit_error = control%error  
-       control_ma97%unit_warning = control%warning  
-       control_ma97%unit_diagnostics = control%out  
+       control_ma97%unit_error = control%error
+       control_ma97%unit_warning = control%warning
+       control_ma97%unit_diagnostics = control%out
      ELSE
        control_ma97%unit_error = - 1
        control_ma97%unit_warning = - 1
@@ -1275,7 +1307,7 @@
        control_ma97%scaling = 2
      ELSE IF ( control%scaling == - 3 ) THEN
        control_ma97%scaling = 3
-     ELSE 
+     ELSE
        control_ma97%scaling = 0
      END IF
      control_ma97%small = control%absolute_pivot_tolerance
@@ -1293,7 +1325,7 @@
        control_ma97%u = control%relative_pivot_tolerance
        control_ma97%action = .TRUE.
      END IF
-    
+
      RETURN
 
 !  End of SLS_copy_control_to_ma97
@@ -1302,7 +1334,7 @@
 
 !-   S L S _ C O P Y _ C O N T R O L _ T O _ S S I D S  S U B R O U T I N E  -
 
-     SUBROUTINE SLS_copy_control_to_ssids( control, control_ssids ) 
+     SUBROUTINE SLS_copy_control_to_ssids( control, control_ssids )
 
 !  copy control parameters to their SSIDS equivalents
 
@@ -1312,9 +1344,9 @@
      TYPE ( SSIDS_options ), INTENT( INOUT ) :: control_ssids
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_ssids%unit_error = control%error  
-       control_ssids%unit_warning = control%warning  
-       control_ssids%unit_diagnostics = control%out  
+       control_ssids%unit_error = control%error
+       control_ssids%unit_warning = control%warning
+       control_ssids%unit_diagnostics = control%out
      ELSE
        control_ssids%unit_error = - 1
        control_ssids%unit_warning = - 1
@@ -1328,20 +1360,20 @@
        control_ssids%scaling = 2
      ELSE IF ( control%scaling == - 3 ) THEN
        control_ssids%scaling = 3
-     ELSE 
+     ELSE
        control_ssids%scaling = 0
      END IF
      control_ssids%small = control%absolute_pivot_tolerance
-     control_ssids%presolve = 0
+!    control_ssids%presolve = 0
 !    control_ssids%consist_tol = control%consistency_tolerance
      IF ( control%pivot_control == 2 ) THEN
        control_ssids%u = 0.0_wp
-       control_ssids%presolve = 1
+!      control_ssids%presolve = 1
        control_ssids%action = .TRUE.
      ELSE IF ( control%pivot_control == 3 ) THEN
        control_ssids%u = 0.0_wp
 !      control_ssids%action = .TRUE.
-       control_ssids%presolve = 1
+!      control_ssids%presolve = 1
        control_ssids%action = .FALSE.
      ELSE IF ( control%pivot_control == 4 ) THEN
        control_ssids%u = 0.0_wp
@@ -1350,8 +1382,8 @@
        control_ssids%u = control%relative_pivot_tolerance
        control_ssids%action = .TRUE.
      END IF
-     IF ( control%multiple_rhs ) control_ssids%presolve = 1
-    
+!    IF ( control%multiple_rhs ) control_ssids%presolve = 1
+
      RETURN
 
 !  End of SLS_copy_control_to_ssids
@@ -1360,7 +1392,7 @@
 
 !-  S L S _ C O P Y _ C O N T R O L _ T O _ P A R D I S O  S U B R O U T I N E -
 
-     SUBROUTINE SLS_copy_control_to_pardiso( control, iparm ) 
+     SUBROUTINE SLS_copy_control_to_pardiso( control, iparm )
 
 !  copy control parameters to their PARDISO equivalents
 
@@ -1388,9 +1420,91 @@
 
      END SUBROUTINE SLS_copy_control_to_pardiso
 
+!-  S L S _ C O P Y _ C O N T R O L _ T O _ M K L _ P A R D I S O  SUBROUTINE -
+
+     SUBROUTINE SLS_copy_control_to_mkl_pardiso( control, iparm )
+
+!  copy control parameters to their MKL PARDISO equivalents
+
+!  Dummy arguments
+
+     TYPE ( SLS_control_type ), INTENT( IN ) :: control
+     INTEGER, INTENT( INOUT ), DIMENSION( 64 ) :: iparm
+
+!  MKL defaults
+
+     iparm( 1 ) = 1 ! don't use defaults (0 = use defaults)
+     iparm( 2 ) = 2 ! METIS fill-in reordering (0 = min degree, 3 = nested diss)
+     iparm( 3 ) = 0 ! currently not used
+     iparm( 4 ) = 0 ! direct algorithm (> 0 for CGS)
+     iparm( 5 ) = 0 ! no user fill-in reducing permutation (> 0 provided)
+     iparm( 6 ) = 0 ! solution in x (1 = overwrites b)
+     iparm( 7 ) = 0 ! currently not used
+     iparm( 8 ) = 2 ! number of iterative refinement steps (<0 extended precis)
+     iparm( 9 ) = 0 ! currently not used
+     iparm( 10 ) = 8 ! perturb the pivot elements by 10**-iparm( 10 )
+     iparm( 11 ) = 0 ! disable scaling (1 = enable)
+     iparm( 12 ) = 0 ! usual solve (2 = transposed system)
+     iparm( 13 ) = 0 ! no maximum weighted algorithm (1 = on)
+     iparm( 14 ) = 0 ! (OUTPUT) number of perturbed pivots 
+     iparm( 15 ) = 0 ! (OUTPUT) peak memory symbolic factorization
+     iparm( 16 ) = 0 ! (OUTPUT) permenent memory symbolic factorization
+     iparm( 17 ) = 0 ! (OUTPUT) peak memory numerical factorization
+     iparm( 18 ) = - 1 ! report number nonzeros in factors (>= 0, don't)
+     iparm( 19 ) = - 1 ! report Mflops for factorization (>= 0, don't)
+     iparm( 20 ) = 0 ! (OUTPUT) number of CG Iterations
+     iparm( 21 ) = 1 ! 1x1 & 2x2 pivoting (1 = just 1x1)
+     iparm( 22 ) = - 1 ! (OUTPUT) number of +ve eigenvalues
+     iparm( 23 ) = - 1 ! (OUTPUT) number of -ve eigenvalues
+     iparm( 24 ) = 0 ! parallel factorization control (> 0 2-level control)
+     iparm( 25 ) = 0 ! parallel solve (1 = sequential, 2 = parallel in-core)
+     iparm( 26 ) = 0 ! currently not used
+     iparm( 27 ) = 0 ! do not check matrix on input (1 = check)
+     iparm( 28 ) = 0 ! input in double precision (1 = single precision)
+     iparm( 29 ) = 0 ! currently not used
+     iparm( 30 ) = - 1 ! (OUTPUT) number of zero & -ve pivots
+     iparm( 31 ) = 0 ! full solve (> 0 partial solve)
+     iparm( 32 : 33 ) = 0 ! currently not used
+     iparm( 34 ) = 0 ! conditional numerical reproducibility mode off (> 0 on)
+     iparm( 35 ) = 0 ! one-based indexing (1 = zero-based)
+     iparm( 36 ) = 0 ! do not use Schur complements (1 use it)
+     iparm( 37 ) = 0 ! CSR input-matrix format (>0 BSR, <0 VBSR)
+     iparm( 38 ) = 0 ! currently not used
+     iparm( 39 ) = 0 ! do not use low rank update functionality (1 = do)
+     iparm( 40 : 42 ) = 0 ! currently not used
+     iparm( 43 ) = 0 ! do not compute diagonal of inverse (1 = do)
+     iparm( 44 : 55 ) = 0 ! currently not used
+     iparm( 56 ) = 0 ! turn off diagonal and pivoting control (1 = on)
+     iparm( 57 : 59 ) = 0 ! currently not used
+     iparm( 60 ) = 0 ! in-core mode (2 = out-of-core, 1 = switch as needed)
+     iparm( 61 : 62 ) = 0 ! currently not used
+     iparm( 63 ) = - 1 ! (OUTPUT) minimum size of out-of-core memory needed)
+     iparm( 64 ) = 0 ! currently not used
+
+!  values changed by input controls
+
+     IF ( control%ordering <= 0 ) THEN
+       iparm( 2 ) = 2
+!    ELSE IF ( control%ordering == 0 ) THEN
+!      iparm( 2 ) = 0
+     END IF
+     iparm( 8 ) = control%max_iterative_refinements
+     IF ( control%pivot_control == 1 ) THEN
+       iparm( 21 ) = 1
+     ELSE
+       iparm( 21 ) = 0
+     END IF
+     IF ( control%max_in_core_store == 0 ) iparm( 60 ) = 2
+
+     RETURN
+
+!  End of SLS_copy_control_to_mkl_pardiso
+
+     END SUBROUTINE SLS_copy_control_to_mkl_pardiso
+
 !-*-  S L S _ C O P Y _ C O N T R O L _ T O _ W S M P  S U B R O U T I N E -*-
 
-     SUBROUTINE SLS_copy_control_to_wsmp( control, iparm, dparm ) 
+     SUBROUTINE SLS_copy_control_to_wsmp( control, iparm, dparm )
 
 !  copy control parameters to their WSMP equivalents
 
@@ -1470,7 +1584,7 @@
 
 !-*   S L S _ C O P Y _ I N F O R M _ F R O M _ M A 7 7  S U B R O U T I N E  *-
 
-     SUBROUTINE SLS_copy_inform_from_ma77( inform, info_ma77 ) 
+     SUBROUTINE SLS_copy_inform_from_ma77( inform, info_ma77 )
 
 !  copy inform parameters from their MA77 equivalents
 
@@ -1481,7 +1595,7 @@
 
      inform%ma77_info = info_ma77
      inform%status = info_ma77%flag
-     SELECT CASE( inform%status ) 
+     SELECT CASE( inform%status )
      CASE ( 0 : )
        inform%status = GALAHAD_ok
        inform%two_by_two_pivots = info_ma77%ntwo
@@ -1521,7 +1635,7 @@
 
 !-*   S L S _ C O P Y _ I N F O R M _ F R O M _ M A 9 7  S U B R O U T I N E  *-
 
-     SUBROUTINE SLS_copy_inform_from_ma97( inform, info_ma97 ) 
+     SUBROUTINE SLS_copy_inform_from_ma97( inform, info_ma97 )
 
 !  copy inform parameters from their MA97 equivalents
 
@@ -1532,7 +1646,7 @@
 
      inform%ma97_info = info_ma97
      inform%status = info_ma97%flag
-     SELECT CASE( inform%status ) 
+     SELECT CASE( inform%status )
      CASE ( 0 : )
        inform%status = GALAHAD_ok
        inform%duplicates = info_ma97%matrix_dup
@@ -1572,7 +1686,7 @@
 
 !-   S L S _ C O P Y _ I N F O R M _ F R O M _ S S I D S  S U B R O U T I N E  -
 
-     SUBROUTINE SLS_copy_inform_from_ssids( inform, info_ssids ) 
+     SUBROUTINE SLS_copy_inform_from_ssids( inform, info_ssids )
 
 !  copy inform parameters from their SSIDS equivalents
 
@@ -1583,7 +1697,7 @@
 
      inform%ssids_inform = info_ssids
      inform%status = info_ssids%flag
-     SELECT CASE( inform%status ) 
+     SELECT CASE( inform%status )
      CASE ( 0 : )
        inform%status = GALAHAD_ok
        inform%duplicates = info_ssids%matrix_dup
@@ -1627,10 +1741,10 @@
 
      SUBROUTINE SLS_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by SLS_initialize could (roughly) 
+!  The defauly values as given by SLS_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN SLS SPECIFICATIONS (DEFAULT)
@@ -1666,6 +1780,8 @@
 !  minimum-pivot-tolerance                           0.01
 !  absolute-pivot-tolerance                          2.0D-16
 !  zero-tolerance                                    0.0
+!  zero-pivot-tolerance                              1.0D-10
+!  negative-pivot-tolerance                          -1.0D+50
 !  static-pivot-tolerance                            0.0
 !  static-level-switch                               0.0
 !  consistency-tolerance                             2.0D-16
@@ -1675,7 +1791,7 @@
 !  generate-matrix-file                              NO
 !  matrix-file-device                                74
 !  matrix-file-name                                  MATRIX.out
-!  out-of-core-directory                             
+!  out-of-core-directory
 !  out-of-core-integer-factor-file                   factor_integer_ooc
 !  out-of-core-real-factor-file                      factor_real_ooc
 !  out-of-core-real-work-file                        work_real_ooc
@@ -1686,7 +1802,7 @@
 
 !  Dummy arguments
 
-     TYPE ( SLS_control_type ), INTENT( INOUT ) :: control        
+     TYPE ( SLS_control_type ), INTENT( INOUT ) :: control
      INTEGER, INTENT( IN ) :: device
      CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -1729,7 +1845,9 @@
      INTEGER, PARAMETER :: absolute_pivot_tolerance =                          &
                              minimum_pivot_tolerance + 1
      INTEGER, PARAMETER :: zero_tolerance = absolute_pivot_tolerance + 1
-     INTEGER, PARAMETER :: static_pivot_tolerance = zero_tolerance + 1
+     INTEGER, PARAMETER :: zero_pivot_tolerance = zero_tolerance + 1
+     INTEGER, PARAMETER :: negative_pivot_tolerance = zero_pivot_tolerance + 1
+     INTEGER, PARAMETER :: static_pivot_tolerance = negative_pivot_tolerance + 1
      INTEGER, PARAMETER :: static_level_switch = static_pivot_tolerance + 1
      INTEGER, PARAMETER :: consistency_tolerance = static_level_switch + 1
      INTEGER, PARAMETER :: matrix_file_device = consistency_tolerance + 1
@@ -1798,6 +1916,8 @@
      spec( minimum_pivot_tolerance )%keyword = 'minimum-pivot-tolerance'
      spec( absolute_pivot_tolerance )%keyword = 'absolute-pivot-tolerance'
      spec( zero_tolerance )%keyword = 'zero-tolerance'
+     spec( zero_pivot_tolerance )%keyword = 'zero-pivot-tolerance'
+     spec( negative_pivot_tolerance )%keyword = 'negative-pivot-tolerance'
      spec( scale_thresh )%keyword = 'scale-thresh'
      spec( static_pivot_tolerance )%keyword = 'static-pivot-tolerance'
      spec( static_level_switch )%keyword = 'static-level-switch'
@@ -1940,6 +2060,12 @@
      CALL SPECFILE_assign_value( spec( zero_tolerance ),                       &
                                  control%zero_tolerance,                       &
                                  control%error )
+     CALL SPECFILE_assign_value( spec( zero_pivot_tolerance ),                 &
+                                 control%zero_pivot_tolerance,                 &
+                                 control%error )
+     CALL SPECFILE_assign_value( spec( negative_pivot_tolerance ),             &
+                                 control%negative_pivot_tolerance,             &
+                                 control%error )
      CALL SPECFILE_assign_value( spec( scale_thresh ),                         &
                                  control%scale_thresh,                         &
                                  control%error )
@@ -2005,7 +2131,7 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Analyse the sparsity pattern to obtain a good potential ordering 
+!  Analyse the sparsity pattern to obtain a good potential ordering
 !  for any subsequent factorization
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -2034,7 +2160,7 @@
      IF ( LEN( TRIM( control%prefix ) ) > 2 )                                  &
        prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -2058,7 +2184,7 @@
        data%matrix_ne = matrix%ne
      CASE ( 'SPARSE_BY_ROWS' )
        data%matrix_ne = matrix%PTR( matrix%n + 1 ) - 1
-     CASE ( 'DENSE' ) 
+     CASE ( 'DENSE' )
        data%matrix_ne = matrix%n * ( matrix%n + 1 ) / 2
      END SELECT
      data%matrix%ne = data%matrix_ne
@@ -2071,7 +2197,7 @@
        CALL SPACE_resize_array( matrix%n, data%ORDER,                          &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF
        data%ORDER = 0
        DO i = 1, matrix%n
          l = PERM( i )
@@ -2098,11 +2224,11 @@
        CALL SPACE_resize_array( data%matrix_ne, data%MAPS,                     &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%MAPS' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%MAPS' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( matrix%n + 1, data%matrix%PTR,                 &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%PTR' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%PTR' ; GO TO 900 ; END IF
 
        SELECT CASE ( SMT_get( matrix%type ) )
        CASE ( 'COORDINATE' )
@@ -2126,8 +2252,8 @@
                                        inform%out_of_range, inform%upper,      &
                                        inform%missing_diagonals,               &
                                        inform%status, inform%alloc_status )
-       CASE ( 'DENSE' ) 
-         CALL SMT_put( data%matrix%type, 'DENSE', inform%alloc_status )   
+       CASE ( 'DENSE' )
+         CALL SMT_put( data%matrix%type, 'DENSE', inform%alloc_status )
          CALL SPACE_resize_array( data%matrix%ne, data%matrix%ROW,             &
                                   inform%status, inform%alloc_status )
          CALL SPACE_resize_array( data%matrix%ne, data%matrix%COL,             &
@@ -2163,15 +2289,15 @@
        CALL SPACE_resize_array( data%ne, data%matrix%ROW, inform%status,       &
                                 inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( data%ne, data%matrix%COL, inform%status,       &
                                 inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%COL' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%COL' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( data%ne, data%matrix%VAL, inform%status,       &
                                 inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
 
        DO i = 1, matrix%n
          l = data%matrix%PTR( i )
@@ -2213,11 +2339,11 @@
 
 !  now compute the required ordering
 
-       CALL ZD11_put( data%matrix%type, 'pattern', inform%alloc_status )   
+       CALL ZD11_put( data%matrix%type, 'pattern', inform%alloc_status )
        CALL SPACE_resize_array( matrix%n, data%ORDER,                          &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF
 
        IF ( control%ordering > 6 .OR.control%ordering < 1 ) THEN
          IF ( data%solver( 1 : data%len_solver ) == 'pbtr' ) THEN
@@ -2229,36 +2355,36 @@
          ordering = control%ordering
        END IF
 
-!  mc61 band ordering 
+!  mc61 band ordering
 
        IF ( ordering > 4 ) THEN
-
          data%mc61_lirn = 2 * ( data%matrix%PTR( data%matrix%n + 1 ) - 1 )
          data%mc61_liw = 8 * data%matrix%n + 2
 
          CALL SPACE_resize_array( data%mc61_liw, data%mc61_IW,                 &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%mc61_IW' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%mc61_IW' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( data%matrix%n, data%WORK,                    &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%WORK' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%WORK' ; GO TO 900 ; END IF
 
          CALL SPACE_resize_array( data%mc61_lirn, data%MRP,                    &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%MRP' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%MRP' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( matrix%n + 1, data%INVP,                     &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%INVP' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%INVP' ; GO TO 900 ; END IF
 
          data%INVP( : data%matrix%n + 1 ) =                                    &
            data%matrix%PTR( : data%matrix%n + 1 )
          data%MRP( : data%matrix%PTR( data%matrix%n + 1 ) - 1 ) =              &
            data%matrix%COL( : data%matrix%PTR( data%matrix%n + 1 ) - 1 )
-
+         IF ( control%print_level <= 0 .OR. control%out <= 0 )                 &
+           data%mc61_ICNTL( 1 : 2 ) = - 1
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          CALL MC61AD( ordering - 4, data%matrix%n, data%mc61_lirn, data%MRP,   &
                       data%INVP, data%ORDER, data%mc61_liw, data%mc61_IW,      &
@@ -2274,18 +2400,20 @@
          END IF
          inform%semi_bandwidth = INT( inform%mc61_rinfo( 7 ) ) - 1
 
-!  mc68 sparsity ordering 
+!  mc68 sparsity ordering
 
        ELSE
          data%mc68_control%row_full_thresh = control%full_row_threshold
          IF ( data%mc68_control%row_full_thresh < 1 .OR.                       &
               data%mc68_control%row_full_thresh > 100 )                        &
             data%mc68_control%row_full_thresh = full_row_threshold_default
-         IF ( ordering == 4 ) THEN 
+         IF ( ordering == 4 ) THEN
            data%mc68_control%row_search = control%row_search_indefinite
            IF ( data%mc68_control%row_search < 1 )                             &
              data%mc68_control%row_search = row_search_indefinite_default
          END IF
+         IF ( control%print_level <= 0 .OR. control%out <= 0 )                 &
+           data%mc68_control%lp = - 1
 
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          CALL MC68_order( ordering,                                            &
@@ -2323,7 +2451,7 @@
        CASE ( 'SPARSE_BY_ROWS' )
          data%matrix%n = matrix%n
          data%matrix%ne = matrix%PTR( matrix%n + 1 ) - 1
-         CALL SMT_put( data%matrix%type, 'COORDINATE', inform%alloc_status ) 
+         CALL SMT_put( data%matrix%type, 'COORDINATE', inform%alloc_status )
          CALL SPACE_resize_array( data%matrix%ne, data%matrix%ROW,             &
                                   inform%status, inform%alloc_status )
          CALL SPACE_resize_array( data%matrix%ne, data%matrix%COL,             &
@@ -2336,10 +2464,10 @@
              data%matrix%COL( l ) = matrix%COL( l )
            END DO
          END DO
-       CASE ( 'DENSE' ) 
+       CASE ( 'DENSE' )
          data%matrix%n = matrix%n
          data%matrix%ne = matrix%n * ( matrix%n + 1 ) / 2
-         CALL SMT_put( data%matrix%type, 'COORDINATE', inform%alloc_status ) 
+         CALL SMT_put( data%matrix%type, 'COORDINATE', inform%alloc_status )
          CALL SPACE_resize_array( data%matrix%ne, data%matrix%ROW,             &
                                   inform%status, inform%alloc_status )
          CALL SPACE_resize_array( data%matrix%ne, data%matrix%COL,             &
@@ -2374,7 +2502,7 @@
 !  = SILS =
 
        CASE ( 'sils', 'ma27' )
-         CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+         CALL SLS_copy_control_to_sils( control, data%sils_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          IF ( mc6168_ordering ) THEN
            SELECT CASE ( SMT_get( MATRIX%type ) )
@@ -2411,7 +2539,7 @@
            inform%status = GALAHAD_ok
            inform%alloc_status = data%sils_ainfo%stat
            inform%more_info = data%sils_ainfo%more
-           inform%nodes_assembly_tree = data%sils_ainfo%nsteps  
+           inform%nodes_assembly_tree = data%sils_ainfo%nsteps
            inform%real_size_desirable = INT( data%sils_ainfo%nrltot, long )
            inform%integer_size_desirable = INT( data%sils_ainfo%nirtot, long )
            inform%real_size_necessary = INT( data%sils_ainfo%nrlnec, long )
@@ -2419,18 +2547,18 @@
            inform%entries_in_factors = INT( data%sils_ainfo%nrladu, long )
            inform%real_size_factors = INT( data%sils_ainfo%nrladu, long )
            inform%integer_size_factors = INT( data%sils_ainfo%niradu, long )
-           inform%compresses_integer = data%sils_ainfo%ncmpa   
-           inform%out_of_range = data%sils_ainfo%oor     
-           inform%duplicates = data%sils_ainfo%dup     
-           inform%max_front_size = data%sils_ainfo%maxfrt  
-           inform%flops_assembly = INT( data%sils_ainfo%opsa, long ) 
+           inform%compresses_integer = data%sils_ainfo%ncmpa
+           inform%out_of_range = data%sils_ainfo%oor
+           inform%duplicates = data%sils_ainfo%dup
+           inform%max_front_size = data%sils_ainfo%maxfrt
+           inform%flops_assembly = INT( data%sils_ainfo%opsa, long )
            inform%flops_elimination = INT( data%sils_ainfo%opse, long )
          END IF
 
 !  = MA57 =
 
        CASE ( 'ma57' )
-         CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+         CALL SLS_copy_control_to_ma57( control, data%ma57_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          IF ( mc6168_ordering ) THEN
            data%ma57_control%ordering = 1
@@ -2473,7 +2601,7 @@
          ELSE
            inform%status = GALAHAD_ok
            inform%more_info = data%ma57_ainfo%more
-           inform%nodes_assembly_tree = data%ma57_ainfo%nsteps  
+           inform%nodes_assembly_tree = data%ma57_ainfo%nsteps
            inform%real_size_desirable = INT( data%ma57_ainfo%nrltot, long )
            inform%integer_size_desirable = INT( data%ma57_ainfo%nirtot, long )
            inform%real_size_necessary = INT( data%ma57_ainfo%nrlnec, long )
@@ -2481,10 +2609,10 @@
            inform%entries_in_factors = INT( data%ma57_ainfo%nrladu, long )
            inform%real_size_factors = INT( data%ma57_ainfo%nrladu, long )
            inform%integer_size_factors = INT( data%ma57_ainfo%niradu, long )
-           inform%compresses_integer = data%ma57_ainfo%ncmpa   
-           inform%out_of_range = data%ma57_ainfo%oor     
-           inform%duplicates = data%ma57_ainfo%dup     
-           inform%max_front_size = data%ma57_ainfo%maxfrt  
+           inform%compresses_integer = data%ma57_ainfo%ncmpa
+           inform%out_of_range = data%ma57_ainfo%oor
+           inform%duplicates = data%ma57_ainfo%dup
+           inform%max_front_size = data%ma57_ainfo%maxfrt
            inform%flops_assembly = INT( data%ma57_ainfo%opsa, long )
            inform%flops_elimination = INT( data%ma57_ainfo%opse, long )
          END IF
@@ -2500,7 +2628,7 @@
 !        CALL SPACE_resize_array( data%matrix%PTR( matrix%n + 1 ) - 1,         &
 !                   data%matrix%ROW, inform%status, inform%alloc_status )
 !        IF ( inform%status /= GALAHAD_ok ) THEN
-!          inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF 
+!          inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF
 !        data%matrix%ROW( : data%matrix%PTR( matrix%n + 1 ) - 1 ) =            &
 !          data%matrix%COL( : data%matrix%PTR( matrix%n + 1 ) - 1 )
 !        CALL SPACE_dealloc_array( data%matrix%COL, inform%status,             &
@@ -2513,11 +2641,11 @@
          CALL SPACE_resize_array( data%matrix_ne, 2, data%MAP,                 &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%MAP' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%MAP' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( matrix%n + 1, data%matrix%PTR,               &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%PTR' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%PTR' ; GO TO 900 ; END IF
 
          SELECT CASE ( SMT_get( matrix%type ) )
          CASE ( 'COORDINATE' )
@@ -2540,8 +2668,8 @@
                                            data%matrix%PTR, inform%duplicates, &
                                            inform%out_of_range, inform%upper,  &
                                            inform%missing_diagonals )
-         CASE ( 'DENSE' ) 
-           CALL SMT_put( data%matrix%type, 'DENSE', inform%alloc_status )   
+         CASE ( 'DENSE' )
+           CALL SMT_put( data%matrix%type, 'DENSE', inform%alloc_status )
            CALL SPACE_resize_array( data%matrix%ne, data%matrix%ROW,           &
                                     inform%status, inform%alloc_status )
            CALL SPACE_resize_array( data%matrix%ne, data%matrix%COL,           &
@@ -2572,11 +2700,11 @@
          CALL SPACE_resize_array( data%matrix%ne,                              &
                     data%matrix%ROW, inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( data%matrix%ne,                              &
                     data%matrix%VAL, inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
 
          SELECT CASE ( SMT_get( matrix%type ) )
          CASE ( 'COORDINATE' )
@@ -2613,7 +2741,7 @@
          CALL SPACE_resize_array( matrix%n, data%ORDER,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF
          IF ( PRESENT( PERM ) ) THEN
            data%ORDER( : matrix%n ) = PERM( : matrix%n )
          ELSE
@@ -2630,7 +2758,7 @@
        filename( 3 ) = control%out_of_core_real_work_file
        filename( 4 ) = control%out_of_core_indefinite_file
        DO i = 1, 2
-         CALL SLS_copy_control_to_ma77( control, data%ma77_control ) 
+         CALL SLS_copy_control_to_ma77( control, data%ma77_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          IF ( TRIM( control%out_of_core_directory ) == '' ) THEN
            CALL MA77_open( data%n, filename, data%ma77_keep,                   &
@@ -2645,7 +2773,7 @@
          CALL MA77_finalise( data%ma77_keep, data%ma77_control, data%ma77_info )
        END DO
 
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        IF (  data%ma77_info%flag == GALAHAD_unavailable_option ) THEN
          IF ( control%print_level > 0 .AND. control%out > 0 )                  &
            WRITE( control%out, "( A, ' ma77 is not available ' )" ) prefix
@@ -2661,16 +2789,16 @@
          CALL MA77_input_vars( i, l2 - l1 + 1, data%matrix%ROW( l1 : l2 ),     &
                                data%ma77_keep, data%ma77_control,              &
                                data%ma77_info )
-         CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+         CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
          IF ( inform%status /= GALAHAD_ok ) GO TO 800
        END DO
        CALL MA77_analyse( data%ORDER( : data%n ), data%ma77_keep,              &
                           data%ma77_control, data%ma77_info )
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
 
 !  = MA86, MA87, MA97, SSIDS, PARDISO or WSMP =
 
-     CASE ( 'ma86', 'ma87', 'ma97', 'ssids', 'pardiso', 'wsmp' )
+     CASE ( 'ma86', 'ma87', 'ma97', 'ssids', 'pardiso', 'mkl_pardiso', 'wsmp' )
 
 !  convert the data to sorted compressed-sparse row format
 
@@ -2678,11 +2806,11 @@
          CALL SPACE_resize_array( data%matrix_ne, data%MAPS,                   &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%MAPS' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%MAPS' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( matrix%n + 1, data%matrix%PTR,               &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%PTR' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%PTR' ; GO TO 900 ; END IF
          SELECT CASE ( SMT_get( matrix%type ) )
          CASE ( 'COORDINATE' )
            CALL SLS_coord_to_sorted_csr( matrix%n, matrix%ne,                  &
@@ -2707,8 +2835,8 @@
                                          inform%out_of_range, inform%upper,    &
                                          inform%missing_diagonals,             &
                                          inform%status, inform%alloc_status )
-         CASE ( 'DENSE' ) 
-           CALL SMT_put( data%matrix%type, 'DENSE', inform%alloc_status )   
+         CASE ( 'DENSE' )
+           CALL SMT_put( data%matrix%type, 'DENSE', inform%alloc_status )
            CALL SPACE_resize_array( data%matrix%ne, data%matrix%ROW,           &
                                     inform%status, inform%alloc_status )
            CALL SPACE_resize_array( data%matrix%ne, data%matrix%COL,           &
@@ -2734,11 +2862,11 @@
          CALL SPACE_resize_array( data%ne, data%matrix%COL, inform%status,     &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%COL' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%COL' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( data%ne, data%matrix%VAL, inform%status,     &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
 
 !  now map the coordinates
 
@@ -2782,7 +2910,7 @@
          CALL SPACE_resize_array( matrix%n, data%ORDER,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF
          IF ( PRESENT( PERM ) ) THEN
            data%ORDER( : matrix%n ) = PERM( : matrix%n )
          ELSE
@@ -2811,18 +2939,18 @@
        CALL SPACE_resize_array( data%ne, data%matrix%VAL,                      &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( matrix%n, 1, data%B2,                          &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
 
        SELECT CASE( data%solver( 1 : data%len_solver ) )
 
 !  = MA86 =
 
        CASE ( 'ma86' )
-         CALL SLS_copy_control_to_ma86( control, data%ma86_control ) 
+         CALL SLS_copy_control_to_ma86( control, data%ma86_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          CALL MA86_analyse( data%matrix%n, data%matrix%PTR, data%matrix%COL,   &
                             data%ORDER, data%ma86_keep,                        &
@@ -2854,11 +2982,11 @@
 !  = MA87 =
 
        CASE ( 'ma87' )
-         CALL SLS_copy_control_to_ma87( control, data%ma87_control ) 
+         CALL SLS_copy_control_to_ma87( control, data%ma87_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
 !write(6,*) ' n ', data%matrix%n
 !write(6,*) ' ptr ',  data%matrix%PTR( : data%matrix%n + 1 )
-!write(6,*) ' col ',  data%matrix%COL( : data%matrix%PTR( data%matrix%n + 1 ) - 1 )
+!write(6,*) ' col ',  data%matrix%COL( : data%matrix%PTR( data%matrix%n + 1 )-1)
 !write(6,*) ' order ', data%ORDER( : data%matrix%n )
          CALL MA87_analyse( data%matrix%n, data%matrix%PTR, data%matrix%COL,   &
                             data%ORDER, data%ma87_keep,                        &
@@ -2890,7 +3018,7 @@
          CALL SPACE_resize_array( matrix%n, data%INVP,                         &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%INVP' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%INVP' ; GO TO 900 ; END IF
          DO i = 1, matrix%n
            data%INVP( data%ORDER( i ) ) = i
          END DO
@@ -2898,7 +3026,7 @@
 !  = MA97 =
 
        CASE ( 'ma97' )
-         CALL SLS_copy_control_to_ma97( control, data%ma97_control ) 
+         CALL SLS_copy_control_to_ma97( control, data%ma97_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          IF ( mc6168_ordering ) THEN
            data%ma97_control%ordering = 0
@@ -2924,12 +3052,12 @@
                                 order = data%ORDER )
            END IF
          END IF
-         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
          IF ( inform%status /= GALAHAD_ok ) GO TO 800
          CALL SPACE_resize_array( matrix%n, data%LFLAG,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%LFLAG' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%LFLAG' ; GO TO 900 ; END IF
          DO i = 1, matrix%n
            data%LFLAG( i ) = .FALSE.
          END DO
@@ -2937,7 +3065,7 @@
 !  = SSIDS =
 
        CASE ( 'ssids' )
-         CALL SLS_copy_control_to_ssids( control, data%ssids_options ) 
+         CALL SLS_copy_control_to_ssids( control, data%ssids_options )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          IF ( mc6168_ordering ) THEN
            data%ssids_options%ordering = 0
@@ -2963,12 +3091,12 @@
                                  order = data%ORDER )
            END IF
          END IF
-         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
          IF ( inform%status /= GALAHAD_ok ) GO TO 800
          CALL SPACE_resize_array( matrix%n, data%LFLAG,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%LFLAG' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%LFLAG' ; GO TO 900 ; END IF
          DO i = 1, matrix%n
            data%LFLAG( i ) = .FALSE.
          END DO
@@ -2980,7 +3108,7 @@
          CALL SPACE_resize_array( matrix%n, 1, data%X2,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
 
 !  set intial pardiso storage
 
@@ -2992,11 +3120,8 @@
          data%pardiso_iparm( 1 ) = 0
          pardiso_solver = 0
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-!v3      CALL PARDISOINIT( data%PARDISO_PT, data%pardiso_mtype,                &
-!                          data%pardiso_iparm )
-
-         CALL PARDISOINIT( data%PARDISO_PT, data%pardiso_mtype, pardiso_solver,&
-                           data%pardiso_iparm, data%pardiso_dparm,             &
+         CALL PARDISOINIT( data%pardiso_PT, data%pardiso_mtype, pardiso_solver,&
+                           data%pardiso_IPARM, data%pardiso_DPARM,             &
                            inform%pardiso_error )
 
          IF ( inform%pardiso_error < 0 ) THEN
@@ -3015,16 +3140,16 @@
              inform%status = GALAHAD_unavailable_option
            ELSE
              inform%status = GALAHAD_error_pardiso
-           END IF 
+           END IF
            GO TO 800
          END IF
-         data%pardiso_iparm( 3 ) = 1
-!$       data%pardiso_iparm( 3 ) = OMP_GET_NUM_THREADS( )
+         data%pardiso_IPARM( 3 ) = 1
+!$       data%pardiso_IPARM( 3 ) = OMP_GET_NUM_THREADS( )
          IF ( control%ordering > 0 .OR. PRESENT( PERM ) )                      &
-           data%pardiso_iparm( 5 ) = 1
+           data%pardiso_IPARM( 5 ) = 1
 
          CALL SLS_copy_control_to_pardiso( control, data%pardiso_iparm )
-         CALL PARDISO( data%PARDISO_PT( 1 : 64 ), 1, 1, data%pardiso_mtype,    &
+         CALL PARDISO( data%pardiso_PT( 1 : 64 ), 1, 1, data%pardiso_mtype,    &
                        11, data%matrix%n, data%matrix%VAL( 1 : data%ne ),      &
                        data%matrix%PTR( 1 : data%matrix%n + 1 ),               &
                        data%matrix%COL( 1 : data%ne ),                         &
@@ -3034,11 +3159,61 @@
                        data%B2( 1 : matrix%n, 1 : 1 ),                         &
                        data%X2( 1 : matrix%n, 1 : 1 ), inform%pardiso_error,   &
                        data%pardiso_dparm( 1 : 64 ) )
-!v3                    data%X2( 1 : matrix%n, 1 : 1 ), inform%pardiso_error )
 
-         inform%pardiso_iparm = data%pardiso_iparm
-         inform%pardiso_dparm = data%pardiso_dparm
-         
+         inform%pardiso_IPARM = data%pardiso_IPARM
+         inform%pardiso_DPARM = data%pardiso_DPARM
+
+         IF ( inform%pardiso_error < 0 .AND. control%print_level > 0 .AND.     &
+              control%out > 0 ) WRITE( control%out,                            &
+            "( A, ' pardiso error code = ', I0 )" ) prefix, inform%pardiso_error
+
+         SELECT CASE( inform%pardiso_error )
+         CASE ( - 1 )
+           inform%status = GALAHAD_error_restrictions
+         CASE ( GALAHAD_unavailable_option )
+           inform%status = GALAHAD_unavailable_option
+         CASE ( - 103 : GALAHAD_unavailable_option - 1,                        &
+                GALAHAD_unavailable_option + 1 : - 2 )
+           inform%status = GALAHAD_error_pardiso
+         CASE DEFAULT
+           inform%status = GALAHAD_ok
+         END SELECT
+         IF ( data%pardiso_IPARM( 18 ) > 0 )                                   &
+           inform%entries_in_factors = INT( data%pardiso_IPARM( 18 ), long )
+
+!  = MKL PARDISO =
+
+       CASE ( 'mkl_pardiso' )
+
+         CALL SPACE_resize_array( matrix%n, 1, data%X2,                        &
+                                  inform%status, inform%alloc_status )
+         IF ( inform%status /= GALAHAD_ok ) THEN
+           inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
+
+!  set intial pardiso storage
+
+         IF ( data%must_be_definite ) THEN
+           data%pardiso_mtype = 2
+         ELSE
+           data%pardiso_mtype = - 2
+         END IF
+         CALL CPU_time( time ) ; CALL CLOCK_time( clock )
+
+         data%mkl_pardiso_PT( 1 : 64 )%DUMMY =  0 
+
+         CALL SLS_copy_control_to_mkl_pardiso( control, data%mkl_pardiso_IPARM )
+         IF ( control%ordering > 0 .OR. PRESENT( PERM ) )                      &
+           data%mkl_pardiso_IPARM( 5 ) = 1
+         CALL MKL_PARDISO_SOLVE(                                               &
+                       data%mkl_pardiso_PT, 1, 1, data%pardiso_mtype,          &
+                       11, data%matrix%n, data%matrix%VAL( 1 : data%ne ),      &
+                       data%matrix%PTR( 1 : data%matrix%n + 1 ),               &
+                       data%matrix%COL( 1 : data%ne ),                         &
+                       data%ORDER( 1 : data%matrix%n ), 1,                     &
+                       data%mkl_pardiso_IPARM, control%print_level_solver,     &
+                       data%ddum, data%ddum, inform%pardiso_error )
+         inform%mkl_pardiso_IPARM = data%mkl_pardiso_IPARM
+
          IF ( inform%pardiso_error < 0 .AND. control%print_level > 0 .AND.     &
               control%out > 0 ) WRITE( control%out,                            &
             "( A, ' pardiso error code = ', I0 )" ) prefix, inform%pardiso_error
@@ -3066,11 +3241,11 @@
          CALL SPACE_resize_array( matrix%n, data%MRP,                          &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%MRP' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%MRP' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( matrix%n, data%INVP,                         &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%INVP' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%INVP' ; GO TO 900 ; END IF
          DO i = 1, matrix%n
            data%INVP( data%ORDER( i ) ) = i
          END DO
@@ -3089,8 +3264,8 @@
                      data%ORDER( 1 : data%matrix%n ),                          &
                      data%INVP( 1 : data%matrix%n ),                           &
                      data%B2( 1 : data%matrix%n, 1 : 1 ), data%matrix%n, 1,    &
-                     data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),          &
-                     data%wsmp_iparm, data%wsmp_dparm )
+                     data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),          &
+                     data%wsmp_IPARM, data%wsmp_DPARM )
          inform%wsmp_error = data%wsmp_iparm( 64 )
          IF ( inform%wsmp_error < 0 ) THEN
            IF ( control%print_level > 0 .AND. control%out > 0 ) THEN
@@ -3107,12 +3282,12 @@
              inform%status = GALAHAD_unavailable_option
            ELSE
              inform%status = GALAHAD_error_wsmp
-           END IF 
+           END IF
            GO TO 800
          END IF
 
-         CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,              &
-                                        data%wsmp_dparm )
+         CALL SLS_copy_control_to_wsmp( control, data%wsmp_IPARM,              &
+                                        data%wsmp_DPARM )
 !$       CALL wsetmaxthrds( OMP_GET_NUM_THREADS( ) )
 
          data%wsmp_iparm( 2 ) = 1
@@ -3124,11 +3299,11 @@
                      data%ORDER( 1 : data%matrix%n ),                          &
                      data%INVP( 1 : data%matrix%n ),                           &
                      data%B2( 1 : data%matrix%n, 1 : 1 ), data%matrix%n, 1,    &
-                     data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),          &
-                     data%wsmp_iparm, data%wsmp_dparm )
-         inform%wsmp_iparm = data%wsmp_iparm
-         inform%wsmp_dparm = data%wsmp_dparm
-         inform%wsmp_error = data%wsmp_iparm( 64 )
+                     data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),          &
+                     data%wsmp_iparm, data%wsmp_DPARM )
+         inform%wsmp_IPARM = data%wsmp_IPARM
+         inform%wsmp_DPARM = data%wsmp_DPARM
+         inform%wsmp_error = data%wsmp_IPARM( 64 )
 
          IF ( inform%wsmp_error < 0 .AND. control%print_level > 0 .AND.        &
               control%out > 0 ) WRITE( control%out,                            &
@@ -3137,16 +3312,16 @@
          SELECT CASE( inform%wsmp_error )
          CASE ( 0 )
            inform%status = GALAHAD_ok
-         CASE ( - 102 ) 
+         CASE ( - 102 )
            inform%status = GALAHAD_error_allocate
          CASE DEFAULT
            inform%status = GALAHAD_error_wsmp
          END SELECT
 
-         IF ( data%wsmp_iparm( 23 ) >= 0 )                                     &
-           inform%real_size_factors = 1000 * INT( data%wsmp_iparm( 23 ), long )
-         IF ( data%wsmp_iparm( 24 ) >= 0 )                                     &
-           inform%entries_in_factors = 1000 * INT( data%wsmp_iparm( 24 ), long )
+         IF ( data%wsmp_IPARM( 23 ) >= 0 )                                     &
+           inform%real_size_factors = 1000 * INT( data%wsmp_IPARM( 23 ), long )
+         IF ( data%wsmp_IPARM( 24 ) >= 0 )                                     &
+           inform%entries_in_factors = 1000 * INT( data%wsmp_IPARM( 24 ), long )
        END SELECT
 
 !  = POTR or SYTR =
@@ -3157,19 +3332,22 @@
        CALL SPACE_resize_array( data%matrix_ne, data%matrix%VAL,               &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
 
        CALL SPACE_resize_array( data%n, data%n, data%matrix_dense,             &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix_dense' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix_dense' ; GO TO 900 ; END IF
+
+!write(6,*) ' mc6168_ordering ', mc6168_ordering
+       IF ( .NOT. mc6168_ordering ) THEN
 
        CALL SPACE_resize_array( matrix%n, data%ORDER,                          &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF
 
-       IF ( .NOT. mc6168_ordering ) THEN
+
          IF ( PRESENT( PERM ) ) THEN
            data%ORDER( : matrix%n ) = PERM( : matrix%n )
          ELSE
@@ -3207,13 +3385,13 @@
        CALL SPACE_resize_array( data%matrix_ne, data%matrix%VAL,               &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
 
        IF ( .NOT. mc6168_ordering ) THEN
          CALL SPACE_resize_array( matrix%n, data%ORDER,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%ORDER' ; GO TO 900 ; END IF
 
          IF ( PRESENT( PERM ) ) THEN
            data%ORDER( : matrix%n ) = PERM( : matrix%n )
@@ -3245,7 +3423,7 @@
        CASE ( 'SPARSE_BY_ROWS' )
          inform%semi_bandwidth = 0
          DO i = 1, matrix%n
-           DO l = matrix%PTR( i ), matrix%PTR( i + 1 ) - 1 
+           DO l = matrix%PTR( i ), matrix%PTR( i + 1 ) - 1
              inform%semi_bandwidth = MAX( inform%semi_bandwidth,               &
                 ABS( data%ORDER( i ) - data%ORDER( matrix%COL( l ) ) ) )
            END DO
@@ -3258,7 +3436,7 @@
                                 data%matrix_dense,                             &
                                 inform%status, inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%matrix_dense' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%matrix_dense' ; GO TO 900 ; END IF
 
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
 
@@ -3322,7 +3500,7 @@
      IF ( LEN( TRIM( control%prefix ) ) > 2 )                                  &
        prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -3339,7 +3517,7 @@
        END SELECT
      END SELECT
 
-!  if required, compute scale factors 
+!  if required, compute scale factors
 
      IF ( data%explicit_scaling ) THEN
 
@@ -3354,11 +3532,11 @@
          CALL SPACE_resize_array( data%matrix_scale_ne, data%MAPS_scale,       &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%MAPS_scale' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%MAPS_scale' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( matrix%n + 1, data%matrix_scale%PTR,         &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix_scale%PTR' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix_scale%PTR' ; GO TO 900 ; END IF
 
          SELECT CASE ( SMT_get( matrix%type ) )
          CASE ( 'COORDINATE' )
@@ -3388,7 +3566,7 @@
                                          inform%out_of_range, inform%upper,    &
                                          inform%missing_diagonals,             &
                                          inform%status, inform%alloc_status )
-         CASE ( 'DENSE' ) 
+         CASE ( 'DENSE' )
            CALL SMT_put( data%matrix_scale%type, 'DENSE', inform%alloc_status )
            CALL SPACE_resize_array( data%matrix_scale%ne,                      &
                                     data%matrix_scale%ROW,                     &
@@ -3424,11 +3602,11 @@
          CALL SPACE_resize_array( data%matrix_scale%ne, data%matrix_scale%ROW, &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix_scale%ROW' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix_scale%ROW' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( data%matrix_scale%ne, data%matrix_scale%VAL, &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix_scale%VAL' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix_scale%VAL' ; GO TO 900 ; END IF
 
          DO i = 1, matrix%n
            data%matrix_scale%ROW( data%matrix_scale%PTR( i ) ) = i
@@ -3441,7 +3619,7 @@
 !  scale factors does not alter the orginal
 
            SELECT CASE( data%solver( 1 : data%len_solver ) )
-           CASE ( 'sils', 'ma27', 'ma57' ) 
+           CASE ( 'sils', 'ma27', 'ma57' )
 
              data%matrix%n = matrix%n ; data%matrix%ne = matrix%ne
              CALL SMT_put( data%matrix%type, 'COORDINATE',                     &
@@ -3449,15 +3627,15 @@
              CALL SPACE_resize_array( data%matrix%ne, data%matrix%ROW,         &
                                       inform%status, inform%alloc_status )
              IF ( inform%status /= GALAHAD_ok ) THEN
-               inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF 
+               inform%bad_alloc = 'sls: data%matrix%ROW' ; GO TO 900 ; END IF
              CALL SPACE_resize_array( data%matrix%ne, data%matrix%COL,         &
                                       inform%status, inform%alloc_status )
              IF ( inform%status /= GALAHAD_ok ) THEN
-               inform%bad_alloc = 'sls: data%matrix%COL' ; GO TO 900 ; END IF 
+               inform%bad_alloc = 'sls: data%matrix%COL' ; GO TO 900 ; END IF
              CALL SPACE_resize_array( data%matrix%ne, data%matrix%VAL,         &
                                       inform%status, inform%alloc_status )
              IF ( inform%status /= GALAHAD_ok ) THEN
-               inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF 
+               inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 900 ; END IF
              data%matrix%row( : data%matrix%ne ) =                             &
                matrix%row( : data%matrix%ne )
              data%matrix%COL( : data%matrix%ne ) =                             &
@@ -3544,24 +3722,29 @@
          CALL SPACE_resize_array( 2 * data%matrix_scale%n, data%mc64_PERM,     &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%mc64_PERM' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%mc64_PERM' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( 2 * data%matrix_scale%n, data%SCALE,         &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%SCALE' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%SCALE' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( 1, data%matrix_scale%id,                     &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix_scale%id' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix_scale%id' ; GO TO 900 ; END IF
 
 !  obtain scaling factors from MC64
 
+         IF ( control%print_level <= 0 .OR. control%out <= 0 ) THEN
+           data%mc64_control%lp = - 1
+           data%mc64_control%wp = - 1
+           data%mc64_control%sp = - 1
+         END IF
          data%matrix_scale%id( 1 ) = 'S'
          CALL MC64_MATCHING( 5, data%matrix_scale, data%mc64_control,          &
                              inform%mc64_info, data%mc64_PERM,                 &
                              data%SCALE )
          IF ( inform%mc64_info%flag /= 0 .AND.                                 &
-              inform%mc64_info%flag /= -9 ) THEN
+              inform%mc64_info%flag /= - 9 ) THEN
            inform%status = GALAHAD_error_mc64 ; GO TO 900
          END IF
          data%SCALE( : data%matrix_scale%n ) =                                 &
@@ -3578,11 +3761,11 @@
          CALL SPACE_resize_array( data%mc77_liw, data%mc77_IW,                 &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%mc77_IW' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%mc77_IW' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( data%mc77_ldw, data%SCALE,                   &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%SCALE' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%SCALE' ; GO TO 900 ; END IF
 
 !  obtain scaling factors from MC77
 
@@ -3591,6 +3774,8 @@
          ELSE
            job = 0
          END IF
+         IF ( control%print_level <= 0 .OR. control%out <= 0 )                 &
+           data%mc77_ICNTL( 1 ) = - 1
          CALL MC77AD( job, data%matrix_scale%n, data%matrix_scale%n,           &
                       data%matrix_scale%ne, data%matrix_scale%PTR,             &
 !                     data%matrix_scale%COL, data%matrix_scale%VAL,            &
@@ -3652,7 +3837,7 @@
 
      SELECT CASE( data%solver( 1 : data%len_solver ) )
 
-     CASE ( 'sils', 'ma27', 'ma57' ) 
+     CASE ( 'sils', 'ma27', 'ma57' )
 
 !  apply calculated scaling factors
 
@@ -3668,71 +3853,71 @@
 !  = SILS =
 
        SELECT CASE( data%solver( 1 : data%len_solver ) )
-       CASE ( 'sils', 'ma27' ) 
-         CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CASE ( 'sils', 'ma27' )
+         CALL SLS_copy_control_to_sils( control, data%sils_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-         SELECT CASE ( SMT_get( matrix%type ) ) 
-         CASE ( 'COORDINATE' ) 
+         SELECT CASE ( SMT_get( matrix%type ) )
+         CASE ( 'COORDINATE' )
            IF ( data%explicit_scaling ) THEN
              CALL SILS_factorize( data%matrix, data%sils_factors,              &
-                                  data%sils_control, data%sils_finfo ) 
+                                  data%sils_control, data%sils_finfo )
            ELSE
              CALL SILS_factorize( matrix, data%sils_factors,                   &
-                                  data%sils_control, data%sils_finfo ) 
+                                  data%sils_control, data%sils_finfo )
            END IF
-         CASE DEFAULT 
+         CASE DEFAULT
            CALL SILS_factorize( data%matrix, data%sils_factors,                &
-                                data%sils_control, data%sils_finfo ) 
+                                data%sils_control, data%sils_finfo )
          END SELECT
-         inform%sils_finfo = data%sils_finfo 
-         inform%status = data%sils_finfo%flag 
-         IF ( inform%status == - 1 .OR. inform%status == - 2 ) THEN 
+         inform%sils_finfo = data%sils_finfo
+         inform%status = data%sils_finfo%flag
+         IF ( inform%status == - 1 .OR. inform%status == - 2 ) THEN
            inform%status = GALAHAD_error_restrictions
-         ELSE IF ( inform%status == - 3 ) THEN 
-           inform%status = GALAHAD_error_allocate 
+         ELSE IF ( inform%status == - 3 ) THEN
+           inform%status = GALAHAD_error_allocate
            inform%alloc_status = data%sils_finfo%stat
          ELSE IF ( inform%status == - 5 .OR. inform%status == - 6 ) THEN
-           inform%status = GALAHAD_error_inertia 
-           inform%more_info = data%sils_finfo%more 
+           inform%status = GALAHAD_error_inertia
+           inform%more_info = data%sils_finfo%more
          ELSE IF ( inform%status == - 7 ) THEN
-           inform%status = GALAHAD_error_real_ws 
-         ELSE IF ( inform%status == - 8 ) THEN 
+           inform%status = GALAHAD_error_real_ws
+         ELSE IF ( inform%status == - 8 ) THEN
            inform%status = GALAHAD_error_integer_ws
          ELSE
 !          IF ( inform%status == 4 ) inform%status = GALAHAD_error_inertia
            IF ( inform%status == 4 ) inform%status = GALAHAD_ok
-           inform%more_info = data%sils_finfo%more 
-           inform%alloc_status = data%sils_finfo%stat 
+           inform%more_info = data%sils_finfo%more
+           inform%alloc_status = data%sils_finfo%stat
            inform%more_info = data%sils_finfo%more
            inform%max_front_size = data%sils_finfo%maxfrt
            inform%entries_in_factors = INT( data%sils_finfo%nebdu, long )
            inform%real_size_factors = INT( data%sils_finfo%nrlbdu, long )
            inform%integer_size_factors = INT( data%sils_finfo%nirbdu, long )
            inform%real_size_desirable = INT( data%sils_finfo%nrltot, long )
-           inform%integer_size_desirable = INT( data%sils_finfo%nirtot, long ) 
-           inform%real_size_necessary = INT( data%sils_finfo%nrlnec, long ) 
-           inform%integer_size_necessary = INT( data%sils_finfo%nirnec, long ) 
+           inform%integer_size_desirable = INT( data%sils_finfo%nirtot, long )
+           inform%real_size_necessary = INT( data%sils_finfo%nrlnec, long )
+           inform%integer_size_necessary = INT( data%sils_finfo%nirnec, long )
            inform%compresses_real = data%sils_finfo%ncmpbr
-           inform%compresses_integer = data%sils_finfo%ncmpbi 
-           inform%rank = data%sils_finfo%rank 
-           inform%two_by_two_pivots = data%sils_finfo%ntwo 
-           inform%negative_eigenvalues = data%sils_finfo%neig 
-           inform%delayed_pivots = data%sils_finfo%delay 
-           inform%pivot_sign_changes = data%sils_finfo%signc 
-           inform%static_pivots = data%sils_finfo%static 
-           inform%first_modified_pivot = data%sils_finfo%modstep 
-           inform%flops_assembly = INT( data%sils_finfo%opsa, long ) 
-           inform%flops_elimination = INT( data%sils_finfo%opse, long ) 
-           inform%flops_blas = INT( data%sils_finfo%opsb, long ) 
-           inform%largest_modified_pivot = data%sils_finfo%maxchange 
-           inform%minimum_scaling_factor = data%sils_finfo%smin 
-           inform%maximum_scaling_factor = data%sils_finfo%smax 
+           inform%compresses_integer = data%sils_finfo%ncmpbi
+           inform%rank = data%sils_finfo%rank
+           inform%two_by_two_pivots = data%sils_finfo%ntwo
+           inform%negative_eigenvalues = data%sils_finfo%neig
+           inform%delayed_pivots = data%sils_finfo%delay
+           inform%pivot_sign_changes = data%sils_finfo%signc
+           inform%static_pivots = data%sils_finfo%static
+           inform%first_modified_pivot = data%sils_finfo%modstep
+           inform%flops_assembly = INT( data%sils_finfo%opsa, long )
+           inform%flops_elimination = INT( data%sils_finfo%opse, long )
+           inform%flops_blas = INT( data%sils_finfo%opsb, long )
+           inform%largest_modified_pivot = data%sils_finfo%maxchange
+           inform%minimum_scaling_factor = data%sils_finfo%smin
+           inform%maximum_scaling_factor = data%sils_finfo%smax
          END IF
 
 !  = MA57 =
 
        CASE ( 'ma57' )
-         CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+         CALL SLS_copy_control_to_ma57( control, data%ma57_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          SELECT CASE ( SMT_get( MATRIX%type ) )
          CASE ( 'COORDINATE' )
@@ -3765,7 +3950,7 @@
 !          IF ( inform%status == 4 ) inform%status = GALAHAD_error_inertia
            IF ( inform%status == 4 ) inform%status = GALAHAD_ok
            inform%more_info = data%ma57_finfo%more
-           inform%max_front_size = data%ma57_finfo%maxfrt  
+           inform%max_front_size = data%ma57_finfo%maxfrt
            inform%entries_in_factors = INT( data%ma57_finfo%nebdu, long )
            inform%real_size_factors = INT( data%ma57_finfo%nrlbdu, long )
            inform%integer_size_factors = INT( data%ma57_finfo%nirbdu, long )
@@ -3775,23 +3960,23 @@
            inform%integer_size_necessary  = INT( data%ma57_finfo%nirnec, long )
            inform%compresses_real = data%ma57_finfo%ncmpbr
            inform%compresses_integer = data%ma57_finfo%ncmpbi
-           inform%rank = data%ma57_finfo%rank    
-           inform%two_by_two_pivots = data%ma57_finfo%ntwo    
-           inform%negative_eigenvalues  = data%ma57_finfo%neig    
-           inform%delayed_pivots = data%ma57_finfo%delay   
-           inform%pivot_sign_changes = data%ma57_finfo%signc   
-           inform%static_pivots = data%ma57_finfo%static  
-           inform%first_modified_pivot = data%ma57_finfo%modstep 
+           inform%rank = data%ma57_finfo%rank
+           inform%two_by_two_pivots = data%ma57_finfo%ntwo
+           inform%negative_eigenvalues  = data%ma57_finfo%neig
+           inform%delayed_pivots = data%ma57_finfo%delay
+           inform%pivot_sign_changes = data%ma57_finfo%signc
+           inform%static_pivots = data%ma57_finfo%static
+           inform%first_modified_pivot = data%ma57_finfo%modstep
            inform%flops_assembly = INT( data%ma57_finfo%opsa, long )
            inform%flops_elimination = INT( data%ma57_finfo%opse, long )
            inform%flops_blas = INT( data%ma57_finfo%opsb, long )
            IF ( inform%first_modified_pivot > 0 ) THEN
-             inform%largest_modified_pivot = data%ma57_finfo%maxchange 
+             inform%largest_modified_pivot = data%ma57_finfo%maxchange
            ELSE
              inform%largest_modified_pivot = 0.0_wp
            END IF
-           inform%minimum_scaling_factor = data%ma57_finfo%smin 
-           inform%maximum_scaling_factor = data%ma57_finfo%smax 
+           inform%minimum_scaling_factor = data%ma57_finfo%smin
+           inform%maximum_scaling_factor = data%ma57_finfo%smax
          END IF
        END SELECT
 
@@ -3821,7 +4006,7 @@
          END DO
        END IF
 
-       CALL SLS_copy_control_to_ma77( control, data%ma77_control ) 
+       CALL SLS_copy_control_to_ma77( control, data%ma77_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        DO i = 1, data%n
          l1 = data%matrix%PTR( i )
@@ -3829,17 +4014,17 @@
          CALL MA77_input_reals( i, l2 - l1 + 1, data%matrix%VAL( l1 : l2 ),    &
                                data%ma77_keep, data%ma77_control,              &
                                data%ma77_info )
-         CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+         CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
          IF ( inform%status /= GALAHAD_ok ) GO TO 800
        END DO
        IF ( control%scaling == - 2 .OR. control%scaling == - 3 ) THEN
          CALL SPACE_resize_array( data%n, data%SCALE,                          &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 800 ; END IF 
+           inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 800 ; END IF
          CALL MA77_scale( data%SCALE,                                          &
                           data%ma77_keep, data%ma77_control, data%ma77_info )
-         CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+         CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
          IF ( inform%status /= GALAHAD_ok ) GO TO 800
          CALL MA77_factor( data%must_be_definite,                              &
                            data%ma77_keep, data%ma77_control,                  &
@@ -3848,7 +4033,7 @@
          CALL MA77_factor( data%must_be_definite,                              &
                            data%ma77_keep, data%ma77_control, data%ma77_info )
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
 
        CALL MA77_finalise( data%ma77_keep, data%ma77_control,                  &
                            data%ma77_info,                                     &
@@ -3870,7 +4055,7 @@
 
 !  = MA86, MA87, MA97, SSIDS, PARDISO or WSMP =
 
-     CASE ( 'ma86', 'ma87', 'ma97', 'ssids', 'pardiso', 'wsmp' )
+     CASE ( 'ma86', 'ma87', 'ma97', 'ssids', 'pardiso', 'mkl_pardiso', 'wsmp' )
        data%matrix%n = matrix%n
        DO i = 1, matrix%n
          l = data%matrix%PTR( i )
@@ -3930,7 +4115,7 @@
 !  = MA86 =
 
        CASE ( 'ma86' )
-         CALL SLS_copy_control_to_ma86( control, data%ma86_control ) 
+         CALL SLS_copy_control_to_ma86( control, data%ma86_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          CALL MA86_factor( data%matrix%n, data%matrix%PTR, data%matrix%COL,    &
                            data%matrix%VAL, data%ORDER, data%ma86_keep,        &
@@ -3964,7 +4149,7 @@
 !  = MA87 =
 
        CASE ( 'ma87' )
-         CALL SLS_copy_control_to_ma87( control, data%ma87_control ) 
+         CALL SLS_copy_control_to_ma87( control, data%ma87_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          CALL MA87_factor( data%matrix%n, data%matrix%PTR, data%matrix%COL,    &
                            data%matrix%VAL, data%ORDER, data%ma87_keep,        &
@@ -3994,17 +4179,18 @@
            inform%flops_elimination = data%ma87_info%num_flops
            inform%rank = data%matrix%n
            inform%negative_eigenvalues = 0
+           inform%num_zero = data%ma87_info%num_zero
          END IF
 
          CALL SPACE_resize_array( data%matrix%n, data%WORK,                    &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%WORK' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%WORK' ; GO TO 900 ; END IF
 
 !  = MA97 =
 
        CASE ( 'ma97' )
-         CALL SLS_copy_control_to_ma97( control, data%ma97_control ) 
+         CALL SLS_copy_control_to_ma97( control, data%ma97_control )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          IF ( data%must_be_definite ) THEN
            matrix_type = 3
@@ -4025,19 +4211,19 @@
            CALL SPACE_resize_array( data%n, data%SCALE,                        &
                                     inform%status, inform%alloc_status )
            IF ( inform%status /= GALAHAD_ok ) THEN
-             inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 800 ; END IF 
+             inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 800 ; END IF
            CALL MA97_factor( matrix_type, data%matrix%VAL,                     &
                              data%ma97_akeep, data%ma97_fkeep,                 &
                              data%ma97_control, data%ma97_info,                &
                              scale = data%SCALE,                               &
                              ptr = data%matrix%PTR, row = data%matrix%COL )
          END IF
-         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 
 !  = SSIDS =
 
        CASE ( 'ssids' )
-         CALL SLS_copy_control_to_ssids( control, data%ssids_options ) 
+         CALL SLS_copy_control_to_ssids( control, data%ssids_options )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
 !    WRITE( 77, * ) data%matrix%n
 !    WRITE( 77, * ) data%matrix%PTR( : data%matrix%n + 1 )
@@ -4053,33 +4239,69 @@
            CALL SPACE_resize_array( data%n, data%SCALE,                        &
                                     inform%status, inform%alloc_status )
            IF ( inform%status /= GALAHAD_ok ) THEN
-             inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 800 ; END IF 
+             inform%bad_alloc = 'sls: data%matrix%VAL' ; GO TO 800 ; END IF
            CALL SSIDS_factor( data%must_be_definite, data%matrix%VAL,          &
                               data%ssids_akeep, data%ssids_fkeep,              &
                               data%ssids_options, data%ssids_inform,           &
                               scale = data%SCALE,                              &
                               ptr = data%matrix%PTR, row = data%matrix%COL )
          END IF
-         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
 
 !  = PARDISO =
 
        CASE ( 'pardiso' )
-         CALL SLS_copy_control_to_pardiso( control, data%pardiso_iparm )
+         CALL SLS_copy_control_to_pardiso( control, data%pardiso_IPARM )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-         CALL PARDISO( data%PARDISO_PT, 1, 1, data%pardiso_mtype, 22,          &
+         CALL PARDISO( data%pardiso_PT, 1, 1, data%pardiso_mtype, 22,          &
                        data%matrix%n, data%matrix%VAL( : data%ne ),            &
                        data%matrix%PTR( : data%matrix%n + 1 ),                 &
                        data%matrix%COL( : data%ne ),                           &
                        data%ORDER( : data%matrix%n ), 1,                       &
-                       data%pardiso_iparm( : 64 ),                             &
+                       data%pardiso_IPARM( : 64 ),                             &
                        control%print_level_solver, data%B2( : matrix%n, : 1 ), &
                        data%X2( : matrix%n, : 1 ), inform%pardiso_error,       &
-                       data%pardiso_dparm( 1 : 64 ) )
-!v3                    data%X2( : matrix%n, : 1 ), inform%pardiso_error )
+                       data%pardiso_DPARM( 1 : 64 ) )
 
-         inform%pardiso_iparm = data%pardiso_iparm
-         inform%pardiso_dparm = data%pardiso_dparm
+         inform%pardiso_IPARM = data%pardiso_IPARM
+         inform%pardiso_DPARM = data%pardiso_DPARM
+
+         IF ( inform%pardiso_error < 0 .AND. control%print_level > 0 .AND.     &
+              control%out > 0 ) WRITE( control%out,                            &
+            "( A, ' pardiso error code = ', I0 )" ) prefix, inform%pardiso_error
+
+         SELECT CASE( inform%pardiso_error )
+         CASE ( - 1 )
+           inform%status = GALAHAD_error_restrictions
+         CASE ( GALAHAD_unavailable_option )
+           inform%status = GALAHAD_unavailable_option
+         CASE ( - 103 : GALAHAD_unavailable_option - 1,                        &
+                GALAHAD_unavailable_option + 1 : - 2 )
+           inform%status = GALAHAD_error_pardiso
+         CASE DEFAULT
+           inform%status = GALAHAD_ok
+         END SELECT
+         IF ( data%pardiso_IPARM( 18 ) > 0 )                                   &
+           inform%entries_in_factors = INT( data%pardiso_IPARM( 18 ), long )
+         inform%negative_eigenvalues = data%pardiso_IPARM( 23 )
+         inform%rank = data%pardiso_IPARM( 22 ) + data%pardiso_IPARM( 23 )
+         IF ( data%must_be_definite .AND. inform%negative_eigenvalues > 0 )    &
+           inform%status = GALAHAD_error_inertia
+
+!  = MKL PARDISO =
+
+       CASE ( 'mkl_pardiso' )
+         data%mkl_pardiso_IPARM = inform%mkl_pardiso_IPARM
+         CALL CPU_time( time ) ; CALL CLOCK_time( clock )
+         CALL MKL_PARDISO_SOLVE(                                               &
+                       data%mkl_pardiso_PT, 1, 1, data%pardiso_mtype,          &
+                       22, data%matrix%n, data%matrix%VAL( 1 : data%ne ),      &
+                       data%matrix%PTR( 1 : data%matrix%n + 1 ),               &
+                       data%matrix%COL( 1 : data%ne ),                         &
+                       data%ORDER( 1 : data%matrix%n ), 1,                     &
+                       data%mkl_pardiso_IPARM, control%print_level_solver,     &
+                       data%ddum, data%ddum, inform%pardiso_error )
+         inform%mkl_pardiso_IPARM = data%mkl_pardiso_IPARM
 
          IF ( inform%pardiso_error < 0 .AND. control%print_level > 0 .AND.     &
               control%out > 0 ) WRITE( control%out,                            &
@@ -4113,10 +4335,10 @@
 !       do l = 1, data%matrix%PTR( data%matrix%n + 1 ) - 1
 !         write( 71, * ) data%matrix%COL( l ), data%matrix%VAL( l )
 !       end do
-         CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,              &
-                                        data%wsmp_dparm )
-         data%wsmp_iparm( 2 ) = 3
-         data%wsmp_iparm( 3 ) = 3
+         CALL SLS_copy_control_to_wsmp( control, data%wsmp_IPARM,              &
+                                        data%wsmp_DPARM )
+         data%wsmp_IPARM( 2 ) = 3
+         data%wsmp_IPARM( 3 ) = 3
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          CALL wssmp( data%matrix%n, data%matrix%PTR( 1 : data%matrix%n + 1 ),  &
                      data%matrix%COL( 1 : data%ne ),                           &
@@ -4125,11 +4347,11 @@
                      data%ORDER( 1 : data%matrix%n ),                          &
                      data%INVP( 1 : data%matrix%n ),                           &
                      data%B2( 1 : data%matrix%n, 1 : 1 ), data%matrix%n, 1,    &
-                     data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),          &
-                     data%wsmp_iparm, data%wsmp_dparm )
-         inform%wsmp_iparm = data%wsmp_iparm
-         inform%wsmp_dparm = data%wsmp_dparm
-         inform%wsmp_error = data%wsmp_iparm( 64 )
+                     data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),          &
+                     data%wsmp_IPARM, data%wsmp_DPARM )
+         inform%wsmp_IPARM = data%wsmp_IPARM
+         inform%wsmp_DPARM = data%wsmp_DPARM
+         inform%wsmp_error = data%wsmp_IPARM( 64 )
          IF ( inform%wsmp_error < 0 .AND. control%print_level > 0 .AND.        &
               control%out > 0 ) WRITE( control%out,                            &
             "( A, ' wsmp error code = ', I0 )" ) prefix, inform%wsmp_error
@@ -4137,18 +4359,18 @@
          SELECT CASE( inform%wsmp_error )
          CASE ( 0 )
            inform%status = GALAHAD_ok
-         CASE ( - 102 ) 
+         CASE ( - 102 )
            inform%status = GALAHAD_error_allocate
          CASE DEFAULT
            inform%status = GALAHAD_error_wsmp
          END SELECT
 
-         IF ( data%wsmp_iparm( 23 ) > 0 )                                      &
-           inform%real_size_factors = 1000 * INT( data%wsmp_iparm( 23 ), long )
-         IF ( data%wsmp_iparm( 24 ) > 0 )                                      &
-           inform%entries_in_factors = 1000 * INT( data%wsmp_iparm( 24 ), long )
-         inform%negative_eigenvalues = data%wsmp_iparm( 22 )
-         inform%rank = data%matrix%n - data%pardiso_iparm( 21 )
+         IF ( data%wsmp_IPARM( 23 ) > 0 )                                      &
+           inform%real_size_factors = 1000 * INT( data%wsmp_IPARM( 23 ), long )
+         IF ( data%wsmp_IPARM( 24 ) > 0 )                                      &
+           inform%entries_in_factors = 1000 * INT( data%wsmp_IPARM( 24 ), long )
+         inform%negative_eigenvalues = data%wsmp_IPARM( 22 )
+         inform%rank = data%matrix%n - data%wsmp_IPARM( 21 )
          IF ( data%must_be_definite .AND. inform%negative_eigenvalues > 0 )    &
            inform%status = GALAHAD_error_inertia
          IF ( data%must_be_definite .AND.inform%wsmp_error > 0 )               &
@@ -4242,7 +4464,7 @@
            inform%entries_in_factors =                                         &
              INT( data%n * ( data%n + 1 ) / 2, long )
            inform%flops_elimination = INT( data%n ** 3 / 6, long )
-         CASE ( 1 : ) 
+         CASE ( 1 : )
            inform%status = GALAHAD_error_inertia
          CASE DEFAULT
            inform%status = GALAHAD_error_lapack
@@ -4373,7 +4595,7 @@
 
        IF ( inform%lapack_error < 0 .AND. control%print_level > 0 .AND.        &
             control%out > 0 ) WRITE( control%out, "( A,                        &
-      &  ' LAPACK POTRF error code = ', I0 )" ) prefix, inform%lapack_error
+      &  ' LAPACK PBTRF error code = ', I0 )" ) prefix, inform%lapack_error
 
        SELECT CASE( inform%lapack_error )
        CASE ( 0 )
@@ -4385,8 +4607,8 @@
            INT( ( ( 2 * data%n - inform%semi_bandwidth ) *                     &
                   ( inform%semi_bandwidth + 1 ) ) / 2, long )
          inform%flops_elimination =                                            &
-           INT( 2 * data%n * ( inform%semi_bandwidth + 1 ) ** 2, long ) 
-       CASE ( 1 : ) 
+           INT( 2 * data%n * ( inform%semi_bandwidth + 1 ) ** 2, long )
+       CASE ( 1 : )
          inform%status = GALAHAD_error_inertia
        CASE DEFAULT
          inform%status = GALAHAD_error_lapack
@@ -4442,12 +4664,13 @@
      REAL :: time_start, time_now
      REAL ( KIND = wp ) :: clock_start, clock_now
      REAL ( KIND = wp ) :: residual, residual_zero, val
+     LOGICAL :: filexx
 
      CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
      IF ( LEN( TRIM( control%prefix ) ) > 2 )                                  &
        prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -4455,11 +4678,31 @@
 
      inform%bad_alloc = ''
 
+!  if desired, write the input rhs to an output file
+
+     IF ( control%generate_matrix_file .AND.                                   &
+          control%matrix_file_device > 0 ) THEN
+       INQUIRE( FILE = control%matrix_file_name, EXIST = filexx )
+       IF ( filexx ) THEN
+         OPEN( control%matrix_file_device, FILE = control%matrix_file_name,    &
+               FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND',        &
+               IOSTAT = i )
+       ELSE
+         OPEN( control%matrix_file_device, FILE = control%matrix_file_name,    &
+               FORM = 'FORMATTED', STATUS = 'NEW', IOSTAT = i )
+       END IF
+       DO i = 1, matrix%n
+           WRITE( control%matrix_file_device, * ) X( i )
+         END DO
+       CLOSE( control%matrix_file_device )
+     END IF
+
 !  No refinement is required (or Pardiso is called with its internal refinement)
 !  -----------------------------------------------------------------------------
 
      IF ( control%max_iterative_refinements <= 0 .OR.                          &
-          data%solver( 1 : data%len_solver ) == 'pardiso' ) THEN
+          data%solver( 1 : data%len_solver ) == 'pardiso' .OR.                 &
+          data%solver( 1 : data%len_solver ) == 'mkl_pardiso' ) THEN
 
 !  solve A x = b with calculated scaling factors
 
@@ -4487,11 +4730,11 @@
          CALL SPACE_resize_array( n, data%RES,                                 &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%RES' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%RES' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( n, data%B,                                   &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
          data%set_res = n
        END IF
 
@@ -4548,7 +4791,7 @@
                      IF ( i /= j ) data%RES( j ) = data%RES( j ) - val * X( i )
                    END IF
                  END DO
-               CASE ( 'SPARSE_BY_ROWS', 'DENSE' ) 
+               CASE ( 'SPARSE_BY_ROWS', 'DENSE' )
                  IF ( data%solver( 1 : data%len_solver ) == 'ma77' ) THEN
                    DO i = 1, n
                      DO l = data%matrix%PTR( i ), data%matrix%PTR( i + 1 ) - 1
@@ -4594,7 +4837,7 @@
                      END IF
                    END DO
                  END DO
-               CASE ( 'DENSE' ) 
+               CASE ( 'DENSE' )
                  l = 0
                  DO i = 1, n
                    DO j = 1, i
@@ -4628,7 +4871,7 @@
                    END IF
                  END DO
                END DO
-             CASE ( 'DENSE' ) 
+             CASE ( 'DENSE' )
                l = 0
                DO i = 1, n
                  DO j = 1, i
@@ -4702,7 +4945,7 @@
      IF ( LEN( TRIM( control%prefix ) ) > 2 )                                  &
        prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -4714,7 +4957,8 @@
 !  -----------------------------------------------------------------------------
 
      IF ( control%max_iterative_refinements <= 0 .OR.                          &
-          data%solver( 1 : data%len_solver ) == 'pardiso' ) THEN
+          data%solver( 1 : data%len_solver ) == 'pardiso' .OR.                 &
+          data%solver( 1 : data%len_solver ) == 'mkl_pardiso' ) THEN
 
 !  Solve A X = B
 
@@ -4748,19 +4992,19 @@
          CALL SPACE_resize_array( n, nrhs, data%B2,                            &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( n, nrhs, data%RES2,                          &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%RES2' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%RES2' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( nrhs, data%RESIDUALS,                        &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%RESIDUALS' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%RESIDUALS' ; GO TO 900 ; END IF
          CALL SPACE_resize_array( nrhs, data%RESIDUALS_zero,                   &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%RESIDUALS_zero' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%RESIDUALS_zero' ; GO TO 900 ; END IF
          data%set_res2 = n
        END IF
 
@@ -4775,7 +5019,7 @@
        END IF
        data%RES2( : n, : nrhs ) = data%B2( : n, : nrhs )
        X( : n, : nrhs ) = 0.0_wp
-       
+
        DO i = 1, nrhs
          data%RESIDUALS_zero( i ) = MAXVAL( ABS( data%B2( : n, i ) ) )
        END DO
@@ -4826,7 +5070,7 @@
                        = data%RES2( j, : nrhs ) - val * X( i, : nrhs )
                    END IF
                  END DO
-               CASE ( 'SPARSE_BY_ROWS', 'DENSE' ) 
+               CASE ( 'SPARSE_BY_ROWS', 'DENSE' )
                  IF ( data%solver( 1 : data%len_solver ) == 'ma77' ) THEN
                    DO i = 1, n
                      DO l = data%matrix%PTR( i ), data%matrix%PTR( i + 1 ) - 1
@@ -4877,7 +5121,7 @@
                      END IF
                    END DO
                  END DO
-               CASE ( 'DENSE' ) 
+               CASE ( 'DENSE' )
                  l = 0
                  DO i = 1, n
                    DO j = 1, i
@@ -4917,7 +5161,7 @@
                    END IF
                  END DO
                END DO
-             CASE ( 'DENSE' ) 
+             CASE ( 'DENSE' )
                l = 0
                DO i = 1, n
                  DO j = 1, i
@@ -5007,7 +5251,7 @@
 !  = SILS =
 
      CASE ( 'sils', 'ma27' )
-       CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CALL SLS_copy_control_to_sils( control, data%sils_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        SELECT CASE ( SMT_get( matrix%type ) )
        CASE ( 'COORDINATE' )
@@ -5020,16 +5264,16 @@
        inform%sils_sinfo = data%sils_sinfo
        inform%status = data%sils_sinfo%flag
        inform%alloc_status = data%sils_sinfo%stat
-       inform%condition_number_1 = data%sils_sinfo%cond   
-       inform%condition_number_2 = data%sils_sinfo%cond2  
-       inform%backward_error_1 = data%sils_sinfo%berr   
-       inform%backward_error_2 = data%sils_sinfo%berr2  
-       inform%forward_error = data%sils_sinfo%error  
+       inform%condition_number_1 = data%sils_sinfo%cond
+       inform%condition_number_2 = data%sils_sinfo%cond2
+       inform%backward_error_1 = data%sils_sinfo%berr
+       inform%backward_error_2 = data%sils_sinfo%berr2
+       inform%forward_error = data%sils_sinfo%error
 
 !  = MA57 =
 
      CASE ( 'ma57' )
-       CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+       CALL SLS_copy_control_to_ma57( control, data%ma57_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        SELECT CASE ( SMT_get( matrix%type ) )
        CASE ( 'COORDINATE' )
@@ -5050,9 +5294,9 @@
        CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
        data%X2( : data%n, 1 ) = X( : data%n )
-       CALL SLS_copy_control_to_ma77( control, data%ma77_control ) 
+       CALL SLS_copy_control_to_ma77( control, data%ma77_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        IF ( control%scaling == - 2 .OR. control%scaling == - 3 ) THEN
          CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                  &
@@ -5062,14 +5306,14 @@
          CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                  &
                           data%ma77_control, data%ma77_info )
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        IF ( inform%status /= GALAHAD_ok ) GO TO 800
        X( : data%n ) = data%X2( : data%n, 1 )
 
 !  = MA86 =
 
      CASE ( 'ma86' )
-       CALL SLS_copy_control_to_ma86( control, data%ma86_control ) 
+       CALL SLS_copy_control_to_ma86( control, data%ma86_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA86_solve( X( : data%n ), data%ORDER, data%ma86_keep,             &
                         data%ma86_control, data%ma86_info )
@@ -5079,7 +5323,7 @@
 !  = MA87 =
 
      CASE ( 'ma87' )
-       CALL SLS_copy_control_to_ma87( control, data%ma87_control ) 
+       CALL SLS_copy_control_to_ma87( control, data%ma87_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA87_solve( X( : data%n ), data%ORDER, data%ma87_keep,             &
                         data%ma87_control, data%ma87_info )
@@ -5089,20 +5333,20 @@
 !  = MA97 =
 
      CASE ( 'ma97' )
-       CALL SLS_copy_control_to_ma97( control, data%ma97_control ) 
+       CALL SLS_copy_control_to_ma97( control, data%ma97_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA97_solve( X( : data%n ), data%ma97_akeep, data%ma97_fkeep,       &
                         data%ma97_control, data%ma97_info )
-       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 
 !  = SSIDS =
 
      CASE ( 'ssids' )
-       CALL SLS_copy_control_to_ssids( control, data%ssids_options ) 
+       CALL SLS_copy_control_to_ssids( control, data%ssids_options )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL SSIDS_solve( X( : data%n ), data%ssids_akeep, data%ssids_fkeep,    &
                         data%ssids_options, data%ssids_inform )
-       CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+       CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
 
 !  = PARDISO =
 
@@ -5110,30 +5354,65 @@
        CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%X2( : data%n, 1 ) = X( : data%n )
 
-       CALL SLS_copy_control_to_pardiso( control, data%pardiso_iparm )
-       data%pardiso_iparm( 6 ) = 1
+       CALL SLS_copy_control_to_pardiso( control, data%pardiso_IPARM )
+       data%pardiso_IPARM( 6 ) = 1
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-       CALL PARDISO( data%PARDISO_PT, 1, 1, data%pardiso_mtype, 33,            &
+       CALL PARDISO( data%pardiso_PT, 1, 1, data%pardiso_mtype, 33,            &
                      data%matrix%n, data%matrix%VAL( : data%ne ),              &
                      data%matrix%PTR( : data%matrix%n + 1 ),                   &
                      data%matrix%COL( : data%ne ),                             &
                      data%ORDER( : data%matrix%n ), 1,                         &
-                     data%pardiso_iparm( : 64 ),                               &
+                     data%pardiso_IPARM( : 64 ),                               &
                      control%print_level_solver,                               &
                      data%X2( : data%matrix%n, : 1 ),                          &
                      data%B2( : data%matrix%n, : 1 ), inform%pardiso_error,    &
-                     data%pardiso_dparm( 1 : 64 ) )
-!v3                  data%B2( : data%matrix%n, : 1 ), inform%pardiso_error )
-       inform%pardiso_iparm = data%pardiso_iparm
-       inform%pardiso_dparm = data%pardiso_dparm
-      
+                     data%pardiso_DPARM( 1 : 64 ) )
+       inform%pardiso_IPARM = data%pardiso_IPARM
+       inform%pardiso_DPARM = data%pardiso_DPARM
+
+       SELECT CASE( inform%pardiso_error )
+       CASE ( - 1 )
+         inform%status = GALAHAD_error_restrictions
+       CASE ( GALAHAD_unavailable_option )
+         inform%status = GALAHAD_unavailable_option
+       CASE ( - 103 : GALAHAD_unavailable_option - 1,                          &
+              GALAHAD_unavailable_option + 1 : - 2 )
+         inform%status = GALAHAD_error_pardiso
+       CASE DEFAULT
+         inform%status = GALAHAD_ok
+         inform%iterative_refinements = data%pardiso_IPARM( 7 )
+       END SELECT
+       IF ( inform%status == GALAHAD_ok ) X( : data%n ) = data%X2( : data%n, 1 )
+
+!  = MKL PARDISO =
+
+     CASE ( 'mkl_pardiso' )
+       CALL SPACE_resize_array( data%n, data%B1, inform%status,                &
+                                inform%alloc_status )
+       IF ( inform%status /= GALAHAD_ok ) THEN
+         inform%bad_alloc = 'sls: data%B1' ; GO TO 900 ; END IF
+       data%B1( : data%n ) = X( : data%n )
+
+       data%mkl_pardiso_IPARM = inform%mkl_pardiso_IPARM
+       CALL CPU_time( time ) ; CALL CLOCK_time( clock )
+       CALL MKL_PARDISO_SOLVE(                                                 &
+                     data%mkl_pardiso_PT, 1, 1, data%pardiso_mtype,            &
+                     33, data%matrix%n, data%matrix%VAL( 1 : data%ne ),        &
+                     data%matrix%PTR( 1 : data%matrix%n + 1 ),                 &
+                     data%matrix%COL( 1 : data%ne ),                           &
+                     data%ORDER( 1 : data%matrix%n ), 1,                       &
+                     data%mkl_pardiso_IPARM, control%print_level_solver,       &
+                     data%B1( 1 : matrix%n ), X( 1 : matrix%n ),               &
+                     inform%pardiso_error )
+       inform%mkl_pardiso_IPARM = data%mkl_pardiso_IPARM
+
        SELECT CASE( inform%pardiso_error )
        CASE ( - 1 )
          inform%status = GALAHAD_error_restrictions
@@ -5146,7 +5425,6 @@
          inform%status = GALAHAD_ok
          inform%iterative_refinements = data%pardiso_iparm( 7 )
        END SELECT
-       IF ( inform%status == GALAHAD_ok ) X( : data%n ) = data%X2( : data%n, 1 )
 
 !  = WSMP =
 
@@ -5155,11 +5433,11 @@
        CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%B2( : data%n, 1 ) = X( : data%n )
 
-       CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,                &
-                                      data%wsmp_dparm )
+       CALL SLS_copy_control_to_wsmp( control, data%wsmp_IPARM,                &
+                                      data%wsmp_DPARM )
        data%wsmp_iparm( 2 ) = 4
        data%wsmp_iparm( 3 ) = 5
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -5170,18 +5448,18 @@
                    data%ORDER( 1 : data%matrix%n ),                            &
                    data%INVP( 1 : data%matrix%n ),                             &
                    data%B2( 1 : data%matrix%n, 1 : 1 ), data%matrix%n, 1,      &
-                   data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),            &
-                   data%wsmp_iparm, data%wsmp_dparm )
+                   data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),            &
+                   data%wsmp_IPARM, data%wsmp_DPARM )
 !write(6,*) ' solv threads used = ', data%wsmp_iparm( 33 )
-       inform%wsmp_iparm = data%wsmp_iparm
-       inform%wsmp_dparm = data%wsmp_dparm
-       inform%wsmp_error = data%wsmp_iparm( 64 )
+       inform%wsmp_IPARM = data%wsmp_IPARM
+       inform%wsmp_DPARM = data%wsmp_DPARM
+       inform%wsmp_error = data%wsmp_IPARM( 64 )
 
        SELECT CASE( inform%wsmp_error )
        CASE ( 0 )
          inform%status = GALAHAD_ok
          inform%iterative_refinements = data%wsmp_iparm( 6 )
-       CASE ( - 102 ) 
+       CASE ( - 102 )
          inform%status = GALAHAD_error_allocate
        CASE DEFAULT
          inform%status = GALAHAD_error_wsmp
@@ -5195,7 +5473,7 @@
        CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%X2( data%ORDER( : data%n ), 1 ) = X( : data%n )
 
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -5277,7 +5555,7 @@
 !  = SILS =
 
      CASE ( 'sils', 'ma27' )
-       CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CALL SLS_copy_control_to_sils( control, data%sils_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        SELECT CASE ( SMT_get( matrix%type ) )
        CASE ( 'COORDINATE' )
@@ -5290,16 +5568,16 @@
        inform%ma57_sinfo = data%ma57_sinfo
        inform%status = data%sils_sinfo%flag
        inform%alloc_status = data%sils_sinfo%stat
-       inform%condition_number_1 = data%sils_sinfo%cond   
-       inform%condition_number_2 = data%sils_sinfo%cond2  
-       inform%backward_error_1 = data%sils_sinfo%berr   
-       inform%backward_error_2 = data%sils_sinfo%berr2  
-       inform%forward_error = data%sils_sinfo%error  
+       inform%condition_number_1 = data%sils_sinfo%cond
+       inform%condition_number_2 = data%sils_sinfo%cond2
+       inform%backward_error_1 = data%sils_sinfo%berr
+       inform%backward_error_2 = data%sils_sinfo%berr2
+       inform%forward_error = data%sils_sinfo%error
 
 !  = MA57 =
 
      CASE ( 'ma57' )
-       CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+       CALL SLS_copy_control_to_ma57( control, data%ma57_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        SELECT CASE ( SMT_get( matrix%type ) )
        CASE ( 'COORDINATE' )
@@ -5318,7 +5596,7 @@
 
      CASE ( 'ma77' )
        lx = SIZE( X, 1 ) ; nrhs = SIZE( X, 2 )
-       CALL SLS_copy_control_to_ma77( control, data%ma77_control ) 
+       CALL SLS_copy_control_to_ma77( control, data%ma77_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        IF ( control%scaling == - 2 .OR. control%scaling == - 3 ) THEN
          CALL MA77_solve( nrhs, lx, X, data%ma77_keep,                         &
@@ -5328,13 +5606,13 @@
          CALL MA77_solve( nrhs, lx, X, data%ma77_keep,                         &
                           data%ma77_control, data%ma77_info )
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
 
 !  = MA86 =
 
      CASE ( 'ma86' )
        lx = SIZE( X, 1 ) ; nrhs = SIZE( X, 2 )
-       CALL SLS_copy_control_to_ma86( control, data%ma86_control ) 
+       CALL SLS_copy_control_to_ma86( control, data%ma86_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA86_solve( nrhs, lx, X, data%ORDER, data%ma86_keep,               &
                         data%ma86_control, data%ma86_info )
@@ -5345,7 +5623,7 @@
 
      CASE ( 'ma87' )
        lx = SIZE( X, 1 ) ; nrhs = SIZE( X, 2 )
-       CALL SLS_copy_control_to_ma87( control, data%ma87_control ) 
+       CALL SLS_copy_control_to_ma87( control, data%ma87_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA87_solve( nrhs, lx, X, data%ORDER, data%ma87_keep,               &
                         data%ma87_control, data%ma87_info )
@@ -5356,22 +5634,22 @@
 
      CASE ( 'ma97' )
        lx = SIZE( X, 1 ) ; nrhs = SIZE( X, 2 )
-       CALL SLS_copy_control_to_ma97( control, data%ma97_control ) 
+       CALL SLS_copy_control_to_ma97( control, data%ma97_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA97_solve( nrhs, X, lx, data%ma97_akeep, data%ma97_fkeep,         &
                         data%ma97_control, data%ma97_info )
-       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 
 !  = SSIDS =
 
      CASE ( 'ssids' )
        inform%status = GALAHAD_unavailable_option
        lx = SIZE( X, 1 ) ; nrhs = SIZE( X, 2 )
-       CALL SLS_copy_control_to_ssids( control, data%ssids_options ) 
+       CALL SLS_copy_control_to_ssids( control, data%ssids_options )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL SSIDS_solve( nrhs, X, lx, data%ssids_akeep, data%ssids_fkeep,      &
                         data%ssids_options, data%ssids_inform )
-       CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+       CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
 
 !  = PARDISO =
 
@@ -5380,22 +5658,56 @@
        CALL SPACE_resize_array( data%n, nrhs, data%B2, inform%status,          &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
-       CALL SLS_copy_control_to_pardiso( control, data%pardiso_iparm )
-       data%pardiso_iparm( 6 ) = 1
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
+       CALL SLS_copy_control_to_pardiso( control, data%pardiso_IPARM )
+       data%pardiso_IPARM( 6 ) = 1
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-       CALL PARDISO( data%PARDISO_PT, 1, 1, data%pardiso_mtype, 33,            &
+       CALL PARDISO( data%pardiso_PT, 1, 1, data%pardiso_mtype, 33,            &
                      data%matrix%n, data%matrix%VAL( : data%ne ),              &
                      data%matrix%PTR( : data%matrix%n + 1 ),                   &
                      data%matrix%COL( : data%ne ),                             &
                      data%ORDER( : data%matrix%n ), nrhs,                      &
-                     data%pardiso_iparm( : 64 ),                               &
+                     data%pardiso_IPARM( : 64 ),                               &
                      control%print_level_solver,                               &
                      X( : data%matrix%n, : nrhs ),                             &
                      data%B2( : data%matrix%n, : nrhs ), inform%pardiso_error, &
-                     data%pardiso_dparm( 1 : 64 ) )
-!v3                  data%B2( : data%matrix%n, : nrhs ), inform%pardiso_error )
-       inform%pardiso_iparm = data%pardiso_iparm
+                     data%pardiso_DPARM( 1 : 64 ) )
+       inform%pardiso_IPARM = data%pardiso_IPARM
+       SELECT CASE( inform%pardiso_error )
+       CASE ( - 1 )
+         inform%status = GALAHAD_error_restrictions
+       CASE ( GALAHAD_unavailable_option )
+         inform%status = GALAHAD_unavailable_option
+       CASE ( - 103 : GALAHAD_unavailable_option - 1,                          &
+              GALAHAD_unavailable_option + 1 : - 2 )
+         inform%status = GALAHAD_error_pardiso
+       CASE DEFAULT
+         inform%status = GALAHAD_ok
+         inform%iterative_refinements = data%pardiso_IPARM( 7 )
+       END SELECT
+
+!  = MKL PARDISO =
+
+     CASE ( 'mkl_pardiso' )
+       nrhs = SIZE( X, 2 )
+       CALL SPACE_resize_array( data%n, nrhs, data%X2, inform%status,          &
+                                inform%alloc_status )
+       IF ( inform%status /= GALAHAD_ok ) THEN
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
+
+       data%mkl_pardiso_IPARM = inform%mkl_pardiso_IPARM
+       CALL CPU_time( time ) ; CALL CLOCK_time( clock )
+       CALL MKL_PARDISO_SOLVE(                                                 &
+                     data%mkl_pardiso_PT, 1, 1, data%pardiso_mtype,            &
+                     33, data%matrix%n, data%matrix%VAL( 1 : data%ne ),        &
+                     data%matrix%PTR( 1 : data%matrix%n + 1 ),                 &
+                     data%matrix%COL( 1 : data%ne ),                           &
+                     data%ORDER( 1 : data%matrix%n ), nrhs,                    &
+                     data%mkl_pardiso_IPARM, control%print_level_solver,       &
+                     X( : data%matrix%n, : nrhs ),                             &
+                     data%X2( : data%matrix%n, : nrhs ), inform%pardiso_error )
+       inform%mkl_pardiso_IPARM = data%mkl_pardiso_IPARM
+
        SELECT CASE( inform%pardiso_error )
        CASE ( - 1 )
          inform%status = GALAHAD_error_restrictions
@@ -5408,16 +5720,17 @@
          inform%status = GALAHAD_ok
          inform%iterative_refinements = data%pardiso_iparm( 7 )
        END SELECT
+       X( : data%matrix%n, : nrhs ) = data%X2( : data%matrix%n, : nrhs )
 
 !  = WSMP =
 
      CASE ( 'wsmp' )
 
        nrhs = SIZE( X, 2 )
-       CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,                &
-                                      data%wsmp_dparm )
-       data%wsmp_iparm( 2 ) = 4
-       data%wsmp_iparm( 3 ) = 5
+       CALL SLS_copy_control_to_wsmp( control, data%wsmp_IPARM,                &
+                                      data%wsmp_DPARM )
+       data%wsmp_IPARM( 2 ) = 4
+       data%wsmp_IPARM( 3 ) = 5
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL wssmp( data%matrix%n, data%matrix%PTR( 1 : data%matrix%n + 1 ),    &
                    data%matrix%COL( 1 : data%ne ),                             &
@@ -5426,18 +5739,18 @@
                    data%ORDER( 1 : data%matrix%n ),                            &
                    data%INVP( 1 : data%matrix%n ),                             &
                    X( : data%matrix%n, : nrhs ), matrix%n, nrhs,               &
-                   data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),            &
-                   data%wsmp_iparm, data%wsmp_dparm )
+                   data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),            &
+                   data%wsmp_IPARM, data%wsmp_DPARM )
 
-       inform%wsmp_iparm = data%wsmp_iparm
-       inform%wsmp_dparm = data%wsmp_dparm
-       inform%wsmp_error = data%wsmp_iparm( 64 )
+       inform%wsmp_IPARM = data%wsmp_IPARM
+       inform%wsmp_DPARM = data%wsmp_DPARM
+       inform%wsmp_error = data%wsmp_IPARM( 64 )
 
        SELECT CASE( inform%wsmp_error )
        CASE ( 0 )
          inform%status = GALAHAD_ok
-         inform%iterative_refinements = data%wsmp_iparm( 6 )
-       CASE ( - 102 ) 
+         inform%iterative_refinements = data%wsmp_IPARM( 6 )
+       CASE ( - 102 )
          inform%status = GALAHAD_error_allocate
        CASE DEFAULT
          inform%status = GALAHAD_error_wsmp
@@ -5454,8 +5767,8 @@
          CALL SPACE_resize_array( data%n, nrhs, data%X2, inform%status,        &
                  inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
-         data%X2( data%ORDER( : data%n ), : nrhs ) = X( : data%n, : nrhs ) 
+           inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
+         data%X2( data%ORDER( : data%n ), : nrhs ) = X( : data%n, : nrhs )
 
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
          SELECT CASE( data%solver( 1 : data%len_solver ) )
@@ -5532,7 +5845,7 @@
      END SUBROUTINE SLS_solve_multiple_rhs
 
 !-*-*-*-*-*-*-*-   S L S _ T E R M I N A T E  S U B R O U T I N E   -*-*-*-*-*-
- 
+
      SUBROUTINE SLS_terminate( data, control, inform )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -5558,14 +5871,14 @@
 !  = SILS =
 
      CASE ( 'sils', 'ma27' )
-       CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CALL SLS_copy_control_to_sils( control, data%sils_control )
        CALL SILS_finalize( data%sils_factors, data%sils_control, info )
        inform%status = info
 
 !  = MA57 =
 
      CASE ( 'ma57' )
-       CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+       CALL SLS_copy_control_to_ma57( control, data%ma57_control )
        CALL MA57_finalize( data%ma57_factors, data%ma57_control, info )
        inform%status = info
 
@@ -5576,13 +5889,17 @@
                                  inform%alloc_status )
        CALL SPACE_dealloc_array( data%X2, inform%status, inform%alloc_status )
        CALL SPACE_dealloc_array( data%D, inform%status, inform%alloc_status )
+       IF ( control%print_level <= 0 .OR. control%out <= 0 )                   &
+           data%ma77_control%unit_error = - 1
        CALL MA77_finalise( data%ma77_keep, data%ma77_control, data%ma77_info )
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
 
 !  = MA86 =
 
      CASE ( 'ma86' )
        CALL SPACE_dealloc_array( data%X2, inform%status, inform%alloc_status )
+       IF ( control%print_level <= 0 .OR. control%out <= 0 )                  &
+           data%ma86_control%unit_error = - 1
        CALL MA86_finalise( data%ma86_keep, data%ma86_control )
        inform%status = 0
 
@@ -5590,6 +5907,8 @@
 
      CASE ( 'ma87' )
        CALL SPACE_dealloc_array( data%X2, inform%status, inform%alloc_status )
+       IF ( control%print_level <= 0 .OR. control%out <= 0 )                  &
+           data%ma87_control%unit_error = - 1
        CALL MA87_finalise( data%ma87_keep, data%ma87_control )
        inform%status = 0
 
@@ -5604,26 +5923,25 @@
 
      CASE ( 'ssids' )
        CALL SPACE_dealloc_array( data%X2, inform%status, inform%alloc_status )
-       CALL SSIDS_finalise( data%ssids_akeep, data%ssids_fkeep )
+       CALL SSIDS_free( data%ssids_akeep, data%ssids_fkeep, inform%status )
        inform%status = 0
 
 !  = PARDISO =
 
      CASE ( 'pardiso' )
        IF ( data%n > 0 ) THEN
-         CALL PARDISO( data%PARDISO_PT, 1, 1, data%pardiso_mtype, - 1,         &
+         CALL PARDISO( data%pardiso_PT, 1, 1, data%pardiso_mtype, - 1,         &
                        data%matrix%n, data%matrix%VAL( : data%ne ),            &
                        data%matrix%PTR( : data%matrix%n + 1 ),                 &
                        data%matrix%COL( : data%ne ),                           &
                        data%ORDER( : data%matrix%n ), 1,                       &
-                       data%pardiso_iparm( : 64 ),                             &
+                       data%pardiso_IPARM( : 64 ),                             &
                        control%print_level_solver,                             &
                        data%B2( : data%matrix%n, : 1 ),                        &
                        data%X2( : data%matrix%n, : 1 ), inform%pardiso_error,  &
-                       data%pardiso_dparm( 1 : 64 ) )
-!v3                    data%X2( : data%matrix%n, : 1 ), inform%pardiso_error )
-         inform%pardiso_iparm = data%pardiso_iparm
-      
+                       data%pardiso_DPARM( 1 : 64 ) )
+         inform%pardiso_IPARM = data%pardiso_IPARM
+
          SELECT CASE( inform%pardiso_error )
          CASE ( - 1 )
            inform%status = GALAHAD_error_restrictions
@@ -5639,12 +5957,41 @@
        CALL SPACE_dealloc_array( data%X2, inform%status, inform%alloc_status )
        CALL SPACE_dealloc_array( data%MAPS, inform%status, inform%alloc_status )
 
+!  = MKL PARDISO =
+
+     CASE ( 'mkl_pardiso' )
+       IF ( data%n > 0 ) THEN
+         CALL SLS_copy_control_to_mkl_pardiso( control, data%mkl_pardiso_IPARM )
+         CALL MKL_PARDISO_SOLVE( data%mkl_pardiso_PT, 1, 1,                    &
+                                 data%pardiso_mtype, - 1, data%matrix%n,       &
+                                 data%ddum, data%idum, data%idum, data%idum,   &
+                                 1, data%mkl_pardiso_IPARM,                    &
+                                 control%print_level_solver,                   &
+                                 data%ddum, data%ddum, inform%pardiso_error )
+
+         inform%pardiso_iparm = data%pardiso_iparm
+         SELECT CASE( inform%pardiso_error )
+         CASE ( - 1 )
+           inform%status = GALAHAD_error_restrictions
+         CASE ( GALAHAD_unavailable_option )
+           inform%status = GALAHAD_unavailable_option
+         CASE ( - 103 : GALAHAD_unavailable_option - 1,                        &
+                GALAHAD_unavailable_option + 1 : - 2 )
+           inform%status = GALAHAD_error_pardiso
+         CASE DEFAULT
+           inform%status = GALAHAD_ok
+         END SELECT
+       END IF
+       CALL SPACE_dealloc_array( data%B1, inform%status, inform%alloc_status )
+       CALL SPACE_dealloc_array( data%B2, inform%status, inform%alloc_status )
+       CALL SPACE_dealloc_array( data%X2, inform%status, inform%alloc_status )
+       CALL SPACE_dealloc_array( data%MAPS, inform%status, inform%alloc_status )
+
 !  = WSMP =
 
      CASE ( 'wsmp' )
        CALL wsmp_clear( )
-       CALL wsffree( )
-       CALL wsafree( )
+       CALL wssfree( )
 
 !  = POTR =
 
@@ -5757,7 +6104,7 @@
 
      inform%status = GALAHAD_ok
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -5808,7 +6155,7 @@
            END IF
          END IF
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        IF ( inform%status /= GALAHAD_ok ) GO TO 900
        IF ( PRESENT( PERTURBATION ) ) inform%status = GALAHAD_error_access_pert
 
@@ -5995,7 +6342,7 @@
      REAL :: time_start, time_now
      REAL ( KIND = wp ) :: clock_start, clock_now
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -6019,7 +6366,7 @@
 
      CASE ( 'ma77' )
        CALL MA77_alter( D, data%ma77_keep, data%ma77_control, data%ma77_info )
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        inform%status = GALAHAD_ok
 
 !  = MA86 =
@@ -6040,7 +6387,7 @@
        ELSE
          CALL MA97_alter( D, data%ma97_akeep, data%ma97_fkeep,                 &
                           data%ma97_control, data%ma97_info )
-         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
        END IF
 
 !  = SSIDS =
@@ -6051,7 +6398,7 @@
        ELSE
          CALL SSIDS_alter( D, data%ssids_akeep, data%ssids_fkeep,              &
                            data%ssids_options, data%ssids_inform )
-         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
        END IF
 
 !  = POTR =
@@ -6127,11 +6474,11 @@
 
 !  local variables
 
-     INTEGER :: i, info
+     INTEGER :: i, info, phase
      REAL :: time, time_start, time_now
      REAL ( KIND = wp ) :: clock, clock_start, clock_now
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -6149,7 +6496,7 @@
 !  = SILS =
 
      CASE ( 'sils', 'ma27' )
-       CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CALL SLS_copy_control_to_sils( control, data%sils_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        IF ( part == 'S' ) THEN
          CALL SILS_part_solve( data%sils_factors, data%sils_control, 'L',      &
@@ -6189,7 +6536,7 @@
 !  = MA57 =
 
      CASE ( 'ma57' )
-       CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+       CALL SLS_copy_control_to_ma57( control, data%ma57_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        IF ( part == 'S' ) THEN
          CALL MA57_part_solve( data%ma57_factors, data%ma57_control, 'L',      &
@@ -6256,13 +6603,13 @@
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info,                 &
                             job = 3, scale = data%SCALE )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            X( : data%n ) = data%X2( : data%n, 1 )
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info,                 &
                             job = 3, scale = data%SCALE )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            DO i = 1, data%n
              IF ( data%X2( i, 1 ) == 0.0_wp .AND. X( i ) == 0.0_wp ) CYCLE
@@ -6295,12 +6642,12 @@
          ELSE
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info, job = 1 )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            X( : data%n ) = data%X2( : data%n, 1 )
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info, job = 2 )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            DO i = 1, data%n
              IF ( data%X2( i, 1 ) == 0.0_wp .AND. X( i ) == 0.0_wp ) CYCLE
@@ -6320,7 +6667,7 @@
            END DO
          END IF
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        IF ( inform%status == 0 ) X( : data%n ) = data%X2( : data%n, 1 )
 
 !  = MA86 =
@@ -6410,7 +6757,7 @@
        ELSE
          CALL MA97_solve( X( : data%n ), data%ma97_akeep, data%ma97_fkeep,     &
                           data%ma97_control, data%ma97_info, job = 1 )
-         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
          IF ( inform%status /= GALAHAD_ok ) GO TO 900
          CALL SPACE_resize_array( data%n, data%WORK,                           &
                                   inform%status, inform%alloc_status )
@@ -6419,7 +6766,7 @@
          CALL MA97_solve( data%WORK( : data%n ), data%ma97_akeep,              &
                           data%ma97_fkeep,                                     &
                           data%ma97_control, data%ma97_info, job = 2 )
-         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+         CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
          IF ( inform%status /= GALAHAD_ok ) GO TO 900
          DO i = 1, data%n
            IF ( X( i ) == 0.0_wp .AND. data%WORK( i ) == 0.0_wp ) CYCLE
@@ -6438,7 +6785,7 @@
            END IF
          END DO
        END IF
-       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 
 !  = SSIDS =
 
@@ -6463,7 +6810,7 @@
        ELSE
          CALL SSIDS_solve( X( : data%n ), data%ssids_akeep, data%ssids_fkeep,  &
                            data%ssids_options, data%ssids_inform, job = 1 )
-         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
          IF ( inform%status /= GALAHAD_ok ) GO TO 900
          CALL SPACE_resize_array( data%n, data%WORK,                           &
                                   inform%status, inform%alloc_status )
@@ -6472,7 +6819,7 @@
          CALL SSIDS_solve( data%WORK( : data%n ), data%ssids_akeep,            &
                            data%ssids_fkeep,                                   &
                            data%ssids_options, data%ssids_inform, job = 2 )
-         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+         CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
          IF ( inform%status /= GALAHAD_ok ) GO TO 900
          DO i = 1, data%n
            IF ( X( i ) == 0.0_wp .AND. data%WORK( i ) == 0.0_wp ) CYCLE
@@ -6491,44 +6838,46 @@
            END IF
          END DO
        END IF
-       CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+       CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
 
 !  = PARDISO =
 
      CASE ( 'pardiso' )
-       IF ( part == 'D' ) THEN
+       IF ( part == 'S' ) THEN
          inform%status = 0
          GO TO 900
        END IF
        CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
-       data%X2( : data%n, 1 ) = X( : data%n )
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
+       data%B2( : data%n, 1 ) = X( : data%n )
 
-       CALL SLS_copy_control_to_pardiso( control, data%pardiso_iparm )
-       data%pardiso_iparm( 6 ) = 1
-       IF ( part == 'L' .OR. part == 'S') THEN
-         data%pardiso_iparm( 26 ) = 1
-       ELSE
-         data%pardiso_iparm( 26 ) = 2
+       CALL SLS_copy_control_to_pardiso( control, data%pardiso_IPARM )
+       data%pardiso_IPARM( 6 ) = 0
+       IF ( part == 'L' ) THEN
+         data%pardiso_IPARM( 26 ) = - 1
+       ELSE IF ( part == 'D' ) THEN
+         data%pardiso_IPARM( 26 ) = - 2
+       ELSE IF ( part == 'U' ) THEN
+         data%pardiso_IPARM( 26 ) = - 3
        END IF
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-       CALL PARDISO( data%PARDISO_PT, 1, 1, data%pardiso_mtype, 33,            &
+       CALL PARDISO( data%pardiso_PT, 1, 1, data%pardiso_mtype, 33,            &
                      data%matrix%n, data%matrix%VAL( : data%ne ),              &
                      data%matrix%PTR( : data%matrix%n + 1 ),                   &
                      data%matrix%COL( : data%ne ),                             &
                      data%ORDER( : data%matrix%n ), 1,                         &
-                     data%pardiso_iparm( : 64 ),                               &
+                     data%pardiso_IPARM( : 64 ),                               &
                      control%print_level_solver,                               &
                      data%X2( : data%matrix%n, : 1 ),                          &
                      data%B2( : data%matrix%n, : 1 ), inform%pardiso_error,    &
-                     data%pardiso_dparm( 1 : 64 ) )
-       inform%pardiso_iparm = data%pardiso_iparm
+                     data%pardiso_DPARM( 1 : 64 ) )
+       inform%pardiso_IPARM = data%pardiso_IPARM
        SELECT CASE( inform%pardiso_error )
        CASE ( - 1 )
          inform%status = GALAHAD_error_restrictions
@@ -6539,42 +6888,88 @@
          inform%status = GALAHAD_error_pardiso
        CASE DEFAULT
          inform%status = GALAHAD_ok
-         inform%iterative_refinements =  data%pardiso_iparm( 7 )
+         inform%iterative_refinements =  data%pardiso_IPARM( 7 )
        END SELECT
        IF ( inform%status == GALAHAD_ok ) X( : data%n ) = data%X2( : data%n, 1 )
+
+!  = MKL PARDISO =
+
+     CASE ( 'mkl_pardiso' )
+       IF ( part == 'L' ) THEN
+         phase = 331         
+       ELSE IF ( part == 'D' ) THEN
+         phase = 332
+       ELSE IF ( part == 'U' ) THEN
+         phase = 333
+       ELSE
+         inform%status = GALAHAD_unavailable_option
+         GO TO 900
+       END IF
+
+       CALL SPACE_resize_array( data%n, data%B1, inform%status,                &
+                                inform%alloc_status )
+       IF ( inform%status /= GALAHAD_ok ) THEN
+         inform%bad_alloc = 'sls: data%B1' ; GO TO 900 ; END IF
+       data%B1( : data%n ) = X( : data%n )
+
+       data%mkl_pardiso_IPARM = inform%mkl_pardiso_IPARM
+       CALL CPU_time( time ) ; CALL CLOCK_time( clock )
+       CALL MKL_PARDISO_SOLVE(                                                 &
+                     data%mkl_pardiso_PT, 1, 1, data%pardiso_mtype,            &
+                     phase, data%matrix%n, data%matrix%VAL( 1 : data%ne ),     &
+                     data%matrix%PTR( 1 : data%matrix%n + 1 ),                 &
+                     data%matrix%COL( 1 : data%ne ),                           &
+                     data%ORDER( 1 : data%matrix%n ), 1,                       &
+                     data%mkl_pardiso_IPARM, control%print_level_solver,       &
+                     data%B1( 1 : data%n ), X( 1 : data%n ),                   &
+                     inform%pardiso_error )
+       inform%mkl_pardiso_IPARM = data%mkl_pardiso_IPARM
+
+       SELECT CASE( inform%pardiso_error )
+       CASE ( - 1 )
+         inform%status = GALAHAD_error_restrictions
+       CASE ( GALAHAD_unavailable_option )
+         inform%status = GALAHAD_unavailable_option
+       CASE ( - 103 : GALAHAD_unavailable_option - 1,                          &
+              GALAHAD_unavailable_option + 1 : - 2 )
+         inform%status = GALAHAD_error_pardiso
+       CASE DEFAULT
+         inform%status = GALAHAD_ok
+         inform%iterative_refinements =  data%pardiso_iparm( 7 )
+       END SELECT
 
 !  = WSMP =
 
      CASE ( 'wsmp' )
-       CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,                &
-                                      data%wsmp_dparm )
-       IF ( data%wsmp_iparm( 31 ) == 0 .OR. data%wsmp_iparm( 31 ) == 5 ) THEN
+       CALL SLS_copy_control_to_wsmp( control, data%wsmp_IPARM,                &
+                                      data%wsmp_DPARM )
+       IF ( data%wsmp_IPARM( 31 ) == 0 .OR. data%wsmp_IPARM( 31 ) == 5 ) THEN
          IF ( part == 'D' ) THEN
            inform%status = 0
            GO TO 900
          ELSE IF ( part == 'L' .OR. part == 'S') THEN
-           data%wsmp_iparm( 30 ) = 1
+           data%wsmp_IPARM( 30 ) = 1
          ELSE
-           data%wsmp_iparm( 30 ) = 2
+           data%wsmp_IPARM( 30 ) = 2
          END IF
        ELSE
          IF ( part == 'D' ) THEN
-           data%wsmp_iparm( 30 ) = 3
+           data%wsmp_IPARM( 30 ) = 3
          ELSE IF ( part == 'L' ) THEN
-           data%wsmp_iparm( 30 ) = 1
+           data%wsmp_IPARM( 30 ) = 1
          ELSE IF ( part == 'U' ) THEN
-           data%wsmp_iparm( 30 ) = 2
+           data%wsmp_IPARM( 30 ) = 2
          ELSE
            inform%status = GALAHAD_error_inertia ; GO TO 900
          END IF
        END IF
-       data%wsmp_iparm( 2 ) = 4
-       data%wsmp_iparm( 3 ) = 4
+       data%wsmp_IPARM( 2 ) = 4
+       data%wsmp_IPARM( 3 ) = 4
 
        CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%B2( : data%n, 1 ) = X( : data%n )
 
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -6585,18 +6980,18 @@
                    data%ORDER( 1 : data%matrix%n ),                            &
                    data%INVP( 1 : data%matrix%n ),                             &
                    data%B2( 1 : data%matrix%n, 1 : 1 ), data%matrix%n, 1,      &
-                   data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),            &
-                   data%wsmp_iparm, data%wsmp_dparm )
+                   data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),            &
+                   data%wsmp_IPARM, data%wsmp_DPARM )
 
-       inform%wsmp_iparm = data%wsmp_iparm
-       inform%wsmp_dparm = data%wsmp_dparm
-       inform%wsmp_error = data%wsmp_iparm( 64 )
+       inform%wsmp_IPARM = data%wsmp_IPARM
+       inform%wsmp_DPARM = data%wsmp_DPARM
+       inform%wsmp_error = data%wsmp_IPARM( 64 )
 
        SELECT CASE( inform%wsmp_error )
        CASE ( 0 )
          inform%status = GALAHAD_ok
-         inform%iterative_refinements = data%wsmp_iparm( 6 )
-       CASE ( - 102 ) 
+         inform%iterative_refinements = data%wsmp_IPARM( 6 )
+       CASE ( - 102 )
          inform%status = GALAHAD_error_allocate
        CASE DEFAULT
          inform%status = GALAHAD_error_wsmp
@@ -6613,7 +7008,7 @@
          CALL SPACE_resize_array( data%n, data%B, inform%status,               &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
 !        data%B( : data%n ) = X( data%ORDER( : data%n ) )
          data%B( data%ORDER( : data%n ) ) = X( : data%n )
          IF ( part == 'L' .OR. part == 'S') THEN
@@ -6645,7 +7040,7 @@
          CALL SPACE_resize_array( data%n, data%B, inform%status,               &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
 !        data%B( : data%n ) = X( data%ORDER( : data%n ) )
          data%B( data%ORDER( : data%n ) ) = X( : data%n )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -6669,7 +7064,7 @@
          CALL SPACE_resize_array( data%n, data%B, inform%status,               &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
 !        data%B( : data%n ) = X( data%ORDER( : data%n ) )
          data%B( data%ORDER( : data%n ) ) = X( : data%n )
          IF ( part == 'L' .OR. part == 'S') THEN
@@ -6725,7 +7120,7 @@
      inform%time%clock_total =                                                 &
        inform%time%clock_total + clock_now - clock_start
      RETURN
-     
+
 !  End of SLS_part_solve
 
      END SUBROUTINE SLS_part_solve
@@ -6759,7 +7154,7 @@
      REAL :: time, time_start, time_now
      REAL ( KIND = wp ) :: clock, clock_start, clock_now
 
-!  start timimg 
+!  start timimg
 
      CALL CPU_time( time_start ) ; CALL CLOCK_time( clock_start )
 
@@ -6792,7 +7187,7 @@
 !  = SILS =
 
      CASE ( 'sils', 'ma27' )
-       CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CALL SLS_copy_control_to_sils( control, data%sils_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL SILS_part_solve( data%sils_factors, data%sils_control, 'L',        &
                              X, info )
@@ -6827,7 +7222,7 @@
 !  = MA57 =
 
      CASE ( 'ma57' )
-       CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+       CALL SLS_copy_control_to_ma57( control, data%ma57_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
 !      CALL MA57_part_solve( data%ma57_factors, data%ma57_control, 'L',        &
 !                            X, info )
@@ -6885,13 +7280,13 @@
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info,                 &
                             job = 3, scale = data%SCALE )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            X( : data%n ) = data%X2( : data%n, 1 )
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info,                 &
                             job = 3, scale = data%SCALE )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            DO i = 1, data%n
              IF ( data%X2( i, 1 ) == 0.0_wp .AND. X( i ) == 0.0_wp ) CYCLE
@@ -6917,12 +7312,12 @@
          ELSE
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info, job = 1 )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            X( : data%n ) = data%X2( : data%n, 1 )
            CALL MA77_solve( 1, data%n, data%X2, data%ma77_keep,                &
                             data%ma77_control, data%ma77_info, job = 2 )
-           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+           CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
            IF ( inform%status /= GALAHAD_ok ) GO TO 900
            DO i = 1, data%n
              IF ( data%X2( i, 1 ) == 0.0_wp .AND. X( i ) == 0.0_wp ) CYCLE
@@ -6942,7 +7337,7 @@
            END DO
          END IF
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        IF ( inform%status == 0 ) X( : data%n ) = data%X2( : data%n, 1 )
 
 !  = MA86 =
@@ -7012,7 +7407,7 @@
 !      ELSE
 !        CALL MA97_solve( X( : data%n ), data%ma97_akeep, data%ma97_fkeep,     &
 !                         data%ma97_control, data%ma97_info, job = 1 )
-!        CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+!        CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 !        IF ( inform%status /= GALAHAD_ok ) GO TO 900
 !        CALL SPACE_resize_array( data%n, data%WORK,                           &
 !                                 inform%status, inform%alloc_status )
@@ -7021,7 +7416,7 @@
 !        CALL MA97_solve( data%WORK( : data%n ), data%ma97_akeep,              &
 !                         data%ma97_fkeep,                                     &
 !                         data%ma97_control, data%ma97_info, job = 2 )
-!        CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+!        CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 !        IF ( inform%status /= GALAHAD_ok ) GO TO 900
 !        DO i = 1, data%n
 !          IF ( X( i ) == 0.0_wp .AND. data%WORK( i ) == 0.0_wp ) CYCLE
@@ -7040,7 +7435,7 @@
 !          END IF
 !        END DO
 !      END IF
-       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
 
 !  = SSIDS =
 
@@ -7053,7 +7448,7 @@
 !                                   data%ssids_akeep, data%ssids_fkeep,        &
 !                                   data%ssids_options, data%ssids_inform )
 !      data%LFLAG( INDEX_x( : nnz_x ) ) = .FALSE.
-!      CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+!      CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
 
 !  = PARDISO =
 
@@ -7061,27 +7456,68 @@
        CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
        CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%X2( : data%n, 1 ) = X( : data%n )
-       CALL SLS_copy_control_to_pardiso( control, data%pardiso_iparm )
-       data%pardiso_iparm( 6 ) = 1
-       data%pardiso_iparm( 26 ) = 1
+       CALL SLS_copy_control_to_pardiso( control, data%pardiso_IPARM )
+       data%pardiso_IPARM( 6 ) = 1
+       data%pardiso_IPARM( 26 ) = 1
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
-       CALL PARDISO( data%PARDISO_PT, 1, 1, data%pardiso_mtype, 33,            &
+       CALL PARDISO( data%pardiso_PT, 1, 1, data%pardiso_mtype, 33,            &
                      data%matrix%n, data%matrix%VAL( : data%ne ),              &
                      data%matrix%PTR( : data%matrix%n + 1 ),                   &
                      data%matrix%COL( : data%ne ),                             &
                      data%ORDER( : data%matrix%n ), 1,                         &
-                     data%pardiso_iparm( : 64 ),                               &
+                     data%pardiso_IPARM( : 64 ),                               &
                      control%print_level_solver,                               &
                      data%X2( : data%matrix%n, : 1 ),                          &
                      data%B2( : data%matrix%n, : 1 ), inform%pardiso_error,    &
-                     data%pardiso_dparm( 1 : 64 ) )
-       inform%pardiso_iparm = data%pardiso_iparm
+                     data%pardiso_DPARM( 1 : 64 ) )
+       inform%pardiso_iparm = data%pardiso_IPARM
+       SELECT CASE( inform%pardiso_error )
+       CASE ( - 1 )
+         inform%status = GALAHAD_error_restrictions
+       CASE ( GALAHAD_unavailable_option )
+         inform%status = GALAHAD_unavailable_option
+         CASE ( - 103 : GALAHAD_unavailable_option - 1,                        &
+                GALAHAD_unavailable_option + 1 : - 2 )
+         inform%status = GALAHAD_error_pardiso
+       CASE DEFAULT
+         inform%status = GALAHAD_ok
+         inform%iterative_refinements =  data%pardiso_IPARM( 7 )
+       END SELECT
+       IF ( inform%status == GALAHAD_ok ) X( : data%n ) = data%X2( : data%n, 1 )
+
+!  = MKL PARDISO =
+
+     CASE ( 'mkl_pardiso' )
+
+!  inefficient simulation
+
+       CALL SPACE_resize_array( data%n, data%B1, inform%status,                &
+                                inform%alloc_status )
+       IF ( inform%status /= GALAHAD_ok ) THEN
+         inform%bad_alloc = 'sls: data%B1' ; GO TO 900 ; END IF
+
+       data%B1( : data%n ) = 0.0_wp
+       data%B1( INDEX_b( : nnz_b ) ) = B( INDEX_b( : nnz_b ) )
+
+       data%mkl_pardiso_IPARM = inform%mkl_pardiso_IPARM
+       CALL CPU_time( time ) ; CALL CLOCK_time( clock )
+       CALL MKL_PARDISO_SOLVE(                                                 &
+                     data%mkl_pardiso_PT, 1, 1, data%pardiso_mtype,            &
+                     331, data%matrix%n, data%matrix%VAL( 1 : data%ne ),       &
+                     data%matrix%PTR( 1 : data%matrix%n + 1 ),                 &
+                     data%matrix%COL( 1 : data%ne ),                           &
+                     data%ORDER( 1 : data%matrix%n ), 1,                       &
+                     data%mkl_pardiso_IPARM, control%print_level_solver,       &
+                     data%B1( 1 : data%n ), X( 1 : data%n ),                   &
+                     inform%pardiso_error )
+       inform%mkl_pardiso_IPARM = data%mkl_pardiso_IPARM
+
        SELECT CASE( inform%pardiso_error )
        CASE ( - 1 )
          inform%status = GALAHAD_error_restrictions
@@ -7094,25 +7530,36 @@
          inform%status = GALAHAD_ok
          inform%iterative_refinements =  data%pardiso_iparm( 7 )
        END SELECT
-       IF ( inform%status == GALAHAD_ok ) X( : data%n ) = data%X2( : data%n, 1 )
+
+!  record the nonzeros
+
+       IF ( inform%status == GALAHAD_ok ) THEN
+         nnz_x = 0
+         DO i = 1, data%matrix%n
+           IF ( X( i ) /= 0.0_wp ) THEN
+             nnz_x = nnz_x + 1
+             INDEX_x( nnz_x ) = i
+           END IF
+         END DO
+       END IF
 
 !  = WSMP =
 
      CASE ( 'wsmp' )
-       CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,                &
-                                      data%wsmp_dparm )
-       IF ( data%wsmp_iparm( 31 ) == 0 .OR. data%wsmp_iparm( 31 ) == 5 ) THEN
-         data%wsmp_iparm( 30 ) = 1
+       CALL SLS_copy_control_to_wsmp( control, data%wsmp_IPARM,                &
+                                      data%wsmp_DPARM )
+       IF ( data%wsmp_IPARM( 31 ) == 0 .OR. data%wsmp_IPARM( 31 ) == 5 ) THEN
+         data%wsmp_IPARM( 30 ) = 1
        ELSE
          inform%status = GALAHAD_error_inertia ; GO TO 900
        END IF
-       data%wsmp_iparm( 2 ) = 4
-       data%wsmp_iparm( 3 ) = 4
+       data%wsmp_IPARM( 2 ) = 4
+       data%wsmp_IPARM( 3 ) = 4
 
        CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%B2( : data%n, 1 ) = X( : data%n )
 
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -7123,18 +7570,18 @@
                    data%ORDER( 1 : data%matrix%n ),                            &
                    data%INVP( 1 : data%matrix%n ),                             &
                    data%B2( 1 : data%matrix%n, 1 : 1 ), data%matrix%n, 1,      &
-                   data%wsmp_aux, 0, data%MRP( 1 : data%matrix%n ),            &
-                   data%wsmp_iparm, data%wsmp_dparm )
+                   data%wsmp_AUX, 0, data%MRP( 1 : data%matrix%n ),            &
+                   data%wsmp_IPARM, data%wsmp_DPARM )
 
-       inform%wsmp_iparm = data%wsmp_iparm
-       inform%wsmp_dparm = data%wsmp_dparm
-       inform%wsmp_error = data%wsmp_iparm( 64 )
+       inform%wsmp_IPARM = data%wsmp_IPARM
+       inform%wsmp_DPARM = data%wsmp_DPARM
+       inform%wsmp_error = data%wsmp_IPARM( 64 )
 
        SELECT CASE( inform%wsmp_error )
        CASE ( 0 )
          inform%status = GALAHAD_ok
-         inform%iterative_refinements = data%wsmp_iparm( 6 )
-       CASE ( - 102 ) 
+         inform%iterative_refinements = data%wsmp_IPARM( 6 )
+       CASE ( - 102 )
          inform%status = GALAHAD_error_allocate
        CASE DEFAULT
          inform%status = GALAHAD_error_wsmp
@@ -7151,7 +7598,7 @@
          CALL SPACE_resize_array( data%n, data%B, inform%status,               &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
 !        data%B( : data%n ) = X( data%ORDER( : data%n ) )
          data%B( data%ORDER( : data%n ) ) = X( : data%n )
          CALL TRSV ( 'L', 'N', 'N', data%n, data%matrix_dense, data%n,         &
@@ -7170,7 +7617,7 @@
          CALL SPACE_resize_array( data%n, data%B, inform%status,               &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
 !        data%B( : data%n ) = X( data%ORDER( : data%n ) )
          data%B( data%ORDER( : data%n ) ) = X( : data%n )
          CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -7194,7 +7641,7 @@
          CALL SPACE_resize_array( data%n, data%B, inform%status,               &
                                   inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF 
+           inform%bad_alloc = 'sls: data%B' ; GO TO 900 ; END IF
 !        data%B( : data%n ) = X( data%ORDER( : data%n ) )
          data%B( data%ORDER( : data%n ) ) = X( : data%n )
          CALL DTBSV( 'L', 'N', 'N', data%n, inform%semi_bandwidth,             &
@@ -7219,7 +7666,7 @@
      inform%time%solve_external = time_now - time
      inform%time%clock_solve_external = clock_now - clock
 
-!  for those solvers that don't offer a sparse-solution option, 
+!  for those solvers that don't offer a sparse-solution option,
 !  record the nonzeros in the solution
 
      SELECT CASE( data%solver( 1 : data%len_solver ) )
@@ -7250,7 +7697,7 @@
      inform%time%clock_total =                                                 &
        inform%time%clock_total + clock_now - clock_start
      RETURN
-     
+
 !  End of SLS_sparse_forward_solve
 
      END SUBROUTINE SLS_sparse_forward_solve
@@ -7286,7 +7733,7 @@
 !  = SILS =
 
      CASE ( 'sils', 'ma27' )
-       CALL SLS_copy_control_to_sils( control, data%sils_control ) 
+       CALL SLS_copy_control_to_sils( control, data%sils_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        inform%status = GALAHAD_unavailable_option
        GO TO 900
@@ -7297,8 +7744,8 @@
        CALL SPACE_resize_array( data%n, data%WORK, inform%status,              &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%WORK' ; GO TO 900 ; END IF 
-       CALL SLS_copy_control_to_ma57( control, data%ma57_control ) 
+         inform%bad_alloc = 'sls: data%WORK' ; GO TO 900 ; END IF
+       CALL SLS_copy_control_to_ma57( control, data%ma57_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        SELECT CASE ( SMT_get( matrix%type ) )
        CASE ( 'COORDINATE' )
@@ -7329,9 +7776,9 @@
        CALL SPACE_resize_array( data%n, 2, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
        data%X2( : data%n, 1 ) = X( : data%n )
-       CALL SLS_copy_control_to_ma77( control, data%ma77_control ) 
+       CALL SLS_copy_control_to_ma77( control, data%ma77_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        IF ( control%scaling == - 2 .OR. control%scaling == - 3 ) THEN
          CALL MA77_solve_fredholm( 1, flag_out, data%n, data%X2,               &
@@ -7342,7 +7789,7 @@
                                    data%ma77_keep, data%ma77_control,          &
                                    data%ma77_info )
        END IF
-       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info ) 
+       CALL SLS_copy_inform_from_ma77( inform, data%ma77_info )
        inform%alternative = .NOT. flag_out( 1 )
        IF ( inform%status /= GALAHAD_ok ) GO TO 800
        IF ( inform%alternative ) THEN
@@ -7360,7 +7807,7 @@
 !  = MA87 =
 
      CASE ( 'ma87' )
-       CALL SLS_copy_control_to_ma87( control, data%ma87_control ) 
+       CALL SLS_copy_control_to_ma87( control, data%ma87_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        inform%status = GALAHAD_unavailable_option
        GO TO 900
@@ -7371,15 +7818,15 @@
        CALL SPACE_resize_array( data%n, 2, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
        data%X2( : data%n, 1 ) = X( : data%n )
-       CALL SLS_copy_control_to_ma97( control, data%ma97_control ) 
+       CALL SLS_copy_control_to_ma97( control, data%ma97_control )
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        CALL MA97_solve_fredholm( 1, flag_out, data%X2, data%n,                 &
                                  data%ma97_akeep, data%ma97_fkeep,             &
                                  data%ma97_control, data%ma97_info )
        inform%alternative = .NOT. flag_out( 1 )
-       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info ) 
+       CALL SLS_copy_inform_from_ma97( inform, data%ma97_info )
        IF ( inform%status /= GALAHAD_ok ) GO TO 800
        IF ( inform%alternative ) THEN
          X( : data%n ) = data%X2( : data%n, 2 )
@@ -7395,15 +7842,15 @@
 !      CALL SPACE_resize_array( data%n, 2, data%X2, inform%status,             &
 !              inform%alloc_status )
 !      IF ( inform%status /= GALAHAD_ok ) THEN
-!        inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
+!        inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF
 !      data%X2( : data%n, 1 ) = X( : data%n )
-!      CALL SLS_copy_control_to_ssids( control, data%ssids_options ) 
+!      CALL SLS_copy_control_to_ssids( control, data%ssids_options )
 !      CALL CPU_time( time ) ; CALL CLOCK_time( clock )
 !      CALL SSIDS_solve_fredholm( 1, flag_out, data%X2, data%n,                &
 !                                 data%ssids_akeep, data%ssids_fkeep,          &
 !                                 data%ssids_options, data%ssids_inform )
 !      inform%alternative = .NOT. flag_out( 1 )
-!      CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform ) 
+!      CALL SLS_copy_inform_from_ssids( inform, data%ssids_inform )
 !      IF ( inform%status /= GALAHAD_ok ) GO TO 800
 !      IF ( inform%alternative ) THEN
 !        X( : data%n ) = data%X2( : data%n, 2 )
@@ -7413,35 +7860,13 @@
 
 !  = PARDISO =
 
-     CASE ( 'pardiso' )
-       CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
-               inform%alloc_status )
-       IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%X2' ; GO TO 900 ; END IF 
-       CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
-               inform%alloc_status )
-       IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
-       data%X2( : data%n, 1 ) = X( : data%n )
-
+     CASE ( 'pardiso', 'mkl_pardiso' )
        inform%status = GALAHAD_unavailable_option
        GO TO 900
 
 !  = WSMP =
 
      CASE ( 'wsmp' )
-
-       CALL SPACE_resize_array( data%n, 1, data%B2, inform%status,             &
-               inform%alloc_status )
-       IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
-       data%B2( : data%n, 1 ) = X( : data%n )
-
-       CALL SLS_copy_control_to_wsmp( control, data%wsmp_iparm,                &
-                                      data%wsmp_dparm )
-       data%wsmp_iparm( 2 ) = 4
-       data%wsmp_iparm( 3 ) = 5
-       CALL CPU_time( time ) ; CALL CLOCK_time( clock )
        inform%status = GALAHAD_unavailable_option
        GO TO 900
 
@@ -7452,7 +7877,7 @@
        CALL SPACE_resize_array( data%n, 1, data%X2, inform%status,             &
                inform%alloc_status )
        IF ( inform%status /= GALAHAD_ok ) THEN
-         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF 
+         inform%bad_alloc = 'sls: data%B2' ; GO TO 900 ; END IF
        data%X2( data%ORDER( : data%n ), 1 ) = X( : data%n )
 
        CALL CPU_time( time ) ; CALL CLOCK_time( clock )
@@ -7508,7 +7933,7 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Solve the systems Lx = b, D x = b or L^T x = b, where the factorization 
+!  Solve the systems Lx = b, D x = b or L^T x = b, where the factorization
 !  A = L D L^T is found by the LAPACK routine SYTRF and b is input in x
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -7519,14 +7944,14 @@
      INTEGER, INTENT( IN ) :: n, lda
      INTEGER, INTENT( INOUT ) :: status
      INTEGER, INTENT( IN ), DIMENSION( n ) :: PIVOTS
-     REAL ( KIND = wp ), INTENT( IN ), DIMENSION( lda, n ) :: A 
+     REAL ( KIND = wp ), INTENT( IN ), DIMENSION( lda, n ) :: A
      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X
 !  local variables
 
      INTEGER :: k, km1, kp, kp1
      REAL ( KIND = wp ) :: akm1k, akm1, ak, denom, bkm1, bk, val
 
-!  Replace x by L^-1 x 
+!  Replace x by L^-1 x
 
      status = 0
      IF ( part == 'L' ) THEN
@@ -7555,7 +7980,7 @@
 
            IF ( k < n - 1 ) X( k + 2 : n ) = X( k + 2 : n )                    &
                 - A( k + 2 : n, k ) * X( k )                                   &
-                - A( k + 2 : n, kp1 ) * X( kp1 ) 
+                - A( k + 2 : n, kp1 ) * X( kp1 )
            k = k + 2
          END IF
        END DO
@@ -7637,7 +8062,7 @@
 
            IF ( k < n - 1 ) X( k + 2 : n ) = X( k + 2 : n )                    &
                 - A( k + 2 : n, k ) * X( k )                                   &
-                - A( k + 2 : n, kp1 ) * X( kp1 ) 
+                - A( k + 2 : n, kp1 ) * X( kp1 )
            k = k + 2
          END IF
        END DO
@@ -7677,7 +8102,7 @@
 
 !  Check to see if the string is an appropriate keyword
 
-     SELECT CASE( SMT_get( array ) ) 
+     SELECT CASE( SMT_get( array ) )
 
 !  Keyword known
 
@@ -7892,11 +8317,11 @@
                                          alloc_status )
 
 !  Compute a mapping from the co-ordinate scheme to the row storage scheme
-!  used by MA86, MA87, MA97, SSIDS, MC61, MC68, PARDISO and WSMP. The mapping 
+!  used by MA86, MA87, MA97, SSIDS, MC61, MC68, PARDISO and WSMP. The mapping
 !  records out-of-range components and flags duplicates for summation.
 !
 !  Entry l is mapped to positions MAP( l ) for j = 1, l = 1, ne.
-!  If MAP( l ) = 0, the entry is out of range. 
+!  If MAP( l ) = 0, the entry is out of range.
 !  If MAP( l ) < 0, the entry should be added to that in - MAP( l )
 !
 !  dup gives the number of duplicates, oor is the number of out-of-rangers and
@@ -8017,7 +8442,7 @@
 
 !  sort the columns within the i-th row
 
-         CALL SORT_quicksort( size, COLS, err, ivector = ENTS )
+         CALL SORT_quicksort( size, COLS, err, ix = ENTS )
 
 !  remap the pointers to the columns to take account of the sort
 
@@ -8058,360 +8483,359 @@
 
      END SUBROUTINE SLS_coord_to_sorted_csr
 
-!-*-*-  S L S _ M A P _ T O _ E X T E N D E D _ C S R  S U B R O U T I N E -*-*-
-
-     SUBROUTINE SLS_map_to_extended_csr( matrix, map, ptr, dup, oor,           &
-                                         missing_diagonals )
-
-!  Compute a mapping from the co-ordinate scheme to the extended row storage
-!  scheme used by MA77. The mapping records out-of-range components 
-!  and flags duplicates for summation.
+!!-*-*-  S L S _ M A P _ T O _ E X T E N D E D _ C S R  S U B R O U T I N E -*-*-
 !
-!  Entry l is mapped to positions MAP( l, j ) for j = 1 and 2, l = 1, ne.
-!  If MAP( l, 2 ) = 0, the entry is on the diagonal, and thus only mapped
-!  to the single location MAP( l, 1 ). If MAP( l, 1 ) = 0, the entry is out of
-!  range. If MAP( l, j ) < 0, the entry should be added to that in - MAP( l, j )
+!     SUBROUTINE SLS_map_to_extended_csr( matrix, map, ptr, dup, oor,           &
+!                                         missing_diagonals )
 !
-!  dup gives the number of duplicates, oor is the number of out-of-rangers and
-!  missing_diagonals records the number of rows without a diagonal entry
-
-! dummy arguments
-
-     TYPE ( SMT_type ), INTENT( IN ) :: matrix
-     INTEGER, INTENT( out ) :: dup, oor, missing_diagonals
-     INTEGER, INTENT( out ), DIMENSION( matrix%ne, 2 ) :: MAP
-     INTEGER, INTENT( out ), DIMENSION( matrix%n + 1 ) :: PTR
-
-!  local variables
-
-     INTEGER :: i, j, k, l, ll
-     INTEGER, DIMENSION( matrix%n + 1 ) :: IW
-
-!  record the numbers of nonzeros in each row of the lower triangular
-!  part of the matrix in IW
-
-     IW( 2 : matrix%n + 1 ) = 0
-     DO l = 1, matrix%ne
-       i = matrix%ROW( l ) ; j = matrix%COL( l )
-       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) CYCLE
-       IF ( i >= j ) THEN
-         IW( i + 1 ) = IW( i + 1 ) + 1
-       ELSE
-         IW( j + 1 ) = IW( j + 1 ) + 1
-       END IF
-     END DO
-
-!  record starting addresses for each row
-
-     IW( 1 ) = 1
-     DO i = 1, matrix%n
-       IW( i + 1 ) = IW( i + 1 ) + IW( i )
-     END DO
-
-!  map the lower triangular part into IW(:,1) and
-!  use IW(:,2) to point back to the original storage.
-
-     DO l = 1, matrix%ne
-       i = matrix%ROW( l ) ; j = matrix%COL( l )
-       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) CYCLE
-       IF ( i >= j ) THEN
-         MAP( l, 1 ) = IW( i )
-         MAP( IW( i ), 2 ) = l
-         IW( i ) = IW( i ) + 1
-       ELSE
-         MAP( l, 1 ) = IW( j )
-         MAP( IW( j ), 2 ) = l
-         IW( j ) = IW( j ) + 1
-       END IF
-     END DO
-
-!   restore the starting addresses for the rows
-
-     DO i = matrix%n, 1, - 1
-       IW( i + 1 ) = IW( i )
-     END DO
-     IW( 1 ) = 1
-
-!  check for duplicate entries and zero diagonals
-
-     dup = 0 ; missing_diagonals = 0
-     PTR( 1 : matrix%n ) = 0
-     DO i = 1, matrix%n
-       k = IW( i )
-       DO ll = IW( i ), IW( i + 1 ) - 1
-         l = MAP( ll, 2 )
-         j = MIN( matrix%ROW( l ), matrix%COL( l ) )
-
-!  new entry
-
-         IF ( PTR( j ) < IW( i ) ) THEN
-           PTR( j ) = k
-           k = k + 1
-
-!  duplicate. Point at the original
-
-         ELSE
-           MAP( l, 1 ) = - MAP( PTR( j ), 2 )
-           dup = dup + 1
-         END IF
-       END DO
-       IF ( PTR( i ) < IW( i ) ) missing_diagonals = missing_diagonals + 1
-     END DO
-
-!  now find the number of nonzeros in each row of the expanded matrix
-
-     PTR( 2 : matrix%n + 1 ) = 0
-     DO l = 1, matrix%ne
-       i = matrix%ROW( l ) ; j = matrix%COL( l )
-       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) THEN
-
-!  new entries
-
-       ELSE
-         ll = MAP( l, 1 )
-         IF ( ll > 0 ) THEN
-           IF ( i /= j ) THEN
-             PTR( i + 1 ) = PTR( i + 1 ) + 1
-             PTR( j + 1 ) = PTR( j + 1 ) + 1
-           ELSE
-             PTR( i + 1 ) = PTR( i + 1 ) + 1
-           END IF
-         ELSE
-         END IF
-       END IF
-     END DO
-
-!  record starting addresses for each row of the expanded matrix
-
-     PTR( 1 ) = 1
-     DO i = 1, matrix%n
-       PTR( i + 1 ) = PTR( i + 1 ) + PTR( i )
-     END DO
-
-!  compute the map into the extended structure
-
-     oor = 0
-     DO l = 1, matrix%ne
-       i = matrix%ROW( l ) ; j = matrix%COL( l )
-
-!  count and flag out-of-range indices
-
-       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) THEN
-         oor = oor + 1
-         MAP( l, 1 ) = 0
-         MAP( l, 2 ) = 0
-
-!  new entries
-
-       ELSE
-         ll = MAP( l, 1 )
-         IF ( ll > 0 ) THEN
-           IF ( i /= j ) THEN
-             MAP( l, 1 ) = PTR( i )
-             PTR( i ) = PTR( i ) + 1
-             MAP( l, 2 ) = PTR( j )
-             PTR( j ) = PTR( j ) + 1
-           ELSE
-             MAP( l, 1 ) = PTR( i )
-             PTR( i ) = PTR( i ) + 1
-             MAP( l, 2 ) = 0
-           END IF
-
-!  duplicates
-
-         ELSE
-           IF ( i /= j ) THEN
-             MAP( l, 1 ) = - MAP( - ll, 1 )
-             MAP( l, 2 ) = - MAP( - ll, 2 )
-           ELSE
-             MAP( l, 1 ) = - MAP( - ll, 1 )
-             MAP( l, 2 ) = 0
-           END IF
-         END IF
-       END IF
-     END DO
-
-!  restore the starting addresses for the rows in the expanded matrix
-
-     DO i = matrix%n, 1, - 1
-       PTR( i + 1 ) = PTR( i )
-     END DO
-     PTR( 1 ) = 1
-
-     RETURN
-
-!  End of SUBROUTINE SLS_map_to_extended_csr
-
-     END SUBROUTINE SLS_map_to_extended_csr
-
-!-*-*-   S L S _ M A P _ T O _ S O R T E D _ C S R  S U B R O U T I N E  -*-*-*-
-
-     SUBROUTINE SLS_map_to_sorted_csr( matrix, map, ptr, dup, oor,             &
-                                       missing_diagonals, status,              &
-                                       alloc_status )
-
-!  Compute a mapping from the co-ordinate scheme to the row storage scheme
-!  used by MA86, MA87, MA97, SSIDS, MC61, MC68, PARDISO and WSMP. The mapping 
-!  records out-of-range components and flags duplicates for summation.
+!!  Compute a mapping from the co-ordinate scheme to the extended row storage
+!!  scheme used by MA77. The mapping records out-of-range components
+!!  and flags duplicates for summation.
+!!
+!!  Entry l is mapped to positions MAP( l, j ) for j = 1 and 2, l = 1, ne.
+!!  If MAP( l, 2 ) = 0, the entry is on the diagonal, and thus only mapped
+!!  to the single location MAP( l, 1 ). If MAP( l, 1 ) = 0, the entry is out of
+!!  range. If MAP( l, j ) < 0, the entry should be added to that in - MAP( l, j )
+!!
+!!  dup gives the number of duplicates, oor is the number of out-of-rangers and
+!!  missing_diagonals records the number of rows without a diagonal entry
 !
-!  Entry l is mapped to positions MAP( l ) for j = 1, l = 1, ne.
-!  If MAP( l ) = 0, the entry is out of range. 
-!  If MAP( l ) < 0, the entry should be added to that in - MAP( l )
+!! dummy arguments
 !
-!  dup gives the number of duplicates, oor is the number of out-of-rangers and
-!  missing_diagonals records the number of rows without a diagonal entry
-
-! dummy arguments
-
-     TYPE ( SMT_type ), INTENT( IN ) :: matrix
-     INTEGER, INTENT( out ) :: dup, oor, missing_diagonals, status, alloc_status
-     INTEGER, INTENT( out ), DIMENSION( matrix%ne ) :: MAP
-     INTEGER, INTENT( out ), DIMENSION( matrix%n + 1 ) :: PTR
-
-!  local variables
-
-     INTEGER :: i, j, jj, j_old, k, l, ll, err, pt, size
-     INTEGER, DIMENSION( matrix%n + 1 ) :: IW
-     INTEGER, ALLOCATABLE, DIMENSION( : ) :: COLS, ENTS
-     INTEGER, ALLOCATABLE, DIMENSION( : ) :: MAP2
-
-     status = 0
-
-!  record the numbers of nonzeros in each row of the upper triangular
-!  part of the matrix in IW. Zero diagonals will be included
-
-     IW( 2 : matrix%n + 1 ) = 1
-     DO l = 1, matrix%ne
-       i = matrix%ROW( l ) ; j = matrix%COL( l )
-       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) CYCLE
-       IF ( i <= j ) THEN
-         IW( i + 1 ) = IW( i + 1 ) + 1
-       ELSE IF ( i > j ) THEN
-         IW( j + 1 ) = IW( j + 1 ) + 1
-       END IF
-     END DO
-
-!  record starting addresses for each row
-
-     IW( 1 ) = 1
-     DO i = 1, matrix%n
-       IW( i + 1 ) = IW( i + 1 ) + IW( i )
-     END DO
-     size = IW( matrix%n + 1 ) - 1
-
-     ALLOCATE( MAP2( size ), STAT = alloc_status )
-     IF ( alloc_status /= 0 ) THEN
-       status = GALAHAD_error_deallocate
-       RETURN
-     END IF
-
-     DO i = 1, matrix%n
-       MAP2( IW( i ) ) = 0
-       IW( i ) = IW( i ) + 1
-     END DO
-
-     oor = 0
-     DO l = 1, matrix%ne
-       i = matrix%ROW( l ) ; j = matrix%COL( l )
-
-!  flag and count out-of-range indices
-
-       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) THEN
-         oor = oor + 1
-         MAP( l ) = 0
-
-!  map the upper triangular part into IW(:)
-
-       ELSE IF ( i <= j ) THEN
-         MAP( l ) = IW( i )
-         MAP2( IW( i ) ) = l
-         IW( i ) = IW( i ) + 1
-       ELSE IF ( i > j ) THEN
-         MAP( l ) = IW( j )
-         MAP2( IW( j ) ) = l
-         IW( j ) = IW( j ) + 1
-       END IF
-     END DO
-
-!   restore the starting addresses for the rows
-
-     DO i = matrix%n, 1, - 1
-       IW( i + 1 ) = IW( i )
-     END DO
-     IW( 1 ) = 1
-
-!  allocate workspace
-
-     size = MAXVAL( IW( 2 : matrix%n + 1 ) - IW( 1 : matrix%n ) - 1 )
-     ALLOCATE( ENTS( size ), COLS( size ), STAT = alloc_status )
-     IF ( alloc_status /= 0 ) THEN
-       status = GALAHAD_error_deallocate
-       RETURN
-     END IF
-
-!  check for duplicate entries and zero diagonals
-
-     dup = 0 ; missing_diagonals = 0
-     PTR( 1 ) = 1
-     DO i = 1, matrix%n
-       size = IW( i + 1 ) - IW( i ) - 1
-       pt = PTR( i )
-
-!  record the column indices in the i-th row
-
-       IF ( size > 0 ) THEN
-         k = 0
-         DO ll = IW( i ) +  1, IW( i + 1 ) - 1
-           k = k + 1
-           l = MAP2( ll )
-           ENTS( k ) = l
-           COLS( k ) = MAX( matrix%ROW( l ), matrix%COL( l ) )
-         END DO
-
-!  sort the columns within the i-th row
-
-         CALL SORT_quicksort( size, COLS, err, ivector = ENTS )
-
-!  remap the pointers to the columns to take account of the sort
-
-         j_old = i - 1
-         IF ( COLS( 1 ) > i ) THEN
-           pt = pt + 1
-           missing_diagonals = missing_diagonals + 1
-         END IF
-         DO k = 1, size
-           l = ENTS( k )
-           jj = COLS( k )
-           IF ( jj > j_old ) THEN
-             j_old = jj
-             MAP( l ) = pt
-             ll = l
-             pt = pt + 1
-           ELSE
-             dup = dup + 1
-             IF ( l < ll ) THEN
-               MAP( l ) = pt - 1
-               MAP( ll ) = - pt + 1
-               ll = l
-             ELSE
-               MAP( l ) = - pt + 1
-             END IF
-           END IF
-         END DO
-       ELSE
-         pt = pt + 1
-       END IF
-       PTR( i + 1 ) = pt
-     END DO
-
-     DEALLOCATE( MAP2, ENTS, COLS, STAT = i )
-     RETURN
-
-!  End of SUBROUTINE SLS_map_to_sorted_csr
-
-     END SUBROUTINE SLS_map_to_sorted_csr
+!     TYPE ( SMT_type ), INTENT( IN ) :: matrix
+!     INTEGER, INTENT( out ) :: dup, oor, missing_diagonals
+!     INTEGER, INTENT( out ), DIMENSION( matrix%ne, 2 ) :: MAP
+!     INTEGER, INTENT( out ), DIMENSION( matrix%n + 1 ) :: PTR
+!
+!!  local variables
+!
+!     INTEGER :: i, j, k, l, ll
+!     INTEGER, DIMENSION( matrix%n + 1 ) :: IW
+!
+!!  record the numbers of nonzeros in each row of the lower triangular
+!!  part of the matrix in IW
+!
+!     IW( 2 : matrix%n + 1 ) = 0
+!     DO l = 1, matrix%ne
+!       i = matrix%ROW( l ) ; j = matrix%COL( l )
+!       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) CYCLE
+!       IF ( i >= j ) THEN
+!         IW( i + 1 ) = IW( i + 1 ) + 1
+!       ELSE
+!         IW( j + 1 ) = IW( j + 1 ) + 1
+!       END IF
+!     END DO
+!
+!!  record starting addresses for each row
+!
+!     IW( 1 ) = 1
+!     DO i = 1, matrix%n
+!       IW( i + 1 ) = IW( i + 1 ) + IW( i )
+!     END DO
+!
+!!  map the lower triangular part into IW(:,1) and
+!!  use IW(:,2) to point back to the original storage.
+!
+!     DO l = 1, matrix%ne
+!       i = matrix%ROW( l ) ; j = matrix%COL( l )
+!       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) CYCLE
+!       IF ( i >= j ) THEN
+!         MAP( l, 1 ) = IW( i )
+!         MAP( IW( i ), 2 ) = l
+!         IW( i ) = IW( i ) + 1
+!       ELSE
+!         MAP( l, 1 ) = IW( j )
+!         MAP( IW( j ), 2 ) = l
+!         IW( j ) = IW( j ) + 1
+!       END IF
+!     END DO
+!
+!!   restore the starting addresses for the rows
+!
+!     DO i = matrix%n, 1, - 1
+!       IW( i + 1 ) = IW( i )
+!     END DO
+!     IW( 1 ) = 1
+!
+!!  check for duplicate entries and zero diagonals
+!
+!     dup = 0 ; missing_diagonals = 0
+!     PTR( 1 : matrix%n ) = 0
+!     DO i = 1, matrix%n
+!       k = IW( i )
+!       DO ll = IW( i ), IW( i + 1 ) - 1
+!         l = MAP( ll, 2 )
+!         j = MIN( matrix%ROW( l ), matrix%COL( l ) )
+!
+!!  new entry
+!
+!         IF ( PTR( j ) < IW( i ) ) THEN
+!           PTR( j ) = k
+!           k = k + 1
+!
+!!  duplicate. Point at the original
+!
+!         ELSE
+!           MAP( l, 1 ) = - MAP( PTR( j ), 2 )
+!           dup = dup + 1
+!         END IF
+!       END DO
+!       IF ( PTR( i ) < IW( i ) ) missing_diagonals = missing_diagonals + 1
+!     END DO
+!
+!!  now find the number of nonzeros in each row of the expanded matrix
+!
+!     PTR( 2 : matrix%n + 1 ) = 0
+!     DO l = 1, matrix%ne
+!       i = matrix%ROW( l ) ; j = matrix%COL( l )
+!       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) THEN
+!
+!!  new entries
+!
+!       ELSE
+!         ll = MAP( l, 1 )
+!         IF ( ll > 0 ) THEN
+!           IF ( i /= j ) THEN
+!             PTR( i + 1 ) = PTR( i + 1 ) + 1
+!             PTR( j + 1 ) = PTR( j + 1 ) + 1
+!           ELSE
+!             PTR( i + 1 ) = PTR( i + 1 ) + 1
+!           END IF
+!         ELSE
+!         END IF
+!       END IF
+!     END DO
+!
+!!  record starting addresses for each row of the expanded matrix
+!
+!     PTR( 1 ) = 1
+!     DO i = 1, matrix%n
+!       PTR( i + 1 ) = PTR( i + 1 ) + PTR( i )
+!     END DO
+!
+!!  compute the map into the extended structure
+!
+!     oor = 0
+!     DO l = 1, matrix%ne
+!       i = matrix%ROW( l ) ; j = matrix%COL( l )
+!
+!!  count and flag out-of-range indices
+!
+!       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) THEN
+!         oor = oor + 1
+!         MAP( l, 1 ) = 0
+!         MAP( l, 2 ) = 0
+!
+!!  new entries
+!
+!       ELSE
+!         ll = MAP( l, 1 )
+!         IF ( ll > 0 ) THEN
+!           IF ( i /= j ) THEN
+!             MAP( l, 1 ) = PTR( i )
+!             PTR( i ) = PTR( i ) + 1
+!             MAP( l, 2 ) = PTR( j )
+!             PTR( j ) = PTR( j ) + 1
+!           ELSE
+!             MAP( l, 1 ) = PTR( i )
+!             PTR( i ) = PTR( i ) + 1
+!             MAP( l, 2 ) = 0
+!           END IF
+!
+!!  duplicates
+!
+!         ELSE
+!           IF ( i /= j ) THEN
+!             MAP( l, 1 ) = - MAP( - ll, 1 )
+!             MAP( l, 2 ) = - MAP( - ll, 2 )
+!           ELSE
+!             MAP( l, 1 ) = - MAP( - ll, 1 )
+!             MAP( l, 2 ) = 0
+!           END IF
+!         END IF
+!       END IF
+!     END DO
+!
+!!  restore the starting addresses for the rows in the expanded matrix
+!
+!     DO i = matrix%n, 1, - 1
+!       PTR( i + 1 ) = PTR( i )
+!     END DO
+!     PTR( 1 ) = 1
+!
+!     RETURN
+!
+!!  End of SUBROUTINE SLS_map_to_extended_csr
+!
+!     END SUBROUTINE SLS_map_to_extended_csr
+!
+!!-*-*-   S L S _ M A P _ T O _ S O R T E D _ C S R  S U B R O U T I N E  -*-*-*-
+!
+!     SUBROUTINE SLS_map_to_sorted_csr( matrix, map, ptr, dup, oor,             &
+!                                       missing_diagonals, status,              &
+!                                       alloc_status )
+!
+!!  Compute a mapping from the co-ordinate scheme to the row storage scheme
+!!  used by MA86, MA87, MA97, SSIDS, MC61, MC68, PARDISO and WSMP. The mapping
+!!  records out-of-range components and flags duplicates for summation.
+!!
+!!  Entry l is mapped to positions MAP( l ) for j = 1, l = 1, ne.
+!!  If MAP( l ) = 0, the entry is out of range.
+!!  If MAP( l ) < 0, the entry should be added to that in - MAP( l )
+!!
+!!  dup gives the number of duplicates, oor is the number of out-of-rangers and
+!!  missing_diagonals records the number of rows without a diagonal entry
+!
+!! dummy arguments
+!
+!     TYPE ( SMT_type ), INTENT( IN ) :: matrix
+!     INTEGER, INTENT( out ) :: dup, oor, missing_diagonals, status, alloc_status
+!     INTEGER, INTENT( out ), DIMENSION( matrix%ne ) :: MAP
+!     INTEGER, INTENT( out ), DIMENSION( matrix%n + 1 ) :: PTR
+!
+!!  local variables
+!
+!     INTEGER :: i, j, jj, j_old, k, l, ll, err, pt, size
+!     INTEGER, DIMENSION( matrix%n + 1 ) :: IW
+!     INTEGER, ALLOCATABLE, DIMENSION( : ) :: COLS, ENTS
+!     INTEGER, ALLOCATABLE, DIMENSION( : ) :: MAP2
+!
+!     status = 0
+!
+!!  record the numbers of nonzeros in each row of the upper triangular
+!!  part of the matrix in IW. Zero diagonals will be included
+!
+!     IW( 2 : matrix%n + 1 ) = 1
+!     DO l = 1, matrix%ne
+!       i = matrix%ROW( l ) ; j = matrix%COL( l )
+!       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) CYCLE
+!       IF ( i <= j ) THEN
+!         IW( i + 1 ) = IW( i + 1 ) + 1
+!       ELSE IF ( i > j ) THEN
+!         IW( j + 1 ) = IW( j + 1 ) + 1
+!       END IF
+!     END DO
+!
+!!  record starting addresses for each row
+!
+!     IW( 1 ) = 1
+!     DO i = 1, matrix%n
+!       IW( i + 1 ) = IW( i + 1 ) + IW( i )
+!     END DO
+!     size = IW( matrix%n + 1 ) - 1
+!
+!     ALLOCATE( MAP2( size ), STAT = alloc_status )
+!     IF ( alloc_status /= 0 ) THEN
+!       status = GALAHAD_error_deallocate
+!       RETURN
+!     END IF
+!
+!     DO i = 1, matrix%n
+!       MAP2( IW( i ) ) = 0
+!       IW( i ) = IW( i ) + 1
+!     END DO
+!
+!     oor = 0
+!     DO l = 1, matrix%ne
+!       i = matrix%ROW( l ) ; j = matrix%COL( l )
+!
+!!  flag and count out-of-range indices
+!
+!       IF ( i < 1 .OR. i > matrix%n .OR. j < 1 .OR. j > matrix%n ) THEN
+!         oor = oor + 1
+!         MAP( l ) = 0
+!
+!!  map the upper triangular part into IW(:)
+!
+!       ELSE IF ( i <= j ) THEN
+!         MAP( l ) = IW( i )
+!         MAP2( IW( i ) ) = l
+!         IW( i ) = IW( i ) + 1
+!       ELSE IF ( i > j ) THEN
+!         MAP( l ) = IW( j )
+!         MAP2( IW( j ) ) = l
+!         IW( j ) = IW( j ) + 1
+!       END IF
+!     END DO
+!
+!!   restore the starting addresses for the rows
+!
+!     DO i = matrix%n, 1, - 1
+!       IW( i + 1 ) = IW( i )
+!     END DO
+!     IW( 1 ) = 1
+!
+!!  allocate workspace
+!
+!     size = MAXVAL( IW( 2 : matrix%n + 1 ) - IW( 1 : matrix%n ) - 1 )
+!     ALLOCATE( ENTS( size ), COLS( size ), STAT = alloc_status )
+!     IF ( alloc_status /= 0 ) THEN
+!       status = GALAHAD_error_deallocate
+!       RETURN
+!     END IF
+!
+!!  check for duplicate entries and zero diagonals
+!
+!     dup = 0 ; missing_diagonals = 0
+!     PTR( 1 ) = 1
+!     DO i = 1, matrix%n
+!       size = IW( i + 1 ) - IW( i ) - 1
+!       pt = PTR( i )
+!
+!!  record the column indices in the i-th row
+!
+!       IF ( size > 0 ) THEN
+!         k = 0
+!         DO ll = IW( i ) +  1, IW( i + 1 ) - 1
+!           k = k + 1
+!           l = MAP2( ll )
+!           ENTS( k ) = l
+!           COLS( k ) = MAX( matrix%ROW( l ), matrix%COL( l ) )
+!         END DO
+!
+!!  sort the columns within the i-th row
+!
+!         CALL SORT_quicksort( size, COLS, err, ix = ENTS )
+!
+!!  remap the pointers to the columns to take account of the sort
+!
+!         j_old = i - 1
+!         IF ( COLS( 1 ) > i ) THEN
+!           pt = pt + 1
+!           missing_diagonals = missing_diagonals + 1
+!         END IF
+!         DO k = 1, size
+!           l = ENTS( k )
+!           jj = COLS( k )
+!           IF ( jj > j_old ) THEN
+!             j_old = jj
+!             MAP( l ) = pt
+!             ll = l
+!             pt = pt + 1
+!           ELSE
+!             dup = dup + 1
+!             IF ( l < ll ) THEN
+!               MAP( l ) = pt - 1
+!               MAP( ll ) = - pt + 1
+!               ll = l
+!             ELSE
+!               MAP( l ) = - pt + 1
+!             END IF
+!           END IF
+!         END DO
+!       ELSE
+!         pt = pt + 1
+!       END IF
+!       PTR( i + 1 ) = pt
+!     END DO
+!
+!     DEALLOCATE( MAP2, ENTS, COLS, STAT = i )
+!     RETURN
+!
+!!  End of SUBROUTINE SLS_map_to_sorted_csr
+!
+!     END SUBROUTINE SLS_map_to_sorted_csr
 
 !  End of module GALAHAD_SLS_double
 
    END MODULE GALAHAD_SLS_double
-

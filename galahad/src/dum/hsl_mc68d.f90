@@ -55,18 +55,15 @@
         TYPE (mc68_control), INTENT (IN) :: control
         TYPE (mc68_info) :: info
         INTEGER, INTENT (IN), OPTIONAL :: min_l_workspace
-
         IF ( control%lp >= 0 ) WRITE( control%lp,                              &
       "( ' We regret that the solution options that you have ', /,             &
   &     ' chosen are not all freely available with GALAHAD.', /,               &
   &     ' If you have HSL (formerly the Harwell Subroutine', /,                &
   &     ' Library), this option may be enabled by replacing the dummy ', /,    &
-  &     ' subroutine MC68_order HSL namesake ', /,                             &
-  &     ' and dependencies. See ', /,                                          &
+  &     ' subroutine MC68_order HSL namesake and dependencies. See ', /,       &
   &     '   $GALAHAD/src/makedefs/packages for details.' )" )
 
         info%flag = GALAHAD_unavailable_option
-        info%flag = 0
         info%stat = 0
 
       END SUBROUTINE mc68_order_double

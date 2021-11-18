@@ -1,0 +1,20 @@
+# LLVM Clang compiler
+
+#
+#  C compilation and loading
+#
+
+CC=clang
+CCBASIC='-c -fPIC'
+CCISO='-ansi -pedantic' # -pedantic-errors'
+CCDEBUG= #-g -DDEBUG_GALAHAD
+CCFFLAGS='-lgfortran -lm'
+
+CXX=clang++
+CXXBASIC='-c -std=c++11'
+CXXOPT=-O2
+CXXNOOPT=-O0
+CXXDEBUG=''
+CXXFFLAGS=''
+
+HWLOC=''

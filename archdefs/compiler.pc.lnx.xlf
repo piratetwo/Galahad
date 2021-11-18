@@ -13,6 +13,7 @@ OPTIMIZATION='-O5'
 NOOPTIMIZATION=''
 DEBUG=
 OPENMP=
+SOMP=
 F77='-F:f90 -qfixed -qlanglvl=90std'
 F90='-F:f90 -qlanglvl=2003std'
 F95='-F:f95 -qlanglvl=2003std'
@@ -38,6 +39,7 @@ HSL=
 SPRAL='-lgalahad_spral'
 METIS='-lgalahad_metis'
 PARDISO='-lgalahad_pardiso'
+MKL_PARDISO='-lgalahad_mkl_pardiso'
 WSMP='-lgalahad_wsmp'
 NOT95=IS95
 NOT64=NOT64

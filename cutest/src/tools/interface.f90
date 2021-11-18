@@ -1,4 +1,4 @@
-! THIS VERSION: CUTEST 1.0 - 06/02/2013 AT 20:20 GMT.
+! THIS VERSION: CUTEST 1.6 - 22/02/2018 AT 15:15 GMT.
 
 !-*-*-*-*-*-*-*-  C U T E S T    I N T E R F A C E   M O D U L E  -*-*-*-*-*-*-
 
@@ -198,7 +198,7 @@
        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( OUT ) :: cutest_status
        REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 4 ) :: CALLS
-       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 2 ) :: CPU
+       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 4 ) :: CPU
        END SUBROUTINE CUTEST_ureport
 
        SUBROUTINE CUTEST_uterminate( cutest_status )
@@ -293,6 +293,13 @@
        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( OUT ) :: cutest_status, nnzj
        END SUBROUTINE CUTEST_cdimsj
+
+       SUBROUTINE CUTEST_csjp( status, nnzj, lj, J_var, J_fun )
+       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
+       INTEGER, INTENT( IN ) :: lj
+       INTEGER, INTENT( OUT ) :: nnzj, status
+       INTEGER, INTENT( OUT ), DIMENSION( lj ) :: J_var, J_fun
+       END SUBROUTINE CUTEST_csjp
 
        SUBROUTINE CUTEST_csgrp( status, n, nnzj, lj, J_var, J_fun )
        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
@@ -612,7 +619,7 @@
        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
        INTEGER, INTENT( OUT ) :: cutest_status
        REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 7 ) :: CALLS
-       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 2 ) :: CPU
+       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 4 ) :: CPU
        END SUBROUTINE CUTEST_creport
 
        SUBROUTINE CUTEST_cstats( cutest_status, nonlinear_variables_objective, &
@@ -771,7 +778,7 @@
        INTEGER, INTENT( IN ) :: thread
        INTEGER, INTENT( OUT ) :: cutest_status
        REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 4 ) :: CALLS
-       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 2 ) :: CPU
+       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 4 ) :: CPU
        END SUBROUTINE CUTEST_ureport_threaded
 
 !  Interface block for threaded constrained tools
@@ -1080,7 +1087,7 @@
        INTEGER, INTENT( IN ) :: thread
        INTEGER, INTENT( OUT ) :: cutest_status
        REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 7 ) :: CALLS
-       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 2 ) :: CPU
+       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( 4 ) :: CPU
        END SUBROUTINE CUTEST_creport_threaded
 
      END INTERFACE
@@ -1088,5 +1095,3 @@
 !  End of module CUTEst_interface_double
 
    END MODULE CUTEst_interface_double
-
-

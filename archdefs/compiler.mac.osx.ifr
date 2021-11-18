@@ -1,5 +1,4 @@
-# Intel ifort compiler
-# under Mac OsX
+# Intel ifort compiler for Macs under OSX
 #
 # Fortran compilation and loading
 #
@@ -7,7 +6,8 @@
 #for ifc pre version 8 replace next line by
 #FORTRAN='ifc'
 FORTRAN='ifort'
-BASIC='-c -vec-report0'
+#BASIC='-c -vec-report0'
+BASIC='-c'
 LIBCMD=''
 #for ifc pre version 7 replace next line by
 #MODCMD='-cl,$MOD/work.pcl -Vaxlib'
@@ -18,9 +18,13 @@ OPTIMIZATION='-O2'
 NOOPTIMIZATION='-O0'
 DEBUG=
 OPENMP=
-F77='-fixed -nowarn -xT'
-F90='-nowarn -xT'
-F95='-nowarn -xT'
+SOMP=
+#F77='-fixed -nowarn -xT'
+F77='-fixed -nowarn'
+#F90='-nowarn -xT'
+F90='-nowarn'
+#F95='-nowarn -xT'
+F95='-nowarn'
 NOFMAIN='-nofor-main'
 CCONDEF='-DIntel_ifort'
 USUAL=
@@ -34,15 +38,19 @@ CUDACODE=
 CUDABASIC=
 CUDALIBS=
 CUDAOPENMP=$OPENMP
+MOMP=
 TIMER=GEN
-BLAS='-L${MKLROOT}/lib/32 -lmkl_core -lmkl_intel -lmkl_intel_thread'
-LAPACK='-L${MKLROOT}/lib/32 -lmkl_lapack'
+#BLAS='-L${MKLROOT}/lib/32 -lmkl_core -lmkl_intel -lmkl_intel_thread'
+BLAS=''
+#LAPACK='-L${MKLROOT}/lib/32 -lmkl_lapack'
+LAPACK='-L${MKLROOT}/lib -lmkl_rt'
 OMP4=yes
 IEEECK=
 HSL=
 SPRAL='-lgalahad_spral'
 METIS='-lgalahad_metis'
 PARDISO='-lgalahad_pardiso'
+MKL_PARDISO='-lgalahad_mkl_pardiso'
 WSMP='-lgalahad_wsmp'
 NOT95=IS95
 NOT64=NOT64

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 13/05/2014 AT 09:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 29/10/2020 AT 08:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*- G A L A H A D _ M I Q R    M O D U L E -*-*-*-*-*-*-*-*-
 
@@ -6,11 +6,11 @@
 !  Principal author: Nick Gould
 
 !  History -
-!   partially based on the C package imqr by Na Li (nli@cs.umn.edu), 2005     
+!   partially based on the C package imqr by Na Li (nli@cs.umn.edu), 2005
 !   development started May 1st 2014
 !   originally released GALAHAD Version 2.6. May 1st 2014
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_MIQR_double
@@ -55,7 +55,8 @@
 !   P a r a m e t e r s
 !----------------------
 
-      INTEGER, PARAMETER :: max_miqr_levels = 10
+!     INTEGER, PARAMETER :: max_miqr_levels = 10
+      INTEGER, PARAMETER :: max_miqr_levels = 100
       REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
       REAL ( KIND = wp ), PARAMETER :: one = 1.0_wp
       REAL ( KIND = wp ), PARAMETER :: ten = 10.0_wp
@@ -65,9 +66,9 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: MIQR_control_type
 
@@ -91,12 +92,12 @@
 
         INTEGER :: max_order = - 1
 
-!  the max number of elements allowed in each column of R will not exceed 
+!  the max number of elements allowed in each column of R will not exceed
 !    max_fill (-ve = n)
 
         INTEGER :: max_fill = 100
 
-!  the max number of elements allowed in each column of Q will not exceed 
+!  the max number of elements allowed in each column of Q will not exceed
 !    max_fill (-ve = m)
 
         INTEGER :: max_fill_q = 100
@@ -116,18 +117,18 @@
 !       REAL ( KIND = wp ) :: smallest_diag = ten ** ( - 14 )
         REAL ( KIND = wp ) :: smallest_diag = ten ** ( - 10 )
 
-!  tolerance for stopping multi-level phase. Stop if 
+!  tolerance for stopping multi-level phase. Stop if
 !    reduced size < tol_level * previous size
 
         REAL ( KIND = wp ) :: tol_level = 0.3_wp
 
-!  orthogonal tolerance: if |u^T v| < tol_orthogonal*||u||*||v|| vectors 
+!  orthogonal tolerance: if |u^T v| < tol_orthogonal*||u||*||v|| vectors
 !    u and v are considered as orthogonal
 
         REAL ( KIND = wp ) :: tol_orthogonal = 0.0_wp
 
 !  increase the orthogonality tolerance by tol_orthogonal_increase at
-!    each level 
+!    each level
 
         REAL ( KIND = wp ) :: tol_orthogonal_increase = 0.01_wp
 
@@ -145,12 +146,12 @@
 
         REAL ( KIND = wp ) :: tol_drop = 0.01_wp
 
-!   the maximum CPU time allowed when constructing the preconditioner 
+!   the maximum CPU time allowed when constructing the preconditioner
 !    (-ve means infinite)
 
         REAL ( KIND = wp ) :: cpu_time_limit = - one
 
-!   the maximum elapsed clock time allowed when constructing the preconditioner 
+!   the maximum elapsed clock time allowed when constructing the preconditioner
 !    (-ve means infinite)
 
         REAL ( KIND = wp ) :: clock_time_limit = - one
@@ -179,9 +180,9 @@
 
         LOGICAL :: deallocate_error_fatal  = .FALSE.
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -222,12 +223,12 @@
 
         REAL ( KIND = wp ) :: clock_total = 0.0
 
-!  total clock time spent in the multi-level phase when forming 
+!  total clock time spent in the multi-level phase when forming
 !  the preconditioner
 
         REAL ( KIND = wp ) :: clock_levels = 0.0
 
-!  total clock time spent in the IQR phase when forming 
+!  total clock time spent in the IQR phase when forming
 !  the preconditioner
 
         REAL ( KIND = wp ) :: clock_iqr = 0.0
@@ -242,9 +243,9 @@
 
       END TYPE MIQR_time_type
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: MIQR_inform_type
 
@@ -369,7 +370,7 @@
 !
 !  Default control data for MIQR. This routine should be called before
 !  MIQR_form
-! 
+!
 !  --------------------------------------------------------------------
 !
 !  Arguments:
@@ -386,7 +387,7 @@
 
       inform%status = GALAHAD_ok
 
-      RETURN  
+      RETURN
 
 !  End of MIQR_initialize
 
@@ -396,17 +397,17 @@
 
       SUBROUTINE MIQR_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by MIQR_initialize could (roughly) 
+!  The defauly values as given by MIQR_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN MIQR SPECIFICATIONS (DEFAULT)
 !  error-printout-device                             6
 !  printout-device                                   6
 !  print-level                                       0
-!  max-level-allowed                                 4  
+!  max-level-allowed                                 4
 !  max-order-allowed-per-level                       -1
 !  max-entries-per-column                            100
 !  max-entries-per-column-of-q                       100
@@ -432,7 +433,7 @@
 
 !  Dummy arguments
 
-      TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -477,9 +478,9 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
-      spec( max_level )%keyword = 'max-level-allowed' 
-      spec( max_order )%keyword = 'max-order-allowed-per-level' 
+      spec( print_level )%keyword = 'print-level'
+      spec( max_level )%keyword = 'max-level-allowed'
+      spec( max_order )%keyword = 'max-order-allowed-per-level'
       spec( max_fill )%keyword = 'max-entries-per-column'
       spec( max_fill_q )%keyword = 'max-entries-per-column-of-q'
       spec( increase_size )%keyword = 'increase-array-size-by'
@@ -489,10 +490,10 @@
 
       spec( smallest_diag )%keyword = 'smallest-diagonal-factor-allowed'
       spec( tol_level )%keyword = 'level-stop-tolerance'
-      spec( tol_orthogonal )%keyword = 'orthogonality-tolerance' 
+      spec( tol_orthogonal )%keyword = 'orthogonality-tolerance'
       spec( tol_orthogonal_increase )%keyword                                  &
-        = 'orthogonality-tolerance-increase'  
-      spec( tol_drop )%keyword = 'dropping-tolerance' 
+        = 'orthogonality-tolerance-increase'
+      spec( tol_drop )%keyword = 'dropping-tolerance'
       spec( average_max_fill )%keyword = 'proportion-max-entries-per-column'
       spec( average_max_fill_q )%keyword                                       &
         = 'proportion-max-entries-per-column-of-q'
@@ -502,8 +503,8 @@
 !  Logical key-words
 
       spec( transpose )%keyword = 'factorize-transpose'
-      spec( multi_level )%keyword = 'use-multi-level' 
-      spec( sort )%keyword = 'sort-vertices' 
+      spec( multi_level )%keyword = 'use-multi-level'
+      spec( sort )%keyword = 'sort-vertices'
       spec( deallocate_after_factorization )%keyword                           &
         = 'deallocate-workspace-after-factorization'
       spec( space_critical )%keyword = 'space-critical'
@@ -643,11 +644,11 @@
 !  Local variables
 
       INTEGER :: i, level, m, n, min_unprocessed_columns
-      REAL ( KIND = wp ) :: time_start, time_record, time_now
+      REAL :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -674,7 +675,7 @@
          exact_size = control%space_critical,                                  &
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( inform%status /= GALAHAD_ok ) GO TO 900
-      data%workspace%ind_m = 0 
+      data%workspace%ind_m = 0
 
       array_name = 'miqr: data%workspace%pat_m'
       CALL SPACE_resize_pointer( m, data%workspace%pat_m,                      &
@@ -720,16 +721,16 @@
 
       data%control = control
 
-!  store A column-wise in A_by_cols with the row entries within each column 
+!  store A column-wise in A_by_cols with the row entries within each column
 !  in increasing order
 
       data%control%CONVERT_control%order = .TRUE.
       data%control%CONVERT_control%transpose = data%control%transpose
-      CALL CONVERT_to_column_format( A, data%A_by_cols,                        &
-                                     data%control%CONVERT_control,             &
-                                     inform%CONVERT_inform,                    &
-                                     data%workspace%ind_m, m,                  &
-                                     data%workspace%val_m, m )
+      CALL CONVERT_to_sparse_column_format( A, data%A_by_cols,                 &
+                                            data%control%CONVERT_control,      &
+                                            inform%CONVERT_inform,             &
+                                            data%workspace%ind_m,              &
+                                            data%workspace%val_m )
       IF ( inform%CONVERT_inform%status /= GALAHAD_ok ) THEN
         inform%status = inform%CONVERT_inform%status
         GO TO 900
@@ -778,8 +779,8 @@
 
       level = 1
       IF ( data%control%multi_level ) THEN
-        CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record ) 
-        DO 
+        CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
+        DO
 
 !  perform the level-th iteration on the submatrix A
 
@@ -815,7 +816,7 @@
 
           IF ( level >= data%control%max_level ) EXIT
 
-!  increase the adaptive angle tolerance 
+!  increase the adaptive angle tolerance
 
           data%control%tol_orthogonal                                          &
             = data%control%tol_orthogonal + data%control%tol_orthogonal_increase
@@ -842,7 +843,7 @@
 
 !  record the time taken in the multi-level phase
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%levels = inform%time%levels + time_now - time_record
         inform%time%clock_levels                                               &
           = inform%time%clock_levels + clock_now - clock_record
@@ -850,7 +851,7 @@
 
 !  process the remaining matrix with ordinary IQR
 
-      CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record ) 
+      CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
       IF ( control%out > 0 .AND. control%print_level > 1 )                     &
         WRITE( control%out, "( A, ' forming final IQR factors' )" )  prefix
       CALL MIQR_form_iqr( data%A_by_cols, data%R, data%workspace,              &
@@ -863,7 +864,7 @@
 
 !  record the time taken in the IQR phase
 
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%iqr = inform%time%iqr + time_now - time_record
       inform%time%clock_iqr = inform%time%clock_iqr + clock_now - clock_record
 
@@ -890,8 +891,8 @@
 
 !  record the total time taken
 
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-      inform%time%form = inform%time%form + time_now - time_start
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+      inform%time%form = inform%time%form + REAL( time_now - time_start, wp )
       inform%time%clock_form = inform%time%clock_form + clock_now - clock_start
 
       inform%status = GALAHAD_ok
@@ -900,13 +901,13 @@
 !  error returns
 
  900  CONTINUE
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-      inform%time%form = inform%time%form + time_now - time_start
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+      inform%time%form = inform%time%form + REAL( time_now - time_start, wp )
       inform%time%clock_form = inform%time%clock_form + clock_now - clock_start
 
       IF ( control%error > 0 .AND. control%print_level > 0 )                   &
         WRITE( control%error, "( ' ', /, A, '    ** Error return ', I0,        &
-       &  ' from MIQR ' )" ) prefix, inform%status 
+       &  ' from MIQR ' )" ) prefix, inform%status
       RETURN
 
 !  internal procedures for subroutine MIQR_form
@@ -931,17 +932,19 @@
         TYPE ( MIQR_data_global_type ), INTENT( INOUT ) :: global
         TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control
         TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-        REAL ( KIND = wp ), INTENT( IN ) :: start_time, start_clock
+        REAL, INTENT( IN ) :: start_time
+        REAL ( KIND = wp ), INTENT( IN ) :: start_clock
 
 !  Local variables
 
         INTEGER :: i, j, l, m, n, order, col, id, in, array_size
         REAL ( KIND = wp ) :: alpha, diag, val
-        REAL ( KIND = wp ) :: time_start, time_now, clock_start, clock_now
+        REAL :: time_start, time_now
+        REAL ( KIND = wp ) :: clock_start, clock_now
         CHARACTER ( LEN = 80 ) :: array_name
         TYPE ( MIQR_sparse_vector_type ) :: F_i, A_i
 
-!  prefix for all output 
+!  prefix for all output
 
         CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
         IF ( LEN( TRIM( control%prefix ) ) > 2 )                               &
@@ -974,7 +977,7 @@
           bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= GALAHAD_ok ) GO TO 900
 
-!  find A = ( A1 | A2 ), where columns of A1 are orthogonal to each other 
+!  find A = ( A1 | A2 ), where columns of A1 are orthogonal to each other
 
 !  calculate Euclidean norm of each column of A
 
@@ -997,17 +1000,17 @@
         IF ( control%out > 0 .AND. control%print_level > 1 )                   &
           WRITE( control%out, "( A, 1X, I0, ' orthogonal columns found' )" )   &
             prefix, order
-  
+
 !  check time limits have not been exceeded
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
                time_now - start_time > control%cpu_time_limit ) .OR.           &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - start_clock > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit
           GO TO 900
-        END IF 
+        END IF
 
 !  set D_inverse = diag( 1/||A1_1||, 1/||A1_2||, ..., 1/||A_order|| ),
 !  c.f. Li/Saad equation (4.8)
@@ -1028,19 +1031,19 @@
 
 !  handle small diagonals
 
-          ELSE 
+          ELSE
             IF ( control%error > 0 .AND. control%print_level > 0 .AND.         &
                  inform%zero_diagonals == 0 )                                  &
               WRITE( control%error, "( A, ' zero columns encountered' )") prefix
             inform%zero_diagonals = inform%zero_diagonals + 1
-            level%D_inverse( i ) = zero 
+            level%D_inverse( i ) = zero
 !           level%D_inverse( i ) = one
           END IF
         END DO
 
-!  calculate F = Q1^T * A2, where Q1 = A1 * D^-1, c.f. Li/Saad equations 
+!  calculate F = Q1^T * A2, where Q1 = A1 * D^-1, c.f. Li/Saad equations
 !  (4.8)-(4.10)
-   
+
 !  set up space for F, stored by columns
 
         level%F%m = order ; level%F%n = n - order ; level%F%ne = 0
@@ -1088,9 +1091,9 @@
               F_i%val( F_i%ne ) = workspace%C%val( j ) * level%D_inverse( id )
             END IF
           END DO
-    
+
 !  ensure that F can accomodate F_i
- 
+
           CALL MIQR_increase_col_mat_space( level%F, 'level%F',                &
                                             F_i%ne, control, inform )
           IF ( inform%status /= GALAHAD_ok ) GO TO 900
@@ -1139,7 +1142,7 @@
         IF ( inform%status /= GALAHAD_ok ) GO TO 900
 
         A_new%ptr( 1 ) = A_new%ne + 1
-  
+
 !  calculate A_new one column at a time in A_i
 
         A_i%val => workspace%val_m ; A_i%pat => workspace%pat_m
@@ -1149,14 +1152,14 @@
 
 !  check time limits have not been exceeded
 
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           IF ( ( control%cpu_time_limit >= zero .AND.                          &
                  time_now - start_time > control%cpu_time_limit ) .OR.         &
                ( control%clock_time_limit >= zero .AND.                        &
                  clock_now - start_clock > control%clock_time_limit ) ) THEN
             inform%status = GALAHAD_error_cpu_limit
             GO TO 900
-          END IF 
+          END IF
 
           A_i%dim = A%m ; A_i%ne = 0
           in = level%PERM( order + i )
@@ -1168,7 +1171,7 @@
             A_i%val( in ) = A%val( j )
           END DO
 
-!  form A_i = A_i - A_i^T q_j * q_j 
+!  form A_i = A_i - A_i^T q_j * q_j
 
           DO j = level%F%ptr( i ), level%F%ptr( i + 1 ) - 1
             col = level%F%row( j )
@@ -1192,8 +1195,8 @@
               END IF
             END DO
           END DO
-    
-!  copy A_i to the i-th column of A_new 
+
+!  copy A_i to the i-th column of A_new
 
           CALL MIQR_increase_col_mat_space( A_new, 'A_new', A_i%ne,            &
                                         control, inform )
@@ -1213,11 +1216,11 @@
 
 !  record the time forming the multi-level part of the preconditioner
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%levels = inform%time%levels + time_now - time_start
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%levels                                                     &
+          = inform%time%levels + REAL( time_now - time_start, wp )
         inform%time%clock_levels                                               &
           = inform%time%clock_levels + clock_now - clock_start
-
         inform%entries_in_factors                                              &
           = inform%entries_in_factors + level%order + level%F%ne
         inform%status = GALAHAD_ok
@@ -1226,8 +1229,9 @@
 !  error returns
 
  900    CONTINUE
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%levels = inform%time%levels + time_now - time_start
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%levels                                                     &
+          = inform%time%levels + REAL( time_now - time_start, wp )
         inform%time%clock_levels                                               &
           = inform%time%clock_levels + clock_now - clock_start
         RETURN
@@ -1262,12 +1266,12 @@
         REAL ( KIND = wp ) :: angle, tol, val
         CHARACTER ( LEN = 80 ) :: array_name
         TYPE ( MIQR_sparse_vector_type ) :: C_i
-  
+
 !  set up local values
 
         n = A%n ; m = A%m
 
-!  let C = B^T B where B = ( a_1/||a_1||, a_2/||a_2||, ..., a_n/||a_n|| ) 
+!  let C = B^T B where B = ( a_1/||a_1||, a_2/||a_2||, ..., a_n/||a_n|| )
 !  and a_i is the ith column of A
 
 !  C_i will hold the i-th row of C
@@ -1277,7 +1281,7 @@
 
 !  set up space for C, stored by rows
 
-        workspace%C%m = n ; workspace%C%n = n ; workspace%C%ne = 0 ; 
+        workspace%C%m = n ; workspace%C%n = n ; workspace%C%ne = 0 ;
         array_size = 2 * MAX( SIZE( A%row ), SIZE( A%val ) )
 
         array_name = 'miqr: workspace%C%ptr'
@@ -1305,7 +1309,7 @@
         IF ( inform%status /= GALAHAD_ok ) RETURN
 
         workspace%C%ptr( 1 ) = workspace%C%ne + 1
-  
+
 !  ensure that there is sufficient space to store A row-wise in A_by_rows
 
         workspace%A_by_rows%m = m ; workspace%A_by_rows%n = n
@@ -1338,23 +1342,24 @@
 !  store A row-wise in A_by_rows
 
         CALL CONVERT_transpose( A%m, A%n, A%ne, A%ptr, A%row, A%val,           &
-                             workspace%A_by_rows%ptr, workspace%A_by_rows%col, &
-                             workspace%A_by_rows%val )
+                                workspace%A_by_rows%ptr,                       &
+                                workspace%A_by_rows%col,                       &
+                                workspace%A_by_rows%val )
 
 !  store the degree of each vertex of the column interesction graph of A,
-!  that is the adjacency graph defined by the nonzero pattern of C 
+!  that is the adjacency graph defined by the nonzero pattern of C
 !  (upper triangular part only)
 
         global%nodes_degree( 1 : n ) = 0
 
-!  calculate the i-th row of C: C_i = a_i^T * a(:,i+1:n) 
+!  calculate the i-th row of C: C_i = a_i^T * a(:,i+1:n)
 
         DO i = 1, n
           C_i%ne = 0
           DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
             row = A%row( l ) ; val = A%val( l )
-        
-!  row indices are in increasing order, so stop when index <= i 
+
+!  row indices are in increasing order, so stop when index <= i
 
             DO k = workspace%A_by_rows%ptr( row + 1 ) - 1,                     &
                    workspace%A_by_rows%ptr( row ), - 1
@@ -1367,9 +1372,9 @@
                 C_i%val( col )                                                 &
                   = C_i%val( col ) + val * workspace%A_by_rows%val( k )
 
-!  there is a fill-in 
+!  there is a fill-in
 
-              ELSE 
+              ELSE
                 C_i%ne = C_i%ne + 1
                 C_i%ind( C_i%ne ) = col
                 C_i%pat( col ) = .TRUE.
@@ -1377,8 +1382,8 @@
               END IF
             END DO
           END DO
-    
-!  copy C_i to the i-th row of C 
+
+!  copy C_i to the i-th row of C
 
           ne = C_i%ne + global%nodes_degree( i )
 
@@ -1392,7 +1397,7 @@
             CALL MIQR_increase_row_mat_space( workspace%C, 'C', ne,            &
                                               control, inform )
             IF ( inform%status /= GALAHAD_ok ) RETURN
-          END IF 
+          END IF
 
           workspace%C%ne = workspace%C%ne + global%nodes_degree( i )
 
@@ -1402,8 +1407,8 @@
               col = C_i%ind( l )
               angle = C_i%val( col )
 
-!  if | a_i^T a_j | < tol_orthogonal * |a_i| * |a_j|, a_i is presumed to 
-!  be approximately orthogonal to a_j 
+!  if | a_i^T a_j | < tol_orthogonal * |a_i| * |a_j|, a_i is presumed to
+!  be approximately orthogonal to a_j
 
               IF ( ABS( angle ) > tol * global%A_norms( col ) ) THEN
                 global%nodes_degree( col ) = global%nodes_degree( col ) + 1
@@ -1426,8 +1431,8 @@
           C_i%ind( i ) = workspace%C%ptr( i ) + global%nodes_degree( i )
           global%nodes_degree( i ) = workspace%C%ptr( i )
         END DO
-  
-!  convert to full column intereserction graph from the upper part 
+
+!  convert to full column intereserction graph from the upper part
 
         DO i = 1, n
           DO j = C_i%ind( i ), workspace%C%ptr( i + 1 ) - 1
@@ -1556,7 +1561,8 @@
         TYPE ( MIQR_data_workspace_type ), INTENT( INOUT ) :: workspace
         TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control
         TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-        REAL ( KIND = wp ), INTENT( IN ) :: start_time, start_clock
+        REAL, INTENT( IN ) :: start_time
+        REAL ( KIND = wp ), INTENT( IN ) :: start_clock
 
 !  Local variables
 
@@ -1565,11 +1571,12 @@
         INTEGER :: new_length, old_length, used_length, min_length
         INTEGER :: max_fill, max_fill_q
         REAL ( KIND = wp ) :: r_val_inverse, one_norm, val
-        REAL ( KIND = wp ) :: time_start, time_now, clock_start, clock_now
+        REAL :: time_start, time_now
+        REAL ( KIND = wp ) :: clock_start, clock_now
         CHARACTER ( LEN = 80 ) :: array_name
         TYPE ( MIQR_sparse_vector_type ) :: Q_i, R_i
 
-!  prefix for all output 
+!  prefix for all output
 
         CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
         IF ( LEN( TRIM( control%prefix ) ) > 2 )                               &
@@ -1613,7 +1620,7 @@
 
 ! initialize Q and R stored column wise
 
-        workspace%Q%m = m ; workspace%Q%n = n ; workspace%Q%ne = 0 ; 
+        workspace%Q%m = m ; workspace%Q%n = n ; workspace%Q%ne = 0 ;
         array_size = MAX( SIZE( A%row ), SIZE( A%val ) )
 
         array_name = 'miqr: workspace%Q%ptr'
@@ -1674,10 +1681,10 @@
         Q_i%ind => workspace%ind_m
         R_i%val => workspace%val_n ; R_i%pat => workspace%pat_n
         R_i%ind => workspace%ind_n
-  
-!  initialize the linked list for Q stored row wise, using the array 
+
+!  initialize the linked list for Q stored row wise, using the array
 !  Q_list_col/next/val (see Saad's ILQ)
-!  * Q_list_*(i) points to the i-th row of Q    
+!  * Q_list_*(i) points to the i-th row of Q
 !  * q_array_size is the current size of Q_list
 !  * q_increase_size is the size to increase when the current Q_list is full
 !  * q_free is the next available free position in Q_list
@@ -1720,20 +1727,20 @@
 
 !  check time limits have not been exceeded
 
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           IF ( ( control%cpu_time_limit >= zero .AND.                          &
                  time_now - start_time > control%cpu_time_limit ) .OR.         &
                ( control%clock_time_limit >= zero .AND.                        &
                  clock_now - start_clock > control%clock_time_limit ) ) THEN
             inform%status = GALAHAD_error_cpu_limit
             GO TO 900
-          END IF 
+          END IF
 
-!  initialize the i-th columns of Q and R 
+!  initialize the i-th columns of Q and R
 
           Q_i%dim = m ; Q_i%ne = 0
           R_i%dim = n ; R_i%ne = 0
-    
+
 !  use Saad's ILQ method to calculate entries in the i-th column r_i of R
 
           one_norm = zero
@@ -1756,7 +1763,7 @@
                 R_i%val( ind )                                                 &
                   = R_i%val( ind ) + val * workspace%Q_list_val( q_next )
 
-!  there is a fill-in 
+!  there is a fill-in
 
               ELSE
                 R_i%ne = R_i%ne + 1
@@ -1772,7 +1779,7 @@
 !  reset the pattern
 
           R_i%pat( R_i%ind( 1 : R_i%ne ) ) = .FALSE.
-    
+
 !  keep only the max_fill largest elements (in absolute value) in r_i
 
           IF ( R_i%ne > max_fill ) THEN
@@ -1780,7 +1787,7 @@
             R_i%ne = max_fill
             inform%drop = inform%drop + R_i%ne - max_fill
           END IF
-    
+
 !  calculate a_i - sum_j ( a_i^T q_j ) q_j = a_i - sum_j r_j q_j, where
 !  r_i = a_i^t q_j
 
@@ -1821,7 +1828,7 @@
 !  reset the pattern of q_i
 
           Q_i%pat( Q_i%ind( 1 : Q_i%ne ) ) = .FALSE.
-    
+
 !  keep only the max_fill_q largest elements (in absolute value) in q_i
 
           IF ( Q_i%ne > max_fill_q ) THEN
@@ -1859,8 +1866,8 @@
             r_val_inverse = zero
             R%val( i ) = r_val_inverse
           END IF
-        
-!  if the current Q_list is not large enough, enlarge it 
+
+!  if the current Q_list is not large enough, enlarge it
 
           IF ( q_list_size + Q_i%ne > q_array_size ) THEN
             new_length = q_array_size + q_increase_size
@@ -1913,7 +1920,7 @@
             workspace%Q%ne = workspace%Q%ne + 1
             workspace%Q%row( workspace%Q%ne ) = ind
             workspace%Q%val( workspace%Q%ne ) = val
-      
+
 !  update Q_list to add the row data from q_i
 
             workspace%Q_list_col( q_free ) = i
@@ -1941,8 +1948,8 @@
 !  record the time forming the IQR part of the preconditioner
 
  800    CONTINUE
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%iqr = inform%time%iqr + time_now - time_start
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%iqr = inform%time%iqr + REAL( time_now - time_start, wp )
         inform%time%clock_iqr = inform%time%clock_iqr + clock_now - clock_start
 
         inform%entries_in_factors = inform%entries_in_factors + R%ne
@@ -1952,8 +1959,8 @@
 !  error returns
 
  900    CONTINUE
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%iqr = inform%time%iqr + time_now - time_start
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%iqr = inform%time%iqr + REAL( time_now - time_start, wp )
         inform%time%clock_iqr = inform%time%clock_iqr + clock_now - clock_start
         RETURN
 
@@ -2039,7 +2046,7 @@
       TYPE ( SMT_type ), INTENT( OUT ) :: A_out
       TYPE ( MIQR_control_type ), INTENT( INOUT ) :: control
       TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-     
+
 !  Local variables
 
       INTEGER :: array_size
@@ -2086,7 +2093,7 @@
       SUBROUTINE MIQR_dealloc_row_mat( mat, mat_name, control, inform )
 
 !  deallocate the array components of a variable mat of SMT_type
-!  held by rows named mat_name 
+!  held by rows named mat_name
 
 !  Dummy arguments
 
@@ -2094,7 +2101,7 @@
       CHARACTER ( LEN = * ) :: mat_name
       TYPE ( MIQR_control_type ), INTENT( IN ) :: control
       TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-      
+
 !  Local variables
 
       CHARACTER ( LEN = 80 ) :: array_name
@@ -2127,13 +2134,13 @@
 !  end of subroutine MIQR_dealloc_row_mat
 
       END SUBROUTINE MIQR_dealloc_row_mat
-  
+
 !-*-*-   M I Q R _ D E A L L O C _ C O L _ M A T   S U B R O U T I N E   -*-*-
 
       SUBROUTINE MIQR_dealloc_col_mat( mat, mat_name, control, inform )
 
 !  deallocate the array components of a variable mat of SMT_type
-!  held by columns named mat_name 
+!  held by columns named mat_name
 
 !  Dummy arguments
 
@@ -2141,7 +2148,7 @@
       CHARACTER ( LEN = * ) :: mat_name
       TYPE ( MIQR_control_type ), INTENT( IN ) :: control
       TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
-      
+
 !  Local variables
 
       CHARACTER ( LEN = 80 ) :: array_name
@@ -2174,13 +2181,13 @@
 !  end of subroutine MIQR_dealloc_col_mat
 
       END SUBROUTINE MIQR_dealloc_col_mat
-  
+
 !- M I Q R _ I N C R E A S E _ R O W _ M A T _ S P A C E   S U B R O U T I N E -
 
       SUBROUTINE MIQR_increase_row_mat_space( mat, name, extra, control,       &
                                               inform )
 
-!  expand arrays for matrices stored in SMT_type format 
+!  expand arrays for matrices stored in SMT_type format
 !  to ensure that there is at least extra unused storage locations
 
 !  Dummy arguments
@@ -2209,7 +2216,7 @@
 !  more space is needed, so compute how much (in multiples of increase_size)
 
         new_size = array_size
-        DO 
+        DO
           new_size = new_size + control%increase_size
           IF ( new_size >= mat%ne + extra ) EXIT
         END DO
@@ -2244,7 +2251,7 @@
       SUBROUTINE MIQR_increase_col_mat_space( mat, name, extra, control,       &
                                               inform )
 
-!  expand arrays for matrices stored in SMT_type format 
+!  expand arrays for matrices stored in SMT_type format
 !  to ensure that there is at least extra unused storage locations
 
 !  Dummy arguments
@@ -2273,7 +2280,7 @@
 !  more space is needed, so compute how much (in multiples of increase_size)
 
         new_size = array_size
-        DO 
+        DO
           new_size = new_size + control%increase_size
           IF ( new_size >= mat%ne + extra ) EXIT
         END DO
@@ -2307,12 +2314,12 @@
 
       SUBROUTINE MIQR_apply( SOL, transpose, data, inform )
 
-!  given the matrix MQR = ( D_1 <-    F_1   -> ) 
+!  given the matrix MQR = ( D_1 <-    F_1   -> )
 !                         (     D_2  <- F_2- > )
 !                         (         .          )
 !                         (             R      )
 
-!  solve (MQR) * sol = rhs (transpose = false) or 
+!  solve (MQR) * sol = rhs (transpose = false) or
 !        (MQR)^T * sol = rhs (transpose = true)
 !  rhs is input in SOL and SOL is subsequently overwritten by sol
 
@@ -2326,7 +2333,8 @@
 !  Local variables
 
       INTEGER :: i, j, k, l, pos_r, pos_i, pos_i1
-      REAL ( KIND = wp ) :: val, time_start, time_now, clock_start, clock_now
+      REAL :: time_start, time_now
+      REAL ( KIND = wp ) :: val, clock_start, clock_now
       REAL ( KIND = wp ), POINTER, DIMENSION( : ) :: WORK
 
 !  initialize time
@@ -2406,7 +2414,7 @@
 !  apply backward solution using R
 
           DO i = data%R%n, 1, - 1
-            SOL( pos_r + i ) = SOL( pos_r + i ) * data%R%val( i ) 
+            SOL( pos_r + i ) = SOL( pos_r + i ) * data%R%val( i )
             val = SOL( pos_r + i )
             DO j = data%R%ptr( i ), data%R%ptr( i + 1 ) - 1
               SOL( pos_r + data%R%row( j ) )                                   &
@@ -2430,7 +2438,7 @@
             val = SOL( pos_i1 + j )
             DO l = data%level( i )%F%ptr( j ),                                 &
                    data%level( i )%F%ptr( j + 1 ) - 1
-              k = data%level( i )%F%row( l ) 
+              k = data%level( i )%F%row( l )
               WORK( k ) = WORK( k ) - data%level( i )%F%val( l ) * val
             END DO
           END DO
@@ -2450,7 +2458,7 @@
 !  un-permute the solution at the i-th level
 
           DO j = 1, data%level( i )%n
-            SOL( pos_i + j ) = WORK( data%level( i )%inverse_perm( j ) ) 
+            SOL( pos_i + j ) = WORK( data%level( i )%inverse_perm( j ) )
           END DO
         END DO
       END IF
@@ -2458,8 +2466,8 @@
 
 !  record the time taken applying the preconditioner
 
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-      inform%time%apply = inform%time%apply + time_now - time_start
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+      inform%time%apply = inform%time%apply + REAL( time_now - time_start, wp )
       inform%time%clock_apply                                                  &
         = inform%time%clock_apply + clock_now - clock_start
 
@@ -2494,7 +2502,7 @@
 
 !  Dummy arguments
 
-      TYPE ( MIQR_control_type ), INTENT( IN ) :: control        
+      TYPE ( MIQR_control_type ), INTENT( IN ) :: control
       TYPE ( MIQR_inform_type ), INTENT( INOUT ) :: inform
       TYPE ( MIQR_data_type ), INTENT( INOUT ) :: data
 
@@ -2654,7 +2662,7 @@
         IF ( control%deallocate_error_fatal .AND.                              &
              inform%status /= GALAHAD_ok ) RETURN
       END DO
-   
+
       RETURN
 
 !  end of subroutine MIQR_terminate
@@ -2664,4 +2672,3 @@
 !  end of module GALAHAD_MIQR_double
 
     END MODULE GALAHAD_MIQR_double
-

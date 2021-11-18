@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.5 - 19/04/2013 AT 12:00 GMT.
+! THIS VERSION: GALAHAD 3.2 - 25/02/2018 AT 07:45 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ G L R T  M O D U L E  *-*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   created from GALAHAD package GLTR, October 27th, 2007
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_GLRT_double
@@ -20,7 +20,7 @@
 !      |    minimize     1/p sigma ( ||x + o||_M^2 + eps )^(p/2)           |
 !      |                   + 1/2 <x, H x> + <c, x> + f0                    |
 !      |                                                                   |
-!      ! where M is symmetric, positive definite and p (>2), eps (>=0)     |
+!      ! where M is symmetric, positive definite and p (>=2), eps (>=0)    |
 !      | and sigma (>0) are constants using a generalized Lanczos method   |
 !      |                                                                   |
 !      ---------------------------------------------------------------------
@@ -31,7 +31,7 @@
       USE GALAHAD_ROOTS_double, ONLY : ROOTS_quadratic
       USE GALAHAD_SPECFILE_double
       USE GALAHAD_NORMS_double, ONLY: TWO_NORM
-      USE GALAHAD_LAPACK_interface, ONLY : PTTRF
+      USE GALAHAD_LAPACK_interface, ONLY : PTTRF, STERF
       USE GALAHAD_GLTR_double, ONLY :                                          &
         GLRT_leftmost_eigenvalue => GLTR_leftmost_eigenvalue,                  &
         GLRT_leftmost_eigenvector => GLTR_leftmost_eigenvector,                &
@@ -60,6 +60,7 @@
       REAL ( KIND = wp ), PARAMETER :: three = 3.0_wp
       REAL ( KIND = wp ), PARAMETER :: ten = 10.0_wp
       REAL ( KIND = wp ), PARAMETER :: roots_tol = ten ** ( - 12 )
+!     REAL ( KIND = wp ), PARAMETER :: roots_tol = ten ** ( - 16 )
       REAL ( KIND = wp ), PARAMETER :: epsmch = EPSILON( one )
       REAL ( KIND = wp ), PARAMETER :: biginf = HUGE( one )
       INTEGER, PARAMETER :: itref_max = 1
@@ -69,14 +70,14 @@
 !  Derived type definitions
 !--------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: GLRT_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -103,14 +104,22 @@
 
         INTEGER :: extra_vectors = 0
 
-!   the iteration stops successfully when the gradient in the M(inverse) norm 
-!    is smaller than max( stop_relative * min( 1, stop_rule ), stop_absolute ) 
-!                         * norm initial gradient
+!   the unit number for writing debug Ritz values
+
+        INTEGER :: ritz_printout_device = 34
+
+!   the iteration stops successfully when the gradient in the M(inverse) norm
+!    is smaller than
+!      max( stop_relative * min( 1, stop_rule ),
+!           stop_absolute ) * norm initial gradient,
+!           stop_norm * ||x+o||_M^stop_power )
 
         REAL ( KIND = wp ) :: stop_relative = epsmch
         REAL ( KIND = wp ) :: stop_absolute = zero
+        REAL ( KIND = wp ) :: stop_norm = zero
+        REAL ( KIND = wp ) :: stop_power = two
 
-!   an estimate of the solution that gives at least %fraction_opt times 
+!   an estimate of the solution that gives at least %fraction_opt times
 !    the optimal objective value will be found
 
         REAL ( KIND = wp ) :: fraction_opt = one
@@ -142,16 +151,25 @@
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
+!  should the Ritz values be written to the debug stream?
+
+        LOGICAL :: print_ritz_values = .FALSE.
+
+!  name of debug file containing the Ritz values
+
+        CHARACTER ( LEN = 30 ) :: ritz_file_name =                             &
+          "glrt_ritz.dat"  // REPEAT( ' ', 17 )
+
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: GLRT_inform_type
 
@@ -175,9 +193,13 @@
 
         INTEGER :: iter_pass2 = - 1
 
-!  the value of the objective function
+!  the value of the quadratic function
 
         REAL ( KIND = wp ) :: obj = biginf
+
+!  the value of the regularized quadratic function
+
+        REAL ( KIND = wp ) :: obj_regularized = HUGE( one )
 
 !  the multiplier, sigma ||x||^(p-2)
 
@@ -194,6 +216,10 @@
 !  was negative curvature encountered ?
 
         LOGICAL :: negative_curvature = .FALSE.
+
+!  did the hard case occur ?
+
+        LOGICAL :: hard_case = .FALSE.
       END TYPE
 
 !  - - - - - - - - - - - - - - - - - - - - - -
@@ -202,21 +228,25 @@
 
       TYPE, PUBLIC :: GLRT_data_type
         PRIVATE
+        INTEGER :: branch = 100
         TYPE ( RAND_seed ) :: seed
         INTEGER :: iter, itm1, itmax, dim_sub, switch, titmax, tinfo, titer
-        INTEGER :: freq, branch, extra_vectors, iter_descent
-        REAL ( KIND = wp ) :: alpha, beta, rminvr, rminvr_old, curv
-        REAL ( KIND = wp ) :: o_mnorm_2_p_eps, tau, pmp, onorm2, mult
-        REAL ( KIND = wp ) :: stop, piv, x_last, norm_x
+        INTEGER :: freq, extra_vectors, iter_descent
+        REAL ( KIND = wp ) :: alpha, beta, rminvr, rminvr_old, curv, mult
+        REAL ( KIND = wp ) :: o_mnorm_2_p_eps, tau, xmx, xmp, pmp, onorm2
+        REAL ( KIND = wp ) :: stop, piv, x_last, norm_x, hard_case_step
         REAL ( KIND = wp ) :: diag, offdiag, rtol,  pgnorm, pgnorm_zero
         LOGICAL :: printi, printd, use_old, try_warm, solve_tcm, one_pass
         LOGICAL :: save_vectors
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: P
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: D
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFD
+        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: E
+        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFE
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: ALPHAS
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: RMINVRS
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: MIN_f
+        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: MIN_f_regularized
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: LAMBDA
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: D_fact
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: OFFD_fact
@@ -224,7 +254,8 @@
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: C_sub
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: O_sub
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: X_sub
-        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: Z
+        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: U_sub
+        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: U
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: W
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: R_extra
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: P_extra
@@ -241,7 +272,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  .  Set initial values for the GLRT control parameters  .
-!   
+!
 !  Argument:
 !  =========
 !
@@ -256,7 +287,7 @@
 !-----------------------------------------------
 
       TYPE ( GLRT_data_type ), INTENT( INOUT ) :: data
-      TYPE ( GLRT_control_type ), INTENT( OUT ) :: control        
+      TYPE ( GLRT_control_type ), INTENT( OUT ) :: control
       TYPE ( GLRT_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -268,7 +299,10 @@
 !  Set initial control parameter values
 
       control%stop_relative = SQRT( epsmch )
-      data%branch = 1
+
+!  Set branch for initial entry
+
+      data%branch = 100
 
       RETURN
 
@@ -280,35 +314,40 @@
 
       SUBROUTINE GLRT_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by GLRT_initialize could (roughly) 
+!  The defauly values as given by GLRT_initialize could (roughly)
 !  have been set as:
 
 !  BEGIN GLRT SPECIFICATIONS (DEFAULT)
 !   error-printout-device                           6
 !   printout-device                                 6
 !   print-level                                     0
-!   maximum-number-of-iterations                    -1           
+!   maximum-number-of-iterations                    -1
+!   stopping-rule                                   1
 !   tri-diagonal-solve-frequency                    1
 !   number-extra-n-vectors-used                     0
-!   stopping-rule                                   1
-!   relative-accuracy-required                      1.0E-8 
+!   ritz-printout-device                            34
+!   relative-accuracy-required                      1.0E-8
 !   absolute-accuracy-required                      0.0
+!   norm-accuracy-required                          0.0
+!   norm-power-used                                 2.0
 !   fraction-optimality-required                    1.0
-!   constant-term-in-objective                      0.0
 !   zero-gradient-tolerance                         2.0E-15
+!   constant-term-in-objective                      0.0
 !   two-norm-regularisation                         T
 !   impose-initial-descent                          F
 !   space-critical                                  F
 !   deallocate-error-fatal                          F
+!   print-ritz-values                               F
+!   ritz-file-name                                  glrt_ritz.dat
 !   output-line-prefix                              ""
 !  END GLRT SPECIFICATIONS
 
 !  Dummy arguments
 
-      TYPE ( GLRT_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( GLRT_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), INTENT( IN ), OPTIONAL :: alt_specname
 
@@ -316,7 +355,29 @@
 
 !  Local variables
 
-      INTEGER, PARAMETER :: lspec = 34
+      INTEGER, PARAMETER :: error = 1
+      INTEGER, PARAMETER :: out = error + 1
+      INTEGER, PARAMETER :: print_level = out + 1
+      INTEGER, PARAMETER :: itmax = print_level + 1
+      INTEGER, PARAMETER :: stopping_rule = itmax + 1
+      INTEGER, PARAMETER :: freq = stopping_rule + 1
+      INTEGER, PARAMETER :: extra_vectors = freq + 1
+      INTEGER, PARAMETER :: ritz_printout_device = extra_vectors + 1
+      INTEGER, PARAMETER :: stop_relative = ritz_printout_device + 1
+      INTEGER, PARAMETER :: stop_absolute = stop_relative + 1
+      INTEGER, PARAMETER :: stop_norm = stop_absolute + 1
+      INTEGER, PARAMETER :: stop_power = stop_norm + 1
+      INTEGER, PARAMETER :: fraction_opt = stop_power + 1
+      INTEGER, PARAMETER :: rminvr_zero = fraction_opt + 1
+      INTEGER, PARAMETER :: f_0 = rminvr_zero + 1
+      INTEGER, PARAMETER :: unitm = f_0 + 1
+      INTEGER, PARAMETER :: impose_descent = unitm + 1
+      INTEGER, PARAMETER :: space_critical = impose_descent + 1
+      INTEGER, PARAMETER :: deallocate_error_fatal = space_critical + 1
+      INTEGER, PARAMETER :: print_ritz_values = deallocate_error_fatal + 1
+      INTEGER, PARAMETER :: ritz_file_name =  print_ritz_values + 1
+      INTEGER, PARAMETER :: prefix = ritz_file_name + 1
+      INTEGER, PARAMETER :: lspec = prefix
       CHARACTER( LEN = 4 ), PARAMETER :: specname = 'GLRT'
       TYPE ( SPECFILE_item_type ), DIMENSION( lspec ) :: spec
 
@@ -326,34 +387,37 @@
 
 !  Integer key-words
 
-      spec(  1 )%keyword = 'error-printout-device'
-      spec(  2 )%keyword = 'printout-device'
-      spec(  3 )%keyword = 'print-level' 
-      spec(  4 )%keyword = 'maximum-number-of-iterations'
-      spec( 18 )%keyword = 'stopping-rule'
-      spec(  5 )%keyword = 'number-extra-n-vectors-used'
-      spec( 19 )%keyword = 'tri-diagonal-solve-frequency'
+      spec( error )%keyword = 'error-printout-device'
+      spec( out )%keyword = 'printout-device'
+      spec( print_level )%keyword = 'print-level'
+      spec( itmax )%keyword = 'maximum-number-of-iterations'
+      spec( stopping_rule )%keyword = 'stopping-rule'
+      spec( freq )%keyword = 'tri-diagonal-solve-frequency'
+      spec( extra_vectors )%keyword = 'number-extra-n-vectors-used'
+      spec( ritz_printout_device )%keyword = 'ritz-printout-device'
 
 !  Real key-words
 
-      spec(  6 )%keyword = 'relative-accuracy-required'
-      spec(  7 )%keyword = 'absolute-accuracy-required'
-      spec(  8 )%keyword = 'fraction-optimality-required'
-      spec(  9 )%keyword = 'constant-term-in-objective'
-      spec( 17 )%keyword = 'zero-gradient-tolerance'
+      spec( stop_relative )%keyword = 'relative-accuracy-required'
+      spec( stop_absolute )%keyword = 'absolute-accuracy-required'
+      spec( stop_norm )%keyword = 'norm-accuracy-required'
+      spec( stop_power )%keyword = 'norm-power-used'
+      spec( fraction_opt )%keyword = 'fraction-optimality-required'
+      spec( rminvr_zero )%keyword = 'zero-gradient-tolerance'
+      spec( f_0 )%keyword = 'constant-term-in-objective'
 
 !  Logical key-words
 
-      spec( 10 )%keyword = 'two-norm-regularisation'
-      spec( 11 )%keyword = 'impose-initial-descent'
-      spec( 12 )%keyword = ''
-      spec( 13 )%keyword = ''
-      spec( 14 )%keyword = 'space-critical'
-      spec( 15 )%keyword = 'deallocate-error-fatal'
+      spec( unitm )%keyword = 'two-norm-regularisation'
+      spec( impose_descent )%keyword = 'impose-initial-descent'
+      spec( space_critical )%keyword = 'space-critical'
+      spec( deallocate_error_fatal )%keyword = 'deallocate-error-fatal'
+      spec( print_ritz_values )%keyword = 'print-ritz-values'
 
 !  Character key-words
 
-!     spec( 16 )%keyword = 'output-line-prefix'
+      spec( ritz_file_name )%keyword = 'ritz-file-name'
+      spec( prefix )%keyword = 'output-line-prefix'
 
 !  Read the specfile
 
@@ -367,48 +431,80 @@
 
 !  Set integer values
 
-      CALL SPECFILE_assign_value( spec( 1 ), control%error,                    &
+      CALL SPECFILE_assign_value( spec( error ),                               &
+                                  control%error,                               &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 2 ), control%out,                      &
+      CALL SPECFILE_assign_value( spec( out ),                                 &
+                                  control%out,                                 &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 3 ), control%print_level,              &
+      CALL SPECFILE_assign_value( spec( print_level ),                         &
+                                  control%print_level,                         &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 4 ), control%itmax,                    &
+      CALL SPECFILE_assign_value( spec( itmax ),                               &
+                                  control%itmax,                               &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 18 ), control%stopping_rule,           &
+      CALL SPECFILE_assign_value( spec( stopping_rule),                        &
+                                  control%stopping_rule,                       &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 5 ), control%extra_vectors,            &
+      CALL SPECFILE_assign_value( spec( freq ),                                &
+                                  control%freq,                                &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 19 ), control%freq,                    &
+      CALL SPECFILE_assign_value( spec( extra_vectors ),                       &
+                                  control%extra_vectors,                       &
+                                  control%error )
+      CALL SPECFILE_assign_value( spec( ritz_printout_device ),                &
+                                  control%ritz_printout_device,                &
                                   control%error )
 
 !  Set real values
 
-      CALL SPECFILE_assign_value( spec( 6 ), control%stop_relative,            &
+      CALL SPECFILE_assign_value( spec( stop_relative ),                       &
+                                  control%stop_relative,                       &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 7 ), control%stop_absolute,            &
+      CALL SPECFILE_assign_value( spec( stop_absolute ),                       &
+                                  control%stop_absolute,                       &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 8 ), control%fraction_opt,             &
+      CALL SPECFILE_assign_value( spec( stop_norm ),                           &
+                                  control%stop_norm,                           &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 9 ), control%f_0,                      &
+      CALL SPECFILE_assign_value( spec( stop_power ),                          &
+                                  control%stop_power,                          &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 17 ), control%rminvr_zero,             &
+      CALL SPECFILE_assign_value( spec( fraction_opt ),                        &
+                                  control%fraction_opt,                        &
+                                  control%error )
+      CALL SPECFILE_assign_value( spec( rminvr_zero ),                         &
+                                  control%rminvr_zero,                         &
+                                  control%error )
+      CALL SPECFILE_assign_value( spec( f_0 ),                                 &
+                                  control%f_0,                                 &
                                   control%error )
 
 !  Set logical values
 
-      CALL SPECFILE_assign_value( spec( 10 ), control%unitm,                   &
+      CALL SPECFILE_assign_value( spec( unitm ),                               &
+                                  control%unitm,                               &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 11 ), control%impose_descent,          &
+      CALL SPECFILE_assign_value( spec( impose_descent ),                      &
+                                  control%impose_descent,                      &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 14 ), control%space_critical,          &
+      CALL SPECFILE_assign_value( spec( space_critical ),                      &
+                                  control%space_critical,                      &
                                   control%error )
-      CALL SPECFILE_assign_value( spec( 15 ),                                  &
+      CALL SPECFILE_assign_value( spec( deallocate_error_fatal ),              &
                                   control%deallocate_error_fatal,              &
                                   control%error )
+      CALL SPECFILE_assign_value( spec( print_ritz_values ),                   &
+                                  control%print_ritz_values,                   &
+                                  control%error )
+
 !  Set charcter values
 
-      CALL SPECFILE_assign_value( spec( 16 ), control%prefix,                  &
+      CALL SPECFILE_assign_value( spec( ritz_file_name ),                      &
+                                  control%ritz_file_name,                      &
+                                  control%error )
+      CALL SPECFILE_assign_value( spec( prefix ),                              &
+                                  control%prefix,                              &
                                   control%error )
 
       RETURN
@@ -431,22 +527,22 @@
 !   X        the vector of unknowns. Need not be set on entry.
 !            On exit, the best value found so far
 !   R        the residual vector H x + c. On entry this must contain c
-!   VECTOR   see inform%status = 2-3 and 6-7
+!   VECTOR   see inform%status = 2, 3 and 5
 !   data     private internal data
 !   control  a structure containing control information. See GLRT_initialize
 !   inform   a structure containing information. The component
 !             %status is the input/output status. This must be set to 1 on
 !              initial entry or 4 on a re-entry when only sigma has
 !              been reduced since the last entry. Other values are
-!               2 on exit => the inverse of M must be applied to 
-!                 VECTOR with the result returned in VECTOR and the subroutine 
-!                 re-entered. This will only happen if unitm is .TRUE.
+!               2 on exit => the inverse of M must be applied to
+!                 VECTOR with the result returned in VECTOR and the subroutine
+!                 re-entered. This will only happen if unitm is .FALSE.
 !               3 on exit => the product H * VECTOR must be formed, with
 !                 the result returned in VECTOR and the subroutine re-entered
 !               4 The iteration will be restarted. Reset R to c and re-enter.
-!               5 on exit => the matrix M must be applied to VECTOR with the 
-!                 result returned in VECTOR and the subroutine re-entered. This 
-!                 will only happen if unitm is .TRUE. and O is present.
+!               5 on exit => the matrix M must be applied to VECTOR with the
+!                 result returned in VECTOR and the subroutine re-entered. This
+!                 will only happen if unitm is .FALSE. and O is present.
 !               0 the solution has been found
 !              -1 an array allocation has failed
 !              -2 an array deallocation has failed
@@ -469,7 +565,7 @@
       REAL ( KIND = wp ), INTENT( IN ) :: p, sigma
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: X, R, VECTOR
       TYPE ( GLRT_data_type ), INTENT( INOUT ) :: data
-      TYPE ( GLRT_control_type ), INTENT( IN ) :: control        
+      TYPE ( GLRT_control_type ), INTENT( IN ) :: control
       TYPE ( GLRT_inform_type ), INTENT( INOUT ) :: inform
       REAL ( KIND = wp ), OPTIONAL, INTENT( IN ) :: eps
       REAL ( KIND = wp ), OPTIONAL, INTENT( IN ), DIMENSION( n ) :: O
@@ -478,11 +574,12 @@
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
 
-      INTEGER :: dim_sub, it, itp1
-      REAL ( KIND = wp ) :: f_tol, f_0
+      INTEGER :: dim_sub, it, itp1, info
+      REAL ( KIND = wp ) :: f_tol, f_0, u_norm
+      LOGICAL :: filexx
       CHARACTER ( LEN = 80 ) :: array_name
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -491,35 +588,40 @@
 !  Branch to different sections of the code depending on input status
 
       IF ( inform%status < 1 ) GO TO 930
-      IF ( inform%status == 1 ) data%branch = 1
-      IF ( inform%status == 6 ) data%branch = 4
+      IF ( inform%status == 1 ) THEN
+        data%branch = 100
+      ELSE IF ( inform%status == 6 ) THEN
+        data%branch = 400
+      END IF
 
       SELECT CASE ( data%branch )
-      CASE ( 1 ) 
+      CASE ( 100 )
         GO TO 100
-      CASE ( 2 )  
-        GO TO 200
-      CASE ( 3 )  
-        GO TO 300
-      CASE ( 4 )  
-        GO TO 400
-      CASE ( 5 )  
-        GO TO 500
-      CASE ( 6 )  
-        GO TO 600
-      CASE ( 7 )  
-        GO TO 700
-      CASE ( 8 )  
-        GO TO 150
-      CASE ( 9 )  
-        GO TO 550
-      CASE ( 10 )  
+      CASE ( 140 )
         GO TO 140
+      CASE ( 150 )
+        GO TO 150
+      CASE ( 200 )
+        GO TO 200
+      CASE ( 300 )
+        GO TO 300
+      CASE ( 400 )
+        GO TO 400
+      CASE ( 500 )
+        GO TO 500
+      CASE ( 550 )
+        GO TO 550
+      CASE ( 600 )
+        GO TO 600
+      CASE ( 700 )
+        GO TO 700
+      CASE ( 900 )
+        GO TO 900
       END SELECT
 
 !  On initial entry, set constants
 
-  100 CONTINUE 
+  100 CONTINUE
 
 !  Check for obvious errors
 
@@ -531,14 +633,19 @@
       IF ( p < two ) GO TO 980
       data%one_pass = sigma == zero .OR. ( p == two .AND. .NOT. PRESENT( O ) )
 !     data%one_pass = .FALSE.
+!write(6,*) ' one pass ',  data%one_pass
+!write(6,*) ' unit m ',  control%unitm
+!write(6,*) 'R ', R
 
-      data%iter = 0 ; data%iter_descent = 0 ; data%descent = ' '
+      data%iter = 0 ; data%itm1 = - 1
+      data%iter_descent = 0 ; data%descent = ' '
       data%itmax = control%itmax ; IF ( data%itmax < 0 ) data%itmax = n
       data%printi = control%out > 0 .AND. control%print_level >= 1
       data%printd = control%out > 0 .AND. control%print_level >= 2
       inform%alloc_status = 0 ; inform%bad_alloc = ''
       inform%iter_pass2 = 0 ; inform%negative_curvature = .FALSE.
       inform%multiplier = zero ; data%tau = one
+      inform%hard_case = .FALSE.
       data%switch = 0
       data%use_old = .FALSE. ; data%try_warm = .FALSE.
       data%rtol = roots_tol
@@ -557,7 +664,7 @@
         IF ( inform%status /= 0 ) GO TO 960
         VECTOR = R
         IF ( .NOT. control%unitm ) THEN
-          data%branch = 10 ; inform%status = 2 ; inform%iter = data%iter
+          data%branch = 140 ; inform%status = 2 ; inform%iter = data%iter
           RETURN
         END IF
       END IF
@@ -569,7 +676,7 @@
         data%MinvC( : n ) = VECTOR
         VECTOR = O
         IF ( .NOT. control%unitm ) THEN
-          data%branch = 8 ; inform%status = 5 ; inform%iter = data%iter
+          data%branch = 150 ; inform%status = 5 ; inform%iter = data%iter
           RETURN
         END IF
       END IF
@@ -605,7 +712,7 @@
 !  Array (re)allocations
 !  =====================
 
-!  Allocate P
+!  Allocate P and U
 
       array_name = 'glrt: P'
       CALL SPACE_resize_array( n, data%P,                                      &
@@ -615,8 +722,32 @@
           bad_alloc = inform%bad_alloc, out = control%error )
       IF ( inform%status /= 0 ) GO TO 960
 
+      array_name = 'glrt: U'
+      CALL SPACE_resize_array( n, data%U,                                      &
+          inform%status, inform%alloc_status, array_name = array_name,         &
+          deallocate_error_fatal = control%deallocate_error_fatal,             &
+          exact_size = control%space_critical,                                 &
+          bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= 0 ) GO TO 960
+
       IF ( .NOT. data%one_pass ) THEN
         data%titmax = 100
+
+!  if required, open a file to write the Ritz values data
+
+        IF ( control%print_ritz_values ) THEN
+          INQUIRE( FILE = control%ritz_file_name, EXIST = filexx )
+          IF ( filexx ) THEN
+            OPEN( control%ritz_printout_device,                                &
+                  FILE = control%ritz_file_name, FORM = 'FORMATTED',           &
+                  STATUS = 'OLD', IOSTAT = info )
+          ELSE
+            OPEN( control%ritz_printout_device,                                &
+                  FILE = control%ritz_file_name, FORM = 'FORMATTED',           &
+                  STATUS = 'NEW', IOSTAT = info )
+          END IF
+          WRITE( control%ritz_printout_device, * ) 'glrt', n, sigma
+        END IF
 
 !  Allocate space for the Lanczos tridiagonal
 
@@ -635,6 +766,24 @@
             exact_size = control%space_critical,                               &
             bad_alloc = inform%bad_alloc, out = control%error )
         IF ( inform%status /= 0 ) GO TO 960
+
+        IF ( control%print_ritz_values ) THEN
+          array_name = 'gltr: E'
+          CALL SPACE_resize_array( data%itmax + 2, data%E,                     &
+              inform%status, inform%alloc_status, array_name = array_name,     &
+              deallocate_error_fatal = control%deallocate_error_fatal,         &
+              exact_size = control%space_critical,                             &
+              bad_alloc = inform%bad_alloc, out = control%error )
+          IF ( inform%status /= 0 ) GO TO 960
+
+          array_name = 'gltr: OFFE'
+          CALL SPACE_resize_array( data%itmax + 1, data%OFFE,                  &
+              inform%status, inform%alloc_status, array_name = array_name,     &
+              deallocate_error_fatal = control%deallocate_error_fatal,         &
+              exact_size = control%space_critical,                             &
+              bad_alloc = inform%bad_alloc, out = control%error )
+          IF ( inform%status /= 0 ) GO TO 960
+        END IF
 
 !  Allocate space for the factors of the Lanczos tridiagonal
 
@@ -696,8 +845,8 @@
 
 !  Allocate space for workspace associated with the Lanczos subproblem
 
-        array_name = 'glrt: Z'
-        CALL SPACE_resize_array( 0, data%itmax + 1, data%Z,                    &
+        array_name = 'glrt: U_sub'
+        CALL SPACE_resize_array( 0, data%itmax + 1, data%U_sub,                &
             inform%status, inform%alloc_status, array_name = array_name,       &
             deallocate_error_fatal = control%deallocate_error_fatal,           &
             exact_size = control%space_critical,                               &
@@ -735,6 +884,14 @@
 
         array_name = 'glrt: MIN_f'
         CALL SPACE_resize_array( 0, data%itmax + 1, data%MIN_f,                &
+            inform%status, inform%alloc_status, array_name = array_name,       &
+            deallocate_error_fatal = control%deallocate_error_fatal,           &
+            exact_size = control%space_critical,                               &
+            bad_alloc = inform%bad_alloc, out = control%error )
+        IF ( inform%status /= 0 ) GO TO 960
+
+        array_name = 'glrt: MIN_f_regularized'
+        CALL SPACE_resize_array( 0, data%itmax + 1, data%MIN_f_regularized,    &
             inform%status, inform%alloc_status, array_name = array_name,       &
             deallocate_error_fatal = control%deallocate_error_fatal,           &
             exact_size = control%space_critical,                               &
@@ -790,8 +947,8 @@
             data%extra_vectors = 0
           END IF
         END IF
- 
-        inform%obj = control%f_0 +                                             &
+
+        inform%obj_regularized = control%f_0 +                                 &
           ( sigma / p ) * ( data%o_mnorm_2_p_eps ** ( p / two ) )
 
 !  Special case for the case p = 2
@@ -811,8 +968,11 @@
         END IF
         data%extra_vectors = 0
         IF ( PRESENT( eps ) ) THEN
-          inform%obj = inform%obj + half * sigma * eps
+          inform%obj_regularized = inform%obj + half * sigma * eps
+        ELSE
+          inform%obj_regularized = inform%obj
         END IF
+        data%xmx = zero ; inform%xpo_norm = zero
       END IF
       data%save_vectors = data%extra_vectors > 0
 
@@ -830,7 +990,7 @@
       IF ( .NOT. ( PRESENT( O ) .AND. data%iter == 0 ) ) THEN
         VECTOR = R
         IF ( .NOT. control%unitm ) THEN
-          data%branch = 2 ; inform%status = 2
+          data%branch = 200 ; inform%status = 2
           RETURN
         END IF
       END IF
@@ -838,7 +998,6 @@
 !  Obtain the scaled norm of the residual
 
   200 CONTINUE
-
       IF ( .NOT. ( PRESENT( O ) .AND. data%iter == 0 ) ) THEN
         data%rminvr = DOT_PRODUCT( R, VECTOR )
       ELSE
@@ -846,13 +1005,13 @@
       END IF
       IF ( ABS( data%rminvr ) < control%rminvr_zero ) data%rminvr = zero
       IF ( data%rminvr < zero ) THEN
-     IF ( MAXVAL( ABS( VECTOR ) ) < epsmch * MAXVAL( ABS( R ) ) ) THEN
+        IF ( MAXVAL( ABS( VECTOR ) ) < epsmch * MAXVAL( ABS( R ) ) ) THEN
           data%rminvr = zero
         ELSE
           GO TO 1000
-        END IF 
+        END IF
       END IF
-      data%pgnorm = SIGN( SQRT( ABS( data%rminvr ) ), data%rminvr ) 
+      data%pgnorm = SIGN( SQRT( ABS( data%rminvr ) ), data%rminvr )
 
 !  general case
 
@@ -875,10 +1034,10 @@
           data%beta = data%rminvr / data%rminvr_old
           data%diag = data%beta / data%alpha
           data%offdiag = SQRT( data%beta ) / ABS( data%alpha )
-        ELSE
 
 !  Compute the stopping tolerance
 
+        ELSE
           data%diag = zero
           data%stop = MAX( control%stop_relative * data%pgnorm,                &
                            control%stop_absolute )
@@ -889,26 +1048,60 @@
           data%C_sub( 0 ) = data%pgnorm
         END IF
 
+!  just in case the Ritz values are useful ...
+
+        IF ( control%print_ritz_values  ) THEN
+          data%E( : data%iter ) = data%D( 0 : data%itm1 )
+          data%OFFE( : data%itm1 ) = data%OFFD( : data%itm1)
+          CALL STERF( data%iter, data%E, data%OFFE, info )
+          IF ( info == 0 ) THEN
+            IF (  data%iter /= 0 ) THEN
+              WRITE( control%ritz_printout_device, * )                         &
+                data%iter, data%LAMBDA( data%iter ), data%offdiag,             &
+                ABS( data%x_last * data%offdiag )
+            ELSE
+              WRITE( control%ritz_printout_device, * )                         &
+                data%iter, zero, zero, data%pgnorm
+            END IF
+            WRITE( control%ritz_printout_device, * ) data%E( : data%iter )
+          ELSE
+            IF ( data%printi ) WRITE( control%out, * )                         &
+              info, ' warning: unconverged Ritz values out of ', data%iter
+          END IF
+        END IF
+
 !  Print details of the latest iteration
 
+!if ( data%itm1 >= 1 ) then
+!  if ( data%LAMBDA( data%itm1 - 1 ) > &
+!       data%LAMBDA( data%itm1 ) + sigma * roots_tol * inform%xpo_norm ) then
+!    write(6,"(3ES24.16)" ) data%LAMBDA( data%itm1 - 1 ), &
+!      data%LAMBDA( data%itm1), &
+!      data%LAMBDA( data%itm1 - 1 ) - data%LAMBDA( data%itm1)
+!!stop
+!end if
+!end if
         IF ( data%printi ) THEN
           IF ( MOD( data%iter, 25 ) == 0 .OR. data%printd )                    &
             WRITE( control%out, 2000 ) prefix
           IF ( data%iter /= 0 ) THEN
-            WRITE( control%out, "( A, I7, ES16.8, ES9.2, ES15.8, 2I5, A )" )   &
-              prefix, data%iter, data%MIN_f( data%itm1 ) + control%f_0,        &
-              ABS( data%x_last * data%offdiag ),                               &
-              data%LAMBDA( data%itm1 ), data%titer, data%tinfo, data%descent
+            WRITE( control%out, "( A, I7, ES16.8, ES9.2, ES21.14, ES9.2,       &
+              &  2I5, A )" ) prefix, data%iter,                                &
+              data%MIN_f_regularized( data%itm1 )                              &
+              + control%f_0, ABS( data%x_last * data%offdiag ),                &
+              data%LAMBDA( data%itm1 ), data%offdiag,                          &
+              data%titer, data%tinfo, data%descent
+!write(6,"(2ES12.4)" ) data%x_last, data%offdiag
           ELSE
-            WRITE( control%out, "( A, I7, ES16.8, ES9.2, 8X, '-', 6X,          &
-             &      2( 4X, '-' ) )" ) prefix, data%iter, inform%obj, data%pgnorm
+            WRITE( control%out, "( A, I7, ES16.8, ES9.2, 13X, '-', 12X,        &
+             &      '-', 7X, '-', 5X, '-' )" )                                 &
+               prefix, data%iter, inform%obj_regularized, data%pgnorm
           END IF
         END IF
 
-        IF ( data%iter > 0 ) THEN
-
 !  Obtain the search direction P
 
+        IF ( data%iter > 0 ) THEN
           data%pmp = data%rminvr + data%pmp * data%beta * data%beta
           data%P( : n ) = - VECTOR + data%beta * data%P( : n )
 
@@ -932,20 +1125,22 @@
 
           IF ( data%iter >= data%itmax .OR.                                    &
                ABS( data%offdiag * data%x_last ) <= data%stop ) THEN
-   
-!  Convergence has occured. Determine at which iteration a fraction, 
+
+!  Convergence has occured. Determine at which iteration a fraction,
 !  fraction_opt, of the optimal solution was found
 
             f_0 = ( sigma / p ) * ( data%o_mnorm_2_p_eps ** ( p / two ) )
             IF ( control%fraction_opt < one ) THEN
-              f_tol = ( f_0 - data%MIN_f( data%itm1 ) ) * control%fraction_opt
+              f_tol = ( f_0 - data%MIN_f_regularized( data%itm1 ) )           &
+                          * control%fraction_opt
               IF ( control%impose_descent ) THEN
                 it = data%iter_descent
               ELSE
                 it = data%iter
               END IF
               DO dim_sub = 1, it
-                 IF ( f_0 - data%MIN_f( dim_sub - 1 ) >= f_tol ) EXIT
+                 IF ( f_0 - data%MIN_f_regularized( dim_sub - 1 ) >= f_tol )   &
+                   EXIT
               END DO
             ELSE
               IF ( control%impose_descent ) THEN
@@ -957,7 +1152,8 @@
             data%dim_sub = dim_sub
 
 !           IF ( data%printi ) WRITE( control%out, 2020 )                      &
-!           WRITE( control%out, 2020 ) data%MIN_f( dim_sub - 1 ), dim_sub, iter
+!           WRITE( control%out, 2020 ) data%MIN_f_regularized( dim_sub - 1 ),  &
+!             dim_sub, iter
 
 !  Restore the solution to the Lanczos subproblem for this iteration
 
@@ -981,11 +1177,14 @@
                            data%titmax, data%try_warm, data%use_old,           &
                            inform%leftmost, data%LAMBDA( dim_sub - 1 ),        &
                            data%MIN_f( dim_sub - 1 ),                          &
+                           data%MIN_f_regularized( dim_sub - 1 ),              &
                            data%X_sub( : dim_sub - 1 ),                        &
                            inform%xpo_norm, data%tinfo, data%titer,            &
-                           data%Z( : dim_sub - 1 ), data%W( : dim_sub - 1 ),   &
+                           data%U_sub( : dim_sub - 1 ),                        &
+                           data%W( : dim_sub - 1 ),                            &
                            data%seed, control%print_level - 1, control%out,    &
-                           prefix, eps = eps, O = data%O_sub( : dim_sub - 1 ), &
+                           prefix, inform%hard_case, data%hard_case_step,      &
+                           eps = eps, O = data%O_sub( : dim_sub - 1 ), &
                            onorm2 = data%onorm2 )
               ELSE
                 CALL GLRT_trts( dim_sub, data%D( : dim_sub - 1 ),              &
@@ -996,31 +1195,36 @@
                            data%titmax, data%try_warm, data%use_old,           &
                            inform%leftmost, data%LAMBDA( dim_sub - 1 ),        &
                            data%MIN_f( dim_sub - 1 ),                          &
+                           data%MIN_f_regularized( dim_sub - 1 ),              &
                            data%X_sub( : dim_sub - 1 ),                        &
                            inform%xpo_norm, data%tinfo, data%titer,            &
-                           data%Z( : dim_sub - 1 ), data%W( : dim_sub - 1 ),   &
+                           data%U_sub( : dim_sub - 1 ),                        &
+                           data%W( : dim_sub - 1 ),                            &
                            data%seed, control%print_level - 1, control%out,    &
-                           prefix, eps = eps )
+                           prefix, inform%hard_case, data%hard_case_step,      &
+                           eps = eps )
               END IF
             END IF
 !           IF ( data%printi ) WRITE( control%out, 2020 )                      &
-!                                data%MIN_f( dim_sub - 1 ), dim_sub, data%iter
+!                data%MIN_f_regularized( dim_sub - 1 ), dim_sub, data%iter
 
 !  Record the optimal objective function value and prepare to recover the
 !  approximate solution
 
-            inform%obj = data%MIN_f( dim_sub - 1 ) + control%f_0 
+            inform%obj = data%MIN_f( dim_sub - 1 ) + control%f_0
+            inform%obj_regularized                                             &
+              = data%MIN_f_regularized( dim_sub - 1 ) + control%f_0
             inform%multiplier = data%LAMBDA( dim_sub - 1 )
             data%tau = one
             inform%iter = data%iter ; data%iter = 0
             IF ( data%save_vectors ) GO TO 390
-            data%branch = 5 ; inform%status = 4
+            data%branch = 500 ; inform%status = 4
             RETURN
           END IF
-        ELSE
 
 !  Special case for the first iteration
 
+        ELSE
           data%P( : n ) = - VECTOR
           data%pmp = data%rminvr
           data%D( 0 ) = data%diag
@@ -1028,11 +1232,11 @@
 
         IF ( PRESENT( O ) ) THEN
           data%O_sub( data%iter ) =                                            &
-            data%tau * DOT_PRODUCT( R, O ) / SQRT( data%rminvr ) 
+            data%tau * DOT_PRODUCT( R, O ) / SQRT( data%rminvr )
           data%onorm2 = data%onorm2 + data%O_sub( data%iter ) ** 2
           data%C_sub( data%iter ) = data%tau *                                 &
-            DOT_PRODUCT( R, data%MinvC( : n ) ) / SQRT( data%rminvr ) 
-        END IF 
+            DOT_PRODUCT( R, data%MinvC( : n ) ) / SQRT( data%rminvr )
+        END IF
 
         data%RMINVRS( data%iter + 1 ) = data%rminvr
         data%rminvr_old = data%rminvr
@@ -1047,10 +1251,10 @@
       ELSE
         IF ( data%iter > 0 ) THEN
           data%beta = data%rminvr / data%rminvr_old
-        ELSE
 
 !  Compute the stopping tolerance
 
+        ELSE
           data%stop = MAX( control%stop_relative * data%pgnorm,                &
                            control%stop_absolute )
           data%pgnorm_zero = data%pgnorm
@@ -1065,15 +1269,16 @@
           IF ( MOD( data%iter, 25 ) == 0 .OR. data%printd )                    &
             WRITE( control%out, 2010 ) prefix
           WRITE( control%out, "( A, I7, ES16.8, ES9.2 )" )                     &
-            prefix, data%iter, inform%obj, data%pgnorm
+            prefix, data%iter, inform%obj_regularized, data%pgnorm
         END IF
 
         IF ( data%iter > 0 ) THEN
 
 !  Obtain the search direction P and its scaled version W = M * P
 
-          data%pmp = data%rminvr + data%pmp * data%beta * data%beta
           IF ( sigma > zero ) data%W( : n ) = - R + data%beta * data%W( : n )
+          data%xmp = data%beta * ( data%xmp + data%alpha * data%pmp )
+          data%pmp = data%rminvr + data%pmp * data%beta * data%beta
           data%P( : n ) = - VECTOR + data%beta * data%P( : n )
 
 !  Optionally refine the stopping tolereance
@@ -1093,31 +1298,38 @@
             inform%multiplier = sigma
             GO TO 900
           END IF
-        ELSE
 
 !  Special case for the first iteration
 
+        ELSE
           IF ( sigma > zero ) data%W( : n ) = - R
           data%P( : n ) = - VECTOR
-          data%pmp = data%rminvr
+          data%pmp = data%rminvr ; data%xmp = zero
+
+!  Check for convergence
+
+          IF ( data%iter >= data%itmax .OR. data%rminvr <= data%stop ) THEN
+            inform%multiplier = sigma
+            GO TO 900
+          END IF
         END IF
         data%rminvr_old = data%rminvr
 
         data%itm1 = data%iter ; data%iter = data%iter + 1
       END IF
+!write(6,*) ' obj, ob_reg ', inform%obj, inform%obj_regularized
 
-!  ------------------------------ 
+!  ------------------------------
 !  Obtain the product of H with p
-!  ------------------------------ 
+!  ------------------------------
 
       VECTOR = data%P( : n )
-      data%branch = 3  ; inform%status = 3 ; inform%iter = data%iter
+      data%branch = 300  ; inform%status = 3 ; inform%iter = data%iter
       RETURN
-
-  300 CONTINUE 
 
 !  Obtain the curvature
 
+  300 CONTINUE
       data%curv = DOT_PRODUCT( VECTOR, data%P( : n ) )
       IF ( data%curv <= zero ) inform%negative_curvature = .TRUE.
 !write(6,*) ' ========= curv ', data%curv
@@ -1158,10 +1370,12 @@
                  data%OFFD_fact( : data%itm1 ), data%C_sub( : data%itm1 ),     &
                  p, sigma, data%rtol, data%titmax, data%try_warm,              &
                  data%use_old, inform%leftmost, data%LAMBDA( data%itm1 ),      &
-                 data%MIN_f( data%itm1 ), data%X_sub( : data%itm1 ),           &
-                 inform%xpo_norm, data%tinfo, data%titer, data%Z( : data%itm1),&
+                 data%MIN_f( data%itm1 ), data%MIN_f_regularized( data%itm1 ), &
+                 data%X_sub( : data%itm1 ), inform%xpo_norm, data%tinfo,       &
+                 data%titer, data%U_sub( : data%itm1),                         &
                  data%W( : data%itm1 ), data%seed, control%print_level - 1,    &
-                 control%out, prefix, eps = eps, O = data%O_sub( : data%itm1 ),&
+                 control%out, prefix, inform%hard_case, data%hard_case_step,   &
+                 eps = eps, O = data%O_sub( : data%itm1 ),                     &
                  onorm2 = data%onorm2 )
             IF ( control%impose_descent .AND. DOT_PRODUCT(                     &
               data%X_sub( : data%itm1 ), data%C_sub( : data%itm1 )             &
@@ -1173,14 +1387,16 @@
             END IF
           ELSE
             CALL GLRT_trts( data%iter, data%D( : data%itm1 ),                  &
-                 data%OFFD( : data%itm1 ), data%D_fact( : data%itm1 ),         &
-                 data%OFFD_fact( : data%itm1 ), data%C_sub( : data%itm1 ),     &
-                 p, sigma, data%rtol, data%titmax, data%try_warm,              &
-                 data%use_old, inform%leftmost, data%LAMBDA( data%itm1 ),      &
-                 data%MIN_f( data%itm1 ), data%X_sub( : data%itm1 ),           &
-                 inform%xpo_norm, data%tinfo, data%titer, data%Z( : data%itm1),&
-                 data%W( : data%itm1 ), data%seed, control%print_level - 1,    &
-                 control%out, prefix, eps = eps )
+               data%OFFD( : data%itm1 ), data%D_fact( : data%itm1 ),           &
+               data%OFFD_fact( : data%itm1 ), data%C_sub( : data%itm1 ),       &
+               p, sigma, data%rtol, data%titmax, data%try_warm,                &
+               data%use_old, inform%leftmost, data%LAMBDA( data%itm1 ),        &
+               data%MIN_f( data%itm1 ), data%MIN_f_regularized( data%itm1 ),   &
+               data%X_sub( : data%itm1 ), inform%xpo_norm, data%tinfo,         &
+               data%titer, data%U_sub( : data%itm1),                           &
+               data%W( : data%itm1 ), data%seed, control%print_level - 1,      &
+               control%out, prefix, inform%hard_case, data%hard_case_step,     &
+               eps = eps )
             IF ( control%impose_descent .AND. data%X_sub( 0 ) < zero ) THEN
               data%descent = 'd'
               data%iter_descent = data%iter
@@ -1188,12 +1404,16 @@
               data%descent = ' '
             END IF
           END IF
-          inform%obj = data%MIN_f( data%itm1 ) + control%f_0 
+          inform%obj = data%MIN_f( data%itm1 ) + control%f_0
+          inform%obj_regularized                                               &
+            = data%MIN_f_regularized( data%itm1 ) + control%f_0
           data%x_last = data%X_sub( data%itm1 )
           data%norm_x = TWO_NORM( data%X_sub( : data%itm1 ) )
           data%use_old = inform%leftmost < zero
         ELSE
           data%MIN_f( data%itm1 ) = data%MIN_f( data%itm1 - 1 )
+          data%MIN_f_regularized( data%itm1 )                                  &
+            = data%MIN_f_regularized( data%itm1 - 1 )
           data%tinfo = 0 ; data%titer = 0
         END IF
         data%try_warm = .TRUE.
@@ -1227,8 +1447,20 @@
 
 !  Update the solution and function value
 
+        data%xmx = data%xmx + data%alpha *                                     &
+                     ( two * data%xmp + data%alpha * data%pmp )
+        inform%xpo_norm = SQRT( data%xmx )
         X = X + data%alpha * data%P( : n )
-        inform%obj = inform%obj - half * data%alpha * data%alpha * data%curv
+!       inform%obj = inform%obj - half * data%alpha * data%alpha * data%curv
+!        IF ( PRESENT( eps ) ) THEN
+!         inform%obj_regularized = inform%obj + half * sigma * eps
+!       ELSE
+!         inform%obj_regularized = inform%obj
+!       END IF
+        inform%obj_regularized =                                               &
+          inform%obj_regularized - half * data%alpha * data%alpha * data%curv
+        inform%obj = inform%obj_regularized - half * sigma * data%xmx
+        IF ( PRESENT( eps ) ) inform%obj = inform%obj - half * sigma * eps
 
 !  Update the residual
 
@@ -1248,12 +1480,14 @@
 !  ===================================
 
   390 CONTINUE
-
       inform%iter_pass2 = MIN( data%dim_sub, data%extra_vectors )
       DO it = 0, inform%iter_pass2 - 1
         itp1 = it + 1
         data%X_sub( it ) = data%tau *                                          &
           ( data%X_sub( it ) / SQRT( data%RMINVRS( itp1 ) ) )
+        IF ( inform%hard_case )                                                &
+          data%U_sub( it ) = data%tau *                                        &
+          ( data%U_sub( it ) / SQRT( data%RMINVRS( itp1 ) ) )
         data%tau = - SIGN( one, data%ALPHAS( itp1 ) ) * data%tau
       END DO
 
@@ -1261,21 +1495,25 @@
 
       X = MATMUL( data%V_extra( : n, : inform%iter_pass2 ),                    &
                   data%X_sub( 0 : inform%iter_pass2 - 1 ) )
+      IF ( inform%hard_case )                                                  &
+        data%U = MATMUL( data%V_extra( : n, : inform%iter_pass2 ),             &
+                         data%U_sub( 0 : inform%iter_pass2 - 1 ) )
 
-      IF ( inform%iter_pass2 == data%dim_sub ) GO TO 900
+      IF ( inform%iter_pass2 == data%dim_sub ) GO TO 800
       R = data%R_extra( : n )
       data%P( : n ) = data%P_extra( : n )
       data%iter = inform%iter_pass2
       data%rminvr_old = data%RMINVRS( data%iter )
-
       GO TO 590
 
 !  =======================================
 !  Re-entry for solution with larger sigma
 !  =======================================
 
-  400 CONTINUE 
-      X = zero ; inform%obj = control%f_0
+  400 CONTINUE
+      X = zero ; inform%obj = control%f_0 ; data%U = zero
+      inform%obj_regularized = control%f_0 +                                   &
+        ( sigma / p ) * ( data%o_mnorm_2_p_eps ** ( p / two ) )
       inform%iter = 0 ; inform%iter_pass2 = 0
       data%use_old = .FALSE. ; data%try_warm = .TRUE.
 
@@ -1292,10 +1530,13 @@
                    data%titmax, data%try_warm, data%use_old,                   &
                    inform%leftmost, data%LAMBDA( data%dim_sub - 1 ),           &
                    data%MIN_f( data%dim_sub - 1 ),                             &
+                   data%MIN_f_regularized( data%dim_sub - 1 ),                 &
                    data%X_sub( : data%dim_sub - 1 ),                           &
                    inform%xpo_norm, data%tinfo, data%titer,                    &
-                   data%Z( : data%dim_sub - 1 ), data%W( : data%dim_sub - 1 ), &
+                   data%U_sub( : data%dim_sub - 1 ),                           &
+                   data%W( : data%dim_sub - 1 ),                               &
                    data%seed, control%print_level - 1, control%out, prefix,    &
+                   inform%hard_case, data%hard_case_step,                      &
                    eps = eps, O = data%O_sub( data%dim_sub - 1 ),              &
                    onorm2 = data%onorm2 )
       ELSE
@@ -1307,25 +1548,30 @@
                    data%titmax, data%try_warm, data%use_old,                   &
                    inform%leftmost, data%LAMBDA( data%dim_sub - 1 ),           &
                    data%MIN_f( data%dim_sub - 1 ),                             &
+                   data%MIN_f_regularized( data%dim_sub - 1 ),                 &
                    data%X_sub( : data%dim_sub - 1 ),                           &
                    inform%xpo_norm, data%tinfo, data%titer,                    &
-                   data%Z( : data%dim_sub - 1 ), data%W( : data%dim_sub - 1 ), &
+                   data%U_sub( : data%dim_sub - 1 ),                           &
+                   data%W( : data%dim_sub - 1 ),                               &
                    data%seed, control%print_level - 1, control%out, prefix,    &
+                   inform%hard_case, data%hard_case_step,                      &
                    eps = eps )
       END IF
 !     IF ( data%printi ) WRITE( control%out, 2020 )                            &
-!        WRITE( control%out, 2020 ) data%MIN_f( data%dim_sub - 1 ),            &
-!                                   data%dim_sub, data%iter
+!        WRITE( control%out, 2020 )                                            &
+!          data%MIN_f_reularized( data%dim_sub - 1 ), data%dim_sub, data%iter
 
 !  Record the optimal objective function value and prepare to recover the
 !  approximate minimizer
 
       inform%multiplier = data%LAMBDA( data%dim_sub - 1 )
-      inform%obj = data%MIN_f( data%dim_sub - 1 ) + control%f_0 
+      inform%obj = data%MIN_f( data%dim_sub - 1 ) + control%f_0
+      inform%obj_regularized                                                   &
+        = data%MIN_f_regularized( data%dim_sub - 1 ) + control%f_0
       data%iter = 0 ; data%tau = one
 
 !  ----------------------------------
-!  Special part of the code to obtain 
+!  Special part of the code to obtain
 !  the approximate minimizer
 !  ----------------------------------
 
@@ -1336,7 +1582,7 @@
       IF ( PRESENT( O ) ) THEN
         VECTOR = O
         IF ( .NOT. control%unitm ) THEN
-          data%branch = 9 ; inform%status = 5
+          data%branch = 550 ; inform%status = 5
           RETURN
         END IF
       END IF
@@ -1351,28 +1597,30 @@
 !  ----------------------------------
 
   590 CONTINUE
-
       VECTOR = R
       IF ( .NOT. control%unitm ) THEN
-        data%branch = 6 ; inform%status = 2 ; inform%iter_pass2 = data%iter
+        data%branch = 600 ; inform%status = 2 ; inform%iter_pass2 = data%iter
         RETURN
       END IF
 
 !  Obtain the scaled norm of the residual
 
-  600 CONTINUE 
-
+  600 CONTINUE
       itp1 = data%iter + 1
 
 !  Update the solution estimate
 
       data%rminvr = data%RMINVRS( itp1 )
       IF ( data%iter /= 0 ) THEN
-        X = X + data%tau * ( data%X_sub( data%iter ) / SQRT( data%rminvr ) )   &
-             * VECTOR
+        X = X + data%tau                                                       &
+              * ( data%X_sub( data%iter ) / SQRT( data%rminvr ) ) * VECTOR
+        IF ( inform%hard_case ) data%U = data%U + data%tau                     &
+              * ( data%U_sub( data%iter ) / SQRT( data%rminvr ) ) * VECTOR
       ELSE
-        X = data%tau * ( data%X_sub( data%iter ) / SQRT( data%rminvr ) )       &
-             * VECTOR
+        X = data%tau                                                           &
+              * ( data%X_sub( data%iter ) / SQRT( data%rminvr ) ) * VECTOR
+        IF ( inform%hard_case ) data%U = data%tau                              &
+              * ( data%U_sub( data%iter ) / SQRT( data%rminvr ) ) * VECTOR
       END IF
 
 !  If the approximate minimizer is complete, exit
@@ -1380,7 +1628,7 @@
       IF ( itp1 == data%dim_sub ) THEN
         inform%iter_pass2 = itp1
         IF ( data%iter >= data%itmax ) GO TO 910
-        GO TO 900
+        GO TO 800
       END IF
 
       IF ( data%iter > 0 ) THEN
@@ -1394,28 +1642,51 @@
       END IF
       data%rminvr_old = data%rminvr ; data%iter = itp1
 
-!  ------------------------------ 
+!  ------------------------------
 !  Obtain the product of H with p
-!  ------------------------------ 
+!  ------------------------------
 
       VECTOR = data%P( : n )
-      data%branch = 7 ; inform%status = 3 ; inform%iter_pass2 = data%iter
+      data%branch = 700 ; inform%status = 3 ; inform%iter_pass2 = data%iter
       RETURN
 
 !  Obtain the curvature
 
-  700 CONTINUE 
+  700 CONTINUE
 
 !  Retreive the stepsize
 
       data%alpha = data%ALPHAS( data%iter )
-         
+
 !  Update the residual
 
       R = R + data%alpha * VECTOR
       data%tau = - SIGN( one, data%alpha ) * data%tau
-
       GO TO 590
+
+!  if the hard case has occured, ensure that the recovered eigenvector has
+!  unit norm
+
+  800 CONTINUE
+      IF ( inform%hard_case ) THEN
+        IF ( .NOT. control%unitm ) THEN
+          VECTOR = data%U( : n )
+          data%branch = 900 ; inform%status = 3 ; RETURN
+        END IF
+      END IF
+
+!  in the hard case, compute the complete solution
+
+  900 CONTINUE
+      IF ( inform%hard_case ) THEN
+        IF ( control%unitm ) THEN
+          u_norm = TWO_NORM( data%U( : n ) )
+        ELSE
+          u_norm = SQRT( - DOT_PRODUCT( VECTOR, data%U( : n ) )                &
+                             / inform%multiplier )
+        END IF
+        X = X + ( data%hard_case_step / u_norm ) * data%U( : n )
+      END IF
 
 !  ===============
 !  Exit conditions
@@ -1423,8 +1694,7 @@
 
 !  Successful returns
 
-  900 CONTINUE
-      inform%status = 0
+      inform%status = GALAHAD_ok
       RETURN
 
 !  Too many iterations
@@ -1492,7 +1762,7 @@
       inform%status = GALAHAD_error_unbounded ; inform%iter = data%iter
       RETURN
 
-!  Inappropriate preconditioner 
+!  Inappropriate preconditioner
 
  1000 CONTINUE
       IF ( control%error > 0 .AND. control%print_level > 0 )                   &
@@ -1504,8 +1774,8 @@
 
 !  Non-executable statements
 
- 2000 FORMAT( /, A, '   Iter    objective     pgnorm      lambda   ',          &
-                    '    it info' )
+ 2000 FORMAT( /, A, '   Iter    objective     pgnorm           lambda    ',    &
+                    '    gamma    it  info' )
  2010 FORMAT( /, A, '   Iter       f          pgnorm ' )
 !2020 FORMAT( /, ' MIN_f, it_exit, it_total ', ES22.14, 2I6 )
 
@@ -1535,7 +1805,7 @@
 !-----------------------------------------------
 
       TYPE ( GLRT_data_type ), INTENT( INOUT ) :: data
-      TYPE ( GLRT_control_type ), INTENT( IN ) :: control        
+      TYPE ( GLRT_control_type ), INTENT( IN ) :: control
       TYPE ( GLRT_inform_type ), INTENT( INOUT ) :: inform
 
 !-----------------------------------------------
@@ -1548,6 +1818,12 @@
 
       array_name = 'glrt: P'
       CALL SPACE_dealloc_array( data%P,                                        &
+         inform%status, inform%alloc_status, array_name = array_name,          &
+         bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+      array_name = 'glrt: U'
+      CALL SPACE_dealloc_array( data%U,                                        &
          inform%status, inform%alloc_status, array_name = array_name,          &
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
@@ -1578,6 +1854,12 @@
 
       array_name = 'glrt: MIN_f'
       CALL SPACE_dealloc_array( data%MIN_f,                                    &
+         inform%status, inform%alloc_status, array_name = array_name,          &
+         bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+      array_name = 'glrt: MIN_f_regularized'
+      CALL SPACE_dealloc_array( data%MIN_f_regularized,                        &
          inform%status, inform%alloc_status, array_name = array_name,          &
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
@@ -1618,8 +1900,8 @@
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-      array_name = 'glrt: Z'
-      CALL SPACE_dealloc_array( data%Z,                                        &
+      array_name = 'glrt: U'
+      CALL SPACE_dealloc_array( data%U,                                        &
          inform%status, inform%alloc_status, array_name = array_name,          &
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
@@ -1648,6 +1930,8 @@
          bad_alloc = inform%bad_alloc, out = control%error )
       IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
+      IF ( control%print_ritz_values ) CLOSE( control%ritz_printout_device )
+
       RETURN
 
 !  End of subroutine GLRT_terminate
@@ -1658,118 +1942,101 @@
 
       SUBROUTINE GLRT_trts( n, D, OFFD, D_fact, OFFD_fact, C, p, sigma,        &
                             rtol, itmax, try_warm, use_old, old_leftmost,      &
-                            lambda, f, X, xponorm, inform, iter, Z, W, seed,   &
-                            print_level, out, prefix, eps, O, onorm2 ) 
+                            lambda, f, f_regularized, X, xponorm, inform,      &
+                            iter, U, W, seed, print_level, out, prefix,        &
+                            hard_case, hard_case_step, eps, O, onorm2 )
 
-!  Subroutine GLRT_trts
-!  ====================
+! ---------------------------------------------------------------------
 
 !  Given an n by n symmetric tridiagonal matrix T, n-vectors c and o, and
-!  nonnegative numbers sigma and eps, this subroutine determines a vector x 
-!  which approximately minimizes the regularised quadratic function
+!  nonnegative numbers sigma and eps, this subroutine determines a vector
+!  x which approximately minimizes the regularised quadratic function
 
-!     f(x) = (sigma/p) sqrt(||x+o||_2^2+eps)^p + (1/2)*x'*T*x + c'*x
+!     f(x) = sigma/p sqrt(||x + o||_2^2+eps)^p + 1/2 <x, T x> + <c, x>
 
 !  This subroutine computes an approximation x and a positive Lagrange
-!  multiplier lambda such that 
+!  multiplier lambda such that
 
 !     ( T + lambda I ) x = - c - lambda o
 
 !  and
 
-!      abs(sqrt(||x+o||_2^2+eps) - lambda/sigma) <= rtol*||x||.
+!      | sqrt(||x+o||_2^2+eps) - lambda/sigma | <= rtol * ||x||
 
-!  Dummy arguments
-!  ===============
+! ----------------------- dummy arguments -----------------------------
 
-!    n is an integer variable.
-!      On entry n is the order of T.
-!      On exit n is unchanged.
+!    n is an integer (in) variable.
+!      On entry n is the order of T
 
-!    D is a real array of dimension (n).
+!    D is a real (in) array of dimension n.
 !      On entry D must contain the diagonal of T
-!      Unchanged on exit.
 
-!    OFFD is a real array of dimension (n-1).
+!    OFFD is a real (in) array of dimension n-1.
 !      On entry D must contain the subdiagonal of T
-!      Unchanged on exit.
 
-!    D_fact is a real array of dimension (n).
+!    D_fact is a real (inout) array of dimension n.
 !      On entry D_fact need not be specified.
-!      On exit D_fact contains the D part of the LDL(transpose) 
+!      On exit D_fact contains the D part of the LDL(transpose)
 !      factorization of T + lambda I
 
-!    OFFD_fact is a real array of dimension (n-1).
+!    OFFD_fact is a real (inout) array of dimension n-1.
 !      On entry OFFD_fact need not be specified.
-!      On exit OFFD_fact contains the subdiagonal part of the L factor 
+!      On exit OFFD_fact contains the subdiagonal part of the L factor
 !      from the LDL(transpose) factorization of T + lambda I
 
-!    C is an real array of dimension n.
-!      On entry C specifies the linear term in the quadratic.
-!      On exit C is unchanged.
+!    C is an real (in) array of dimension n.
+!      On entry C specifies the linear term in the quadratic
 
-!    p is a real variable.
-!      On entry p is the order of regularisation.
-!      On exit p is unchanged.
+!    p is a real (in) variable.
+!      On entry p is the order of regularisation
 
-!    sigma is a real variable.
+!    sigma is a real (in) variable.
 !      On entry sigma is the regularisation weight.
-!      On exit sigma is unchanged.
 
-!    rtol is a real variable.
+!    rtol is a real (in) variable.
 !      On entry rtol is the relative accuracy desired in the
 !         solution. Convergence occurs if
 
-!      abs(sqrt(||x+o||_2^2+eps) - lambda/sigma) <= rtol*||x+o||.
+!      | sqrt(||x+o||_2^2+eps) - lambda/sigma | <= rtol * ||x + o||.
 
-!      On exit rtol is unchanged.
+!    itmax is an integer (in) variable.
+!      On entry itmax specifies the maximum number of iterations
 
-!    itmax is an integer variable.
-!      On entry itmax specifies the maximum number of iterations.
-!      On exit itmax is unchanged.
+!    try_warm is a logical (in) variable.
+!      On entry try_warm is .TRUE. if the input value lambda is to be
+!       tried before any other estimate
 
-!    try_warm is a logical variable.
-!      On entry try_warm is .TRUE. if the input value lambda is to be 
-!       tried before any other estimate.
-!      On exit try_warm is unchanged.
+!    use_old is a logical (in) variable.
+!      On entry use_old is .TRUE. if the leftmost eigenvalue of the
+!       leading n-1 by n-1 block is given
 
-!    use_old is a logical variable.
-!      On entry use_old is .TRUE. if the leftmost eigenvalue of the leading
-!       n-1 by n-1 block is given
-!      On exit use_old is unchanged.
+!    old_leftmost is a real (inout) variable.
+!      On entry old_leftmost gives the leftmost eigenvalue of the
+!       leading n-1 by n-1 block. Only required if use_old is .TRUE.
+!      On exit gives the leftmost eigenvalue of T if T is indefinite
 
-!    old_leftmost is a real variable.
-!      On entry old_leftmost gives the leftmost eigenvalue of the leading
-!       n-1 by n-1 block. Only required if use_old is .TRUE.
-!      On exit gives the leftmost eigenvalue of T if T is indefinite.
-
-!    lambda is a real variable.
+!    lambda is a real (in) variable.
 !      On entry lambda is an initial estimate of the Lagrange
-!         multiplier ||x|| sigma.
-!      On exit lambda contains the final estimate of the multiplier.
+!         multiplier ||x|| sigma
 
-!    f is a real variable.
-!      On entry f need not be specified.
-!      On exit f is set to f(x) at the output x.
+!    f is a real (out) variable.
+!      On exit f is set to 1/2 <x, T x> + <c, x> at the output x
 
-!    X is a real array of dimension n.
-!      On entry x need not be specified.
+!    f_regularized is a real (out) variable.
+!      On exit f is set to f(x) at the output x
+
+!    X is a real (out) array of dimension n.
 !      On exit x is set to the final estimate of the solution.
 
-!    xponorm is a real variable.
-!      On entry xponorm not be specified.
-!      On exit xponorm is set to ||x+o|| at the output x.
+!    xponorm is a real (out) variable.
+!      On exit xponorm is set to ||x + o|| at the output x
 
-!    inform is an integer variable.
+!    inform is an integer (out) variable.
 !      On entry inform need not be specified.
-!      On exit inform is set as follows:
-
 !         inform = 0  The function value f(x) has the relative
 !                   accuracy specified by rtol.
-
 !         inform = 1  The Newton search direction is too small to make
 !                   further progress
-
 !         inform = 2  Failure to converge after itmax iterations.
 !                   On exit x is the best available approximation.
 
@@ -1777,50 +2044,63 @@
 !      On entry iter need not be specified.
 !      On exit iter gives the total number of iterations required.
 
-!    Z is a real work array of dimension n.
+!    iter is an integer (out) variable.
+!      On exit iter gives the total number of iterations required
 
-!    W is a real work array of dimension n.
+!    U is a real work (out) array of dimension n that may hold an
+!      eigenvector estimate
 
-!    print_level is an integer variable.
+!    W is a real work (out) array of dimension n.
+
+!    print_level is an integer (in) variable.
 !      On entry print_level should be positive if debug printing is required
-!      On exit print_level is unchanged.
 
-!    out is an integer variable.
+!    out is an integer (in) variable.
 !      On entry the unit for output if required
-!      On exit out is unchanged.
 
-!    prefix is a character variable.
-!      On entry prefix contains a prefix which will preceed each output line.
-!      On exit prefix is unchanged.
+!    prefix is a character (in) variable of unspecified length.
+!      On entry prefix contains a prefix which will preceed each output line
+
+!    hard_case is a logical (out) variable.
+!      On exit, hard_case is .TRUE. if the hard case has arisen
+!      and is .FALSE. otherwise
+
+!    hard_case_step is a real (out) variable.
+!      On exit, it will give the scalar alpha for which x + alpha u is the
+!      required solution in the jard case. It may be ignored otherwise.
 
 !    eps is an OPTIONAL real variable.
-!      If PRESENT on entry eps is the regularisation shift.
-!      On exit eps is unchanged.
+!      If PRESENT on entry eps is the regularisation shift, eps.
+!      On exit eps is unchanged
 
 !    O is an OPTIONAL real array of dimension n.
-!      If PRESENT on entry O specifies the regularisation offset.
-!      On exit S is unchanged.
+!      If PRESENT on entry O specifies the regularisation offset, o.
+!      On exit S is unchanged
 !
 !    onorm2 is an OPTIONAL real variable.
-!      If PRESENT on entry onorm2 is the square of the two-norm of O.
-!      On exit onorm2 is unchanged.
+!      If PRESENT on entry onorm2 is the square of the two-norm of O, ||o||.
+!      On exit onorm2 is unchanged
+
+! --------------------------------------------------------------------------
 
 !-----------------------------------------------
 !   D u m m y   A r g u m e n t s
 !-----------------------------------------------
 
       INTEGER, INTENT( IN ) :: n, itmax, out, print_level
-      INTEGER, INTENT( OUT ) :: inform, iter 
+      INTEGER, INTENT( OUT ) :: inform, iter
       LOGICAL, INTENT( IN ) :: use_old, try_warm
       REAL ( KIND = wp ), INTENT( IN ) :: p, sigma, rtol
       REAL ( KIND = wp ), INTENT( INOUT ) :: lambda, old_leftmost
-      REAL ( KIND = wp ), INTENT( OUT ) :: f, xponorm
+      REAL ( KIND = wp ), INTENT( OUT ) :: f, f_regularized, xponorm
+      REAL ( KIND = wp ), INTENT( OUT ) :: hard_case_step
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n - 1 ) :: OFFD
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( n ) :: C, D
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n - 1 ) :: OFFD_fact
-      REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: D_fact, X, Z, W
+      REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: D_fact, X, U, W
       TYPE ( RAND_seed ), INTENT( INOUT ) :: seed
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
+      LOGICAL, INTENT( OUT ) :: hard_case
       REAL ( KIND = wp ), OPTIONAL, INTENT( IN ) :: eps, onorm2
       REAL ( KIND = wp ), OPTIONAL, INTENT( IN ), DIMENSION( n ) :: O
 
@@ -1829,7 +2109,7 @@
 !-----------------------------------------------
 
       INTEGER :: indef, i, it, nroots
-      REAL ( KIND = wp ) :: alpha, delta, lambda_pert, ztxpo, rxnorm2, tol
+      REAL ( KIND = wp ) :: delta, lambda_pert, utxpo, rxnorm2, tol
       REAL ( KIND = wp ) :: leftmost, delta_lambda, pert_l
       REAL ( KIND = wp ) :: error, root1, root2, real_f, gamma
       REAL ( KIND = wp ) :: v2oy2, dl_phi_c, omega, omega_prime
@@ -1841,10 +2121,12 @@
 !  Initialization
 
       iter = 1
+      hard_case = .FALSE. ; hard_case_step = zero
       debug = print_level > 0
 !     pert_l = epsmch ** 0.5 ; tol = epsmch ** 0.66
       pert_l = epsmch ** 0.75 ; tol = epsmch ** 0.66
 
+!  =======================
 !  First, try a warm start
 !  =======================
 
@@ -1858,28 +2140,28 @@
 !  Find the Cholesky factors of T
 
         CALL PTTRF( n, D_fact, OFFD_fact, indef )
-      
+
 !  If T is positive definite, solve  T x = - c - lambda * o
 
-        IF ( indef == 0 ) THEN 
+        IF ( indef == 0 ) THEN
           IF ( PRESENT( O ) ) THEN
             CALL GLRT_tridiagonal_solve( n, D, OFFD, lambda, D_fact, OFFD_fact,&
-                                         - C - lambda * O, X, W, Z, itref_max, &
+                                         - C - lambda * O, X, W, U, itref_max, &
                                          rxnorm2, out, debug, prefix )
           ELSE
             CALL GLRT_tridiagonal_solve( n, D, OFFD, lambda, D_fact, OFFD_fact,&
-                                         - C, X, W, Z, itref_max, rxnorm2, out,&
+                                         - C, X, W, U, itref_max, rxnorm2, out,&
                                          debug, prefix )
           END IF
 
-!  If the (p-2)nd power of the solution is larger than lambda/sigma, 
+!  If the (p-2)nd power of the solution is larger than lambda/sigma,
 !  it provides a good initial estimate of the solution to the problem
 
           delta = lambda / sigma
           IF ( PRESENT( O ) ) THEN
-            xponorm = TWO_NORM( X + O ) 
+            xponorm = TWO_NORM( X + O )
           ELSE
-            xponorm = TWO_NORM( X ) 
+            xponorm = TWO_NORM( X )
           END IF
           IF ( PRESENT( eps ) ) THEN
             omega = SQRT( xponorm * xponorm + eps )
@@ -1888,13 +2170,13 @@
           END IF
           error = omega ** ( p - two ) - delta
           IF ( print_level > 0 ) THEN
-            WRITE( out, "( A, 8X, 'lambda', 13X, 'error', 17X, '||x||')") prefix
-            WRITE( out, "( A, 3ES20.12 )" ) prefix, lambda, error, xponorm
+            WRITE( out, "( A, 12X, 'lambda', 17X, 'error', 19X,'||x||')") prefix
+            WRITE( out, "( A, 3ES24.16 )" ) prefix, lambda, error, xponorm
           END IF
 
           IF ( ABS( error ) <= rtol * xponorm ) THEN
-            f = GLRT_trts_f( p, lambda, rxnorm2, xponorm, eps = eps,           &
-                             onorm2 = onorm2 )
+            CALL GLRT_trts_f( p, lambda, rxnorm2, xponorm, f, f_regularized,   &
+                              eps = eps, onorm2 = onorm2 )
             inform = 0
             RETURN
           END IF
@@ -1902,6 +2184,7 @@
         END IF
       END IF
 
+!  ====================================
 !  Compute the leftmost eigenvalue of T
 !  ====================================
 
@@ -1924,7 +2207,7 @@
 
 !  Compute T + lambda*I
 
-      DO 
+      DO
         OFFD_fact = OFFD
         D_fact = D + lambda_pert
 
@@ -1947,18 +2230,18 @@
       IF ( PRESENT( O ) ) THEN
         CALL GLRT_tridiagonal_solve( n, D, OFFD, lambda_pert, D_fact,        &
                                      OFFD_fact, - C - lambda_pert * O, X, W, &
-                                     Z, itref_max, rxnorm2, out, debug, prefix )
+                                     U, itref_max, rxnorm2, out, debug, prefix )
       ELSE
         CALL GLRT_tridiagonal_solve( n, D, OFFD, lambda_pert, D_fact,        &
                                      OFFD_fact, - C, X, W,                   &
-                                     Z, itref_max, rxnorm2, out, debug, prefix )
+                                     U, itref_max, rxnorm2, out, debug, prefix )
       END IF
 
       delta = lambda_pert / sigma
       IF ( PRESENT( O ) ) THEN
-        xponorm = TWO_NORM( X + O ) 
+        xponorm = TWO_NORM( X + O )
       ELSE
-        xponorm = TWO_NORM( X ) 
+        xponorm = TWO_NORM( X )
       END IF
       IF ( PRESENT( eps ) ) THEN
         omega = SQRT( xponorm * xponorm + eps )
@@ -1968,43 +2251,46 @@
       error = omega ** ( p - two ) - delta
 
       IF ( print_level > 0 ) THEN
-        WRITE( out, "( A, 8X, 'lambda', 13X, 'error', 19X, 'x' )" ) prefix
-        WRITE( out, "( A, 3ES20.12 )" ) prefix, lambda_pert, error, xponorm
+        WRITE( out, "( A, 12X, 'lambda', 17X, 'error', 19X, 'x' )" ) prefix
+        WRITE( out, "( A, 3ES24.16 )" ) prefix, lambda_pert, error, xponorm
       END IF
 
+!  =========
 !  Hard case
 !  =========
 
-!  If the (p-2)nd power of the norm of X is smaller than lambda/sigma, 
+!  If the (p-2)nd power of the norm of X is smaller than lambda/sigma,
 !  we are in the hard case
 
       IF ( error < zero ) THEN
+        hard_case = .TRUE.
+        IF ( debug ) WRITE( out, "( A, ' hard case ' )" ) prefix
         lambda = - leftmost
 
 !  Compute a leftmost eigenvector
 
         CALL GLRT_leftmost_eigenvector( n, leftmost, D, OFFD, D_fact,          &
-                                        OFFD_fact, Z, it, seed )
+                                        OFFD_fact, U, it, seed )
         IF ( print_level > 0 ) WRITE( out, "( A, ' iteration ', I6,            &
        &  ' hard case: leftmost eigenvector found ' )" ) prefix, it
 
-!  Compute the step alpha so that 
-!    ( ||x + o + alpha Z||^2 + eps )^(p-2)/2 = lambda/sigma
+!  Compute the step alpha so that
+!    ( ||x + o + alpha u||^2 + eps )^(p-2)/2 = lambda/sigma
 !  and gives the smaller value of q
 
         delta = ( ABS( lambda ) / sigma ) ** ( two / ( p - two ) ) - omega ** 2
         IF ( PRESENT( O ) ) THEN
-          ztxpo = DOT_PRODUCT( Z, X + O )
+          utxpo = DOT_PRODUCT( U, X + O )
         ELSE
-          ztxpo = DOT_PRODUCT( Z, X )
+          utxpo = DOT_PRODUCT( U, X )
         END IF
-        alpha = - ztxpo + SQRT( ztxpo ** 2 + delta )
+        hard_case_step = - utxpo + SQRT( utxpo ** 2 + delta )
 
 !  Record the optimal values
 
-        X = X + alpha * Z
-        f = GLRT_trts_f( p, lambda, rxnorm2, xponorm, eps = eps,               &
-                         onorm2 = onorm2 )
+        X = X + hard_case_step * U
+        CALL GLRT_trts_f( p, lambda, rxnorm2, xponorm, f, f_regularized,       &
+                          eps = eps, onorm2 = onorm2 )
         inform = 0
         RETURN
 
@@ -2016,12 +2302,13 @@
 
 !  It is now simply a matter of applying Newton's method starting from lambda
 
+!  =====================
 !  Main Newton iteration
 !  =====================
 
    20 CONTINUE
 
-      DO iter = 2, itmax 
+      DO iter = 2, itmax
 
 !  Compute a correction to lambda
 
@@ -2033,7 +2320,7 @@
         DO i = 1, n - 1
           W( i + 1 ) = W( i + 1 ) - OFFD_fact( i ) * W( i )
         END DO
-              
+
 !  Compute omega = sqrt( || x(lambda) + o ||^2 + eps ) and its derivative
 
 !        IF ( PRESENT( eps ) ) THEN
@@ -2058,7 +2345,7 @@
                                 roots_tol, nroots, root1, root2, roots_debug )
           IF ( nroots == 2 ) THEN
             dl_phi_c = root2 - lambda
-          ELSE  
+          ELSE
             dl_phi_c = root1 - lambda
           END IF
 
@@ -2072,7 +2359,7 @@
             pi_prime = - ( omega ** ( - two ) ) * omega_prime -                &
              ( sigma ** gamma ) * ( - gamma ) * ( lambda ** ( - one - gamma ) )
 
-!  special case when lambda = 0: use the linearization of 
+!  special case when lambda = 0: use the linearization of
 !  ||x(lambda)||^(p-2) - lambda/sigma = 0
 
           ELSE
@@ -2093,14 +2380,14 @@
 !         theta = xponorm ** ( p - two ) - lambda / sigma
 !         theta_prime = ( p - two ) * ( omega ** ( p - three ) ) *             &
 !               omega_prime - one / sigma
-!         dl_theta = - theta / theta_prime 
+!         dl_theta = - theta / theta_prime
 
 !  phi correction
 
 !         IF ( lambda /= zero ) THEN
 !           phi = pi - sigma / lambda
 !           phi_prime = pi_prime + sigma / ( lambda ** 2 )
-!           dl_phi = - phi / phi_prime 
+!           dl_phi = - phi / phi_prime
 !         ELSE
 !           dl_phi = zero
 !         END IF
@@ -2108,9 +2395,9 @@
 !  zeta correction
 
 !         zeta = lambda * pi - sigma
-!         zeta_prime = pi + lambda * pi_prime 
-!         dl_zeta = - zeta / zeta_prime 
-        
+!         zeta_prime = pi + lambda * pi_prime
+!         dl_zeta = - zeta / zeta_prime
+
 !         WRITE( out, 2010 )                                                   &
 !           prefix, dl_phi_c, prefix, dl_theta, dl_phi, dl_zeta
 !       END IF
@@ -2122,8 +2409,8 @@
 !  Check that the correction is significant
 
         IF ( ABS( delta_lambda ) < epsmch * ABS( lambda ) ) THEN
-          f = GLRT_trts_f( p, lambda, rxnorm2, xponorm, eps = eps,             &
-                           onorm2 = onorm2 )
+          CALL GLRT_trts_f( p, lambda, rxnorm2, xponorm, f, f_regularized,     &
+                            eps = eps, onorm2 = onorm2 )
           inform = 1
           RETURN
         END IF
@@ -2141,19 +2428,19 @@
 
         IF ( PRESENT( O ) ) THEN
           CALL GLRT_tridiagonal_solve( n, D, OFFD, lambda, D_fact, OFFD_fact,  &
-                                       - C - lambda * O, X, W, Z, itref_max,   &
+                                       - C - lambda * O, X, W, U, itref_max,   &
                                        rxnorm2, out, debug, prefix )
         ELSE
           CALL GLRT_tridiagonal_solve( n, D, OFFD, lambda, D_fact, OFFD_fact,  &
-                                       - C, X, W, Z, itref_max, rxnorm2, out,  &
+                                       - C, X, W, U, itref_max, rxnorm2, out,  &
                                        debug, prefix )
         END IF
 
         delta = lambda / sigma
         IF ( PRESENT( O ) ) THEN
-          xponorm = TWO_NORM( X + O ) 
+          xponorm = TWO_NORM( X + O )
         ELSE
-          xponorm = TWO_NORM( X ) 
+          xponorm = TWO_NORM( X )
         END IF
 
        IF ( PRESENT( eps ) ) THEN
@@ -2162,22 +2449,22 @@
           omega = xponorm
         END IF
         error = omega ** ( p - two ) - delta
-!       IF ( print_level > 1 )                                                 &
-!         WRITE( out, "( A, 8X, 'lambda', 13X, 'error', 19X, 'x' )" ) prefix
-        IF ( print_level > 0 ) WRITE( out, "( A, 3ES20.12 )" )                 &
+        IF ( print_level > 1 )                                                 &
+          WRITE( out, "( A, 12X, 'lambda', 17X, 'error', 19X, 'x' )" ) prefix
+        IF ( print_level > 0 ) WRITE( out, "( A, 3ES24.16 )" )                 &
           prefix, lambda, error, xponorm
 
 !  Test for convergence
 
         IF ( error <= rtol * xponorm ) THEN
-          f = GLRT_trts_f( p, lambda, rxnorm2, xponorm, eps = eps,             &
-                           onorm2 = onorm2 )
+          CALL GLRT_trts_f( p, lambda, rxnorm2, xponorm, f, f_regularized,     &
+                            eps = eps, onorm2 = onorm2 )
           IF ( print_level > 1 ) THEN
             real_f = DOT_PRODUCT( C, X ) + half * DOT_PRODUCT( X, D * X )      &
                        + DOT_PRODUCT( X( : n - 1 ) * OFFD, X( 2 : ) )          &
                        + ( sigma / p ) * omega ** p
             WRITE( out, "( A, ' real, recurred f = ', 2ES22.14 )" ) prefix,    &
-                                                                    real_f, f
+                                    real_f, f_regularized
           END IF
           inform = 0
           RETURN
@@ -2188,7 +2475,8 @@
 !  Test for termination
 
       inform = 3
-      f = GLRT_trts_f( p, lambda, rxnorm2, xponorm, eps = eps, onorm2 = onorm2 )
+      CALL GLRT_trts_f( p, lambda, rxnorm2, xponorm, f, f_regularized,         &
+                        eps = eps, onorm2 = onorm2 )
       RETURN
 
 !  Non-executable statement
@@ -2200,43 +2488,74 @@
 
       CONTAINS
 
-!-*-*-*-*-  G L R T _ t r t s  _ f   I N T E R N A L  F U N C T I O N  -*-*-*-*-
+!-*-*-  G L R T _ t r t s  _ f   I N T E R N A L  S U B R O U T I N E   -*-*-
 
-        FUNCTION GLRT_trts_f( p, lambda, rxnorm2, xponorm, eps, onorm2 )
-        REAL ( KIND = wp ) :: GLRT_trts_f
+        SUBROUTINE GLRT_trts_f( p, lambda, rxnorm2, xponorm, f, f_regularized, &
+                                eps, onorm2 )
+
+!----------------------------------------------------------------------
+
+!  input variables
+!   onorm2 = ||o||^2,
+!   xponorm = ||x+o||,
+!   rxnorm2 = (c+lamba o)' ( T + lamba I )^-1  (c+lambda o) and
+!   lambda = sigma sqrt(||x+o||_2^2+eps)^p-2
+!  and output variables
+!   f =  1/2 ||x||^2 + <c, x> and
+!   f_regularized = f + r, where r = (sigma/p) sqrt(||x+o||_2^2+eps)^p
+
+!  note that
+!   f = - 1/2 (c+lamba o)' ( T + lamba I )^-1  (c+lambda o)
+!       - lambda/2 ||x+o||^2 + lambda/2 ||o||^2
+!  and
+!   r = (lambda/p) (||x+o||^2 + eps)
+
+!----------------------------------------------------------------------
 
 !-----------------------------------------------
 !   D u m m y   A r g u m e n t s
 !-----------------------------------------------
 
         REAL ( KIND = wp ), INTENT( IN ) :: p, lambda, rxnorm2, xponorm
+        REAL ( KIND = wp ), INTENT( OUT ) :: f, f_regularized
         REAL ( KIND = wp ), OPTIONAL, INTENT( IN ) :: eps, onorm2
-           
-        IF ( PRESENT( onorm2) ) THEN
-          IF ( PRESENT( eps ) ) THEN
-            GLRT_trts_f = - half * rxnorm2 +                                   &
-              ( lambda / p ) * ( ( one - half * p ) * xponorm ** 2 + eps       &
-                + half * p * onorm2 ) 
-          ELSE
-            GLRT_trts_f = - half * rxnorm2 +                                   &
-              ( lambda / p ) * ( ( one - half * p ) * xponorm ** 2             &
-                + half * p * onorm2 )
-          END IF
+
+        IF ( PRESENT( onorm2 ) ) THEN
+          f = - half * rxnorm2 - half * lambda * ( xponorm ** 2 - onorm2 )
         ELSE
-          IF ( PRESENT( eps ) ) THEN
-            GLRT_trts_f = - half * rxnorm2 +                                   &
-                 ( lambda / p ) * ( ( one - half * p ) * xponorm ** 2 + eps ) 
-          ELSE
-            GLRT_trts_f = - half * rxnorm2 +                                   &
-                 ( lambda / p ) * ( one - half * p ) * xponorm ** 2
-          END IF
+          f = - half * rxnorm2 - half * lambda * xponorm ** 2
         END IF
+        IF (  PRESENT( eps ) ) THEN
+          f_regularized = f + ( lambda / p ) * ( xponorm ** 2 + eps )
+        ELSE
+          f_regularized = f + ( lambda / p ) * xponorm ** 2
+        END IF
+
+!       IF ( PRESENT( onorm2 ) ) THEN
+!         IF ( PRESENT( eps ) ) THEN
+!           f_regularized = - half * rxnorm2 +                                 &
+!             ( lambda / p ) * ( ( one - half * p ) * xponorm ** 2 + eps       &
+!               + half * p * onorm2 )
+!         ELSE
+!           f_regularized = - half * rxnorm2 +                                 &
+!             ( lambda / p ) * ( ( one - half * p ) * xponorm ** 2             &
+!               + half * p * onorm2 )
+!         END IF
+!       ELSE
+!         IF ( PRESENT( eps ) ) THEN
+!           f_regularized = - half * rxnorm2 +                                 &
+!                ( lambda / p ) * ( ( one - half * p ) * xponorm ** 2 + eps )
+!         ELSE
+!           f_regularized = - half * rxnorm2 +                                 &
+!                ( lambda / p ) * ( one - half * p ) * xponorm ** 2
+!         END IF
+!       END IF
 
         RETURN
 
 !  End of function GLRT_trts_f
 
-        END FUNCTION GLRT_trts_f
+        END SUBROUTINE GLRT_trts_f
 
       END SUBROUTINE GLRT_trts
 

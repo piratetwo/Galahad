@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 04/03/2015 AT 15:00 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D   U S E S B L S   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -24,8 +24,8 @@
       USE GALAHAD_QPT_double
       USE GALAHAD_SORT_double, only: SORT_reorder_by_rows
       USE GALAHAD_SBLS_double
-      USE GALAHAD_SPECFILE_double 
-      USE GALAHAD_STRING_double, ONLY: STRING_upper_word
+      USE GALAHAD_SPECFILE_double
+      USE GALAHAD_STRING, ONLY: STRING_upper_word
       USE GALAHAD_COPYRIGHT
       USE GALAHAD_SYMBOLS,                                                     &
             GENERAL => GALAHAD_GENERAL, ALL_ZEROS => GALAHAD_ALL_ZEROS
@@ -39,7 +39,7 @@
 
 !-*-*-*-*-*-*-*-*-*-   U S E _ S B L S  S U B R O U T I N E   -*-*-*-*-*-*-*-*-
 
-     SUBROUTINE USE_SBLS( input )
+     SUBROUTINE USE_SBLS( input, close_input )
 
 !  --------------------------------------------------------------------
 !
@@ -55,6 +55,7 @@
 !  Dummy argument
 
       INTEGER, INTENT( IN ) :: input
+      LOGICAL, OPTIONAL, INTENT( IN ) :: close_input
 
 !  Parameters
 
@@ -74,17 +75,18 @@
       INTEGER :: n, m, i, j, l, ir, ic, la, lh, liw, smt_stat, ns, n_total
 !     INTEGER :: np1, npm
       INTEGER :: status, alloc_stat, cutest_status, iores, neh, nea, A_ne, H_ne
+      INTEGER :: n_threads = 1
       REAL :: time, timeo, times, timet
       REAL ( KIND = wp ) :: clock, clocko, clocks, clockt, clockf, clockfps
       REAL :: t1, t2, c1, c2
       REAL ( KIND = wp ) :: objf, dummy
       REAL ( KIND = wp ) :: res_c, res_k
       LOGICAL :: filexx, printo, is_specfile
-            
+
 !  Functions
 
 !$    INTEGER :: OMP_GET_MAX_THREADS
-            
+
 !  Specfile characteristics
 
       INTEGER, PARAMETER :: input_specfile = 34
@@ -122,10 +124,10 @@
       CHARACTER ( LEN = 30 ) :: dfilename = 'SBLS.data'
       CHARACTER ( LEN = 30 ) :: sfilename = 'SBLSSOL.d'
       CHARACTER ( LEN = 30 ) :: rfilename = 'SBLSRES.d'
-      LOGICAL :: fulsol = .FALSE. 
+      LOGICAL :: fulsol = .FALSE.
       REAL ( KIND = wp ) :: barrier_pert = 0.0_wp
-      LOGICAL :: least_squares_qp = .FALSE. 
-      LOGICAL :: add_slacks = .FALSE. 
+      LOGICAL :: least_squares_qp = .FALSE.
+      LOGICAL :: add_slacks = .FALSE.
 
 !  Output file characteristics
 
@@ -138,7 +140,7 @@
 
       TYPE ( SMT_type ) :: C
       TYPE ( SBLS_data_type ) :: data
-      TYPE ( SBLS_control_type ) :: SBLS_control        
+      TYPE ( SBLS_control_type ) :: SBLS_control
       TYPE ( SBLS_inform_type ) :: SBLS_inform
       TYPE ( QPT_problem_type ) :: prob
 
@@ -241,7 +243,7 @@
 
       CALL CUTEST_cnames( cutest_status, n, m, pname, VNAME, CNAME )
       IF ( cutest_status /= 0 ) GO TO 910
-      WRITE( out, "( /, ' Problem: ', A10 )" ) pname 
+      WRITE( out, "( /, ' Problem: ', A10 )" ) pname
 
 !  Set up the initial estimate of the solution and
 !  right-hand-side of the Kuhn-Tucker system.
@@ -253,21 +255,21 @@
 
 !  Set X0 to zero to determine the constant terms for the problem functions
 
-      prob%X0 = zero 
+      prob%X0 = zero
 
-!  Evaluate the constant terms of the objective (objf) and constraint 
+!  Evaluate the constant terms of the objective (objf) and constraint
 !  functions (C)
 
       CALL CUTEST_cfn( cutest_status, n, m, prob%X0, objf, prob%C( : m ) )
       IF ( cutest_status /= 0 ) GO TO 910
-      DO i = 1, m 
-        IF ( EQUATN( i ) ) THEN 
+      DO i = 1, m
+        IF ( EQUATN( i ) ) THEN
           prob%C_l( i ) = prob%C_l( i ) - prob%C( i )
           prob%C_u( i ) = prob%C_l( i )
         ELSE
           prob%C_l( i ) = prob%C_l( i ) - prob%C( i )
           prob%C_u( i ) = prob%C_u( i ) - prob%C( i )
-        END IF 
+        END IF
       END DO
 
 !  Determine the number of nonzeros in the Jacobian
@@ -291,8 +293,8 @@
       A_ne = 0
       n_total = 0
       IF ( add_slacks ) THEN
-        DO i = 1, m 
-          IF ( .NOT. EQUATN( i ) ) THEN 
+        DO i = 1, m
+          IF ( .NOT. EQUATN( i ) ) THEN
             n_total = n_total + 1
             A_ne = A_ne + 1
             prob%A%row( A_ne ) = i
@@ -301,7 +303,7 @@
           END IF
         END DO
       END IF
- 
+
 !  Evaluate the linear terms of the constraint functions
 
       CALL CUTEST_csgr( cutest_status, n, m, prob%X0, prob%Y, .FALSE.,         &
@@ -319,13 +321,13 @@
         IF ( prob%A%val( i ) /= zero ) THEN
           IF ( prob%A%row( i ) > 0 ) THEN
             A_ne = A_ne + 1
-            prob%A%row( A_ne ) = prob%A%row( i ) 
+            prob%A%row( A_ne ) = prob%A%row( i )
             prob%A%col( A_ne ) = prob%A%col( i ) + n_total
             prob%A%val( A_ne ) = prob%A%val( i )
           ELSE
             prob%G( prob%A%col( i ) ) = prob%A%val( i )
             prob%gradient_kind = GENERAL
-          END IF  
+          END IF
         END IF
       END DO
       n_total = n_total + n
@@ -374,7 +376,7 @@
 !  Remove Hessian out of range
 
         H_ne = 0
-        DO l = 1, neh    
+        DO l = 1, neh
           i = prob%H%row( l ) ; j = prob%H%col( l )
           IF ( i < 1 .OR. i > n .OR. j < 1 .OR. j > n ) CYCLE
           H_ne = H_ne + 1 ; prob%H%val( H_ne ) = prob%H%val( l )
@@ -466,7 +468,7 @@
       IF ( ALLOCATED( prob%A%type ) ) DEALLOCATE( prob%A%type )
       CALL SMT_put( prob%A%type, 'SPARSE_BY_ROWS', smt_stat )
       prob%f = objf ; prob%rho_g = 2 * m ; prob%rho_b = 2 * n
-        
+
       CALL SMT_put( C%type, 'COORDINATE', smt_stat ) ; C%ne = 0
       ALLOCATE( C%val( C%ne ), C%row( C%ne ), C%col( C%ne ) )
 
@@ -497,7 +499,7 @@
            OPEN( dfiledevice, FILE = dfilename, FORM = 'FORMATTED',            &
                   STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2060 ) iores, dfilename
           STOP
         END IF
@@ -533,7 +535,7 @@
            OPEN( rfiledevice, FILE = rfilename, FORM = 'FORMATTED',            &
                  STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2060 ) iores, rfilename
           STOP
         END IF
@@ -556,7 +558,7 @@
 
       IF ( prob%n > 0 ) THEN
         CALL CPU_TIME( timeo ) ; CALL CLOCK_time( clocko )
-  
+
 !  =================
 !  solve the problem
 !  =================
@@ -584,6 +586,10 @@
           SBLS_inform%SLS_inform%time%clock_analyse_external +                 &
             SBLS_inform%SLS_inform%time%clock_factorize_external
 
+        IF ( SBLS_inform%SLS_inform%num_zero /= 0 )                            &
+          WRITE( 6, "( 1X, I0, ' zero diagonals ignored ' )" )                 &
+            SBLS_inform%SLS_inform%num_zero
+
 !  solve
 
         CALL CPU_TIME( t1 ) ; CALL CLOCK_time( c1 )
@@ -599,16 +605,22 @@
         IF ( printo ) WRITE( out, " ( /, ' ** SBLS solver used ** ' ) " )
 
         CALL CPU_TIME( timet ) ; CALL CLOCK_time( clockt )
-  
+
 !  Deallocate arrays from the minimization
-  
+
         status = SBLS_inform%status
         CALL SBLS_terminate( data, SBLS_control, SBLS_inform )
       ELSE
         status = 0
       END IF
-      WRITE( out, "( /, ' Solver: ', A )" )                                    &
-       TRIM( SBLS_control%symmetric_linear_solver )
+
+      IF ( SBLS_inform%factorization == 1 ) THEN
+        WRITE( out, "( /, ' Solver: ', A )" )                                  &
+          TRIM( SBLS_control%definite_linear_solver )
+      ELSE
+        WRITE( out, "( /, ' Solver: ', A )" )                                  &
+          TRIM( SBLS_control%symmetric_linear_solver )
+      END IF
       WRITE( out, "(  ' Stopping with inform%status = ', I0 )" ) status
 
 !  Compute maximum contraint residual
@@ -627,7 +639,7 @@
 
         ALLOCATE( AY( n_total ), HX( n_total ), STAT = alloc_stat )
         AY = zero ; HX( : ns ) = zero ; HX( ns + 1 : n_total ) = prob%G( : n )
-  
+
         DO i = 1, m
           DO l = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1
             j = prob%A%col( l )
@@ -642,7 +654,7 @@
               HX( j ) = HX( j ) + prob%H%val( l ) * prob%X( i )
           END DO
         END DO
-        res_k = MAXVAL( ABS( HX( : n_total ) + AY( : n_total ) ) ) 
+        res_k = MAXVAL( ABS( HX( : n_total ) + AY( : n_total ) ) )
 
 !  Print details of the solution obtained
 
@@ -656,40 +668,40 @@
 
 !  Print details of the primal and dual variables
 
-          WRITE( out, 2000 ) 
-          DO j = 1, 2 
-            IF ( j == 1 ) THEN 
-              ir = 1 ; ic = MIN( l, n_total ) 
-            ELSE 
-              IF ( ic < n_total - l ) WRITE( out, 2010 ) 
+          WRITE( out, 2000 )
+          DO j = 1, 2
+            IF ( j == 1 ) THEN
+              ir = 1 ; ic = MIN( l, n_total )
+            ELSE
+              IF ( ic < n_total - l ) WRITE( out, 2010 )
               ir = MAX( ic + 1, n_total - ic + 1 ) ; ic = n_total
-            END IF 
-            DO i = ir, ic 
+            END IF
+            DO i = ir, ic
               IF ( i <= ns ) THEN
                 WRITE( out, 2040 ) i, 'slack     ', prob%X( i )
               ELSE
                 WRITE( out, 2040 ) i, VNAME( i - ns ), prob%X( i )
               END IF
-            END DO 
-          END DO 
+            END DO
+          END DO
 
 !  Print details of the constraints.
 
-          IF ( m > 0 ) THEN 
-            WRITE( out, 2020 ) 
-            l = 2  ; IF ( fulsol ) l = m 
-            DO j = 1, 2 
-              IF ( j == 1 ) THEN 
-                ir = 1 ; ic = MIN( l, m ) 
-              ELSE 
-                IF ( ic < m - l ) WRITE( out, 2010 ) 
-                ir = MAX( ic + 1, m - ic + 1 ) ; ic = m 
-              END IF 
-              DO i = ir, ic 
+          IF ( m > 0 ) THEN
+            WRITE( out, 2020 )
+            l = 2  ; IF ( fulsol ) l = m
+            DO j = 1, 2
+              IF ( j == 1 ) THEN
+                ir = 1 ; ic = MIN( l, m )
+              ELSE
+                IF ( ic < m - l ) WRITE( out, 2010 )
+                ir = MAX( ic + 1, m - ic + 1 ) ; ic = m
+              END IF
+              DO i = ir, ic
                 WRITE( out, 2040 ) i, CNAME( i ), prob%C( i )
-              END DO 
-            END DO 
-          END IF 
+              END DO
+            END DO
+          END IF
           WRITE( out, 2030 ) res_c, res_k
 
 !  If required, write the solution to a file
@@ -703,47 +715,49 @@
                OPEN( sfiledevice, FILE = sfilename, FORM = 'FORMATTED',        &
                     STATUS = 'NEW', IOSTAT = iores )
             END IF
-            IF ( iores /= 0 ) THEN 
+            IF ( iores /= 0 ) THEN
               write( out, 2060 ) iores, sfilename
               STOP
             END IF
 
             WRITE( sfiledevice, "( /, ' Problem:    ', A10 )" ) pname
-            WRITE( sfiledevice, 2000 ) 
+            WRITE( sfiledevice, 2000 )
 
             DO i = 1, ns
               WRITE( sfiledevice, 2040 ) i, 'slack     ', prob%X( i )
-            END DO 
-    
+            END DO
+
             DO i = ns + 1, n_total
               WRITE( sfiledevice, 2040 ) i, VNAME( i ), prob%X( i )
-            END DO 
-    
-            IF ( m > 0 ) THEN 
-              WRITE( sfiledevice, 2020 ) 
-              DO i = 1, m 
+            END DO
+
+            IF ( m > 0 ) THEN
+              WRITE( sfiledevice, 2020 )
+              DO i = 1, m
                 WRITE( sfiledevice, 2040 ) i, CNAME( i ), prob%C( i )
-              END DO 
-            END IF 
-    
+              END DO
+            END IF
+
             WRITE( sfiledevice, 2030 ) res_c, res_k
-            CLOSE( sfiledevice ) 
-          END IF 
-        END IF 
-      END IF 
+            CLOSE( sfiledevice )
+          END IF
+        END IF
+      END IF
 
       times = times - time ; timet = timet - timeo
       clocks = clocks - clock ; clockt = clockt - clocko
       WRITE( out, "( /, ' Total time, clock = ', F0.2, ', ', F0.2 )" )         &
         times + timet, clocks + clockt
-!$    WRITE( out, "( ' number of threads = ', I0 )" ) OMP_GET_MAX_THREADS( )
+      WRITE( out, "( ' factorization used = ', I0 )" ) SBLS_inform%factorization
+!$    n_threads = OMP_GET_MAX_THREADS( )
+      WRITE( out, "( ' number of threads = ', I0 )" ) n_threads
       WRITE( out, "( /, ' Problem: ', A10, //,                                 &
      &                  '          < ------ time ----- > ',                    &
      &                  '  < ----- clock ---- > ', /,                          &
      &                  '   status setup   solve   total',                     &
      &                  '   setup   solve   total', /,                         &
      &                  '   ------ -----    ----   -----',                     &
-     &                  '   -----   -----   -----  ' )" ) pname 
+     &                  '   -----   -----   -----  ' )" ) pname
 
 !  Compare the variants used so far
 
@@ -754,28 +768,66 @@
         BACKSPACE( rfiledevice )
 !       WRITE( rfiledevice, 2190 )                                             &
 !          pname, n, m, iter, qfval, status, clockt
-        IF ( SBLS_inform%status >= 0 ) THEN
-          WRITE( rfiledevice, "( A10, 2I8, A10, I11, ES9.2, 2F10.2, I4, I8 )" )&
-            pname, m, n_total, TRIM( SBLS_control%symmetric_linear_solver ),   &
-            SBLS_inform%SLS_inform%entries_in_factors, res_k,                  &
-            clockf, cloctop, SBLS_inform%status, prob%m - SBLS_inform%rank
+        IF ( SBLS_inform%factorization == 1 ) THEN
+          IF ( status >= 0 ) THEN
+            WRITE( rfiledevice, "( A10, 2I8, A10, I11, ES9.2, 2F10.2,          &
+          &                        I4, I8, 2I3 )" )                            &
+              pname, m, n_total, TRIM( SBLS_control%definite_linear_solver ),  &
+              SBLS_inform%SLS_inform%entries_in_factors, res_k,                &
+              clockf, clockfps, status, prob%m - SBLS_inform%rank,             &
+              SBLS_inform%factorization, n_threads
+          ELSE
+            WRITE( rfiledevice, "( A10, 2I8, A10, I11, '    -    ', 2F10.2,    &
+           &                       I4, I8, 2I3 )")                             &
+              pname, m, n_total, TRIM( SBLS_control%definite_linear_solver ),  &
+              - SBLS_inform%SLS_inform%entries_in_factors,                     &
+              - clockf, - clockfps, status, prob%m                             &
+              - SBLS_inform%rank, SBLS_inform%factorization, n_threads
+          END IF
         ELSE
-          WRITE( rfiledevice, "( A10, 2I8,A10,I11, '    -     ',2F10.2,I4,I8)")&
-            pname, m, n_total, TRIM( SBLS_control%symmetric_linear_solver ),   &
-            - SBLS_inform%SLS_inform%entries_in_factors,                       &
-            - clockf, - clockfps, SBLS_inform%status, prob%m - SBLS_inform%rank
+          IF ( status >= 0 ) THEN
+            WRITE( rfiledevice, "( A10, 2I8, A10, I11, ES9.2, 2F10.2,          &
+          &                        I4, I8, 2I3 )" )                            &
+              pname, m, n_total, TRIM( SBLS_control%symmetric_linear_solver ), &
+              SBLS_inform%SLS_inform%entries_in_factors, res_k,                &
+              clockf, clockfps, status, prob%m - SBLS_inform%rank,             &
+              SBLS_inform%factorization, n_threads
+          ELSE
+            WRITE( rfiledevice, "( A10, 2I8, A10, I11, '    -    ', 2F10.2,    &
+           &                       I4, I8, 2I3 )")                             &
+              pname, m, n_total, TRIM( SBLS_control%symmetric_linear_solver ), &
+              - SBLS_inform%SLS_inform%entries_in_factors,                     &
+              - clockf, - clockfps, status, prob%m                             &
+              - SBLS_inform%rank, SBLS_inform%factorization, n_threads
+          END IF
         END IF
       END IF
-      DEALLOCATE( VNAME, CNAME )
-      IF ( is_specfile ) CLOSE( input_specfile )
-      CALL CUTEST_cterminate( cutest_status )
 
+      IF ( is_specfile ) CLOSE( input_specfile )
+      DEALLOCATE( prob%X, prob%X_l, prob%X_u, prob%G, VNAME,                   &
+                  prob%C_l, prob%C_u, prob%Y, prob%Z, CNAME, EQUATN,           &
+                  prob%C, prob%A%row, prob%A%col, prob%A%val, prob%A%ptr,      &
+                  prob%H%row, prob%H%col, prob%H%val, prob%H%ptr,              &
+                  prob%A%type, prob%H%type, C%type,                            &
+                  SOL, C%row, C%col, C%val, AY, HX, STAT = alloc_stat )
+      CALL CUTEST_cterminate( cutest_status )
+      GO TO 920
       RETURN
 
  910  CONTINUE
       WRITE( out, "( ' CUTEst error, status = ', i0, ', stopping' )")          &
         cutest_status
       status = - 98
+
+!  close the input file if required
+
+ 920  CONTINUE
+      IF ( PRESENT( close_input ) ) THEN
+        IF ( close_input ) THEN
+          CLOSE( input )
+          STOP
+        END IF
+      END IF
       RETURN
 
 !  Non-executable statements
@@ -787,7 +839,7 @@
                  '      # name          value   ' )
  2030 FORMAT( /, ' Maximum constraint violation    ', ES22.14, /,              &
                  ' Maximum dual infeasibility      ', ES22.14 )
- 2040 FORMAT( I7, 1X, A10, ES12.4 ) 
+ 2040 FORMAT( I7, 1X, A10, ES12.4 )
  2050 FORMAT( ' Allocation error, variable ', A8, ' status = ', I0 )
  2060 FORMAT( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )
  2150 FORMAT( ' Allocation error, variable ', A8, ' status = ', I6 )

@@ -5,13 +5,16 @@
 #
 
 CC=gcc
-CCBASIC=-c
+CCBASIC='-c -fPIC'
+CCISO=''
 CCDEBUG=#-DDEBUG_GALAHAD
 CCFFLAGS='-lgfortran -lm'
 
 CXX=g++
-CXXBASIC='-c -std=c++11'
+CXXBASIC='-c -std=c++11 -fPIC'
 CXXOPT=-O2
 CXXNOOPT=-O0
 CXXDEBUG=''
 CXXFFLAGS=''
+
+HWLOC=''

@@ -8,7 +8,7 @@
 !  History -
 !   originally released GALAHAD Version 2.5. April 8th 2013
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_SHA_double
@@ -25,7 +25,7 @@
      USE GALAHAD_SPACE_double
      USE GALAHAD_LAPACK_interface, ONLY : GETRF, GETRS, GELSS, GELSD, GELSY
 
-     IMPLICIT NONE     
+     IMPLICIT NONE
 
      PRIVATE
      PUBLIC :: SHA_initialize, SHA_read_specfile, SHA_analyse, SHA_estimate,   &
@@ -51,14 +51,14 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: SHA_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
        INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -100,16 +100,16 @@
        LOGICAL :: deallocate_error_fatal  = .FALSE.
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
        CHARACTER ( LEN = 30 ) :: prefix = '""                            '
 
      END TYPE SHA_control_type
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: SHA_inform_type
 
@@ -123,15 +123,15 @@
 
 !  the maximum degree in the adgacency graph
 
-       INTEGER :: max_degree
+       INTEGER :: max_degree = - 1
 
 !  the number of differences that will be needed
 
-       INTEGER :: differences_needed
+       INTEGER :: differences_needed = - 1
 
 !  the maximum reduced degree in the adgacency graph
 
-       INTEGER :: max_reduced_degree
+       INTEGER :: max_reduced_degree = - 1
 
 !  the name of the array for which an allocation/deallocation error ocurred
 
@@ -228,7 +228,7 @@
 
      TYPE ( SHA_data_type ), INTENT( INOUT ) :: data
      TYPE ( SHA_control_type ), INTENT( OUT ) :: control
-     TYPE ( SHA_inform_type ), INTENT( OUT ) :: inform        
+     TYPE ( SHA_inform_type ), INTENT( OUT ) :: inform
 
      inform%status = GALAHAD_ok
 
@@ -246,10 +246,10 @@
 
      SUBROUTINE SHA_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The default values as given by SHA_initialize could (roughly) 
+!  The default values as given by SHA_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN SHA SPECIFICATIONS (DEFAULT)
@@ -268,7 +268,7 @@
 !   D u m m y   A r g u m e n t s
 !---------------------------------
 
-     TYPE ( SHA_control_type ), INTENT( INOUT ) :: control        
+     TYPE ( SHA_control_type ), INTENT( INOUT ) :: control
      INTEGER, INTENT( IN ) :: device
      CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -299,7 +299,7 @@
 
      spec( error )%keyword = 'error-printout-device'
      spec( out )%keyword = 'printout-device'
-     spec( print_level )%keyword = 'print-level' 
+     spec( print_level )%keyword = 'print-level'
      spec( approximation_algorithm )%keyword = 'approximation-algorithm'
      spec( dense_linear_solver )%keyword = 'dense-linear-solver'
      spec( max_sparse_degree )%keyword = 'maximum-degree-considered-sparse'
@@ -333,7 +333,7 @@
                                  control%error )
      CALL SPECFILE_assign_value( spec( print_level ),                          &
                                  control%print_level,                          &
-                                 control%error )     
+                                 control%error )
      CALL SPECFILE_assign_value( spec( approximation_algorithm ),              &
                                  control%approximation_algorithm,              &
                                  control%error )
@@ -379,24 +379,24 @@
 !  the Hessian stucture is given by n, nz, ROW and COL, where
 
 !     n is the number of variables
-!     nz is the number of nonzero elements in the UPPER TRIANGULAR 
+!     nz is the number of nonzero elements in the UPPER TRIANGULAR
 !        part of the matrix
 !     ROW(i), COL(i) are the row and column indices of these entries
 !        i = 1, .., nz
- 
+
 !  the analysed and permuted structure and the groups are stored in the
 !  derived type data (see preface)
- 
+
 !  action of the subroutine is controlled by components of the derived type
 !  control, while information about the progress of the subroutine is reported
-!  in inform (again, see preface). Success or failure is flagged by the 
+!  in inform (again, see preface). Success or failure is flagged by the
 !  component inform%status -
 !     0 if no error was detected
-!    -1 the allocation of workspace array inform%bad_alloc failed with status 
+!    -1 the allocation of workspace array inform%bad_alloc failed with status
 !       inform%alloc_status
 !    -3 invalid values input for n or nz
 !   -23 if there was an error in the inform%bad_row-th row or column
- 
+
 !  ***********************************************************************
 
 !---------------------------------
@@ -455,7 +455,7 @@
       END DO
 
 !  now set the starting addresses PK for each row in the array PTR
-      
+
       data%PK( 1 ) = 1
       DO i = 1, n
         data%PK( i + 1 ) = data%PK( i ) + data%PU( i )
@@ -468,7 +468,7 @@
 
 !  allocate space for the list of degrees, as well the first and last
 !  positions for those of a given degree and pointers from the rows to
-!  the list of degrees 
+!  the list of degrees
 
       array_name = 'SHA: data%DEGREE'
       CALL SPACE_resize_array( n, data%DEGREE,                                 &
@@ -553,8 +553,8 @@
 !END DO
 !WRITE(6,"( 10( 1X, I0 ) )" ) ( data%IN_DEGREE( i ), i = 1, n )
 
-!  allocate space for PTR to hold mappings from the rows back to the 
-!  coordinate storage, and the "shadow" PTR_sym set so that entries k and 
+!  allocate space for PTR to hold mappings from the rows back to the
+!  coordinate storage, and the "shadow" PTR_sym set so that entries k and
 !  PTR_sym(k) of PTR correspond to entries (i,j) and (j,i)
 
       array_name = 'SHA: data%PTR'
@@ -777,7 +777,7 @@
         WRITE( control%out, "( ' (block size, # with this size):' )" )
         CALL SHA_write_nonzero_list( control%out, inform%differences_needed,   &
                                      data%LAST )
- 
+
 !  -----------------------------
 !  algorithm 3 (aka paper 2.2/3)
 !  -----------------------------
@@ -958,11 +958,11 @@
 !     ********************************************************
 !     *                                                      *
 !     *   Estimation of a sparse Hessian matrix to try to    *
-!     *    satisfy compentwise secant equations H s = y      * 
+!     *    satisfy compentwise secant equations H s = y      *
 !     *                                                      *
 !     ********************************************************
 !
-!   The Hessian stucture given by n, nz, ROW and COL is described in 
+!   The Hessian stucture given by n, nz, ROW and COL is described in
 !   SHA_analyse and should not have been changed since the last call to
 !   SHA_analyse. Additional arguments are
 
@@ -977,10 +977,10 @@
 
 !   The analysed and permuted structure and the groups are stored in the
 !   derived type data (see preface)
- 
+
 !   Action of the subroutine is controlled by components of the derived type
 !   control, while information about the progress of the subroutine is reported
-!   in inform (again, see preface). Success or failure is flagged by the 
+!   in inform (again, see preface). Success or failure is flagged by the
 !   component inform%status -
 !     0 if no error was detected
 !    -3 invalid values input for n or nz
@@ -1200,7 +1200,7 @@
 
 !  compute the unknown entries B_{ij}, j in I_i^-, to satisfy
 !    sum_{j in I_i^-} B_{ij} s_{jl}  = y_{il} - sum_{j in I_i^+} B_{ij} s_{jl}
-!  for l = 1,.., |I_i^+|, where 
+!  for l = 1,.., |I_i^+|, where
 !    I_i^+ = { j : j \in I_i and B_{ji} is already known }
 !    I_i^- = I_i \ I_i^+ and
 !    I_i = { j : B_{ij} /= 0}
@@ -1286,7 +1286,7 @@
 
 !  compute the unknown entries B_{ij}, j in I_i, to satisfy
 !    sum_{j in I_i} B_{ij} s_{jl}  = y_{il}
-!  for l = 1,.., |I_i^+|, where 
+!  for l = 1,.., |I_i^+|, where
 !    I_i = { j : B_{ij} /= 0}
 
 !  store the right-hand side y_{il}
@@ -1350,7 +1350,7 @@
 
 !  compute the unknown entries B_{ij}, j in I_i^-, to satisfy
 !    sum_{j in I_i^-} B_{ij} s_{jl}  = y_{il} - sum_{j in I_i^+} B_{ij} s_{jl}
-!  for l = 1,.., |I_i^+|, where 
+!  for l = 1,.., |I_i^+|, where
 !    I_i^+ = { j : j \in I_i and B_{ji} is already known }
 !    I_i^- = I_i \ I_i^+ and
 !    I_i = { j : B_{ij} /= 0}
@@ -1368,7 +1368,7 @@
 
 !  determine which of row( kk ) or col( kk ) gives the column number j
 
-              j = COL( kk ) 
+              j = COL( kk )
               IF ( j == i ) j = ROW( kk )
 
 !  subtract B_{ij} s_{jl} from b
@@ -1386,7 +1386,7 @@
 
 !  determine which of row( kk ) or col( kk ) gives the column number j
 
-              j = COL( kk ) 
+              j = COL( kk )
               IF ( j == i ) j = ROW( kk )
 
 !  set the entries of A
@@ -1438,7 +1438,7 @@
 
 !  compute the unknown entries B_{ij}, j in I_i, to satisfy
 !    sum_{j in I_i} B_{ij} s_{jl}  = y_{il}
-!  for l = 1,.., |I_i^+|, where 
+!  for l = 1,.., |I_i^+|, where
 !    I_i = { j : B_{ij} /= 0}
 
 !  store the right-hand side y_{il}
@@ -1456,7 +1456,7 @@
 
 !  determine which of row( kk ) or col( kk ) gives the column number j
 
-            j = COL( kk ) 
+            j = COL( kk )
             IF ( j == i ) j = ROW( kk )
 
 !  set the entries of A
@@ -1541,7 +1541,7 @@
 
       rcond = - one
 
-!  solve A x = b using Gaussian elimination; A is copied to A_save as a 
+!  solve A x = b using Gaussian elimination; A is copied to A_save as a
 !  precaution
 
       IF ( dense_linear_solver == 1 ) THEN
@@ -1585,7 +1585,7 @@
         ELSE
           write( 6, "( ' row ', I8, ' m ', I8, ' n ', I8, ' rank ', I8 )" )    &
           row, m, n, rank
-        END IF 
+        END IF
       END IF
 
       RETURN
@@ -1596,7 +1596,7 @@
 
 !-*-*-*-*-  G A L A H A D -  S H A _ c o u n t  S U B R O U T I N E  -*-*-*-*-
 
-      SUBROUTINE SHA_count( n, nz, ROW, COL, ROW_COUNT, data, control, inform )
+      SUBROUTINE SHA_count( n, nz, ROW, COL, ROW_COUNT )
 
 !---------------------------------
 !   D u m m y   A r g u m e n t s
@@ -1605,10 +1605,6 @@
       INTEGER, INTENT( IN ) :: n, nz
       INTEGER, INTENT( IN ), DIMENSION( nz ) :: ROW, COL
       INTEGER, INTENT( OUT ), DIMENSION( n ) :: ROW_COUNT
-
-      TYPE ( SHA_control_type ), INTENT( IN ) :: control
-      TYPE ( SHA_inform_type ), INTENT( INOUT ) :: inform
-      TYPE ( SHA_data_type ), INTENT( INOUT ) :: data
 
 !---------------------------------
 !   L o c a l   V a r i a b l e s
@@ -1644,7 +1640,7 @@
       TYPE ( SHA_data_type ), INTENT( INOUT ) :: data
       TYPE ( SHA_control_type ), INTENT( IN ) :: control
       TYPE ( SHA_inform_type ), INTENT( INOUT ) :: inform
- 
+
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
@@ -1736,5 +1732,3 @@
 !  End of module GALAHAD_SHA
 
    END MODULE GALAHAD_SHA_double
-
-

@@ -99,25 +99,39 @@ fi
 spcset=""
 if [[ $default == 'qpa'  ]]; then
   [[ ! -e RUNQPA.SPC ]] && spcset=RUNQPA.SPC
-  [[ ! -e RUNQPA.SPC ]] && ln -s $GALAHAD/src/qpa/RUNQPA.SPC RUNQPA.SPC
+  [[ ! -e $GALAHAD/specs/RUNQPA.SPC ]] && \
+    cp $GALAHAD/src/qpa/RUNQPA.distrib $GALAHAD/specs/RUNQPA.SPC
+  [[ ! -e RUNQPA.SPC ]] && ln -s $GALAHAD/specs/RUNQPA.SPC RUNQPA.SPC
 elif [[ $default == 'qpb'  ]]; then
   [[ ! -e RUNQPB.SPC ]] && spcset=RUNQPB.SPC
-  [[ ! -e RUNQPB.SPC ]] && ln -s $GALAHAD/src/qpb/RUNQPB.SPC RUNQPB.SPC
+  [[ ! -e $GALAHAD/specs/RUNQPB.SPC ]] && \
+    cp $GALAHAD/src/qpb/RUNQPB.distrib $GALAHAD/specs/RUNQPB.SPC
+  [[ ! -e RUNQPB.SPC ]] && ln -s $GALAHAD/specs/RUNQPB.SPC RUNQPB.SPC
 elif [[ $default == 'qpc'  ]]; then
   [[ ! -e RUNQPC.SPC ]] && spcset=RUNQPC.SPC
-  [[ ! -e RUNQPC.SPC ]] && ln -s $GALAHAD/src/qpc/RUNQPC.SPC RUNQPC.SPC
+  [[ ! -e $GALAHAD/specs/RUNQPC.SPC ]] && \
+    cp $GALAHAD/src/qpc/RUNQPC.distrib $GALAHAD/specs/RUNQPC.SPC
+  [[ ! -e RUNQPC.SPC ]] && ln -s $GALAHAD/specs/RUNQPC.SPC RUNQPC.SPC
 elif [[ $default == 'pre'  ]]; then
   [[ ! -e RUNPRE.SPC ]] && spcset=RUNPRE.SPC
-  [[ ! -e RUNPRE.SPC ]] && ln -s $GALAHAD/src/pre/RUNPRE.SPC RUNPRE.SPC
+  [[ ! -e $GALAHAD/specs/RUNPRE.SPC ]] && \
+    cp $GALAHAD/src/pre/RUNPRE.distrib $GALAHAD/specs/RUNPRE.SPC
+  [[ ! -e RUNPRE.SPC ]] && ln -s $GALAHAD/specs/RUNPRE.SPC RUNPRE.SPC
 elif [[ $default == 'lanb'  ]]; then
   [[ ! -e RUNLANB.SPC ]] && spcset=RUNLANB.SPC
-  [[ ! -e RUNLANB.SPC ]] && ln -s $GALAHAD/src/lanb/RUNLANB.SPC RUNLANB.SPC
+  [[ ! -e $GALAHAD/specs/RUNLANB.SPC ]] && \
+    cp $GALAHAD/src/lanb/RUNLANB.distrib $GALAHAD/specs/RUNLANB.SPC
+  [[ ! -e RUNLANB.SPC ]] && ln -s $GALAHAD/specs/RUNLANB.SPC RUNLANB.SPC
 elif [[ $default == 'filt'  ]]; then
   [[ ! -e RUNFILT.SPC ]] && spcset=RUNFILT.SPC
-  [[ ! -e RUNFILT.SPC ]] && ln -s $GALAHAD/src/filtrane/RUNFILT.SPC RUNFILT.SPC
-else 
+  [[ ! -e $GALAHAD/specs/RUNFILT.SPC ]] && \
+    cp $GALAHAD/src/filtrane/RUNFILT.distrib $GALAHAD/specs/RUNFILT.SPC
+  [[ ! -e RUNFILT.SPC ]] && ln -s $GALAHAD/specs/RUNFILT.SPC RUNFILT.SPC
+else
   [[ ! -e RUNQPB.SPC ]] && spcset=RUNQPB.SPC
-  [[ ! -e RUNQPB.SPC ]] && ln -s $GALAHAD/src/qpb/RUNQPB.SPC RUNQPB.SPC
+  [[ ! -e $GALAHAD/specs/RUNQPB.SPC ]] && \
+    cp $GALAHAD/src/qpb/RUNQPB.distrib $GALAHAD/specs/RUNQPB.SPC
+  [[ ! -e RUNQPB.SPC ]] && ln -s $GALAHAD/specs/RUNQPB.SPC RUNQPB.SPC
 fi
 
 # Limit runtime, if required

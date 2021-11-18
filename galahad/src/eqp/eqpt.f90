@@ -6,13 +6,13 @@
    REAL ( KIND = wp ), PARAMETER :: infty = 10.0_wp ** 20
    TYPE ( QPT_problem_type ) :: p
    TYPE ( EQP_data_type ) :: data
-   TYPE ( EQP_control_type ) :: control        
+   TYPE ( EQP_control_type ) :: control
    TYPE ( EQP_inform_type ) :: info
    INTEGER :: n, m, h_ne, a_ne, prec, preconditioner, factorization, smt_stat
    INTEGER :: data_storage_type, i, tests, status, scratch_out = 56
    CHARACTER ( len = 1 ) :: st
 
-   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4 
+   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4
    ALLOCATE( p%G( n ), p%C( m ), p%X( n ), p%Y( m ), p%Z( n ) )
    ALLOCATE( p%H%ptr( n + 1 ), p%A%ptr( m + 1 ) )
 
@@ -39,12 +39,12 @@
      ALLOCATE( p%H%val( h_ne ), p%H%col( h_ne ) )
      ALLOCATE( p%A%val( a_ne ), p%A%col( a_ne ) )
      IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )
-     CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat ) 
+     CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat )
      p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp /)
      p%H%col = (/ 1, 2, 3, 1 /)
      p%H%ptr = (/ 1, 2, 3, 5 /)
      IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
-     CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat ) 
+     CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
      p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
      p%A%col = (/ 1, 2, 2, 3 /)
      p%A%ptr = (/ 1, 3, 5 /)
@@ -133,7 +133,6 @@
      DO factorization = 1, 2
        DO data_storage_type = -3, 1
 !      DO data_storage_type = -3, -3
-!        p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
          CALL EQP_initialize( data, control, info )
 !        control%print_level = 1
          control%sbls_control%preconditioner = preconditioner
@@ -194,7 +193,6 @@
          DO i = 0, 2
            control%new_a = 2 - i
            control%new_h = 2 - i
-           p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
            p%Hessian_kind = - 1
            IF ( data_storage_type == 0 ) THEN     ! sparse co-ordinate storage
              p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp /)
@@ -258,7 +256,7 @@
 
    WRITE( 6, "( /, ' basic tests of options ', / )" )
 
-   n = 2 ; m = 1 ; h_ne = 2 ; a_ne = 2 
+   n = 2 ; m = 1 ; h_ne = 2 ; a_ne = 2
    ALLOCATE( p%G( n ), p%C( m ), p%X( n ), p%Y( m ), p%Z( n ) )
    ALLOCATE( p%H%ptr( n + 1 ), p%A%ptr( m + 1 ) )
 
@@ -279,12 +277,11 @@
    p%A%col = (/ 1, 2 /)
    p%A%ptr = (/ 1, 3 /)
    CALL EQP_initialize( data, control, info )
-   
+
 !  test with new and existing data
 
    tests = 22
    DO i = 0, tests
-     p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
      IF ( i == 0 ) THEN
        control%sbls_control%preconditioner = 0
      ELSE IF ( i == 1 ) THEN
@@ -295,13 +292,13 @@
        control%sbls_control%preconditioner = 3
      ELSE IF ( i == 4 ) THEN
        control%sbls_control%preconditioner = 4
-     ELSE IF ( i == 5 ) THEN     
+     ELSE IF ( i == 5 ) THEN
        control%SBLS_control%factorization = - 1
-     ELSE IF ( i == 6 ) THEN     
+     ELSE IF ( i == 6 ) THEN
        control%SBLS_control%factorization = 1
-     ELSE IF ( i == 7 ) THEN     
+     ELSE IF ( i == 7 ) THEN
        control%max_col = 0
-     ELSE IF ( i == 8 ) THEN     
+     ELSE IF ( i == 8 ) THEN
        control%SBLS_control%factorization = 2
        control%sbls_control%preconditioner = 0
      ELSE IF ( i == 9 ) THEN
@@ -317,7 +314,7 @@
 
      ELSE IF ( i == 14 ) THEN
        control%max_col = 5
-!      control%primal = .TRUE.       
+!      control%primal = .TRUE.
      ELSE IF ( i == 15 ) THEN
        control%max_col = 75
      ELSE IF ( i == 16 ) THEN
@@ -368,7 +365,6 @@
    CALL EQP_initialize( data, control, info )
 !  control%print_level = 4
    DO i = tests + 1, tests + 1
-     p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
      p%H%val = (/ 1.0_wp, 1.0_wp /)
      p%A%val = (/ 1.0_wp, 1.0_wp /)
      p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
@@ -396,7 +392,6 @@
    p%A%ptr = (/ 1, 3 /)
    CALL EQP_initialize( data, control, info )
    DO i = tests + 2, tests + 2
-     p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
      p%H%val = (/ 1.0_wp, 1.0_wp /)
      p%A%val = (/ 1.0_wp, 1.0_wp /)
      p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
@@ -432,10 +427,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
-   p%f = 1.0_wp ; p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
+   p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%C = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 1.0_wp, 2.0_wp /)
    p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 2.0_wp, 3.0_wp, 3.0_wp,                &
                 4.0_wp, 4.0_wp, 5.0_wp, 5.0_wp, 6.0_wp, 6.0_wp,                &
@@ -499,10 +494,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
-   p%f = 1.0_wp ; p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
+   p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%C = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 1.0_wp, 2.0_wp /)
    p%H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 2.0_wp, 3.0_wp, 3.0_wp,                &
                 4.0_wp, 4.0_wp, 5.0_wp, 5.0_wp, 6.0_wp, 6.0_wp,                &
@@ -521,7 +516,7 @@
 
    CALL EQP_initialize( data, control, info )
 !  control%print_level = 1
-   control%sbls_control%preconditioner = - 2 
+   control%sbls_control%preconditioner = - 2
    control%SBLS_control%factorization = 2
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
    CALL EQP_solve( p, data, control, info )
@@ -556,10 +551,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
-   p%f = 1.0_wp ; p%rho_g = 10.0_wp ; p%rho_b = 10.0_wp
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
+   p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%C = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 1.0_wp, 2.0_wp /)
    p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp,                        &
                 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp,                        &

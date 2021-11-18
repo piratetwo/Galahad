@@ -1,0 +1,21 @@
+# Nvidia nvc compiler with nvfortran
+
+#
+#  C compilation and loading
+#
+
+CC=nvc
+CCBASIC='-c -fpic'
+#CCISO='-ansi -pedantic' # -pedantic-errors'
+CCISO=''
+CCDEBUG= #-g -DDEBUG_GALAHAD
+CCFFLAGS=''
+
+CXX=nvc++
+CXXBASIC='-c'
+CXXOPT=-O2
+CXXNOOPT=-O0
+CXXDEBUG=''
+CXXFFLAGS=''
+
+HWLOC=''

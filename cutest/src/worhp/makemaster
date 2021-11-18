@@ -20,8 +20,8 @@ FFLAGS77S = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(SPECIAL)
 FFLAGS7N  = $(BASIC) $(NOOPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(USUAL)
 RUNFFLAGS =          $(OPTIMIZATION) $(DEBUG) $(MODULES)
 
-CFLAGS    = $(CCBASIC) $(OPTIMIZATION) $(CCDEBUG) -I$(CUTEST)/include -I$(CUTEST)/include/worhp
-CFLAGSN   = $(CCBASIC) $(NOOPTIMIZATION) $(CCDEBUG) -I$(CUTEST)/include -I$(CUTEST)/include/worhp
+CFLAGS    = $(CCBASIC) $(CCISO) $(OPTIMIZATION) $(CCDEBUG) -I$(CUTEST)/include -I$(CUTEST)/include/worhp
+CFLAGSN   = $(CCBASIC) $(CCISO) $(NOOPTIMIZATION) $(CCDEBUG) -I$(CUTEST)/include -I$(CUTEST)/include/worhp
 CRUNFFLAGS = $(OPTIMIZATION) $(CCDEBUG) -I$(CUTEST)/include -I$(CUTEST)/include/worhp $(CCFFLAGS)
 
 #  names of random libraries

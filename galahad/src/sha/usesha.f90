@@ -8,12 +8,12 @@
 
    MODULE GALAHAD_USESHA_double
 
-!  This is the driver program for running SHA for a variety of computing 
-!  systems. It opens and closes all the files, allocate arrays, reads and 
+!  This is the driver program for running SHA for a variety of computing
+!  systems. It opens and closes all the files, allocate arrays, reads and
 !  checks data, and calls the appropriate minimizers
 
      USE GALAHAD_SHA_double
-     USE GALAHAD_SPECFILE_double 
+     USE GALAHAD_SPECFILE_double
      USE GALAHAD_COPYRIGHT
      USE GALAHAD_SPACE_double
      USE GALAHAD_RAND_double
@@ -131,7 +131,7 @@
        CALL SPECFILE_assign_integer( spec( 7 ), max_sy, errout )
        CALL SPECFILE_assign_integer( spec( 8 ), print_level, errout )
      END IF
-    
+
 !  If required, open a file for the results
 
      IF ( write_result_summary ) THEN
@@ -143,7 +143,7 @@
           OPEN( rfiledevice, FILE = rfilename, FORM = 'FORMATTED',             &
                 STATUS = 'NEW', IOSTAT = iores )
        END IF
-       IF ( iores /= 0 ) THEN 
+       IF ( iores /= 0 ) THEN
          WRITE( errout,                                                        &
         &  "( ' IOSTAT = ', I0, ' when opening file ', A, '. Stopping ' )" )   &
            iores, rfilename
@@ -165,7 +165,7 @@
           OPEN( sfiledevice, FILE = sfilename, FORM = 'FORMATTED',             &
                 STATUS = 'NEW', IOSTAT = iores )
        END IF
-       IF ( iores /= 0 ) THEN 
+       IF ( iores /= 0 ) THEN
          WRITE( errout,                                                        &
         &  "( ' IOSTAT = ', I0, ' when opening file ', A, '. Stopping ' )" )   &
            iores, sfilename
@@ -173,7 +173,7 @@
        END IF
      END IF
 
-!  set copyright 
+!  set copyright
 
      IF ( out > 0 ) CALL COPYRIGHT( out, '2013' )
 
@@ -287,8 +287,8 @@
 !  |                                                                           |
 !  v                                                                           v
      IF ( .FALSE. ) THEN
-       CALL SHA_count( n, nnzh, ROW, COL, ROW_COUNT, data, control, inform )
-       
+       CALL SHA_count( n, nnzh, ROW, COL, ROW_COUNT )
+
        WRITE( out, "( A10, 8I7 )" )                                            &
          pname, n, MAXVAL( ROW_COUNT( 1 : n ) ),                               &
          COUNT( ROW_COUNT( 1 : n ) >= 5 ),                                     &
@@ -297,7 +297,7 @@
          COUNT( ROW_COUNT( 1 : n ) >= 50 ),                                    &
          COUNT( ROW_COUNT( 1 : n ) >= 100 ),                                   &
          COUNT( ROW_COUNT( 1 : n ) >= 500 )
-         
+
        IF ( write_result_summary ) THEN
          BACKSPACE( rfiledevice )
          WRITE( rfiledevice, "( A10, 8I7 )" )                                  &
@@ -309,13 +309,13 @@
            COUNT( ROW_COUNT( 1 : n ) >= 100 ),                                 &
            COUNT( ROW_COUNT( 1 : n ) >= 500 )
        END IF
-       RETURN     
+       RETURN
      END IF
 !  ^                                                                           ^
 !  |                                                                           |
 !  --------------------------- END OF IGNORED ----------------------------------
 
- ! analyse the sparsity 
+ ! analyse the sparsity
 
      CALL CLOCK_time( clocks )
      CALL SHA_analyse( n, nnzh, ROW, COL, data, control, inform )
@@ -353,7 +353,7 @@
          S( i, k ) = S( i, k ) * level
        END DO
 !write(6, "( ' ||s(', I0, ')|| = ', ES12.4 )" ) k, TWO_NORM( S( : n, k ) )
-       level = level * reduce   
+       level = level * reduce
        IF ( m > 0 ) THEN
          CALL CUTEST_chprod( status, n, m, .FALSE., X, LAMBDA, S( : , k ),     &
                              Y( : , k ) )

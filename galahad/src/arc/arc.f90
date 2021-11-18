@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 18/06/2015 AT 06:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/04/2021 AT 14:30 GMT.
 
 !-*-*-*-*-*-*-*-*-  G A L A H A D _ A R C   M O D U L E  *-*-*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   originally released GALAHAD Version 2.5. May 13th 2011
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_ARC_double
@@ -32,19 +32,38 @@
      USE GALAHAD_PSLS_double
      USE GALAHAD_GLRT_double
      USE GALAHAD_RQS_double
+     USE GALAHAD_DPS_double
      USE GALAHAD_LMS_double
      USE GALAHAD_SHA_double
      USE GALAHAD_SPACE_double
+     USE GALAHAD_MOP_double, ONLY: mop_Ax
      USE GALAHAD_NORMS_double, ONLY: TWO_NORM
-     USE GALAHAD_STRING_double, ONLY: STRING_integer_6
+     USE GALAHAD_STRING, ONLY: STRING_integer_6
+     USE GALAHAD_BLAS_interface, ONLY: SWAP
      USE GALAHAD_LAPACK_interface, ONLY : GESVD
 
-     IMPLICIT NONE     
+     IMPLICIT NONE
 
      PRIVATE
      PUBLIC :: ARC_initialize, ARC_read_specfile, ARC_solve,                   &
-               ARC_terminate, NLPT_problem_type, NLPT_userdata_type,           &
-               SMT_type, SMT_put 
+               ARC_adjust_weight, ARC_terminate, NLPT_problem_type,            &
+               NLPT_userdata_type, SMT_type, SMT_put,                          &
+               ARC_import, ARC_solve_with_mat, ARC_solve_without_mat,          &
+               ARC_solve_reverse_with_mat, ARC_solve_reverse_without_mat,      &
+               ARC_full_initialize, ARC_full_terminate, ARC_reset_control,     &
+               ARC_information
+
+!----------------------
+!   I n t e r f a c e s
+!----------------------
+
+     INTERFACE ARC_initialize
+       MODULE PROCEDURE ARC_initialize, ARC_full_initialize
+     END INTERFACE ARC_initialize
+
+     INTERFACE ARC_terminate
+       MODULE PROCEDURE ARC_terminate, ARC_full_terminate
+     END INTERFACE ARC_terminate
 
 !--------------------
 !   P r e c i s i o n
@@ -116,19 +135,20 @@
      INTEGER, PARAMETER  :: mi28_preconditioner = 7
      INTEGER, PARAMETER  :: munksgaard_preconditioner = 8
      INTEGER, PARAMETER  :: expanding_band_preconditioner = 9
+     INTEGER, PARAMETER  :: diagonalising_preconditioner = 10
 
 !-------------------------------------------------
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: ARC_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
        INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -190,11 +210,12 @@
 !      2  banded, P = band( Hessian ) with semi-bandwidth %semi_bandwidth
 !      3  re-ordered band, P=band(order(A)) with semi-bandwidth %semi_bandwidth
 !      4  full factorization, P = Hessian, Schnabel-Eskow modification
-!      5  full factorization, P = Hessian, GMPS modification (*not yet *)
+!      5  full factorization, P = Hessian, GMPS modification (*not yet impltd*)
 !      6  incomplete factorization of Hessian, Lin-More'
 !      7  incomplete factorization of Hessian, HSL_MI28
-!      8  incomplete factorization of Hessian, Munskgaard (*not yet *)
+!      8  incomplete factorization of Hessian, Munskgaard (*not yet impltd*)
 !      9  expanding band of Hessian (*not yet implemented*)
+!     10  diagonalizing norm from GALAHAD_DPS (*subproblem_direct only*)
 
        INTEGER :: norm = 1
 
@@ -210,42 +231,43 @@
 
        INTEGER :: max_dxg = 100
 
-!   number of vectors used by the Lin-More' incomplete factorization 
+!   number of vectors used by the Lin-More' incomplete factorization
 !    matrix P if required
 
        INTEGER :: icfs_vectors = 10
 
-!  the maximum number of fill entries within each column of the incomplete 
+!  the maximum number of fill entries within each column of the incomplete
 !  factor L computed by HSL_MI28. In general, increasing mi28_lsize improves
 !  the quality of the preconditioner but increases the time to compute
 !  and then apply the preconditioner. Values less than 0 are treated as 0
 
         INTEGER :: mi28_lsize = 10
 
-!  the maximum number of entries within each column of the strictly lower 
-!  triangular matrix R used in the computation of the preconditioner by 
-!  HSL_MI28.  Rank-1 arrays of size mi28_rsize *  n are allocated internally 
+!  the maximum number of entries within each column of the strictly lower
+!  triangular matrix R used in the computation of the preconditioner by
+!  HSL_MI28.  Rank-1 arrays of size mi28_rsize *  n are allocated internally
 !  to hold R. Thus the amount of memory used, as well as the amount of work
 !  involved in computing the preconditioner, depends on mi28_rsize. Setting
 !  mi28_rsize > 0 generally leads to a higher quality preconditioner than
-!  using mi28_rsize = 0, and choosing mi28_rsize >= mi28_lsize is generally 
+!  using mi28_rsize = 0, and choosing mi28_rsize >= mi28_lsize is generally
 !  recommended
 
         INTEGER :: mi28_rsize = 10
 
+!   try to pick a good initial regularization weight using %advanced_start
+!    iterates of a variant on the strategy of Sartenaer SISC 18(6)
+!    1990:1788-1803
+
+       INTEGER :: advanced_start = 0
+
 !   overall convergence tolerances. The iteration will terminate when the
-!     norm of the gradient of the objective function is smaller than 
+!     norm of the gradient of the objective function is smaller than
 !       MAX( %stop_g_absolute, %stop_g_relative * norm of the initial gradient
 !     or if the step is less than %stop_s
 
        REAL ( KIND = wp ) :: stop_g_absolute = tenm5
        REAL ( KIND = wp ) :: stop_g_relative = tenm8
        REAL ( KIND = wp ) :: stop_s = epsmch
-
-!   try to pick a good initial regularization weight using %advanced_start
-!    iterates of a variant on the strategy of Sartenaer SISC 18(6)1990:1788-1803
-
-       INTEGER :: advanced_start = 0
 
 !   Initial value for the regularisation weight  (-ve => 1/||g_0||)
 
@@ -255,8 +277,8 @@
 
        REAL ( KIND = wp ) :: minimum_weight = tenm8
 
-!  expert parameters as suggested in Gould, Porcelli and Toint, "Updating the 
-!   regularization parameter in the adaptive cubic regularization algorithm", 
+!  expert parameters as suggested in Gould, Porcelli & Toint, "Updating the
+!   regularization parameter in the adaptive cubic regularization algorithm",
 !   RAL-TR-2011-007, Rutherford Appleton Laboratory, England (2011),
 !      http://epubs.stfc.ac.uk/bitstream/6181/RAL-TR-2011-007.pdf
 !  (these are denoted beta, epsilon_chi and alpha_max in the paper)
@@ -268,8 +290,8 @@
 !   a potential iterate will only be accepted if the actual decrease
 !    f - f(x_new) is larger than %eta_successful times that predicted
 !    by a quadratic model of the decrease. The regularization weight will be
-!    increased if this relative decrease is greater than %eta_very_successful
-!    but smaller than %eta_too_successful (the first is eta in Gould, Porcelli 
+!    decreased if this relative decrease is greater than %eta_very_successful
+!    but smaller than %eta_too_successful (the first is eta in Gould, Porcelli
 !    and Toint, 2011)
 
        REAL ( KIND = wp ) :: eta_successful = ten ** ( - 8 )
@@ -278,9 +300,9 @@
 
 !   on very successful iterations, the regularization weight will be reduced
 !    by the factor %weight_decrease but no more than %weight_decrease_min
-!    while if the iteration is unsucceful, the weight will be increased by a 
-!    factor %weight_increase but no more than %weight_increase_max
-!    (these are delta_1, delta_2, delta3 and delta_max in Gould, Porcelli 
+!    while if the iteration is unsuccessful, the weight will be increased by
+!    a factor %weight_increase but no more than %weight_increase_max
+!    (these are delta_1, delta_2, delta3 and delta_max in Gould, Porcelli
 !    and Toint, 2011)
 
        REAL ( KIND = wp ) :: weight_decrease_min = point1
@@ -306,12 +328,13 @@
 
        LOGICAL :: hessian_available = .TRUE.
 
-!   use a direct (factorization) or (preconditioned) iterative method to 
+!   use a direct (factorization) or (preconditioned) iterative method to
 !    find the search direction
 
        LOGICAL :: subproblem_direct = .FALSE.
 
-!   should the weight be renormalized to account for a change in preconditioner?
+!   should the weight be renormalized to account for a change in 
+!    preconditioner?
 
        LOGICAL :: renormalize_weight = .FALSE.
 
@@ -330,7 +353,7 @@
        LOGICAL :: deallocate_error_fatal = .FALSE.
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
        CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -338,6 +361,10 @@
 !  control parameters for RQS
 
        TYPE ( RQS_control_type ) :: RQS_control
+
+!  control parameters for DPS
+
+       TYPE ( DPS_control_type ) :: DPS_control
 
 !  control parameters for GLRT
 
@@ -371,7 +398,8 @@
 
        REAL :: preprocess = 0.0
 
-!  the CPU time spent analysing the required matrices prior to factorization
+!  the CPU time spent analysing the required matrices prior to
+!    factorization
 
        REAL :: analyse = 0.0
 
@@ -391,7 +419,8 @@
 
        REAL ( KIND = wp ) :: clock_preprocess = 0.0
 
-!  the clock time spent analysing the required matrices prior to factorization
+!  the clock time spent analysing the required matrices prior to 
+!   factorization
 
        REAL ( KIND = wp ) :: clock_analyse = 0.0
 
@@ -405,9 +434,9 @@
 
      END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: ARC_inform_type
 
@@ -443,17 +472,17 @@
 
        INTEGER :: h_eval = 0
 
-!   the maximum number of entries in the factors
+!  the return status from the factorization
 
-        INTEGER ( KIND = long ) :: max_entries_factors = 0
+       INTEGER :: factorization_status = 0
 
 !  the maximum number of factorizations in a sub-problem solve
 
        INTEGER :: factorization_max = 0
 
-!  the return status from the factorization
+!   the maximum number of entries in the factors
 
-       INTEGER :: factorization_status = 0
+        INTEGER ( KIND = long ) :: max_entries_factors = 0
 
 !  the total integer workspace required for the factorization
 
@@ -467,15 +496,19 @@
 
        REAL ( KIND = wp ) :: factorization_average = zero
 
-!  the value of the objective function at the best estimate of the solution 
+!  the value of the objective function at the best estimate of the solution
 !   determined by ARC_solve
 
        REAL ( KIND = wp ) :: obj = HUGE( one )
 
-!  the norm of the gradient of the objective function at the best estimate 
+!  the norm of the gradient of the objective function at the best estimate
 !   of the solution determined by ARC_solve
 
        REAL ( KIND = wp ) :: norm_g = HUGE( one )
+
+!  the current value of the regularization weight
+
+       REAL ( KIND = wp ) :: weight = zero
 
 !  timings (see above)
 
@@ -484,6 +517,10 @@
 !  inform parameters for RQS
 
        TYPE ( RQS_inform_type ) :: RQS_inform
+
+!  inform parameters for DPS
+
+       TYPE ( DPS_inform_type ) :: DPS_inform
 
 !  inform parameters for GLRT
 
@@ -504,7 +541,7 @@
      END TYPE ARC_inform_type
 
 !  - - - - - - - - - -
-!   data derived type
+!   data derived types
 !  - - - - - - - - - -
 
      TYPE, PUBLIC :: ARC_data_type
@@ -512,7 +549,7 @@
        INTEGER :: eval_status, out, start_print, stop_print, advanced_start_iter
        INTEGER :: print_level, print_level_glrt, print_level_rqs, ref( 1 )
        INTEGER :: len_history, ibound, ipoint, icp, lbfgs_mem, max_hist
-       INTEGER :: nprec, nskip_lbfgs, nskip_prec, non_monotone_history
+       INTEGER :: nprec, nskip_lbfgs, nskip_prec, non_monotone_history, it_succ
        INTEGER :: print_gap, max_diffs, latest_diff, total_diffs, lwork_svd
        REAL :: time_start, time_record, time_now
        REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
@@ -522,10 +559,10 @@
        REAL ( KIND = wp ) :: stop_g, s_new_norm, rho_g, s_norm_successful
        LOGICAL :: printi, printt, printd, printm
        LOGICAL :: print_iteration_header, print_1st_header
-       LOGICAL :: set_printi, set_printt, set_printd, set_printm
+       LOGICAL :: set_printi, set_printt, set_printd, set_printm, use_dps
        LOGICAL :: monotone, new_h, got_h, poor_model, f_is_nan, non_trivial_p
        LOGICAL :: reverse_f, reverse_g, reverse_h, reverse_hprod, reverse_prec
-       CHARACTER ( LEN = 1 ) :: negcur, bndry, perturb, hard
+       CHARACTER ( LEN = 1 ) :: negcur, perturb, hard, accept
        TYPE ( RQS_history_type ), DIMENSION( history_max ) :: history
        INTEGER, ALLOCATABLE, DIMENSION( : ) :: PAST
        REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: X_best
@@ -562,6 +599,10 @@
 
        TYPE ( RQS_data_type ) :: RQS_data
 
+!  data for DPS
+
+       TYPE ( DPS_data_type ) :: DPS_data
+
 !  data for GLRT
 
        TYPE ( GLRT_data_type ) :: GLRT_data
@@ -579,6 +620,15 @@
 
        TYPE ( SHA_data_type ) :: SHA_data
      END TYPE ARC_data_type
+
+     TYPE, PUBLIC :: ARC_full_data_type
+       LOGICAL :: f_indexing
+       TYPE ( ARC_data_type ) :: arc_data
+       TYPE ( ARC_control_type ) :: arc_control
+       TYPE ( ARC_inform_type ) :: arc_inform
+       TYPE ( NLPT_problem_type ) :: nlp
+       TYPE ( NLPT_userdata_type ) :: userdata
+     END TYPE ARC_full_data_type
 
    CONTAINS
 
@@ -604,7 +654,7 @@
 
      TYPE ( ARC_data_type ), INTENT( INOUT ) :: data
      TYPE ( ARC_control_type ), INTENT( OUT ) :: control
-     TYPE ( ARC_inform_type ), INTENT( OUT ) :: inform        
+     TYPE ( ARC_inform_type ), INTENT( OUT ) :: inform
 
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e s
@@ -617,6 +667,12 @@
      CALL RQS_initialize( data%RQS_data, control%RQS_control,                  &
                           inform%RQS_inform )
      control%RQS_control%prefix = '" - RQS:"                     '
+
+!  initalize DPS components
+
+     CALL DPS_initialize( data%DPS_data, control%DPS_control,                  &
+                          inform%DPS_inform )
+     control%DPS_control%prefix = '" - DPS:"                     '
 
 !  initalize GLRT components
 
@@ -652,14 +708,48 @@
 
      END SUBROUTINE ARC_initialize
 
+!- G A L A H A D -  A R C _ F U L L _ I N I T I A L I Z E  S U B R O U T I N E -
+
+     SUBROUTINE ARC_full_initialize( data, control, inform )
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!   Provide default values for ARC controls
+
+!   Arguments:
+
+!   data     private internal data
+!   control  a structure containing control information. See preamble
+!   inform   a structure containing output information. See preamble
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( ARC_control_type ), INTENT( OUT ) :: control
+     TYPE ( ARC_inform_type ), INTENT( OUT ) :: inform
+
+     CALL ARC_initialize( data%arc_data, data%arc_control, data%arc_inform )
+     control = data%arc_control
+     inform = data%arc_inform
+
+     RETURN
+
+!  End of subroutine ARC_full_initialize
+
+     END SUBROUTINE ARC_full_initialize
+
 !-*-*-*-*-   A R C _ R E A D _ S P E C F I L E  S U B R O U T I N E  -*-*-*-*-
 
      SUBROUTINE ARC_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The default values as given by ARC_initialize could (roughly) 
+!  The default values as given by ARC_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN ARC SPECIFICATIONS (DEFAULT)
@@ -703,13 +793,14 @@
 !  space-critical                                  no
 !  deallocate-error-fatal                          no
 !  alive-filename                                  ALIVE.d
+!  output-line-prefix                                ""
 ! END ARC SPECIFICATIONS
 
 !-----------------------------------------------
 !   D u m m y   A r g u m e n t s
 !-----------------------------------------------
 
-     TYPE ( ARC_control_type ), INTENT( INOUT ) :: control        
+     TYPE ( ARC_control_type ), INTENT( INOUT ) :: control
      INTEGER, INTENT( IN ) :: device
      CHARACTER( LEN = * ), INTENT( IN ), OPTIONAL :: alt_specname
 
@@ -775,7 +866,7 @@
 
      spec( error )%keyword = 'error-printout-device'
      spec( out )%keyword = 'printout-device'
-     spec( print_level )%keyword = 'print-level' 
+     spec( print_level )%keyword = 'print-level'
      spec( start_print )%keyword = 'start-print'
      spec( stop_print )%keyword = 'stop-print'
      spec( print_gap )%keyword = 'iterations-between-printing'
@@ -849,7 +940,7 @@
                                  control%error )
      CALL SPECFILE_assign_value( spec( print_level ),                          &
                                  control%print_level,                          &
-                                 control%error )     
+                                 control%error )
      CALL SPECFILE_assign_value( spec( start_print ),                          &
                                  control%start_print,                          &
                                  control%error )
@@ -987,11 +1078,13 @@
 
      IF ( PRESENT( alt_specname ) ) THEN
        CALL RQS_read_specfile( control%RQS_control, device,                    &
-                                alt_specname = TRIM( alt_specname ) // '-RQS' )
+              alt_specname = TRIM( alt_specname ) // '-RQS' )
+       CALL DPS_read_specfile( control%DPS_control, device,                    &
+              alt_specname = TRIM( alt_specname ) // '-DPS' )
        CALL GLRT_read_specfile( control%GLRT_control, device,                  &
-                                alt_specname = TRIM( alt_specname ) // '-GLRT' )
-       CALL PSLS_read_specfile( control%PSLS_control, device,                  &
-                                alt_specname = TRIM( alt_specname ) // '-PSLS' )
+              alt_specname = TRIM( alt_specname ) // '-GLRT' )
+       CALL  PSLS_read_specfile( control%PSLS_control, device,                 &
+              alt_specname = TRIM( alt_specname ) // '-PSLS' )
        CALL LMS_read_specfile( control%LMS_control, device,                    &
               alt_specname = TRIM( alt_specname ) // '-LMS' )
        CALL LMS_read_specfile( control%LMS_control_prec, device,               &
@@ -1000,6 +1093,7 @@
               alt_specname = TRIM( alt_specname ) // '-SHA' )
      ELSE
        CALL RQS_read_specfile( control%RQS_control, device )
+       CALL DPS_read_specfile( control%DPS_control, device )
        CALL GLRT_read_specfile( control%GLRT_control, device )
        CALL PSLS_read_specfile( control%PSLS_control, device )
        CALL LMS_read_specfile( control%LMS_control, device )
@@ -1019,92 +1113,92 @@
 
 !  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 
-!  ARC_solve, a weighted regularization method for finding a local 
+!  ARC_solve, a weighted regularization method for finding a local
 !    unconstrained minimizer of a given function
 
 !  *-*-*-*-*-*-*-*-*-*-*-*-  A R G U M E N T S  -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !
-!  For full details see the specification sheet for GALAHAD_ARC. 
+!  For full details see the specification sheet for GALAHAD_ARC.
 !
-!  ** NB. default real/complex means double precision real/complex in 
+!  ** NB. default real/complex means double precision real/complex in
 !  ** GALAHAD_ARC_double
 !
 ! nlp is a scalar variable of type NLPT_problem_type that is used to
 !  hold data about the objective function. Relevant components are
 !
-!  n is a scalar variable of type default integer, that holds the number of 
+!  n is a scalar variable of type default integer, that holds the number of
 !
-!  H is scalar variable of type SMT_TYPE that holds the Hessian matrix H. The 
+!  H is scalar variable of type SMT_TYPE that holds the Hessian matrix H. The
 !   following components are used here:
 !
 !   H%type is an allocatable array of rank one and type default character, that
-!    is used to indicate the storage scheme used. If the dense storage scheme 
+!    is used to indicate the storage scheme used. If the dense storage scheme
 !    is used, the first five components of H%type must contain the string DENSE.
-!    For the sparse co-ordinate scheme, the first ten components of H%type must 
+!    For the sparse co-ordinate scheme, the first ten components of H%type must
 !    contain the string COORDINATE, for the sparse row-wise storage scheme, the
 !    first fourteen components of H%type must contain the string SPARSE_BY_ROWS,
-!    and for the diagonal storage scheme, the first eight components of H%type 
+!    and for the diagonal storage scheme, the first eight components of H%type
 !    must contain the string DIAGONAL.
 !
-!    For convenience, the procedure SMT_put may be used to allocate sufficient 
-!    space and insert the required keyword into H%type. For example, if nlp is 
-!    of derived type packagename_problem_type and involves a Hessian we wish to 
+!    For convenience, the procedure SMT_put may be used to allocate sufficient
+!    space and insert the required keyword into H%type. For example, if nlp is
+!    of derived type packagename_problem_type and involves a Hessian we wish to
 !    store using the co-ordinate scheme, we may simply
 !
 !         CALL SMT_put( nlp%H%type, 'COORDINATE', stat )
 !
-!    See the documentation for the galahad package SMT for further details on 
+!    See the documentation for the galahad package SMT for further details on
 !    the use of SMT_put.
 
-!   H%ne is a scalar variable of type default integer, that holds the number of 
-!    entries in the  lower triangular part of H in the sparse co-ordinate 
+!   H%ne is a scalar variable of type default integer, that holds the number of
+!    entries in the  lower triangular part of H in the sparse co-ordinate
 !    storage scheme. It need not be set for any of the other three schemes.
 !
 !   H%val is a rank-one allocatable array of type default real, that holds
-!    the values of the entries of the  lower triangular part of the Hessian 
+!    the values of the entries of the  lower triangular part of the Hessian
 !    matrix H in any of the available storage schemes.
 !
-!   H%row is a rank-one allocatable array of type default integer, that holds 
-!    the row indices of the  lower triangular part of H in the sparse 
-!    co-ordinate storage scheme. It need not be allocated for any of the other 
+!   H%row is a rank-one allocatable array of type default integer, that holds
+!    the row indices of the  lower triangular part of H in the sparse
+!    co-ordinate storage scheme. It need not be allocated for any of the other
 !    three schemes.
 !
 !   H%col is a rank-one allocatable array variable of type default integer,
 !    that holds the column indices of the  lower triangular part of H in either
-!    the sparse co-ordinate, or the sparse row-wise storage scheme. It need not 
+!    the sparse co-ordinate, or the sparse row-wise storage scheme. It need not
 !    be allocated when the dense or diagonal storage schemes are used.
 !
-!   H%ptr is a rank-one allocatable array of dimension n+1 and type default 
-!    integer, that holds the starting position of  each row of the  lower 
-!    triangular part of H, as well as the total number of entries plus one, 
+!   H%ptr is a rank-one allocatable array of dimension n+1 and type default
+!    integer, that holds the starting position of  each row of the  lower
+!    triangular part of H, as well as the total number of entries plus one,
 !    in the sparse row-wise storage scheme. It need not be allocated when the
 !    other schemes are used.
 !
-!  G is a rank-one allocatable array of dimension n and type default real, 
-!   that holds the gradient g of the objective function. The j-th component of 
+!  G is a rank-one allocatable array of dimension n and type default real,
+!   that holds the gradient g of the objective function. The j-th component of
 !   G, j = 1,  ... ,  n, contains g_j.
 !
-!  f is a scalar variable of type default real, that holds the value of 
+!  f is a scalar variable of type default real, that holds the value of
 !   the objective function.
 !
 !  X is a rank-one allocatable array of dimension n and type default real, that
-!   holds the values x of the optimization variables. The j-th component of 
-!   X, j = 1, ... , n, contains x_j.  
+!   holds the values x of the optimization variables. The j-th component of
+!   X, j = 1, ... , n, contains x_j.
 !
-!  pname is a scalar variable of type default character and length 10, which 
-!   contains the ``name'' of the problem for printing. The default ``empty'' 
+!  pname is a scalar variable of type default character and length 10, which
+!   contains the ``name'' of the problem for printing. The default ``empty''
 !   string is provided.
 !
-!  VNAMES is a rank-one allocatable array of dimension n and type default 
-!   character and length 10, whose j-th entry contains the ``name'' of the j-th 
-!   variable for printing. This is only used  if ``debug''printing 
-!   control%print_level > 4) is requested, and will be ignored if the array is 
+!  VNAMES is a rank-one allocatable array of dimension n and type default
+!   character and length 10, whose j-th entry contains the ``name'' of the j-th
+!   variable for printing. This is only used  if ``debug''printing
+!   control%print_level > 4) is requested, and will be ignored if the array is
 !   not allocated.
 !
 ! control is a scalar variable of type ARC_control_type. See ARC_initialize
 !  for details
 !
-! inform is a scalar variable of type ARC_inform_type. On initial entry, 
+! inform is a scalar variable of type ARC_inform_type. On initial entry,
 !  inform%status should be set to 1. On exit, the following components will
 !  have been set:
 !
@@ -1114,74 +1208,74 @@
 !     0. The run was succesful
 !
 !    -1. An allocation error occurred. A message indicating the offending
-!        array is written on unit control%error, and the returned allocation 
+!        array is written on unit control%error, and the returned allocation
 !        status and a string containing the name of the offending array
 !        are held in inform%alloc_status and inform%bad_alloc respectively.
-!    -2. A deallocation error occurred.  A message indicating the offending 
-!        array is written on unit control%error and the returned allocation 
+!    -2. A deallocation error occurred.  A message indicating the offending
+!        array is written on unit control%error and the returned allocation
 !        status and a string containing the name of the offending array
 !        are held in inform%alloc_status and inform%bad_alloc respectively.
-!    -3. The restriction nlp%n > 0 or requirement that prob%H_type contains 
+!    -3. The restriction nlp%n > 0 or requirement that prob%H_type contains
 !        its relevant string 'DENSE', 'COORDINATE', 'SPARSE_BY_ROWS'
 !          or 'DIAGONAL' has been violated.
 !    -7. The objective function appears to be unbounded from below
 !    -9. The analysis phase of the factorization failed; the return status
-!        from the factorization package is given in the component 
+!        from the factorization package is given in the component
 !        inform%factor_status
 !   -10. The factorization failed; the return status from the factorization
 !        package is given in the component inform%factor_status.
-!   -11. The solution of a set of linear equations using factors from the 
+!   -11. The solution of a set of linear equations using factors from the
 !        factorization package failed; the return status from the factorization
 !        package is given in the component inform%factor_status.
 !   -16. The problem is so ill-conditioned that further progress is impossible.
 !   -18. Too many iterations have been performed. This may happen if
-!        control%maxit is too small, but may also be symptomatic of 
+!        control%maxit is too small, but may also be symptomatic of
 !        a badly scaled problem.
 !   -19. The CPU time limit has been reached. This may happen if
-!        control%cpu_time_limit is too small, but may also be symptomatic of 
+!        control%cpu_time_limit is too small, but may also be symptomatic of
 !        a badly scaled problem.
-!   -40. The user has forced termination of solver by removing the file named 
+!   -40. The user has forced termination of solver by removing the file named
 !        control%alive_file from unit unit control%alive_unit.
-! 
-!     2. The user should compute the objective function value f(x) at the point 
+!
+!     2. The user should compute the objective function value f(x) at the point
 !        x indicated in nlp%X and then re-enter the subroutine. The required
 !        value should be set in nlp%f, and data%eval_status should be set to 0.
 !        If the user is unable to evaluate f(x) - for instance, if the function
-!        is undefined at x - the user need not set nlp%f, but should then set 
+!        is undefined at x - the user need not set nlp%f, but should then set
 !        data%eval_status to a non-zero value.
-!     3. The user should compute the gradient of the objective function 
-!        nabla_x f(x) at the point x indicated in nlp%X  and then re-enter the 
-!        subroutine. The value of the i-th component of the gradient should be 
+!     3. The user should compute the gradient of the objective function
+!        nabla_x f(x) at the point x indicated in nlp%X  and then re-enter the
+!        subroutine. The value of the i-th component of the gradient should be
 !        set in nlp%G(i), for i = 1, ..., n and data%eval_status should be set
-!        to 0. If the user is unable to evaluate a component of nabla_x f(x) 
-!        - for instance if a component of the gradient is undefined at x - the 
-!        user need not set nlp%G, but should then set data%eval_status to a 
+!        to 0. If the user is unable to evaluate a component of nabla_x f(x)
+!        - for instance if a component of the gradient is undefined at x - the
+!        user need not set nlp%G, but should then set data%eval_status to a
 !        non-zero value.
-!     4. The user should compute the Hessian of the objective function 
-!        nabla_xx f(x) at the point x indicated in nlp%X and then re-enter the 
+!     4. The user should compute the Hessian of the objective function
+!        nabla_xx f(x) at the point x indicated in nlp%X and then re-enter the
 !        subroutine. The value l-th component of the Hessian stored according to
-!        the scheme input in the remainder of nlp%H should be set in 
+!        the scheme input in the remainder of nlp%H should be set in
 !        nlp%H%val(l), for l = 1, ..., nlp%H%ne and data%eval_status should be
-!        set to 0. If the user is unable to evaluate a component of 
-!        nabla_xx f(x) - for instance, if a component of the Hessian is 
-!        undefined at x - the user need not set nlp%H%val, but should then set 
+!        set to 0. If the user is unable to evaluate a component of
+!        nabla_xx f(x) - for instance, if a component of the Hessian is
+!        undefined at x - the user need not set nlp%H%val, but should then set
 !        data%eval_status to a non-zero value.
-!     5. The user should compute the product nabla_xx f(x)v of the Hessian 
-!        of the objective function nabla_xx f(x) at the point x indicated in 
-!        nlp%X with the vector v and add the result to the vector u and then 
-!        re-enter the subroutine. The vectors u and v are given in data%U and 
-!        data%V respectively, the resulting vector u + nabla_xx f(x)v should be 
+!     5. The user should compute the product nabla_xx f(x)v of the Hessian
+!        of the objective function nabla_xx f(x) at the point x indicated in
+!        nlp%X with the vector v and add the result to the vector u and then
+!        re-enter the subroutine. The vectors u and v are given in data%U and
+!        data%V respectively, the resulting vector u + nabla_xx f(x)v should be
 !        set in data%U and  data%eval_status should be set to 0. If the user is
-!        unable to evaluate the product - for instance, if a component of the 
+!        unable to evaluate the product - for instance, if a component of the
 !        Hessian is undefined at x - the user need not alter data%U, but
 !        should then set data%eval_status to a non-zero value.
-!     6. The user should compute the product u = P(x)v of their preconditioner 
+!     6. The user should compute the product u = P(x)v of their preconditioner
 !        P(x) at the point x indicated in nlp%X with the vector v and then
 !        re-enter the subroutine. The vectors v is given in data%V, the
-!        resulting vector u = P(x)v should be set in data%U and 
+!        resulting vector u = P(x)v should be set in data%U and
 !        data%eval_status should be set to 0. If the user is unable to evaluate
-!        the product - for instance, if a component of the preconditioner is 
-!        undefined at x - the user need not set data%U, but should then set 
+!        the product - for instance, if a component of the preconditioner is
+!        undefined at x - the user need not set data%U, but should then set
 !        data%eval_status to a non-zero value.
 !
 !  alloc_status is a scalar variable of type default integer, that gives
@@ -1189,23 +1283,23 @@
 !   This will be 0 if status = 0.
 !
 !  bad_alloc is a scalar variable of type default character
-!   and length 80, that  gives the name of the last internal array 
+!   and length 80, that  gives the name of the last internal array
 !   for which there were allocation or deallocation errors.
-!   This will be the null string if status = 0. 
+!   This will be the null string if status = 0.
 !
-!  iter is a scalar variable of type default integer, that holds the 
+!  iter is a scalar variable of type default integer, that holds the
 !   number of iterations performed.
 !
 !  cg_iter is a scalar variable of type default integer, that gives the
 !   total number of conjugate-gradient iterations required.
 !
-!  factorization_status is a scalar variable of type default integer, that 
+!  factorization_status is a scalar variable of type default integer, that
 !   gives the return status from the matrix factorization.
 !
 !  factorization_integer is a scalar variable of type default integer,
 !   that gives the amount of integer storage used for the matrix factorization.
 !
-!  factorization_real is a scalar variable of type default integer, 
+!  factorization_real is a scalar variable of type default integer,
 !   that gives the amount of real storage used for the matrix factorization.
 !
 !  f_eval is a scalar variable of type default integer, that gives the
@@ -1221,7 +1315,7 @@
 !   value of the objective function at the best estimate of the solution found.
 !
 !  norm_g is a scalar variable of type default real, that holds the
-!   value of the norm of the objective function gradient at the best estimate 
+!   value of the norm of the objective function gradient at the best estimate
 !   of the solution found.
 !
 !  time is a scalar variable of type ARC_time_type whose components are used to
@@ -1247,7 +1341,7 @@
 !     the total clock time spent in the package.
 !
 !    clock_preprocess is a scalar variable of type default real, that gives
-!      the clock time spent reordering the problem to standard form prior 
+!      the clock time spent reordering the problem to standard form prior
 !      to solution.
 !
 !    clock_analyse is a scalar variable of type default real, that gives
@@ -1261,7 +1355,7 @@
 !
 !  data is a scalar variable of type ARC_data_type used for internal data.
 !
-!  userdata is a scalar variable of type NLPT_userdata_type which may be used 
+!  userdata is a scalar variable of type NLPT_userdata_type which may be used
 !   to pass user data to and from the eval_* subroutines (see below)
 !   Available coomponents which may be allocated as required are:
 !
@@ -1285,36 +1379,36 @@
 !   required.
 !
 !  eval_G is an optional subroutine which if present must have the arguments
-!   given below (see the interface blocks). The components of the gradient 
-!   nabla_x f(x) of the objective function evaluated at x=X must be returned in 
-!   G, and the status variable set to 0. If the evaluation is impossible at X, 
-!   status should be set to a nonzero value. If eval_G is not present, 
-!   ARC_solve will return to the user with inform%status = 3 each time an 
+!   given below (see the interface blocks). The components of the gradient
+!   nabla_x f(x) of the objective function evaluated at x=X must be returned in
+!   G, and the status variable set to 0. If the evaluation is impossible at X,
+!   status should be set to a nonzero value. If eval_G is not present,
+!   ARC_solve will return to the user with inform%status = 3 each time an
 !   evaluation is required.
 !
 !  eval_H is an optional subroutine which if present must have the arguments
 !   given below (see the interface blocks). The nonzeros of the Hessian
 !   nabla_xx f(x) of the objective function evaluated at x=X must be returned in
 !   H in the same order as presented in nlp%H, and the status variable set to 0.
-!   If the evaluation is impossible at X, status should be set to a nonzero 
-!   value. If eval_H is not present, ARC_solve will return to the user with 
+!   If the evaluation is impossible at X, status should be set to a nonzero
+!   value. If eval_H is not present, ARC_solve will return to the user with
 !   inform%status = 4 each time an evaluation is required.
 !
 !  eval_HPROD is an optional subroutine which if present must have the arguments
-!   given below (see the interface blocks). The sum u + nabla_xx f(x) v of the 
-!   product of the Hessian nabla_xx f(x) of the objective function evaluated 
+!   given below (see the interface blocks). The sum u + nabla_xx f(x) v of the
+!   product of the Hessian nabla_xx f(x) of the objective function evaluated
 !   at x=X with the vector v=V and the vector u=U must be returned in U, and the
-!   status variable set to 0. If the evaluation is impossible at X, status 
-!   should be set to a nonzero value. If eval_HPROD is not present, ARC_solve 
-!   will return to the user with inform%status = 5 each time an evaluation is 
+!   status variable set to 0. If the evaluation is impossible at X, status
+!   should be set to a nonzero value. If eval_HPROD is not present, ARC_solve
+!   will return to the user with inform%status = 5 each time an evaluation is
 !   required.
 !
 !  eval_PREC is an optional subroutine which if present must have the arguments
-!   given below (see the interface blocks). The product u = P(x) v of the 
-!   user's preconditioner P(x) evaluated at x=X with the vector v=V, the result 
+!   given below (see the interface blocks). The product u = P(x) v of the
+!   user's preconditioner P(x) evaluated at x=X with the vector v=V, the result
 !   u must be retured in U, and the status variable set to 0. If the evaluation
-!   is impossible at X, status should be set to a nonzero value. If eval_PREC 
-!   is not present, ARC_solve will return to the user with inform%status = 6 
+!   is impossible at X, status should be set to a nonzero value. If eval_PREC
+!   is not present, ARC_solve will return to the user with inform%status = 6
 !   each time an evaluation is required.
 !
 !  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -1331,7 +1425,7 @@
      OPTIONAL :: eval_F, eval_G, eval_H, eval_HPROD, eval_PREC
 
 !----------------------------------
-!   I n t e r f a c e   B l o c k s 
+!   I n t e r f a c e   B l o c k s
 !----------------------------------
 
      INTERFACE
@@ -1379,7 +1473,7 @@
        LOGICAL, OPTIONAL, INTENT( IN ) :: got_h
        END SUBROUTINE eval_HPROD
      END INTERFACE
-   
+
      INTERFACE
        SUBROUTINE eval_PREC( status, X, userdata, U, V )
        USE GALAHAD_NLPT_double, ONLY: NLPT_userdata_type
@@ -1390,7 +1484,7 @@
        TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
        END SUBROUTINE eval_PREC
      END INTERFACE
-   
+
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
@@ -1404,7 +1498,7 @@
      CHARACTER ( LEN = 80 ) :: array_name
 !    REAL ( KIND = wp ), DIMENSION( nlp%n ) :: V
 
-!  prefix for all output 
+!  prefix for all output
 
      CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
 !    REAL ( KIND = wp ) :: x_inf = zero
@@ -1421,26 +1515,26 @@
        CALL CPU_time( data%time_start ) ; CALL CLOCK_time( data%clock_start )
        GO TO 990
      END IF
-     IF ( inform%status == 1 ) data%branch = 1
+     IF ( inform%status == 1 ) data%branch = 10
 
      SELECT CASE ( data%branch )
-     CASE ( 1 )  ! initialization
+     CASE ( 10 )  ! initialization
        GO TO 10
-     CASE ( 2 )  ! initial objective evaluation
+     CASE ( 20 )  ! initial objective evaluation
        GO TO 20
-     CASE ( 3 )  ! initial gradient evaluation
+     CASE ( 30 )  ! initial gradient evaluation
        GO TO 30
-     CASE ( 4 )  ! Hessian evaluation
+     CASE ( 110 )  ! Hessian evaluation
        GO TO 110
-!    CASE ( 5 )  ! Hessian-vector product
+!    CASE ( 210 )  ! Hessian-vector product
 !      GO TO 210
-     CASE ( 6 )  ! Hessian-vector or preconditioner product
+     CASE ( 310 )  ! Hessian-vector or preconditioner product
        GO TO 310
-     CASE ( 7 )  ! objective evaluation
+     CASE ( 420 )  ! objective evaluation
        GO TO 420
-     CASE ( 8 )  ! Hessian-vector product
+     CASE ( 440 )  ! Hessian-vector product
        GO TO 440
-     CASE ( 9 )  ! gradient evaluation
+     CASE ( 450 )  ! gradient evaluation
        GO TO 450
      END SELECT
 
@@ -1460,8 +1554,20 @@
 
 !  record the problem dimensions
 
-     nlp%H%n = nlp%n 
-!    nlp%H%m = nlp%H%n
+     nlp%H%n = nlp%n ; nlp%H%m = nlp%H%n
+     IF ( control%hessian_available ) THEN
+       IF ( SMT_get( nlp%H%type ) == 'DIAGONAL' ) THEN
+         nlp%H%ne = nlp%n
+       ELSE IF ( SMT_get( nlp%H%type ) == 'DENSE' ) THEN
+         nlp%H%ne = ( nlp%n * ( nlp%n + 1 ) ) / 2
+       ELSE IF ( SMT_get( nlp%H%type ) == 'SPARSE_BY_ROWS' ) THEN
+         nlp%H%ne = nlp%H%ptr( nlp%n + 1 ) - 1
+!      ELSE
+!        nlp%H%ne = nlp%H%ne
+       END IF
+     ELSE
+       nlp%H%ne = 0
+     END IF
 
 !  allocate sufficient space for the problem
 
@@ -1520,7 +1626,7 @@
      data%non_monotone_history = data%control%non_monotone
      IF ( data%non_monotone_history <= 0 ) data%non_monotone_history = 1
      data%monotone = data%non_monotone_history == 1
-     data%weight = data%control%initial_weight
+     inform%weight = data%control%initial_weight
      data%etat = half * ( data%control%eta_very_successful +                   &
                   data%control%eta_successful )
      data%ometat = one - data%etat
@@ -1529,6 +1635,7 @@
      data%negcur = ' '
      data%s_norm_successful = one
      inform%max_entries_factors = 0
+     data%it_succ = 0
 
 !  decide how much reverse communication is required
 
@@ -1559,6 +1666,18 @@
          data%control%model = identity_hessian_model
      END IF
      data%reverse_prec = .NOT. PRESENT( eval_PREC )
+     IF ( data%control%norm == diagonalising_preconditioner ) THEN
+       IF ( data%control%subproblem_direct ) THEN
+         data%use_dps = .TRUE.
+       ELSE
+         IF ( control%error > 0 ) WRITE(  control%error,                       &
+           "( A, ' diagonalizing norm not avaible with iterative',             &
+          & ' subproblem solution' )" ) prefix
+         inform%status = GALAHAD_not_yet_implemented ; GO TO 990
+       END IF
+     ELSE
+       data%use_dps = .FALSE.
+     END IF
 
      data%nprec = data%control%norm
      data%control%GLRT_control%unitm = data%nprec == identity_preconditioner
@@ -1594,11 +1713,11 @@
 
 !  basic single line of output per iteration
 
-     data%set_printi = data%out > 0 .AND. data%control%print_level >= 1 
+     data%set_printi = data%out > 0 .AND. data%control%print_level >= 1
 
 !  as per printi, but with additional timings for various operations
 
-     data%set_printt = data%out > 0 .AND. data%control%print_level >= 2 
+     data%set_printt = data%out > 0 .AND. data%control%print_level >= 2
 
 !  as per printt with a few more scalars
 
@@ -1613,7 +1732,7 @@
      IF ( inform%iter >= data%start_print .AND.                                &
           inform%iter < data%stop_print .AND.                                  &
           MOD( inform%iter + 1 - data%start_print, data%print_gap ) == 0 ) THEN
-       data%printi = data%set_printi ; data%printt = data%set_printt 
+       data%printi = data%set_printi ; data%printt = data%set_printt
        data%printm = data%set_printm ; data%printd = data%set_printd
        data%print_level = data%control%print_level
      ELSE
@@ -1665,7 +1784,7 @@
             exact_size = control%space_critical,                             &
             bad_alloc = inform%bad_alloc, out = control%error )
      IF ( inform%status /= 0 ) GO TO 980
-    
+
      IF ( data%nprec == l_bfgs_preconditioner ) THEN
 
 !  a limited-memory BFGS matrix is to be used
@@ -1704,14 +1823,14 @@
 
 !  parameters needed for the limited-memory BFGS preconditioner
 
-       data%ibound = - 1 ; data%ipoint = 0 ; data%nskip_lbfgs  = 0 
+       data%ibound = - 1 ; data%ipoint = 0 ; data%nskip_lbfgs  = 0
      END IF
      data%nskip_prec = nskip_prec_max
 
 ! evaluate the objective function at the initial point
 
      IF ( data%reverse_f ) THEN
-       data%branch = 2 ; inform%status = 2 ; RETURN
+       data%branch = 20 ; inform%status = 2 ; RETURN
      ELSE
        CALL eval_F( data%eval_status, nlp%X( : nlp%n ), userdata, inform%obj )
      END IF
@@ -1725,18 +1844,18 @@
 
 !  test to see if the initial objective value is undefined
 
-     IF ( data%f_is_nan ) THEN 
+     IF ( data%f_is_nan ) THEN
        inform%status = GALAHAD_error_evaluation ; GO TO 990
-     END IF 
+     END IF
 
 !  test to see if the objective appears to be unbounded from below
 
-     IF ( inform%obj < control%obj_unbounded ) THEN 
+     IF ( inform%obj < control%obj_unbounded ) THEN
        IF ( data%printi ) WRITE( data%out,                                     &
           "( A, ' objective value', ES12.4, ' is lower than unbounded limit',  &
          &   ES12.4 )" ) prefix, inform%obj, control%obj_unbounded
        inform%status = GALAHAD_error_unbounded ; GO TO 990
-     END IF 
+     END IF
 
      data%f_ref = inform%obj
      IF ( .NOT. data%monotone ) THEN
@@ -1746,7 +1865,7 @@
 !  evaluate the gradient of the objective function
 
      IF ( data%reverse_g ) THEN
-       data%branch = 3 ; inform%status = 3 ; RETURN
+       data%branch = 30 ; inform%status = 3 ; RETURN
      ELSE
        CALL eval_G( data%eval_status, nlp%X( : nlp%n ), userdata,              &
                     nlp%G( : nlp%n ) )
@@ -1761,10 +1880,10 @@
 !  reset the initial radius to ||g|| if no sensible value is given
 
      IF ( data%control%initial_weight <= zero .AND. inform%norm_g /= zero )    &
-       data%weight = one / inform%norm_g 
+       inform%weight = one / inform%norm_g
 
 !  if a sparsity-based secant approximation of the Hessian is required,
-!  compute the evaluation ordering 
+!  compute the evaluation ordering
 
      IF ( data%control%model == sparsity_hessian_model ) THEN
 !      write(6,*) ' number of entries ', nlp%H%ne
@@ -1870,7 +1989,7 @@
        END IF
      END IF
 
-!  if a limited memory-based secant approximation of the inverse of the 
+!  if a limited memory-based secant approximation of the inverse of the
 !  Hessian is required for preconditioning, set up the storage required
 
      IF ( data%control%model == l_bfgs_hessian_model .OR.                      &
@@ -1885,7 +2004,7 @@
                        inform%LMS_inform_prec )
      END IF
 
-!  if a limited memory-based secant approximation of the inverse of the 
+!  if a limited memory-based secant approximation of the inverse of the
 !  Hessian is required for preconditioning, set up the storage required
 
      IF ( data%nprec == l_bfgs_preconditioner ) THEN
@@ -1925,7 +2044,7 @@
             inform%iter < data%stop_print .AND.                                &
             MOD( inform%iter + 1 - data%start_print, data%print_gap ) == 0 )   &
            THEN
-         data%printi = data%set_printi ; data%printt = data%set_printt 
+         data%printi = data%set_printi ; data%printt = data%set_printt
          data%printm = data%set_printm ; data%printd = data%set_printd
          data%print_level = data%control%print_level
          data%control%GLRT_control%print_level = data%print_level_glrt
@@ -1947,6 +2066,7 @@
 
        IF ( data%printi ) THEN
           IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
+           WRITE( data%out, 2090 ) prefix
            IF ( data%control%subproblem_direct ) THEN
              WRITE( data%out, 2100 ) prefix
            ELSE
@@ -1959,22 +2079,23 @@
            IF ( data%control%subproblem_direct ) THEN
              char_facts =                                                      &
                ADJUSTR( STRING_integer_6( inform%RQS_inform%factorizations ) )
-             WRITE( data%out, 2120 ) prefix, char_iter, data%hard,             &
-                data%negcur, data%bndry, inform%obj, inform%norm_g,            &
-                data%ratio, data%weight, inform%RQS_inform%x_norm,             &
+             WRITE( data%out, 2120 ) prefix, char_iter, data%accept,           &
+                data%hard, data%negcur, inform%obj, inform%norm_g,             &
+                data%ratio, inform%weight, inform%RQS_inform%x_norm,           &
                 char_facts, data%clock_now
            ELSE
              char_sit = ADJUSTR( STRING_integer_6( inform%GLRT_inform%iter ) )
              char_sit2 =                                                       &
                ADJUSTR( STRING_integer_6( inform%GLRT_inform%iter_pass2 ) )
-             WRITE( data%out, 2130 ) prefix, char_iter, data%negcur,           &
-                data%bndry, data%perturb, inform%obj, inform%norm_g,           &
-                data%ratio, data%weight, inform%GLRT_inform%xpo_norm,          &
+             WRITE( data%out, 2130 ) prefix, char_iter, data%accept,           &
+                data%negcur, data%perturb, inform%obj,                         &
+                inform%norm_g, data%ratio, inform%weight,                      &
+                inform%GLRT_inform%xpo_norm,                                   &
                 char_sit, char_sit2, data%clock_now
            END IF
          ELSE
-           WRITE( data%out, 2140 ) prefix,                                   &
-             char_iter, inform%obj, inform%norm_g, data%weight
+           WRITE( data%out, 2140 ) prefix,                                     &
+             char_iter, inform%obj, inform%norm_g, inform%weight
          END IF
        END IF
 
@@ -2002,8 +2123,8 @@
 
 !  reset the initial radius to 1/||g|| if no sensible value is given
 
-       IF ( inform%iter == 0 .AND. data%weight <= zero )                       &
-         data%weight = one / inform%norm_g
+       IF ( inform%iter == 0 .AND. inform%weight <= zero )                     &
+         inform%weight = one / inform%norm_g
 
 !  stop if the gradient is swampled by the Hessian
 
@@ -2043,7 +2164,7 @@
 !        ELSE
 !           WRITE( outln, "( A10, '     -    ', ES10.2, '   -  ', 4I6 )" )     &
 !             nlp%pname, inform%GLRT_inform%f_e,                               &
-!             inform%GLRT_inform%it_p1, inform%GLRT_inform%it_p9, 
+!             inform%GLRT_inform%it_p1, inform%GLRT_inform%it_p9,
 !             inform%GLRT_inform%it_p99, inform%GLRT_inform%it_e
 !        END IF
          inform%status = GALAHAD_error_max_iterations ; GO TO 900
@@ -2090,7 +2211,7 @@
 
          IF ( data%nskip_prec > nskip_prec_max ) THEN
            IF ( data%reverse_h ) THEN
-             data%branch = 4 ; inform%status = 4 ; RETURN
+             data%branch = 110 ; inform%status = 4 ; RETURN
            ELSE
              CALL eval_H( data%eval_status, nlp%X( : nlp%n ),                  &
                           userdata, nlp%H%val( : nlp%H%ne ) )
@@ -2105,7 +2226,7 @@
          IF ( data%nskip_prec > nskip_prec_max ) THEN
            inform%h_eval = inform%h_eval + 1  ; data%got_h = .TRUE.
 
-!  debug printing for H 
+!  debug printing for H
 
            IF ( data%printd ) THEN
              WRITE( data%out, "( A, ' Hessian ' )" ) prefix
@@ -2121,23 +2242,25 @@
 
        IF ( data%new_h ) THEN
          IF ( data%control%subproblem_direct ) THEN
+           IF ( .NOT. data%use_dps ) THEN
 
 !  build the preconditioner
 
-           IF ( data%nprec > 0 .AND. data%control%hessian_available ) THEN
-             IF ( data%printt ) WRITE( data%out,                               &
-                   "( A, ' Computing preconditioner' )" ) prefix
-             CALL PSLS_build( nlp%H, data%P, data%PSLS_data,                   &
-                              data%control%PSLS_control, inform%PSLS_inform )
+             IF ( data%nprec > 0 .AND. data%control%hessian_available ) THEN
+               IF ( data%printt ) WRITE( data%out,                             &
+                     "( A, ' Computing preconditioner' )" ) prefix
+               CALL PSLS_build( nlp%H, data%P, data%PSLS_data,                 &
+                                data%control%PSLS_control, inform%PSLS_inform )
 
 !  check for error returns
 
-             data%non_trivial_p = inform%PSLS_inform%status == GALAHAD_ok
-             IF ( inform%PSLS_inform%perturbed ) data%perturb = 'p'
-           ELSE 
-             data%non_trivial_p = .FALSE.
+               data%non_trivial_p = inform%PSLS_inform%status == GALAHAD_ok
+               IF ( inform%PSLS_inform%perturbed ) data%perturb = 'p'
+             ELSE
+               data%non_trivial_p = .FALSE.
+             END IF
+             data%control%PSLS_control%new_structure = .FALSE.
            END IF
-           data%control%PSLS_control%new_structure = .FALSE.
          ELSE
            IF ( data%nskip_prec > nskip_prec_max ) THEN
              IF ( data%nprec > 0 .AND. data%control%hessian_available ) THEN
@@ -2231,8 +2354,8 @@
                  WRITE(6,*) ' diff ', MAXVAL( ABS( nlp%H%val( : nlp%H%ne ) -   &
                                               data%VAL_est( : nlp%H%ne ) ) /   &
                                MAX( 1.0_wp, ABS( nlp%H%val( : nlp%H%ne ) ) ) )
-               END IF  
-             END IF  
+               END IF
+             END IF
              nlp%H%val( : nlp%H%ne ) = data%VAL_est( : nlp%H%ne )
 
              IF ( .FALSE. ) THEN
@@ -2248,7 +2371,7 @@
            END IF
          END IF
 
-!  if a limited-memory-based secant approximation of the Hessian or its 
+!  if a limited-memory-based secant approximation of the Hessian or its
 !  inverse is required, record the latest step and gradient difference
 
          IF ( data%control%model == l_bfgs_hessian_model .OR.                  &
@@ -2298,47 +2421,48 @@
 !  ==========================================================
 
        IF ( inform%iter > 1 ) THEN
+         data%old_weight = inform%weight
 !        IF ( .FALSE. ) THEN
          IF ( data%control%quadratic_ratio_test ) THEN
            IF ( data%ratio < data%control%eta_successful ) THEN
-             data%weight = data%weight * data%control%weight_increase_max
+             inform%weight = inform%weight * data%control%weight_increase_max
            ELSE IF ( data%ratio >= data%control%eta_very_successful .AND.      &
                      data%ratio < data%control%eta_too_successful ) THEN
-             data%weight = MAX( data%weight * data%control%weight_decrease_min,&
-                                control%minimum_weight )
+             inform%weight = MAX( inform%weight *                              &
+                                    data%control%weight_decrease_min,          &
+                                  control%minimum_weight )
            END IF
          ELSE
 !write(6,*) ' sths ', data%hstbs
-           data%old_weight = data%weight
-           CALL ARC_adjust_weight( data%weight, data%model, data%stg,          &
+           CALL ARC_adjust_weight( inform%weight, data%model, data%stg,        &
                                    data%hstbs,  data%s_norm, data%ratio,       &
                                    data%control )
-!write(6,*) ' old, new weights ', data%old_weight, data%weight
-           data%weight = MAX( data%control%minimum_weight, data%weight )
+!write(6,*) ' old, new weights ', data%old_weight, inform%weight
+           inform%weight = MAX( data%control%minimum_weight, inform%weight )
 
-           IF ( data%ratio < control%eta_successful ) THEN 
+           IF ( data%ratio < control%eta_successful ) THEN
              IF ( data%control%subproblem_direct ) THEN
 !              write(6,*) ' leftmost ', inform%RQS_inform%pole
                val = two * inform%RQS_inform%pole / data%s_norm_successful
 !              IF ( inform%RQS_inform%pole > zero ) write( data%out, * )       &
-!                 ' sigma, potential sigma = ',  data%weight, val
+!                 ' sigma, potential sigma = ',  inform%weight, val
              ELSE
 !              write(6,*) ' leftmost ', inform%GLRT_inform%leftmost
                val = - two * inform%GLRT_inform%leftmost /data%s_norm_successful
 !              IF ( inform%GLRT_inform%leftmost < zero ) write( data%out, * )  &
-!                ' sigma, potential sigma = ', data%weight, val
+!                ' sigma, potential sigma = ', inform%weight, val
              END IF
-             data%weight = MAX( data%weight, val )
+             inform%weight = MAX( inform%weight, val )
            END IF
          END IF
        END IF
 
-! write(6,*) 'weight', data%weight
+! write(6,*) 'weight', inform%weight
 
 ! if ( MOD( inform%iter, 100 ) == 0 ) THEN
 ! write(6,*) ' stop_g', data%stop_g
 ! write(6,*) ' new sigma:'
-! read(5,*) data%weight
+! read(5,*) inform%weight
 ! end if
 
    220 CONTINUE
@@ -2352,159 +2476,234 @@
 
        IF ( data%control%subproblem_direct ) THEN
 
-!  estimate lambda for the next subproblem
+!  norm constructed by the DPS package
 
-         IF ( inform%iter > 1 ) THEN
-
-!  only the weight for the next problem differs from the current one
-
-           IF ( data%poor_model ) THEN
-
-!  if there is a history of points with smaller norms, record them
-
-             IF ( inform%RQS_inform%len_history > 0 ) THEN
-               data%len_history = inform%RQS_inform%len_history
-               data%history( : data%len_history )                              &
-                 = inform%RQS_inform%history( : data%len_history )
-             ELSE
-               data%len_history = 0
-             END IF
-
-!  set the lower bound and estimate of the next multiplier to the current
-!  values, as Newton will converge rapidly from here
-
-             data%control%RQS_control%lower = inform%RQS_inform%multiplier
-             data%control%RQS_control%initial_multiplier =                     &
-               data%control%RQS_control%lower
-             data%control%RQS_control%use_initial_multiplier = .TRUE.
-
-!  if the hard case was possible, slightly perturb the multiplier
-
-             IF ( inform%RQS_inform%pole > zero )                              &
-               data%control%RQS_control%initial_multiplier =                   &
-                 data%control%RQS_control%initial_multiplier                   &
-                   + MAX( inform%RQS_inform%pole, one ) * epsmch ** half
-
-!  look through the history to see if a better starting value is available
-
-             DO i = data%len_history, 1, - 1
-               IF ( data%history( i )%lambda / data%history( i )%x_norm        &
-                    > data%weight ) THEN
-                 data%control%RQS_control%initial_multiplier =                 &
-                   data%history( i )%lambda
-               ELSE
-                 EXIT
-               END IF
-             END DO
-             data%control%RQS_control%initialize_approx_eigenvector = .FALSE.
-!            data%control%RQS_control%initialize_approx_eigenvector = .TRUE.
-
-!  the next problem is likley different - try to guess a good initial 
-!  value for the next multiplier
-
-           ELSE
-             data%control%RQS_control%lower = zero
-             data%control%RQS_control%use_initial_multiplier = .TRUE.
-             IF ( inform%RQS_inform%multiplier == zero ) THEN
-               data%control%RQS_control%initial_multiplier = zero
-             ELSE
-               data%control%RQS_control%initial_multiplier =                   &
-                 inform%RQS_inform%multiplier *                                &
-                   ( data%old_weight / data%weight ) +                         &
-                 inform%RQS_inform%pole *                                      &
-                 ( one - ( data%old_weight / data%weight ) )
-               IF ( inform%RQS_inform%pole > zero )                            &
-                 data%control%RQS_control%initial_multiplier =                 &
-                   data%control%RQS_control%initial_multiplier                 &
-                     + MAX( inform%RQS_inform%pole, one ) * epsmch ** half
-             END IF
-!            data%control%RQS_control%initialize_approx_eigenvector = .TRUE.
-           END IF
-         END IF
+         IF ( data%use_dps ) THEN
 
 !  refactorize the Hessian if it has changed
 
-         IF ( data%new_h ) THEN
-           IF ( data%nskip_prec > nskip_prec_max ) THEN
+           IF ( data%new_h ) THEN
              IF ( inform%iter <= 1 )THEN
-               data%control%RQS_control%new_h = 2
+               data%control%DPS_control%new_h = 2
              ELSE
-               data%control%RQS_control%new_m = 1
-               data%control%RQS_control%new_h = 1
+               data%control%DPS_control%new_h = 1
              END IF
-             data%nskip_prec = 0
            ELSE
-             data%control%RQS_control%new_m = 0
-             data%control%RQS_control%new_h = 0
+             data%control%DPS_control%new_h = 0
            END IF
-         END IF
 
 !  Solve the regularization subproblem
 !  ...................................
 
-         data%model = zero
-         facts_this_solve = inform%RQS_inform%factorizations
+           data%model = zero
+           IF ( data%poor_model ) THEN
+             CALL DPS_resolve( nlp%n, data%S( : nlp%n ), data%DPS_data,        &
+                               data%control%DPS_control, inform%DPS_inform,    &
+                               sigma = inform%weight, p = three )
+             facts_this_solve = 0
+           ELSE
+             CALL DPS_solve( nlp%n, nlp%H, nlp%G( : nlp%n ), data%model,       &
+                             data%S( : nlp%n ), data%DPS_data,                 &
+                             data%control%DPS_control, inform%DPS_inform,      &
+                             sigma = inform%weight, p = three )
 
-         IF ( data%non_trivial_p ) THEN
-           CALL RQS_solve( nlp%n, three, data%weight, data%model,              &
-                           nlp%G( : nlp%n ),                                   &
-                           nlp%H, data%S( : nlp%n ), data%RQS_data,            &
-                           data%control%RQS_control, inform%RQS_inform,        &
-                           M = data%P )
-         ELSE
-           CALL RQS_solve( nlp%n, three, data%weight, data%model,              &
-                           nlp%G( : nlp%n ),                                   &
-                           nlp%H, data%S( : nlp%n ), data%RQS_data,            &
-                           data%control%RQS_control, inform%RQS_inform )
-         END IF
-
-!write(6,*) data%S( : nlp%n )
+             facts_this_solve = 1
+             data%it_succ = data%it_succ + 1
+           END IF
 
 !  check for successful convergence
 
-!write(6,*) inform%RQS_inform%status, inform%RQS_inform%x_norm
-         IF ( inform%RQS_inform%status < 0 .AND.                               &
-              inform%RQS_inform%status /= GALAHAD_error_ill_conditioned ) THEN
-           IF ( data%printt ) WRITE( data%out, "( /,                           &
-          &    A, ' Error return from RQS, status = ', I0 )" ) prefix,         &
-             inform%RQS_inform%status
-           inform%status = inform%RQS_inform%status
-           GO TO 900
-         END IF
-         data%model = inform%RQS_inform%obj
-         IF ( inform%RQS_inform%hard_case ) data%hard = 'h'
-         facts_this_solve = inform%RQS_inform%factorizations - facts_this_solve
-!        inform%factorization_average = ( inform%factorization_average *       &
-!         ( inform%iter - 1 ) + inform%RQS_inform%factorizations ) / inform%iter
-!        inform%factorization_max =                                            &
-!          MAX( inform%factorization_max, inform%RQS_inform%factorizations )
-         inform%factorization_average =                                        &
-           inform%RQS_inform%factorizations / inform%iter
-         inform%factorization_max =                                            &
-           MAX( inform%factorization_max, facts_this_solve )
-         inform%max_entries_factors = MAX( inform%max_entries_factors,         &
-                                         inform%RQS_inform%max_entries_factors )
+!  check for successful convergence
 
-         IF ( inform%RQS_inform%pole > zero ) THEN
-           data%negcur = 'n'
+           IF ( inform%DPS_inform%status < 0 .AND.                             &
+                inform%DPS_inform%status /= GALAHAD_error_ill_conditioned ) THEN
+             IF ( data%printt ) WRITE( data%out, "( /,                         &
+            &    A, ' Error return from DPS, status = ', I0 )" ) prefix,       &
+               inform%DPS_inform%status
+             inform%status = inform%DPS_inform%status ; GO TO 900
+           END IF
+
+!  record subproblem solution information
+
+           data%model = inform%DPS_inform%obj_regularized
+           data%s_norm = inform%DPS_inform%x_norm
+           IF ( inform%DPS_inform%hard_case ) data%hard = 'h'
+!          inform%factorization_average = ( inform%factorization_average *     &
+!           ( inform%iter - 1 ) + inform%RQS_inform%factorizations )/inform%iter
+!          inform%factorization_max =                                          &
+!            MAX( inform%factorization_max, inform%RQS_inform%factorizations )
+           inform%factorization_average = data%it_succ / inform%iter
+           inform%factorization_max =                                          &
+             MAX( inform%factorization_max, facts_this_solve )
+           inform%max_entries_factors = MAX( inform%max_entries_factors,       &
+                inform%DPS_inform%SLS_inform%entries_in_factors )
+           IF ( inform%DPS_inform%pole > zero ) THEN
+             data%negcur = 'n'
+           ELSE
+             data%negcur = ' '
+           END IF
+
+           IF ( inform%DPS_inform%hard_case ) THEN
+             data%hard = 'h'
+           ELSE
+             data%hard = ' '
+           END IF
+
+           GO TO 400
+
+!  other norms
+
          ELSE
-           data%negcur = ' '
-         END IF
 
-         data%s_norm = inform%RQS_inform%x_norm
-         IF ( ABS( data%weight - data%s_norm ) <= 1.0D-8 ) THEN
-           data%bndry = 'b'
-         ELSE
-           data%bndry = ' '
-         END IF
+!  estimate lambda for the next subproblem
 
-         IF ( inform%RQS_inform%hard_case ) THEN
-           data%hard = 'h'
-         ELSE
-           data%hard = ' '
-         END IF
+           IF ( inform%iter > 1 ) THEN
 
-         GO TO 400
+!  only the weight for the next problem differs from the current one
+
+             IF ( data%poor_model ) THEN
+
+!  if there is a history of points with smaller norms, record them
+
+               IF ( inform%RQS_inform%len_history > 0 ) THEN
+                 data%len_history = inform%RQS_inform%len_history
+                 data%history( : data%len_history )                            &
+                   = inform%RQS_inform%history( : data%len_history )
+               ELSE
+                 data%len_history = 0
+               END IF
+
+!  set the lower bound and estimate of the next multiplier to the current
+!  values, as Newton will converge rapidly from here
+
+               data%control%RQS_control%lower = inform%RQS_inform%multiplier
+               data%control%RQS_control%initial_multiplier =                   &
+                 data%control%RQS_control%lower
+               data%control%RQS_control%use_initial_multiplier = .TRUE.
+
+!  if the hard case was possible, slightly perturb the multiplier
+
+               IF ( inform%RQS_inform%pole > zero )                            &
+                 data%control%RQS_control%initial_multiplier =                 &
+                   data%control%RQS_control%initial_multiplier                 &
+                     + MAX( inform%RQS_inform%pole, one ) * epsmch ** half
+
+!  look through the history to see if a better starting value is available
+
+               DO i = data%len_history, 1, - 1
+                 IF ( data%history( i )%lambda / data%history( i )%x_norm      &
+                      > inform%weight ) THEN
+                   data%control%RQS_control%initial_multiplier =               &
+                     data%history( i )%lambda
+                 ELSE
+                   EXIT
+                 END IF
+               END DO
+               data%control%RQS_control%initialize_approx_eigenvector = .FALSE.
+!              data%control%RQS_control%initialize_approx_eigenvector = .TRUE.
+
+!  the next problem is likley different - try to guess a good initial
+!  value for the next multiplier
+
+             ELSE
+               data%control%RQS_control%lower = zero
+               data%control%RQS_control%use_initial_multiplier = .TRUE.
+               IF ( inform%RQS_inform%multiplier == zero ) THEN
+                 data%control%RQS_control%initial_multiplier = zero
+               ELSE
+                 data%control%RQS_control%initial_multiplier =                 &
+                   inform%RQS_inform%multiplier *                              &
+                     ( data%old_weight / inform%weight ) +                     &
+                   inform%RQS_inform%pole *                                    &
+                   ( one - ( data%old_weight / inform%weight ) )
+                 IF ( inform%RQS_inform%pole > zero )                          &
+                   data%control%RQS_control%initial_multiplier =               &
+                     data%control%RQS_control%initial_multiplier               &
+                       + MAX( inform%RQS_inform%pole, one ) * epsmch ** half
+               END IF
+!              data%control%RQS_control%initialize_approx_eigenvector = .TRUE.
+             END IF
+           END IF
+
+!  refactorize the Hessian if it has changed
+
+           IF ( data%new_h ) THEN
+             IF ( data%nskip_prec > nskip_prec_max ) THEN
+               IF ( inform%iter <= 1 )THEN
+                 data%control%RQS_control%new_h = 2
+               ELSE
+                 data%control%RQS_control%new_m = 1
+                 data%control%RQS_control%new_h = 1
+               END IF
+               data%nskip_prec = 0
+             ELSE
+               data%control%RQS_control%new_m = 0
+               data%control%RQS_control%new_h = 0
+             END IF
+           END IF
+
+!  Solve the regularization subproblem
+!  ...................................
+
+           data%model = zero
+           facts_this_solve = inform%RQS_inform%factorizations
+
+           IF ( data%non_trivial_p ) THEN
+             CALL RQS_solve( nlp%n, three, inform%weight, data%model,          &
+                             nlp%G( : nlp%n ),                                 &
+                             nlp%H, data%S( : nlp%n ), data%RQS_data,          &
+                             data%control%RQS_control, inform%RQS_inform,      &
+                             M = data%P )
+           ELSE
+             CALL RQS_solve( nlp%n, three, inform%weight, data%model,          &
+                             nlp%G( : nlp%n ),                                 &
+                             nlp%H, data%S( : nlp%n ), data%RQS_data,          &
+                             data%control%RQS_control, inform%RQS_inform )
+           END IF
+
+!  check for successful convergence
+
+           IF ( inform%RQS_inform%status < 0 .AND.                             &
+                inform%RQS_inform%status /= GALAHAD_error_ill_conditioned ) THEN
+             IF ( data%printt ) WRITE( data%out, "( /,                         &
+            &    A, ' Error return from RQS, status = ', I0 )" ) prefix,       &
+               inform%RQS_inform%status
+             inform%status = inform%RQS_inform%status
+             GO TO 900
+           END IF
+
+!  record subproblem solution information
+
+           data%model = inform%RQS_inform%obj_regularized
+           data%s_norm = inform%RQS_inform%x_norm
+           IF ( inform%RQS_inform%hard_case ) data%hard = 'h'
+           facts_this_solve                                                    &
+             = inform%RQS_inform%factorizations - facts_this_solve
+!          inform%factorization_average = ( inform%factorization_average *     &
+!           ( inform%iter - 1 ) + inform%RQS_inform%factorizations )/inform%iter
+!          inform%factorization_max =                                          &
+!            MAX( inform%factorization_max, inform%RQS_inform%factorizations )
+           inform%factorization_average =                                      &
+             inform%RQS_inform%factorizations / inform%iter
+           inform%factorization_max =                                          &
+             MAX( inform%factorization_max, facts_this_solve )
+           inform%max_entries_factors = MAX( inform%max_entries_factors,       &
+                                        inform%RQS_inform%max_entries_factors )
+
+           IF ( inform%RQS_inform%pole > zero ) THEN
+             data%negcur = 'n'
+           ELSE
+             data%negcur = ' '
+           END IF
+
+           IF ( inform%RQS_inform%hard_case ) THEN
+             data%hard = 'h'
+           ELSE
+             data%hard = ' '
+           END IF
+
+           GO TO 400
+         END IF
        END IF
 
 !  3b. Iterative solution
@@ -2529,7 +2728,7 @@
 
 !  perform a generalized Lanczos iteration
 
-         CALL GLRT_solve( nlp%n, three, data%weight, data%S( : nlp%n ),        &
+         CALL GLRT_solve( nlp%n, three, inform%weight, data%S( : nlp%n ),        &
                           data%G_current( : nlp%n ), data%V( : nlp%n ),        &
                           data%GLRT_data, data%control%GLRT_control,           &
                           inform%GLRT_inform )
@@ -2556,7 +2755,7 @@
              data%V( : nlp%n ) = data%U( : nlp%n )
            ELSE IF ( data%nprec == user_preconditioner ) THEN
              IF ( data%reverse_prec ) THEN
-               data%branch = 6 ; inform%status = 6 ; RETURN
+               data%branch = 310 ; inform%status = 6 ; RETURN
              ELSE
                CALL eval_PREC( data%eval_status, nlp%X( : nlp%n ), userdata,   &
                                data%U( : nlp%n ), data%V( : nlp%n ) )
@@ -2568,36 +2767,41 @@
 
          CASE ( 3 )
 
-           data%U( : nlp%n ) = zero
            SELECT CASE( data%control%model )
 
 !  linear model
 
            CASE ( first_order_model )
+             data%V( : nlp%n ) = zero
 
-!  quadratic model with true Hessian
+!  quadratic model with true or sparsity-based Hessian
 
-           CASE (  second_order_model, sparsity_hessian_model )
+           CASE ( second_order_model, sparsity_hessian_model )
 
 !  if the Hessian has been calculated, form the product directly
 
              IF ( data%control%hessian_available ) THEN
-               DO l = 1, nlp%H%ne
-                 i = nlp%H%row( l ) ; j = nlp%H%col( l ) ; val = nlp%H%val( l )
-                 data%U( i ) = data%U( i ) + val * data%V( j )
-                 IF ( i /= j ) data%U( j ) = data%U( j ) + val * data%V( i )
-               END DO
+               CALL mop_Ax( one, nlp%H,  data%V( : nlp%n ), zero,              &
+                            data%U( : nlp%n ), data%out, data%control%error,   &
+                            0, symmetric = .TRUE. )
+!              DO l = 1, nlp%H%ne
+!                i = nlp%H%row( l ) ; j = nlp%H%col( l ) ; val = nlp%H%val( l )
+!                data%U( i ) = data%U( i ) + val * data%V( j )
+!                IF ( i /= j ) data%U( j ) = data%U( j ) + val * data%V( i )
+!              END DO
                data%V( : nlp%n ) = data%U( : nlp%n )
 
-!  if the Hessian is unavailable, obtain a matrix-free product 
+!  if the Hessian is unavailable, obtain a matrix-free product
 
              ELSE
+               data%U( : nlp%n ) = zero
                IF ( data%reverse_hprod ) THEN
-                 data%branch = 6 ; inform%status = 5 ; RETURN
+                 data%branch = 310 ; inform%status = 5 ; RETURN
                ELSE
                  CALL eval_HPROD( data%eval_status, nlp%X( : nlp%n ),          &
                                   userdata, data%U( : nlp%n ),                 &
-                                  data%V( : nlp%n ) )
+                                  data%V( : nlp%n ), got_h = data%got_h )
+                 data%got_h = .TRUE.
                END IF
              END IF
 
@@ -2642,15 +2846,13 @@
   310    CONTINUE
          IF (  data%control%model == second_order_model ) THEN
            IF ( .NOT. data%control%hessian_available ) THEN
-             IF ( inform%GLRT_inform%status == 3 .OR.                          &
-                  inform%GLRT_inform%status == 7 ) THEN
+             IF ( inform%GLRT_inform%status == 3 ) THEN
                inform%h_eval = inform%h_eval + 1 ; data%got_h = .TRUE.
                data%V( : nlp%n ) = data%U( : nlp%n )
              END IF
            END IF
          END IF
-         IF ( ( inform%GLRT_inform%status == 2 .OR.                            &
-                inform%GLRT_inform%status == 6 ) .AND.                         &
+         IF ( inform%GLRT_inform%status == 2 .AND.                             &
                 data%nprec == user_preconditioner .AND. data%reverse_prec ) THEN
            data%V( : nlp%n ) = data%U( : nlp%n )
          END IF
@@ -2660,7 +2862,7 @@
 !  ........................................
 
   390  CONTINUE
-       data%model = inform%GLRT_inform%obj
+       data%model = inform%GLRT_inform%obj_regularized
 !      WRITE(6,"( ' ratio model / f ', ES12.4 )" ) data%model / tf
 
 !  Record whether there is negative curvature or if the boundary is encountered
@@ -2672,7 +2874,6 @@
        END IF
 
        data%s_norm = inform%GLRT_inform%xpo_norm
-       data%bndry = ' '
 
 !  Record the total number of Lanczos iterations
 
@@ -2713,7 +2914,7 @@
 
        data%stg = DOT_PRODUCT( data%S( : nlp%n ), nlp%G( : nlp%n ) )
        data%hstbs = two * ( data%model - data%stg -                            &
-                            data%weight * ( data%s_norm ** 3 ) / three )
+                            inform%weight * ( data%s_norm ** 3 ) / three )
 
 !write(6,*) ' gTs, 1/2stBs ', data%stg, data%hstbs
 !  prepare for advanced starting-point calculation if requested
@@ -2725,25 +2926,25 @@
            data%weight_max = data%control%minimum_weight
          END IF
 !write(6,*) ' weight_max ', data%weight_max
-         data%weight = data%s_norm
-         data%X_best( : nlp%n )  = nlp%X( : nlp%n ) 
+         inform%weight = data%s_norm
+         data%X_best( : nlp%n )  = nlp%X( : nlp%n )
          data%f_best = inform%obj
          data%m_best = data%model
        END IF
 
 !  record the current point
 
-       data%X_current( : nlp%n )  = nlp%X( : nlp%n ) 
+       data%X_current( : nlp%n )  = nlp%X( : nlp%n )
 
 !  form the trial point
 
  410   CONTINUE
-       nlp%X( : nlp%n ) = data%X_current( : nlp%n ) + data%S( : nlp%n ) 
+       nlp%X( : nlp%n ) = data%X_current( : nlp%n ) + data%S( : nlp%n )
 
 !  evaluate the objective function at the trial point
 
        IF ( data%reverse_f ) THEN
-         data%branch = 7 ; inform%status = 2 ; RETURN
+         data%branch = 420 ; inform%status = 2 ; RETURN
        ELSE
          CALL eval_F( data%eval_status, nlp%X( : nlp%n ), userdata,            &
                       data%f_trial )
@@ -2760,6 +2961,7 @@
 
        IF ( data%f_is_nan ) THEN
          data%poor_model = .TRUE.
+         data%accept = 'r'
          nlp%X( : nlp%n ) = data%X_current( : nlp%n )
 
 !  control printing for the NaN case
@@ -2768,7 +2970,7 @@
               inform%iter < data%stop_print .AND.                              &
               MOD( inform%iter + 1 - data%start_print, data%print_gap ) == 0 ) &
              THEN
-           data%printi = data%set_printi ; data%printt = data%set_printt 
+           data%printi = data%set_printi ; data%printt = data%set_printt
            data%printm = data%set_printm ; data%printd = data%set_printd
            data%print_level = data%control%print_level
            data%control%GLRT_control%print_level = data%print_level_glrt
@@ -2790,6 +2992,7 @@
 
          IF ( data%printi ) THEN
             IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
+             WRITE( data%out, 2090 ) prefix
              IF ( data%control%subproblem_direct ) THEN
                WRITE( data%out, 2100 ) prefix
              ELSE
@@ -2803,8 +3006,8 @@
                ADJUSTR( STRING_integer_6( inform%RQS_inform%factorizations ) )
              WRITE( data%out,  "( A, A6, 3A1, '     NaN         -  ',          &
             &  '    - Inf ',  2ES8.1, A7, F12.2 )" )                           &
-                prefix, char_iter, data%hard, data%negcur, data%bndry,         &
-                data%weight, inform%RQS_inform%x_norm,                         &
+                prefix, char_iter, data%hard, data%negcur,                     &
+                inform%weight, inform%RQS_inform%x_norm,                         &
                 char_facts, data%clock_now
            ELSE
              char_sit = ADJUSTR( STRING_integer_6( inform%GLRT_inform%iter ) )
@@ -2812,8 +3015,8 @@
                 ADJUSTR( STRING_integer_6( inform%GLRT_inform%iter_pass2 ) )
              WRITE( data%out, "( A, A6, 3A1, '     NaN         -  ',           &
             &  '    - Inf ', 2ES8.1, 2A7, F11.2 )" ) prefix,                   &
-                char_iter, data%negcur, data%bndry,  data%perturb,             &
-                data%weight, inform%GLRT_inform%xpo_norm,                      &
+                char_iter, data%negcur, data%perturb,                          &
+                inform%weight, inform%GLRT_inform%xpo_norm,                      &
                 char_sit, char_sit2, data%clock_now
            END IF
          END IF
@@ -2837,19 +3040,19 @@
 
 !  increase the regularization and try again
 
-         data%weight = data%weight * data%control%weight_increase_max
+         inform%weight = inform%weight * data%control%weight_increase_max
          GO TO 220
        END IF
 
 !  test to see if the objective appears to be unbounded from below
 
-       IF ( data%f_trial < control%obj_unbounded ) THEN 
+       IF ( data%f_trial < control%obj_unbounded ) THEN
          inform%obj = data%f_trial
          IF ( data%printi ) WRITE( data%out,                                   &
           "( A, ' objective value', ES12.4, ' is lower than unbounded limit',  &
          &   ES12.4 )" ) prefix, data%f_trial, control%obj_unbounded
          inform%status = GALAHAD_error_unbounded ; GO TO 990
-       END IF 
+       END IF
 
 !  Advanced starting point
 !  .......................
@@ -2862,7 +3065,7 @@
 
 !  If the predicted weight is larger than its upper bound, exit
 
-         IF ( data%weight >= data%weight_max ) GO TO 430
+         IF ( inform%weight >= data%weight_max ) GO TO 430
 
 !  perform another iteration
 
@@ -2875,7 +3078,7 @@
 !  record any improvement in the objective value
 
            IF ( data%f_trial < data%f_best ) THEN
-             data%X_best( : nlp%n )  = nlp%X( : nlp%n ) 
+             data%X_best( : nlp%n )  = nlp%X( : nlp%n )
              data%f_best = data%f_trial
              data%m_best = data%model
            END IF
@@ -2951,15 +3154,15 @@
              END IF
            END IF
 
-!  restrict any increasze so that the weight does not exceed its maximim value
+!  restrict any increasze so that the weight does not exceed its maximum value
 
-           tau = MIN( tau, data%weight_max / data%weight )
+           tau = MIN( tau, data%weight_max / inform%weight )
 !write(6,*) ' tau ', tau
 
 !  update the weight and step length
 
-           data%old_weight = data%weight
-           data%weight = data%weight * tau
+           data%old_weight = inform%weight
+           inform%weight = inform%weight * tau
            data%s_norm = data%s_norm * tau
 
 !  update the slope, curvature and model value
@@ -2970,6 +3173,7 @@
 
            IF ( data%printi ) THEN
               IF ( data%print_iteration_header .OR. data%print_1st_header ) THEN
+               WRITE( data%out, 2090 ) prefix
                IF ( data%control%subproblem_direct ) THEN
                  WRITE( data%out, 2100 ) prefix
                ELSE
@@ -2985,8 +3189,8 @@
              IF ( data%control%subproblem_direct ) THEN
                char_facts =                                                    &
                  ADJUSTR( STRING_integer_6( inform%RQS_inform%factorizations ) )
-               WRITE( data%out, 2120 ) prefix, char_iter, data%hard,           &
-                  data%negcur, data%bndry, data%f_trial, inform%norm_g,        &
+               WRITE( data%out, 2120 ) prefix, char_iter, data%accept,         &
+                  data%hard, data%negcur, data%f_trial, inform%norm_g,         &
                   data%ratio,  data%old_weight, inform%RQS_inform%x_norm,      &
                   char_facts, data%clock_now
                 inform%RQS_inform%factorizations = 0
@@ -2994,8 +3198,8 @@
                char_sit = ADJUSTR( STRING_integer_6( inform%GLRT_inform%iter ) )
                char_sit2 =                                                     &
                  ADJUSTR( STRING_integer_6( inform%GLRT_inform%iter_pass2 ) )
-               WRITE( data%out, 2130 ) prefix, char_iter, data%negcur,         &
-                  data%bndry, data%perturb, data%f_trial, inform%norm_g,       &
+               WRITE( data%out, 2130 ) prefix, char_iter, data%accept,         &
+                  data%negcur, data%perturb, data%f_trial, inform%norm_g,      &
                   data%ratio, data%old_weight, inform%GLRT_inform%xpo_norm,    &
                   char_sit, char_sit2, data%clock_now
                 inform%GLRT_inform%iter = 0
@@ -3035,10 +3239,10 @@
        prered = - data%model + rounding
        IF ( ABS( ared ) < teneps .AND. ABS( inform%obj ) > teneps )            &
          ared = prered
-!write(6,*) ' rho trad, new ', ared / prered, data%ratio, ared / ( prered + data%weight * ( data%s_norm ** 3 ) / three ) 
+!write(6,*) ' rho trad, new ', ared / prered, data%ratio, ared / ( prered + inform%weight * ( data%s_norm ** 3 ) / three )
        IF ( data%control%quadratic_ratio_test ) THEN
          data%ratio                                                            &
-           = ared / ( prered + data%weight * ( data%s_norm ** 3 ) / three ) 
+           = ared / ( prered + inform%weight * ( data%s_norm ** 3 ) / three )
        ELSE
          data%ratio = ared / prered
        END IF
@@ -3071,26 +3275,51 @@
 
 !  compute the gradient of the model at the new point; store in U
 
-         data%U( : nlp%n ) = nlp%G( : nlp%n )
-         IF ( data%control%hessian_available ) THEN
-           DO l = 1, nlp%H%ne
-             i = nlp%H%row( l ) ; j = nlp%H%col( l ) ; val = nlp%H%val( l )
-             data%U( i ) = data%U( i ) + val * data%S( j )
-             IF ( i /= j )                                                     &
-               data%U( j ) = data%U( j ) + val * data%S( i )
-           END DO
- 
+         SELECT CASE( data%control%model )
+
+!  linear model
+
+         CASE ( first_order_model )
+           data%U( : nlp%n ) = nlp%G( : nlp%n )
+
+!  quadratic model with true or sparsity-based Hessian
+
+         CASE ( second_order_model, sparsity_hessian_model )
+           data%U( : nlp%n ) = nlp%G( : nlp%n )
+           IF ( data%control%hessian_available ) THEN
+             CALL mop_Ax( one, nlp%H,  data%S( : nlp%n ), one,                 &
+                          data%U( : nlp%n ), data%out, data%control%error,     &
+                          0, symmetric = .TRUE. )
+
 !  if necessary, return to the user to obtain the model Hessian product with s
 
-        ELSE
-           IF ( data%reverse_hprod ) THEN
-             data%V( : nlp%n ) = data%S( : nlp%n )
-             data%branch = 8 ; inform%status = 5 ; RETURN
            ELSE
-             CALL eval_HPROD( data%eval_status, nlp%X( : nlp%n ), userdata,    &
-                              data%U( : nlp%n ), data%S( : nlp%n ) )
+             IF ( data%reverse_hprod ) THEN
+               data%V( : nlp%n ) = data%S( : nlp%n )
+               CALL SWAP( nlp%n, nlp%X( : nlp%n ), 1,                          &
+                          data%X_current( : nlp%n ), 1 ) ! evaluate at current x
+               data%branch = 440 ; inform%status = 5 ; RETURN
+             ELSE
+               CALL eval_HPROD( data%eval_status, data%X_current( : nlp%n ),   &
+                                userdata, data%U( : nlp%n ), data%S( : nlp%n ),&
+                                got_h = data%got_h )
+               data%got_h = .TRUE.
+             END IF
            END IF
-         END IF
+
+!  quadratic model with identity Hessian
+
+         CASE ( identity_hessian_model )
+           data%U( : nlp%n ) = nlp%G( : nlp%n ) + data%S( : nlp%n )
+
+!  quadratic model with limited-memory Hessian
+
+         CASE ( l_bfgs_hessian_model, l_sr1_hessian_model )
+           CALL LMS_apply( data%S( : nlp%n ), data%U( : nlp%n ),             &
+                           data%LMS_data, data%control%LMS_control,          &
+                           inform%LMS_inform )
+           data%U( : nlp%n ) = data%U( : nlp%n ) + nlp%G( : nlp%n )
+         END SELECT
        END IF
 
 !  the new point is acceptable
@@ -3098,18 +3327,20 @@
  440   CONTINUE
        IF ( data%ratio >= data%control%eta_successful ) THEN
          data%poor_model = .FALSE.
+         data%accept = 'a'
          inform%obj = data%f_trial
 
 !  evaluate the gradient of the objective function
- 
+
          IF ( data%reverse_g ) THEN
-            data%branch = 9 ; inform%status = 3 ; RETURN
+            data%branch = 450 ; inform%status = 3 ; RETURN
          ELSE
            CALL eval_G( data%eval_status, nlp%X( : nlp%n ),                    &
                         userdata, nlp%G( : nlp%n ) )
          END IF
        ELSE
          data%poor_model = .TRUE.
+         data%accept = 'r'
          nlp%X( : nlp%n ) = data%X_current( : nlp%n )
        END IF
 
@@ -3146,7 +3377,7 @@
              data%D_hist( i ) = data%D_hist( i + 1 )
            END DO
 
-!  replace the oldest 
+!  replace the oldest
 
            data%F_hist( data%non_monotone_history + 1 ) = inform%obj
            data%D_hist( data%non_monotone_history + 1 ) = data%model
@@ -3154,12 +3385,12 @@
 !  find how much past history is allowed
 
            data%max_hist = MIN( data%max_hist + 1, data%non_monotone_history )
-   
+
 !          write( 6, "( ' f, fref ', 2ES12.4 ) " ) inform%obj, data%f_ref
 !          write( 6, "( ' fhist ', ( 6ES12.4 ) ) " ) &
 !            data%F_hist( data%non_monotone_history + 2 - data%max_hist :      &
 !                         data%non_monotone_history + 1 )
-   
+
          END IF
 
 !  the new point is not acceptable
@@ -3257,27 +3488,35 @@
               prefix, TRIM( data%control%RQS_control%definite_linear_solver )
          END IF
          SELECT CASE ( data%nprec )
-         CASE ( user_preconditioner ) 
+         CASE ( user_preconditioner )
            WRITE( data%out, "( A, '  User-defined regularization used' )" )    &
              prefix
-         CASE ( l_bfgs_preconditioner ) 
+         CASE ( l_bfgs_preconditioner )
            WRITE( data%out, "( A, 2X, I0, '-step L-BFGS TR-norm used' )" )     &
              prefix, data%control%LMS_control_prec%memory_length
-         CASE ( identity_preconditioner ) 
+         CASE ( identity_preconditioner )
            WRITE( data%out, "( A, '  Two-norm regularization used' )" ) prefix
-         CASE ( diagonal_preconditioner ) 
+         CASE ( diagonal_preconditioner )
            WRITE( data%out, "( A, '  Diagonal regularization used' )" ) prefix
-         CASE ( band_preconditioner ) 
+         CASE ( band_preconditioner )
            WRITE( data%out, "( A, '  Band regularization (semi-bandwidth ',    &
           &   I0, ') used' )" ) prefix, inform%PSLS_inform%semi_bandwidth_used
-         CASE ( reordered_band_preconditioner ) 
+         CASE ( reordered_band_preconditioner )
            WRITE( data%out,                                                    &
              "( A, ' Reordered band regularization (semi-bandwidth ',          &
           &   I0, ') used' )" ) prefix, inform%PSLS_inform%semi_bandwidth_used
          CASE ( schnabel_eskow_preconditioner, gmps_preconditioner,            &
-                lin_more_preconditioner, mi28_preconditioner ) 
+                lin_more_preconditioner, mi28_preconditioner )
            WRITE(data%out,"( A, '  Modified full matrix regularization used')")&
              prefix
+         CASE (  diagonalising_preconditioner )
+           IF (  data%control%DPS_control%goldfarb ) THEN
+             WRITE(data%out, "( A,                                             &
+            &  '  Goldfarb diagonalising-norm regularization used')")  prefix
+           ELSE
+             WRITE(data%out, "( A, '  Modified absolute-value ',               &
+            &   'diagonalising-norm regularization used')")  prefix
+           END IF
          END SELECT
          WRITE( data%out, "( A, '  Number of factorization = ', I0,            &
         &     ', factorization time = ', F0.2, ' seconds'  )" ) prefix,        &
@@ -3299,32 +3538,32 @@
              inform%PSLS_inform%semi_bandwidth,                                &
              inform%PSLS_inform%reordered_semi_bandwidth
          SELECT CASE ( data%nprec )
-         CASE ( user_preconditioner ) 
+         CASE ( user_preconditioner )
            WRITE( data%out, "( A, '  User-defined norm used' )" )              &
              prefix
-         CASE ( l_bfgs_preconditioner ) 
+         CASE ( l_bfgs_preconditioner )
            WRITE( data%out, "( A, 2X, I0, '-step L-BFGS TR-norm used' )" )     &
              prefix, data%control%LMS_control_prec%memory_length
-         CASE ( identity_preconditioner ) 
+         CASE ( identity_preconditioner )
            WRITE( data%out, "( A, '  Two-norm used' )" ) prefix
-         CASE ( diagonal_preconditioner ) 
+         CASE ( diagonal_preconditioner )
            WRITE( data%out, "( A, '  Diagonal norm used' )" ) prefix
-         CASE ( band_preconditioner ) 
+         CASE ( band_preconditioner )
            WRITE( data%out, "( A, '  Band norm (semi-bandwidth ',              &
           &   I0, ') used' )" ) prefix, inform%PSLS_inform%semi_bandwidth_used
-         CASE ( reordered_band_preconditioner ) 
+         CASE ( reordered_band_preconditioner )
            WRITE( data%out, "( A, '  Re-ordered band norm (semi-bandwidth ',   &
           &   I0, ') used' )" ) prefix, inform%PSLS_inform%semi_bandwidth_used
-         CASE ( schnabel_eskow_preconditioner ) 
+         CASE ( schnabel_eskow_preconditioner )
            WRITE( data%out, "( A, '  SE (solver ', A, ') full norm used' )" )  &
              prefix, TRIM( data%control%PSLS_control%definite_linear_solver )
-         CASE ( gmps_preconditioner ) 
+         CASE ( gmps_preconditioner )
            WRITE( data%out, "( A, '  GMPS (solver ', A, ') full norm used' )" )&
              prefix, TRIM( data%control%PSLS_control%definite_linear_solver )
-         CASE ( lin_more_preconditioner  ) 
+         CASE ( lin_more_preconditioner  )
            WRITE( data%out, "( A, '  Lin-More''(', I0, ') incomplete Cholesky',&
           &  ' factorization used ' )" ) prefix, data%control%icfs_vectors
-         CASE ( mi28_preconditioner ) 
+         CASE ( mi28_preconditioner )
            WRITE( data%out, "( A, '  HSL_MI28(', I0, ',', I0,                  &
           & ') incomplete Cholesky factorization TR-norm used ' )" )           &
             prefix, data%control%mi28_lsize, data%control%mi28_rsize
@@ -3350,17 +3589,14 @@
      RETURN
 
  990 CONTINUE
-!write(6,*) nlp%n, g_min, moved
-!write(6,*) ' ||x||_inf = ', x_inf
-
      CALL CPU_time( data%time_record ) ; CALL CLOCK_time( data%clock_record )
      inform%time%total = data%time_record - data%time_start
      inform%time%clock_total = data%clock_record - data%clock_start
 !    IF ( data%printi ) WRITE( data%out, "( A, ' Inform = ', I0, ' Stopping')")&
 !      prefix, inform%status
-    IF ( data%printi ) THEN
-       CALL SYMBOLS_status( inform%status, data%out, prefix, 'ARC_solve' )
-       WRITE( data%out, "( ' ' )" )
+     IF ( control%error > 0 ) THEN
+       CALL SYMBOLS_status( inform%status, control%error, prefix, 'ARC_solve' )
+       WRITE( control%error, "( ' ' )" )
      END IF
      RETURN
 
@@ -3378,59 +3614,61 @@
  2030 FORMAT(  A, 1X, I10, 2ES12.4 )
  2040 FORMAT( /, A, ' Problem: ', A, ' n = ', I8 )
  2050 FORMAT( A, ' .          ........... ...........' )
- 2100 FORMAT( A, '    It         f        grad    ',                           &
+ 2090 FORMAT( A, '        (a=accept r=reject',                                 &
+                 ' n=-ve curvature h=hard case)' )
+ 2100 FORMAT( A, '    It           f        grad    ',                         &
              ' ratio   weight  step   # fact        time' )
- 2110 FORMAT( A, '    It         f        grad    ',                           &
-             ' ratio   weight   step  pass 1 pass 2       time' )
- 2120 FORMAT( A, A6, 3A1, ES12.4, ES9.2, ES9.1, 2ES8.1, A7, F12.2 )
- 2130 FORMAT( A, A6, 3A1, ES12.4, ES9.2, ES9.1, 2ES8.1, 2A7, F11.2 )
- 2140 FORMAT( A, A6, 3X, ES12.4, ES9.2, 9X, ES8.1 )
+ 2110 FORMAT( A, '    It           f       grad     ',                         &
+             'ratio   weight  step   pass 1 pass 2      time' )
+ 2120 FORMAT( A, A6, 1X, 3A1, ES12.4, ES9.2, ES9.1, 2ES8.1, A7, F12.2 )
+ 2130 FORMAT( A, A6, 1X, 3A1, ES12.4, ES9.2, ES9.1, 2ES8.1, 2A7, F10.2 )
+ 2140 FORMAT( A, A6, 4X, ES12.4, ES9.2, 9X, ES8.1 )
 
  !  End of subroutine ARC_solve
 
      END SUBROUTINE ARC_solve
 
-!-* G A L A H A D -  A R C _ u p d a t e _ h i s t o r y  S U B R O U T I N E -*
-
-     SUBROUTINE ARC_update_history( history, max_hist, F_hist, F_ref, f )
-
-!-----------------------------------------------
-!   D u m m y   A r g u m e n t s
-!-----------------------------------------------
-
-     INTEGER, INTENT( IN ) :: history
-     INTEGER, INTENT( INOUT ) :: max_hist
-     REAL ( KIND = wp ), INTENT( OUT ) :: F_ref
-     REAL ( KIND = wp ), INTENT( IN ) :: f
-     REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( history + 1 ) :: F_hist
-
-!-----------------------------------------------
-!   L o c a l   V a r i a b l e s
-!-----------------------------------------------
-
-     INTEGER :: i
-
-!  Shift history of function values
-
-     DO i = 1, history
-       F_hist( i ) = F_hist( i + 1 )
-     END DO
-
-!  Replace the oldest 
-
-     F_hist( history + 1 ) = f
-
-!  Find how much past history is allowed
-
-     max_hist = MIN( max_hist + 1, history )
-
-!  Compute the largest f in the history
-
-     f_ref = MAXVAL( F_hist( history + 2 - max_hist : history + 1 ) )
-
-     RETURN
-
-     END SUBROUTINE ARC_update_history
+!!-* G A L A H A D -  A R C _ u p d a t e _ h i s t o r y  S U B R O U T I N E -*
+!
+!     SUBROUTINE ARC_update_history( history, max_hist, F_hist, F_ref, f )
+!
+!!-----------------------------------------------
+!!   D u m m y   A r g u m e n t s
+!!-----------------------------------------------
+!
+!     INTEGER, INTENT( IN ) :: history
+!     INTEGER, INTENT( INOUT ) :: max_hist
+!     REAL ( KIND = wp ), INTENT( OUT ) :: F_ref
+!     REAL ( KIND = wp ), INTENT( IN ) :: f
+!     REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( history + 1 ) :: F_hist
+!
+!!-----------------------------------------------
+!!   L o c a l   V a r i a b l e s
+!!-----------------------------------------------
+!
+!     INTEGER :: i
+!
+!!  Shift history of function values
+!
+!     DO i = 1, history
+!       F_hist( i ) = F_hist( i + 1 )
+!     END DO
+!
+!!  Replace the oldest
+!
+!     F_hist( history + 1 ) = f
+!
+!!  Find how much past history is allowed
+!
+!     max_hist = MIN( max_hist + 1, history )
+!
+!!  Compute the largest f in the history
+!
+!     f_ref = MAXVAL( F_hist( history + 2 - max_hist : history + 1 ) )
+!
+!     RETURN
+!
+!     END SUBROUTINE ARC_update_history
 
 !-*-*-  G A L A H A D -  A R C _ t e r m i n a t e  S U B R O U T I N E -*-*-
 
@@ -3449,7 +3687,7 @@
      TYPE ( ARC_data_type ), INTENT( INOUT ) :: data
      TYPE ( ARC_control_type ), INTENT( IN ) :: control
      TYPE ( ARC_inform_type ), INTENT( INOUT ) :: inform
- 
+
 !-----------------------------------------------
 !   L o c a l   V a r i a b l e s
 !-----------------------------------------------
@@ -3531,19 +3769,19 @@
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%DX_past'
+     array_name = 'arc: data%DX_past'
      CALL SPACE_dealloc_array( data%DX_past,                                   &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%DG_past'
+     array_name = 'arc: data%DG_past'
      CALL SPACE_dealloc_array( data%DG_past,                                   &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%PAST'
+     array_name = 'arc: data%PAST'
      CALL SPACE_dealloc_array( data%PAST,                                      &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
@@ -3555,37 +3793,55 @@
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%VAL_est'
+     array_name = 'arc: data%VAL_est'
      CALL SPACE_dealloc_array( data%VAL_est,                                   &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%DX_svd'
+     array_name = 'arc: data%DX_svd'
      CALL SPACE_dealloc_array( data%DX_svd,                                    &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%U_svd'
+     array_name = 'arc: data%U_svd'
      CALL SPACE_dealloc_array( data%U_svd,                                     &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%VT_svd'
+     array_name = 'arc: data%VT_svd'
      CALL SPACE_dealloc_array( data%VT_svd,                                    &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%S_svd'
+     array_name = 'arc: data%S_svd'
      CALL SPACE_dealloc_array( data%S_svd,                                     &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
      IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
 
-     array_name = 'tru: data%WORK_svd'
+     array_name = 'arc: data%P%row'
+     CALL SPACE_dealloc_array( data%P%row,                                     &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%P%col'
+     CALL SPACE_dealloc_array( data%P%col,                                     &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%P%val'
+     CALL SPACE_dealloc_array( data%P%val,                                     &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%WORK_svd'
      CALL SPACE_dealloc_array( data%WORK_svd,                                  &
         inform%status, inform%alloc_status, array_name = array_name,           &
         bad_alloc = inform%bad_alloc, out = control%error )
@@ -3664,12 +3920,97 @@
 
      END SUBROUTINE ARC_terminate
 
+!-  G A L A H A D -  A R C _ f u l l _ t e r m i n a t e  S U B R O U T I N E -
+
+     SUBROUTINE ARC_full_terminate( data, control, inform )
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!   Deallocate all private storage
+
+!  *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( ARC_control_type ), INTENT( IN ) :: control
+     TYPE ( ARC_inform_type ), INTENT( INOUT ) :: inform
+
+!-----------------------------------------------
+!   L o c a l   V a r i a b l e s
+!-----------------------------------------------
+
+     CHARACTER ( LEN = 80 ) :: array_name
+
+!  deallocate workspace
+
+     CALL ARC_terminate( data%arc_data, data%arc_control, data%arc_inform )
+     inform = data%arc_inform
+
+!  deallocate any internal problem arrays
+
+     array_name = 'arc: data%nlp%X'
+     CALL SPACE_dealloc_array( data%nlp%X,                                     &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%G'
+     CALL SPACE_dealloc_array( data%nlp%G,                                     &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%Z'
+     CALL SPACE_dealloc_array( data%nlp%Z,                                     &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%H%row'
+     CALL SPACE_dealloc_array( data%nlp%H%row,                                 &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%H%col'
+     CALL SPACE_dealloc_array( data%nlp%H%col,                                 &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%H%ptr'
+     CALL SPACE_dealloc_array( data%nlp%H%ptr,                                 &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%H%val'
+     CALL SPACE_dealloc_array( data%nlp%H%val,                                 &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     array_name = 'arc: data%nlp%H%type'
+     CALL SPACE_dealloc_array( data%nlp%H%type,                                &
+        inform%status, inform%alloc_status, array_name = array_name,           &
+        bad_alloc = inform%bad_alloc, out = control%error )
+     IF ( control%deallocate_error_fatal .AND. inform%status /= 0 ) RETURN
+
+     RETURN
+
+!  End of subroutine ARC_full_terminate
+
+     END SUBROUTINE ARC_full_terminate
+
 !-* G A L A H A D -  A R C _ a d j u s t _ w e i g h t   S U B R O U T I N E *-
 
      SUBROUTINE ARC_adjust_weight( sigma, model, gts, sths, s_norm, rho,       &
                                    control )
 
-!  Compute the new regularization weight sigma_new following a very succerssful 
+!  Compute the new regularization weight sigma_new following a very succerssful
 !  iteration, using the recipe proposed in Gould, Porcelli and Toint (2011) -
 !  paper equation numbers as indicated in comments
 
@@ -3691,10 +4032,10 @@
      REAL ( KIND = wp ) :: chi, beta_chi, alpha_min,  p_f3, cmq, cmfplus
      REAL ( KIND = wp ) :: alpha_star, sigma_star, root1, root2, root_tol
 
-     root_tol = epsmch ** 0.75 
+     root_tol = epsmch ** 0.75
 
 !  recall q(s) = f(x) + g^T s + 1/2 s^T H s
-!         c(s) = f(x) + g^T s + 1/2 s^T H s + sigma ||s||^3/3 
+!         c(s) = f(x) + g^T s + 1/2 s^T H s + sigma ||s||^3/3
 !              = q(s) + sigma ||s||^3/3 and
 !         m(s) = g^T s + 1/2 s^T H s + sigma ||s||^3/3 = c(s) - f(x)
 !  and thus c(s) = f(x) + m(s)
@@ -3715,10 +4056,10 @@
 !  compute the over-estimation gap, chi = c_new - MAX( f_new, q_new )
 
        chi = MIN( cmfplus, cmq )
- 
+
 !  chi is significant
 
-       IF ( chi >= control%tiny_gap ) THEN 
+       IF ( chi >= control%tiny_gap ) THEN
 
 !  form beta_chi = beta * chi and alpha_min = cuberoot( beta )
 
@@ -3760,7 +4101,7 @@
          ELSE
            CALL ROOTS_cubic( three * beta_chi, gts, sths, three * p_f3,      &
                              root_tol, nroots, root( 1 ), root( 2 ),           &
-                             root( 3 ), .FALSE. )  
+                             root( 3 ), .FALSE. )
 
 !  compute alpha_* to be the smallest root larger than alpha_min, if any
 
@@ -3782,7 +4123,7 @@
            ELSE
              sigma = control%weight_decrease_min * sigma
            END IF
-         END IF 
+         END IF
 
 !  chi is insignificant
 
@@ -3797,18 +4138,18 @@
 !  very successful iteration
 !  -------------------------
 
-     ELSE IF ( rho >= control%eta_very_successful ) THEN  
+     ELSE IF ( rho >= control%eta_very_successful ) THEN
        sigma = MAX( control%weight_decrease * sigma, teneps )
 
 !  successful iteration
 !  --------------------
 
-     ELSE IF ( rho >= control%eta_successful ) THEN 
-   
+     ELSE IF ( rho >= control%eta_successful ) THEN
+
 !  unsuccessful iteration
 !  ----------------------
 
-     ELSE IF (rho >= zero ) THEN 
+     ELSE IF (rho >= zero ) THEN
        sigma = control%weight_increase * sigma
 
 !  very unsuccessful iteration
@@ -3816,21 +4157,21 @@
 
      ELSE
 
-!  compute alpha_* to be the positive root of 
+!  compute alpha_* to be the positive root of
 !     (6 - 4 eta) g^T s + alpha (3 - eta) s^T H s + 6 p_f3 alpha^2 = 0    (3.23)
 !  where p_f3 = f(x+s) - c(s)
 
        CALL ROOTS_quadratic( ( six - four * control%eta_successful ) * gts,    &
                              ( three - control%eta_successful ) * sths,        &
                                six * p_f3, root_tol, nroots, root1, root2,     &
-                               .FALSE. )   
+                               .FALSE. )
        IF ( nroots == 2 ) THEN
          alpha_star = root2
-       ELSE 
+       ELSE
          alpha_star = root1
        END IF
 
-!  this gives 
+!  this gives
 !     sigma_* = ( -g^T s - alpha_* s^T H s ) / alpha_*^2 ||s||^3          (3.26)
 
        sigma_star = ( - gts - sths * alpha_star ) /                            &
@@ -3849,6 +4190,532 @@
 !  End of subroutine ARC_adust_weight
 
      END SUBROUTINE ARC_adjust_weight
+
+! -----------------------------------------------------------------------------
+! =============================================================================
+! -----------------------------------------------------------------------------
+!              specific interfaces to make calls from C easier
+! -----------------------------------------------------------------------------
+! =============================================================================
+! -----------------------------------------------------------------------------
+
+!-*-*-*-*-  G A L A H A D -  A R C _ i m p o r t _ S U B R O U T I N E -*-*-*-*-
+
+     SUBROUTINE ARC_import( control, data, status, n, H_type, ne, H_row,       &
+                            H_col, H_ptr )
+
+!  import fixed problem data into internal storage prior to solution. 
+!  Arguments are as follows:
+
+!  control is a derived type whose components are described in the leading 
+!   comments to ARC_solve
+!
+!  data is a scalar variable of type ARC_full_data_type used for internal data
+!
+!  status is a scalar variable of type default intege that indicates the
+!   success or otherwise of the import. Possible values are:
+!
+!    1. The import was succesful, and the package is ready for the solve phase
+!
+!   -1. An allocation error occurred. A message indicating the offending
+!       array is written on unit control.error, and the returned allocation
+!       status and a string containing the name of the offending array
+!       are held in inform.alloc_status and inform.bad_alloc respectively.
+!   -2. A deallocation error occurred.  A message indicating the offending
+!       array is written on unit control.error and the returned allocation
+!       status and a string containing the name of the offending array
+!       are held in inform.alloc_status and inform.bad_alloc respectively.
+!   -3. The restriction n > 0 or requirement that H_type contains
+!       its relevant string 'DENSE', 'COORDINATE', 'SPARSE_BY_ROWS',
+!       'DIAGONAL' or 'ABSENT' has been violated.
+!
+!  n is a scalar variable of type default integer, that holds the number of
+!   variables
+!
+!  H_type is a character string that specifies the Hessian storage scheme
+!   used. It should be one of 'coordinate', 'sparse_by_rows', 'dense',
+!   'diagonal' or 'absent', the latter if access to the Hessian is via
+!   matrix-vector products; lower or upper case variants are allowed
+!
+!  ne is a scalar variable of type default integer, that holds the number of
+!   entries in the  lower triangular part of H in the sparse co-ordinate
+!   storage scheme. It need not be set for any of the other three schemes.
+!
+!  H_row is a rank-one array of type default integer, that holds
+!   the row indices of the  lower triangular part of H in the sparse
+!   co-ordinate storage scheme. It need not be set for any of the other
+!   three schemes, and in this case can be of length 0
+!
+!  H_col is a rank-one array of type default integer, that holds the 
+!   column indices of the  lower triangular part of H in either
+!   the sparse co-ordinate, or the sparse row-wise storage scheme. It need not
+!   be set when the dense or diagonal storage schemes are used, and in this 
+!   case can be of length 0
+!
+!  H_ptr is a rank-one array of dimension n+1 and type default
+!   integer, that holds the starting position of  each row of the  lower
+!   triangular part of H, as well as the total number of entries plus one,
+!   in the sparse row-wise storage scheme. It need not be set when the
+!   other schemes are used, and in this case can be of length 0
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( ARC_control_type ), INTENT( INOUT ) :: control
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     INTEGER, INTENT( IN ) :: n, ne
+     INTEGER, INTENT( OUT ) :: status
+     CHARACTER ( LEN = * ), INTENT( IN ) :: H_type
+     INTEGER, DIMENSION( : ), INTENT( IN ) :: H_row, H_col, H_ptr
+
+!  local variables
+
+     INTEGER :: error
+     LOGICAL :: deallocate_error_fatal, space_critical
+     CHARACTER ( LEN = 80 ) :: array_name
+
+!  copy control to data
+
+     data%arc_control = control
+
+     error = data%arc_control%error
+     space_critical = data%arc_control%space_critical
+     deallocate_error_fatal = data%arc_control%deallocate_error_fatal
+
+!  allocate space if required
+
+     array_name = 'arc: data%nlp%X'
+     CALL SPACE_resize_array( n, data%nlp%X,                                   &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+     IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+     array_name = 'arc: data%nlp%G'
+     CALL SPACE_resize_array( n, data%nlp%G,                                   &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+     IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+!  put data into the required components of the nlpt storage type
+
+     data%nlp%n = n
+
+!  set H appropriately in the nlpt storage type
+
+     SELECT CASE ( H_type )
+     CASE ( 'coordinate', 'COORDINATE' )
+       CALL SMT_put( data%nlp%H%type, 'COORDINATE',                            &
+                     data%arc_inform%alloc_status )
+       data%nlp%H%n = n
+       data%nlp%H%ne = ne
+
+       array_name = 'arc: data%nlp%H%row'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%row,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+       array_name = 'arc: data%nlp%H%col'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%col,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+       array_name = 'arc: data%nlp%H%val'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+       data%nlp%H%row( : data%nlp%H%ne ) = H_row( : data%nlp%H%ne )
+       data%nlp%H%col( : data%nlp%H%ne ) = H_col( : data%nlp%H%ne )
+
+     CASE ( 'sparse_by_rows', 'SPARSE_BY_ROWS' )
+       CALL SMT_put( data%nlp%H%type, 'SPARSE_BY_ROWS',                        &
+                     data%arc_inform%alloc_status )
+       data%nlp%H%n = n
+       data%nlp%H%ne = H_ptr( n + 1 ) - 1
+
+       array_name = 'arc: data%nlp%H%ptr'
+       CALL SPACE_resize_array( n + 1, data%nlp%H%ptr,                         &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+       array_name = 'arc: data%nlp%H%col'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%col,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+       array_name = 'arc: data%nlp%H%val'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+       data%nlp%H%ptr( : n + 1 ) = H_ptr( : n + 1 )
+       data%nlp%H%col( : data%nlp%H%ne ) = H_col( : data%nlp%H%ne )
+
+     CASE ( 'dense', 'DENSE' )
+       CALL SMT_put( data%nlp%H%type, 'DENSE', data%arc_inform%alloc_status )
+       data%nlp%H%n = n
+       data%nlp%H%ne = ( n * ( n + 1 ) ) / 2
+
+       array_name = 'arc: data%nlp%H%val'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+
+     CASE ( 'diagonal', 'DIAGONAL' )
+       CALL SMT_put( data%nlp%H%type, 'DIAGONAL', data%arc_inform%alloc_status )
+       data%nlp%H%n = n
+       data%nlp%H%ne = n
+
+       array_name = 'arc: data%nlp%H%val'
+       CALL SPACE_resize_array( data%nlp%H%ne, data%nlp%H%val,                 &
+            data%arc_inform%status, data%arc_inform%alloc_status,              &
+            array_name = array_name,                                           &
+            deallocate_error_fatal = deallocate_error_fatal,                   &
+            exact_size = space_critical,                                       &
+            bad_alloc = data%arc_inform%bad_alloc, out = error )
+       IF ( data%arc_inform%status /= 0 ) GO TO 900
+     CASE ( 'absent', 'ABSENT' )
+       data%arc_control%hessian_available = .FALSE.
+     CASE DEFAULT
+       data%arc_inform%status = GALAHAD_error_unknown_storage
+       GO TO 900
+     END SELECT       
+
+     status = GALAHAD_ready_to_solve
+     RETURN
+
+!  error returns
+
+ 900 CONTINUE
+     status =  data%arc_inform%status
+     RETURN
+
+!  End of subroutine ARC_import
+
+     END SUBROUTINE ARC_import
+
+!-  G A L A H A D -  A R C _ r e s e t _ c o n t r o l   S U B R O U T I N E  -
+
+     SUBROUTINE ARC_reset_control( control, data, status )
+
+!  reset control parameters after import if required.
+!  See ARC_solve for a description of the required arguments
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( ARC_control_type ), INTENT( IN ) :: control
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     INTEGER, INTENT( OUT ) :: status
+
+!  set control in internal data
+
+     data%arc_control = control
+     
+!  flag a successful call
+
+     status = GALAHAD_ready_to_solve
+     RETURN
+
+!  end of subroutine ARC_reset_control
+
+     END SUBROUTINE ARC_reset_control
+
+!-  G A L A H A D -  A R C _ s o l v e _ w i t h _ M A T  S U B R O U T I N E  -
+
+     SUBROUTINE ARC_solve_with_mat( data, userdata, status, X, G,              &
+                                    eval_F, eval_G, eval_H, eval_PREC )
+
+!  solve the unconstrained problem previously imported when access
+!  to function, gradient, Hessian and preconditioning operations are
+!  available via subroutine calls. See ARC_solve for a description of 
+!  the required arguments. The variable status is a proxy for inform%status
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( INOUT ) :: status
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: G
+     EXTERNAL :: eval_F, eval_G, eval_H, eval_PREC
+
+     data%arc_inform%status = status
+     IF ( data%arc_inform%status == 1 )                                        &
+       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
+
+!  call the solver
+
+     CALL ARC_solve( data%nlp, data%arc_control, data%arc_inform,              &
+                     data%arc_data, userdata, eval_F = eval_F,                 &
+                     eval_G = eval_G, eval_H = eval_H, eval_PREC = eval_PREC )
+
+     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
+     IF ( data%arc_inform%status == GALAHAD_ok )                               &
+       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
+     status = data%arc_inform%status
+
+     RETURN
+
+!  end of subroutine ARC_solve_with_mat
+
+     END SUBROUTINE ARC_solve_with_mat
+
+! - G A L A H A D -  A R C _ s o l v e _ w i t h o u t _h  S U B R O U T I N E -
+
+     SUBROUTINE ARC_solve_without_mat( data, userdata, status, X, G,           &
+                                       eval_F, eval_G, eval_HPROD, eval_PREC )
+
+!  solve the unconstrained problem previously imported when access
+!  to function, gradient, Hessian-vector and preconditioning operations 
+!  are available via subroutine calls. See ARC_solve for a description 
+!  of the required arguments. The variable status is a proxy for inform%status
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( INOUT ) :: status
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( NLPT_userdata_type ), INTENT( INOUT ) :: userdata
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: G
+     EXTERNAL :: eval_F, eval_G, eval_HPROD, eval_PREC
+
+     data%arc_inform%status = status
+     IF ( data%arc_inform%status == 1 )                                        &
+       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
+
+!  call the solver
+
+     CALL ARC_solve( data%nlp, data%arc_control, data%arc_inform,              &
+                     data%arc_data, userdata, eval_F = eval_F,                 &
+                     eval_G = eval_G, eval_HPROD = eval_HPROD,                 &
+                     eval_PREC = eval_PREC )
+
+     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
+     IF ( data%arc_inform%status == GALAHAD_ok )                               &
+       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
+     status = data%arc_inform%status
+
+     RETURN
+
+!  end of subroutine ARC_solve_without_mat
+
+     END SUBROUTINE ARC_solve_without_mat
+
+!-  G A L A H A D -  A R C _ s o l v e _ reverse _ M A T   S U B R O U T I N E 
+
+     SUBROUTINE ARC_solve_reverse_with_mat( data, status, eval_status,         &
+                                            X, f, G, H_val, U, V )
+
+!  solve the unconstrained problem previously imported when access
+!  to function, gradient, Hessian and preconditioning operations are
+!  available via reverse communication. See ARC_solve for a description 
+!  of the required arguments. The variable status is a proxy for inform%status
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( INOUT ) :: status
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     INTEGER, INTENT( INOUT ) :: eval_status
+     REAL ( KIND = wp ), INTENT( IN ) :: f
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: G
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: H_val
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( IN ) :: U
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( OUT ) :: V
+
+!  recover data from reverse communication
+
+     data%arc_inform%status = status
+     data%arc_data%eval_status = eval_status
+     SELECT CASE ( data%arc_inform%status )
+     CASE ( 1 )
+       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
+     CASE ( 2 )
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 ) data%nlp%f = f
+     CASE( 3 ) 
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 ) data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
+     CASE( 4 ) 
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 )                                                 &
+         data%nlp%H%val( : data%nlp%H%ne ) = H_val( : data%nlp%H%ne )
+     CASE( 6 )
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 )                                                 &
+         data%arc_data%U( : data%nlp%n ) = U( : data%nlp%n )
+     END SELECT
+
+!  call the solver
+
+     CALL ARC_solve( data%nlp, data%arc_control, data%arc_inform,              &
+                     data%arc_data, data%userdata )
+
+!  collect data for reverse communication
+
+     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
+     SELECT CASE ( data%arc_inform%status )
+     CASE( 0 )
+       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
+     CASE( 6 )
+       V( : data%nlp%n ) = data%arc_data%V( : data%nlp%n )
+     CASE( 5 ) 
+       WRITE( 6, "( ' there should not be a case ', I0, ' return' )" )         &
+         data%arc_inform%status
+     END SELECT
+     status = data%arc_inform%status
+
+     RETURN
+
+!  end of subroutine ARC_solve_reverse_with_mat
+
+     END SUBROUTINE ARC_solve_reverse_with_mat
+
+!-  G A L A H A D -  A R C _ s o l v e _ reverse _ no _ mat  S U B R O U T I N E
+
+     SUBROUTINE ARC_solve_reverse_without_mat( data, status, eval_status,      &
+                                               X, f, G, U, V )
+
+!  solve the unconstrained problem previously imported when access
+!  to function, gradient, Hessian-vector and preconditioning operations 
+!  are available via reverse communication. See ARC_solve for a description 
+!  of the required arguments. The variable status is a proxy for inform%status
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( INOUT ) :: status
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     INTEGER, INTENT( INOUT ) :: eval_status
+     REAL ( KIND = wp ), INTENT( IN ) :: f
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: X
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: G
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: U
+     REAL ( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: V
+
+!  recover data from reverse communication
+
+     data%arc_inform%status = status
+     data%arc_data%eval_status = eval_status
+     SELECT CASE ( data%arc_inform%status )
+     CASE ( 1 )
+       data%nlp%X( : data%nlp%n ) = X( : data%nlp%n )
+     CASE ( 2 )
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 ) data%nlp%f = f
+     CASE( 3 ) 
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 ) data%nlp%G( : data%nlp%n ) = G( : data%nlp%n )
+     CASE( 5 ) 
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 )                                                 &
+         data%arc_data%U( : data%nlp%n ) = U( : data%nlp%n )
+     CASE( 6 )
+       data%arc_data%eval_status = eval_status
+       IF ( eval_status == 0 )                                                 &
+         data%arc_data%U( : data%nlp%n ) = U( : data%nlp%n )
+     END SELECT
+
+!  call the solver
+
+     CALL ARC_solve( data%nlp, data%arc_control, data%arc_inform,              &
+                     data%arc_data, data%userdata )
+
+!  collect data for reverse communication
+
+     X( : data%nlp%n ) = data%nlp%X( : data%nlp%n )
+     SELECT CASE ( data%arc_inform%status )
+     CASE( 0 )
+       G( : data%nlp%n ) = data%nlp%G( : data%nlp%n )
+     CASE( 2, 3 ) 
+     CASE( 4 ) 
+       WRITE( 6, "( ' there should not be a case ', I0, ' return' )" )         &
+         data%arc_inform%status
+     CASE( 5 )
+       U( : data%nlp%n ) = data%arc_data%U( : data%nlp%n )
+       V( : data%nlp%n ) = data%arc_data%V( : data%nlp%n )
+     CASE( 6 )
+       V( : data%nlp%n ) = data%arc_data%V( : data%nlp%n )
+     END SELECT
+     status = data%arc_inform%status
+
+     RETURN
+
+!  end of subroutine ARC_solve_reverse_without_mat
+
+     END SUBROUTINE ARC_solve_reverse_without_mat
+
+!-  G A L A H A D -  A R C _ i n f o r m a t i o n   S U B R O U T I N E  -
+
+     SUBROUTINE ARC_information( data, inform, status )
+
+!  return solver information during or after solution by ARC
+!  See ARC_solve for a description of the required arguments
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     TYPE ( ARC_full_data_type ), INTENT( INOUT ) :: data
+     TYPE ( ARC_inform_type ), INTENT( OUT ) :: inform
+     INTEGER, INTENT( OUT ) :: status
+
+!  recover inform from internal data
+
+     inform = data%arc_inform
+     
+!  flag a successful call
+
+     status = GALAHAD_ok
+     RETURN
+
+!  end of subroutine ARC_information
+
+     END SUBROUTINE ARC_information
 
 !  End of module GALAHAD_ARC
 

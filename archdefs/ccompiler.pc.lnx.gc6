@@ -5,7 +5,8 @@
 #
 
 CC=gcc-6
-CCBASIC='-c -ansi -pedantic -fPIC' # -pedantic-errors -O0'
+CCBASIC='-c -fPIC' # -O0'
+CCISO='-ansi -pedantic' # -pedantic-errors'
 CCDEBUG= #-g -DDEBUG_GALAHAD
 CCFFLAGS='-lgfortran -lm'
 
@@ -15,3 +16,5 @@ CXXOPT=-O2
 CXXNOOPT=-O0
 CXXDEBUG=''
 CXXFFLAGS=''
+
+HWLOC=''

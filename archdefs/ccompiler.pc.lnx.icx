@@ -1,0 +1,20 @@
+# Intel icx compiler
+
+#
+#  C compilation and loading
+#
+
+CC=icx
+CCBASIC='-c -DIsifr'
+CCISO='-ansi'
+CCDEBUG=#-DDEBUG_GALAHAD
+CCFFLAGS=-nofor_main
+
+CXX='$(CC)'
+CXXBASIC='-c -std=c++11'
+CXXOPT=-O2
+CXXNOOPT=-O0
+CXXDEBUG=''
+CXXFFLAGS=''
+
+HWLOC='un'

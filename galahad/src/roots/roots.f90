@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.5 - 21/06/2012 AT 08:15 GMT.
+! THIS VERSION: GALAHAD 3.2 - 09/06/2019 AT 14:10 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ R O O T S   M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -9,7 +9,7 @@
 !   started life (quadratic roots) in GALAHAD_LSQP ~ 2000
 !   released with GALAHAD Version 2.0. April 27th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_ROOTS_double
@@ -84,14 +84,14 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: ROOTS_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -111,7 +111,7 @@
 
         REAL ( KIND = wp ) :: zero_coef = 10.0_wp * EPSILON( one )
 
-!   any value of the polynomial smaller in absolute value than zero_f 
+!   any value of the polynomial smaller in absolute value than zero_f
 !     will be regarded as giving a root
 
         REAL ( KIND = wp ) :: zero_f = 10.0_wp * EPSILON( one )
@@ -127,16 +127,16 @@
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
 
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: ROOTS_inform_type
 
@@ -180,7 +180,7 @@
 !
 !  Default control data for ROOTS. This routine should be called before
 !  ROOTS_solve
-! 
+!
 !  --------------------------------------------------------------------
 !
 !  Arguments:
@@ -192,7 +192,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( ROOTS_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( ROOTS_control_type ), INTENT( INOUT ) :: control
       TYPE ( ROOTS_inform_type ), INTENT( OUT ) :: inform
 
       data%n_max = - 1
@@ -206,7 +206,7 @@
 
       inform%status = GALAHAD_ok
 
-      RETURN  
+      RETURN
 
 !  End of ROOTS_initialize
 
@@ -216,10 +216,10 @@
 
       SUBROUTINE ROOTS_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by ROOTS_initialize could (roughly) 
+!  The defauly values as given by ROOTS_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN ROOTS SPECIFICATIONS (DEFAULT)
@@ -236,7 +236,7 @@
 
 !  Dummy arguments
 
-      TYPE ( ROOTS_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( ROOTS_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -265,7 +265,7 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
 
 !  Real key-words
 
@@ -349,9 +349,9 @@
 
       INTEGER, INTENT( OUT ) :: nroots
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( 0 : ) :: A
-      REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( : ) :: ROOTS 
+      REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( : ) :: ROOTS
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control        
+      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control
       TYPE ( ROOTS_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -399,13 +399,13 @@
 
       CASE ( 2 )
         CALL ROOTS_quadratic( A( 0 ), A( 1 ), A( 2 ), control%tol,             &
-          nroots, ROOTS( 1 ), ROOTS( 2 ), debug ) 
+          nroots, ROOTS( 1 ), ROOTS( 2 ), debug )
 
 !  polynomials of degree 3
 
       CASE ( 3 )
         CALL ROOTS_cubic( A( 0 ), A( 1 ), A( 2 ), A( 3 ), control%tol,         &
-          nroots, ROOTS( 1 ), ROOTS( 2 ), ROOTS( 3 ), debug ) 
+          nroots, ROOTS( 1 ), ROOTS( 2 ), ROOTS( 3 ), debug )
 
 !  polynomials of degree 4
 
@@ -452,7 +452,7 @@
                                                inform%status )
       END SELECT
 
-      RETURN  
+      RETURN
 
 !  End of subroutine ROOTS_solve
 
@@ -465,17 +465,17 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Find the number and values of real roots of the quadratic equation
-! 
+!
 !                   a2 * x**2 + a1 * x + a0 = 0
 !
-!  where a0, a1 and a2 are real 
+!  where a0, a1 and a2 are real
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
 
-      INTEGER, INTENT( OUT ) :: nroots 
-      REAL ( KIND = wp ), INTENT( IN ) :: a2, a1, a0, tol 
+      INTEGER, INTENT( OUT ) :: nroots
+      REAL ( KIND = wp ), INTENT( IN ) :: a2, a1, a0, tol
       REAL ( KIND = wp ), INTENT( OUT ) :: root1, root2
       LOGICAL, INTENT( IN ) :: debug
 
@@ -483,38 +483,38 @@
 
       REAL ( KIND = wp ) :: rhs, d, p, pprime
 
-      rhs = tol * a1 * a1 
+      rhs = tol * a1 * a1
       IF ( ABS( a0 * a2 ) > rhs ) THEN  !  really is quadratic
-        root2 = a1 * a1 - four * a2 * a0 
+        root2 = a1 * a1 - four * a2 * a0
         IF ( ABS( root2 ) <= ( epsmch * a1 ) ** 2 ) THEN ! numerical double root
           nroots = 2 ; root1 = -  half * a1 / a2 ; root2 = root1
         ELSE IF ( root2 < zero ) THEN    ! complex not real roots
-          nroots = 0 ; root1 = zero ; root2 = zero 
+          nroots = 0 ; root1 = zero ; root2 = zero
         ELSE                             ! distint real roots
-          d = - half * ( a1 + SIGN( SQRT( root2 ), a1 ) ) 
-          nroots = 2 ; root1 = d / a2 ; root2 = a0 / d 
-          IF ( root1 > root2 ) THEN 
-            d = root1 ; root1 = root2 ; root2 = d 
-          END IF 
-        END IF 
+          d = - half * ( a1 + SIGN( SQRT( root2 ), a1 ) )
+          nroots = 2 ; root1 = d / a2 ; root2 = a0 / d
+          IF ( root1 > root2 ) THEN
+            d = root1 ; root1 = root2 ; root2 = d
+          END IF
+        END IF
       ELSE IF ( a2 == zero ) THEN
         IF ( a1 == zero ) THEN
           IF ( a0 == zero ) THEN         ! the function is zero
-            nroots = 1 ; root1 = zero ; root2 = zero 
+            nroots = 1 ; root1 = zero ; root2 = zero
           ELSE                           ! the function is constant
-            nroots = 0 ; root1 = zero ; root2 = zero 
+            nroots = 0 ; root1 = zero ; root2 = zero
           END IF
         ELSE                             ! the function is linear
-          nroots = 1 ; root1 = - a0 / a1 ; root2 = zero 
+          nroots = 1 ; root1 = - a0 / a1 ; root2 = zero
         END IF
       ELSE                               ! very ill-conditioned quadratic
-        nroots = 2 
-        IF ( - a1 / a2 > zero ) THEN 
-          root1 = zero ; root2 = - a1 / a2 
-        ELSE 
-          root1 = - a1 / a2 ; root2 = zero 
-        END IF 
-      END IF 
+        nroots = 2
+        IF ( - a1 / a2 > zero ) THEN
+          root1 = zero ; root2 = - a1 / a2
+        ELSE
+          root1 = - a1 / a2 ; root2 = zero
+        END IF
+      END IF
 
 !  perfom a Newton iteration to ensure that the roots are accurate
 
@@ -522,7 +522,7 @@
         p = ( a2 * root1 + a1 ) * root1 + a0
         pprime = two * a2 * root1 + a1
         IF ( pprime /= zero ) THEN
-          IF ( debug ) WRITE( out, 2000 ) 1, root1, p, - p / pprime 
+          IF ( debug ) WRITE( out, 2000 ) 1, root1, p, - p / pprime
           root1 = root1 - p / pprime
           p = ( a2 * root1 + a1 ) * root1 + a0
         END IF
@@ -531,7 +531,7 @@
           p = ( a2 * root2 + a1 ) * root2 + a0
           pprime = two * a2 * root2 + a1
           IF ( pprime /= zero ) THEN
-            IF ( debug ) WRITE( out, 2000 ) 2, root2, p, - p / pprime 
+            IF ( debug ) WRITE( out, 2000 ) 2, root2, p, - p / pprime
             root2 = root2 - p / pprime
             p = ( a2 * root2 + a1 ) * root2 + a0
           END IF
@@ -539,7 +539,7 @@
         END IF
       END IF
 
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
@@ -550,7 +550,7 @@
 
 !  End of subroutine ROOTS_quadratic
 
-      END SUBROUTINE ROOTS_quadratic 
+      END SUBROUTINE ROOTS_quadratic
 
 !-*-*-*-*-*-*-*-   R O O T S _ c u b i c  S U B R O U T I N E   -*-*-*-*-*-*-*-
 
@@ -560,17 +560,17 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Find the number and values of real roots of the cubicc equation
-! 
+!
 !                a3 * x**3 + a2 * x**2 + a1 * x + a0 = 0
 !
-!  where a0, a1, a2 and a3 are real 
+!  where a0, a1, a2 and a3 are real
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
 
       INTEGER, INTENT( OUT ) :: nroots
-      REAL ( KIND = wp ), INTENT( IN ) :: a3, a2, a1, a0, tol 
+      REAL ( KIND = wp ), INTENT( IN ) :: a3, a2, a1, a0, tol
       REAL ( KIND = wp ), INTENT( OUT ) :: root1, root2, root3
       LOGICAL, INTENT( IN ) :: debug
 
@@ -589,7 +589,7 @@
 !  Check to see if the quartic is actually a cubic
 
       IF ( a3 == zero ) THEN
-        CALL ROOTS_quadratic( a0, a1, a2, tol, nroots, root1, root2, debug ) 
+        CALL ROOTS_quadratic( a0, a1, a2, tol, nroots, root1, root2, debug )
         root3 = infinity
         RETURN
       END IF
@@ -598,7 +598,7 @@
 
       IF ( a0 == zero ) THEN
         root1 = zero
-        CALL ROOTS_quadratic( a1, a2, a3, tol, nroots, root2, root3, debug ) 
+        CALL ROOTS_quadratic( a1, a2, a3, tol, nroots, root2, root3, debug )
         nroots = nroots + 1
         RETURN
       END IF
@@ -630,7 +630,7 @@
           END IF
           d = SQRT( threequarters ) * ( b - c )
           b = b + c ; c = - 0.5 * b - s
-          root1 = b - s 
+          root1 = b - s
           IF ( d == zero ) THEN
             nroots = 3 ; root2 = c ; root3 = c
           ELSE
@@ -646,7 +646,7 @@
             d = ATAN( SQRT( - d ) / ABS( b ) ) / three
           END IF
           IF ( b < zero ) THEN
-            b = two * SQRT( t ) 
+            b = two * SQRT( t )
           ELSE
             b = - two * SQRT( t )
           END IF
@@ -716,7 +716,7 @@
           END IF
         END IF
 
-!  deflate cubic 
+!  deflate cubic
 
         b0 = - c0 / root1
         IF ( ABS( root1 ** 3 ) <= ABS( c0 ) ) THEN
@@ -758,7 +758,7 @@
 
 !  4. Compute the roots as the eigenvalues of the relevant compainion matrix
 
-      ELSE  
+      ELSE
         H( 1, 1 ) = zero ; H( 2, 1 ) = one ; H( 3, 1 ) = zero
         H( 1, 2 ) = zero ; H( 2, 2 ) = zero ; H( 3, 2 ) = one
         H( 1, 3 ) = - a0 / a3 ; H( 2, 3 ) = - a1 / a3 ; H( 3, 3 ) = - a2 / a3
@@ -772,7 +772,7 @@
 
 !  count and record the roots
 
-        nroots = COUNT( ABS( EI ) <= epsmch ) 
+        nroots = COUNT( ABS( EI ) <= epsmch )
         IF ( nroots == 1 ) THEN
           IF (  ABS( EI( 1 ) ) <= epsmch ) THEN
             root1 = ER( 1 )
@@ -812,7 +812,7 @@
       p = ( ( a3 * root1 + a2 ) * root1 + a1 ) * root1 + a0
       pprime = ( three * a3 * root1 + two * a2 ) * root1 + a1
       IF ( pprime /= zero ) THEN
-        IF ( debug ) WRITE( out, 2000 ) 1, root1, p, - p / pprime 
+        IF ( debug ) WRITE( out, 2000 ) 1, root1, p, - p / pprime
         root1 = root1 - p / pprime
         p = ( ( a3 * root1 + a2 ) * root1 + a1 ) * root1 + a0
       END IF
@@ -822,7 +822,7 @@
         p = ( ( a3 * root2 + a2 ) * root2 + a1 ) * root2 + a0
         pprime = ( three * a3 * root2 + two * a2 ) * root2 + a1
         IF ( pprime /= zero ) THEN
-          IF ( debug ) WRITE( out, 2000 ) 2, root2, p, - p / pprime 
+          IF ( debug ) WRITE( out, 2000 ) 2, root2, p, - p / pprime
           root2 = root2 - p / pprime
           p = ( ( a3 * root2 + a2 ) * root2 + a1 ) * root2 + a0
         END IF
@@ -831,7 +831,7 @@
         p = ( ( a3 * root3 + a2 ) * root3 + a1 ) * root3 + a0
         pprime = ( three * a3 * root3 + two * a2 ) * root3 + a1
         IF ( pprime /= zero ) THEN
-          IF ( debug ) WRITE( out, 2000 ) 3, root3, p, - p / pprime 
+          IF ( debug ) WRITE( out, 2000 ) 3, root3, p, - p / pprime
           root3 = root3 - p / pprime
           p = ( ( a3 * root3 + a2 ) * root3 + a1 ) * root3 + a0
         END IF
@@ -854,22 +854,22 @@
 !-*-*-*-*-*-*-   R O O T S _ q u a r t i c   S U B R O U T I N E   -*-*-*-*-*-*-
 
       SUBROUTINE ROOTS_quartic( a0, a1, a2, a3, a4, tol, nroots, root1, root2, &
-                                root3, root4, debug ) 
+                                root3, root4, debug )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Find the number and values of real roots of the quartic equation
-! 
+!
 !        a4 * x**4 + a3 * x**3 + a2 * x**2 + a1 * x + a0 = 0
 !
-!  where a0, a1, a2, a3 and a4 are real 
+!  where a0, a1, a2, a3 and a4 are real
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
 
       INTEGER, INTENT( OUT ) :: nroots
-      REAL ( KIND = wp ), INTENT( IN ) :: a4, a3, a2, a1, a0, tol 
+      REAL ( KIND = wp ), INTENT( IN ) :: a4, a3, a2, a1, a0, tol
       REAL ( KIND = wp ), INTENT( OUT ) :: root1, root2, root3, root4
       LOGICAL, INTENT( IN ) :: debug
 
@@ -885,14 +885,14 @@
 
       IF ( a4 == zero ) THEN
         CALL ROOTS_cubic( a0, a1, a2, a3, tol, nroots, root1, root2, root3,    &
-                          debug ) 
+                          debug )
         root4 = infinity
         RETURN
       END IF
 
 !  Use Ferrari's algorithm
 
-!  Initialize 
+!  Initialize
 
       nroots = 0
       b1 = a3 / a4
@@ -904,7 +904,7 @@
       d1 = b1 * b3 - four * b4
       d0 = b4 * ( four * b2 - b1 * b1 ) - b3 * b3
 
-!  Compute the roots of the auxiliary cubic 
+!  Compute the roots of the auxiliary cubic
 
       CALL ROOTS_cubic( d0, d1, d2, d3, tol, nrootsc, rootc1, rootc2, rootc3, &
                         debug )
@@ -1034,7 +1034,7 @@
       pprime = ( ( four * a4 * root1 + three * a3 ) * root1 + two * a2 )       &
                  * root1 + a1
       IF ( pprime /= zero ) THEN
-        IF ( debug ) WRITE( out, 2000 ) 1, root1, p, - p / pprime 
+        IF ( debug ) WRITE( out, 2000 ) 1, root1, p, - p / pprime
         root1 = root1 - p / pprime
         p = ( ( ( a4 * root1 + a3 ) * root1 + a2 ) * root1 + a1 ) * root1 + a0
       END IF
@@ -1044,7 +1044,7 @@
       pprime = ( ( four * a4 * root2 + three * a3 ) * root2 + two * a2 )       &
                  * root2 + a1
       IF ( pprime /= zero ) THEN
-        IF ( debug ) WRITE( out, 2000 ) 2, root2, p, - p / pprime 
+        IF ( debug ) WRITE( out, 2000 ) 2, root2, p, - p / pprime
         root2 = root2 - p / pprime
         p = ( ( ( a4 * root2 + a3 ) * root2 + a2 ) * root2 + a1 ) * root2 + a0
       END IF
@@ -1055,7 +1055,7 @@
         pprime = ( ( four * a4 * root3 + three * a3 ) * root3 + two * a2 )     &
                    * root3 + a1
         IF ( pprime /= zero ) THEN
-          IF ( debug ) WRITE( out, 2000 ) 3, root3, p, - p / pprime 
+          IF ( debug ) WRITE( out, 2000 ) 3, root3, p, - p / pprime
           root3 = root3 - p / pprime
           p = ( ( ( a4 * root3 + a3 ) * root3 + a2 ) * root3 + a1 ) * root3 + a0
         END IF
@@ -1065,7 +1065,7 @@
         pprime = ( ( four * a4 * root4 + three * a3 ) * root4 + two * a2 )     &
                    * root4 + a1
         IF ( pprime /= zero ) THEN
-          IF ( debug ) WRITE( out, 2000 ) 4, root4, p, - p / pprime 
+          IF ( debug ) WRITE( out, 2000 ) 4, root4, p, - p / pprime
           root4 = root4 - p / pprime
           p = ( ( ( a4 * root4 + a3 ) * root4 + a2 ) * root4 + a1 ) * root4 + a0
         END IF
@@ -1094,7 +1094,7 @@
 
 !  This is a fortran 90 version of PA17 from HSL
 
-! A(i) must be set to hold the coefficient of x**(i), i=0,1,..., n. It is 
+! A(i) must be set to hold the coefficient of x**(i), i=0,1,..., n. It is
 !  changed during the execution, but is restored before return
 ! n must be set to the degree of the polynomial.
 ! ROOT is used to return the roots. The dummy value HUGE(1.0) is returned for
@@ -1102,9 +1102,9 @@
 ! control is a structure of type ROOTS_control_type holding control parameters
 ! inform is a structure of type ROOTS_inform_type holding information parameters
 ! data is a structure of type ROOTS_data_type holding private data
-! E is an optional argument that if present must be set by the user to 
-!   error bounds for the coefficients, or to zero if these are accurate 
-!   to machine precision. On return, the first n locations will have been set 
+! E is an optional argument that if present must be set by the user to
+!   error bounds for the coefficients, or to zero if these are accurate
+!   to machine precision. On return, the first n locations will have been set
 !   to approximate bounds on the moduli of the errors in the roots
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -1116,7 +1116,7 @@
       COMPLEX ( KIND = wcp ), INTENT( OUT ), DIMENSION( n ) :: ROOT
       REAL ( KIND = wp ), INTENT( INOUT ), OPTIONAL, DIMENSION( 0 : n ) :: E
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control        
+      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control
       TYPE ( ROOTS_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -1172,7 +1172,7 @@
       inform%status = GALAHAD_ok
       RETURN
 
-      CONTAINS  
+      CONTAINS
 
         SUBROUTINE ROOTS_polynomial_main( A, N, ROOT, D )
 
@@ -1198,12 +1198,12 @@
 
 !  Local variables
 
-! When (n-nn) roots are found, D(0), ..., D(nn) will hold the coefficients of 
-!  the deflated polynomial (backwards), ROOT(nn + 1),..,ROOT(n) will hold the 
+! When (n-nn) roots are found, D(0), ..., D(nn) will hold the coefficients of
+!  the deflated polynomial (backwards), ROOT(nn + 1),..,ROOT(n) will hold the
 !  roots found, A(0),...,A(nn - 1) will hold the coefficients of the derivative
 !  of the deflated polynomial, and ROOT(1),...,ROOT(nn),A(nn),...,A(n) hold the
 !  coefficients of the original polynomial (forwards)
-! div2 .TRUE. if the search with step-lengths dz,dz/2,...is in use and .FALSE. 
+! div2 .TRUE. if the search with step-lengths dz,dz/2,...is in use and .FALSE.
 !  if the search with steps dz,2*dz,...is in use
 ! dz Tentative step
 ! fc Temporary variable used in the test for deflation
@@ -1511,7 +1511,6 @@
 ! dmax  Maximum distance to a root in the group
 ! dist  Distance from root I to root K
 ! dmin  Minimum distance to a root not in the group
-! 1.1**M  1.05**(1./N )
 ! i     Index of root under test
 ! ig1   First root of the group
 ! l     Nearset root not in the group
@@ -1529,8 +1528,7 @@
 ! r     Real(r)
 ! s     Abs(r)+RAD
 ! tb    top/btm
-! top   Numerator of the expression (3.9 ) of the report R 7986
-!          polynomial
+! top   Numerator of the expression (3.9) of the report R 7986 polynomial
 
         INTEGER :: i, ig1, ii, j, k, l, loop, loopb, loopr, m
         REAL ( KIND = wp ) :: btm, dist, dmax, dmin, fact, oldr, prod, rad
@@ -1730,7 +1728,7 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Calculate the smallest real root of a polynomial p_n(x) in the 
+!  Calculate the smallest real root of a polynomial p_n(x) in the
 !  interval (a,b]. Return the value b if there is no such root.
 
 !  n must be set to the polynomial degree
@@ -1745,7 +1743,7 @@
       REAL ( KIND = wp ), INTENT( IN ) :: a, b
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( 0 : ) :: C
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control        
+      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control
       TYPE ( ROOTS_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -1753,9 +1751,9 @@
       INTEGER :: i, im1, im2, ip1, j, n, nm1, nm2, nonzero, roots_in_int
       INTEGER :: ii, it, i_zero, lwork, nroots, n_roots_a, n_roots_b, nn, np1
       INTEGER :: var_low, var_up, var_z
-      REAL ( KIND = wp ) :: low, up, z, p_z, q_0, q_1
-      REAL ( KIND = wp ) :: f_low, f_up, df_low, df_up, dp_z, teeny
-      REAL ( KIND = wp ) :: c_max, root1, root2, root3
+      REAL ( KIND = wp ) :: smallest_root_in_interval, z, p_z, dp_z, teeny
+      REAL ( KIND = wp ) :: low, up, f_low, f_up, df_low, df_up
+      REAL ( KIND = wp ) :: c_max, root1, root2, root3, q_0, q_1
       LOGICAL :: debug
       LOGICAL, PARAMETER :: get_roots_ab = .FALSE.
       CHARACTER ( LEN = 80 ) :: array_name
@@ -1764,6 +1762,7 @@
 !     REAL ( KIND = wp ) :: growth = ten ** 8
 
       inform%status = 0
+      ROOTS_smallest_root_in_interval = zero
 !     debug = .TRUE.
       debug = control%out > 0 .AND. control%print_level > 0
 
@@ -1793,7 +1792,7 @@
 !  polynomials of degree 0
 
       CASE ( : 0 )
-        ROOTS_smallest_root_in_interval = b
+        smallest_root_in_interval = b
         IF ( debug ) write( control%out, 2000 ) b
 
 !  linear polynomials
@@ -1801,29 +1800,29 @@
       CASE ( 1 )
         root1 = - C( i_zero ) / C( i_zero + 1 )
         IF ( root1 > a .AND. root1 <= b ) THEN
-          ROOTS_smallest_root_in_interval = root1
+          smallest_root_in_interval = root1
         ELSE
           IF ( debug ) write( control%out, 2000 ) b
-          ROOTS_smallest_root_in_interval = b
+          smallest_root_in_interval = b
         END IF
 
 !  quadratic polynomials
 
       CASE ( 2 )
         CALL ROOTS_quadratic( C( i_zero ), C(  i_zero + 1 ), C(  i_zero + 2 ), &
-                              control%tol, nroots, root1, root2, debug ) 
+                              control%tol, nroots, root1, root2, debug )
         IF ( nroots == 2 ) THEN
           IF ( root1 > a .AND. root1 <= b ) THEN
-            ROOTS_smallest_root_in_interval = root1
+            smallest_root_in_interval = root1
           ELSE IF ( root2 > a .AND. root2 <= b ) THEN
-            ROOTS_smallest_root_in_interval = root2
+            smallest_root_in_interval = root2
           ELSE
             IF ( debug ) write( control%out, 2000 ) b
-            ROOTS_smallest_root_in_interval = b
+            smallest_root_in_interval = b
           END IF
         ELSE
           IF ( debug ) write( control%out, 2000 ) b
-          ROOTS_smallest_root_in_interval = b
+          smallest_root_in_interval = b
         END IF
 
 !  cubic polynomials
@@ -1831,24 +1830,24 @@
       CASE ( 3 )
         CALL ROOTS_cubic( C(  i_zero ), C(  i_zero + 1 ), C(  i_zero + 2 ),    &
                           C(  i_zero + 3 ), control%tol,                       &
-                          nroots, root1, root2, root3, debug ) 
+                          nroots, root1, root2, root3, debug )
         IF ( nroots == 3 ) THEN
           IF ( root1 > a .AND. root1 <= b ) THEN
-            ROOTS_smallest_root_in_interval = root1
+            smallest_root_in_interval = root1
           ELSE IF ( root2 > a .AND. root2 <= b ) THEN
-            ROOTS_smallest_root_in_interval = root2
+            smallest_root_in_interval = root2
           ELSE IF ( root3 > a .AND. root3 <= b ) THEN
-            ROOTS_smallest_root_in_interval = root3
+            smallest_root_in_interval = root3
           ELSE
             IF ( debug ) write( control%out, 2000 ) b
-            ROOTS_smallest_root_in_interval = b
+            smallest_root_in_interval = b
           END IF
        ELSE
          IF ( root1 > a .AND. root1 <= b ) THEN
-           ROOTS_smallest_root_in_interval = root1
+           smallest_root_in_interval = root1
          ELSE
            IF ( debug ) write( control%out, 2000 ) b
-           ROOTS_smallest_root_in_interval = b
+           smallest_root_in_interval = b
          END IF
        END IF
 
@@ -1871,7 +1870,7 @@
           IF ( inform%status /= GALAHAD_ok ) RETURN
 
           array_name = 'roots: data%RHS'
-          CALL SPACE_resize_array( np1, 1, data%RHS,                         &
+          CALL SPACE_resize_array( np1, 1, data%RHS,                           &
                inform%status, inform%alloc_status, array_name = array_name,    &
                deallocate_error_fatal = control%deallocate_error_fatal,        &
                exact_size = control%space_critical,                            &
@@ -1915,13 +1914,13 @@
 
 !  given p_n(x), set p_{n-1}(x) = p_n'(x), and for i = n, ... , 2, compute
 !
-!     p_{i-2}(x) = - remainder( p_{i}(x), p_{i-1}(x)) 
+!     p_{i-2}(x) = - remainder( p_{i}(x), p_{i-1}(x))
 !
 !  using the Euclidean Algorithm. This proceeds as follows: if
 !
 !     p_{i}(x) = p_{0,i} + p_{1,i} x + .... + p_{i-1,i} x^{i-1} + p_{i,i} x^i
 !
-!  we seek a linear factor q(x) = q_0 + q_1 x so that 
+!  we seek a linear factor q(x) = q_0 + q_1 x so that
 !
 !     p_{i-2}(x) = p_{i}(x)  - q( x ) * p_{i-1}(x).
 !
@@ -1968,7 +1967,7 @@
           END DO
 
 !  calculate the multiplicity of the the root at a
-     
+
           IF ( ABS( p_z ) <= control%zero_f ) THEN
             n_roots_a = n_roots_a + 1
             DO i = nm1, 1, - 1
@@ -2006,7 +2005,7 @@
           END DO
 
 !  calculate the multiplicity of the the root at b
-     
+
           IF ( ABS( p_z ) <= control%zero_f ) THEN
             n_roots_b = n_roots_b + 1
             DO i = nm1, 1, - 1
@@ -2050,7 +2049,7 @@
           im2 = i - 2
 
 !  if the algorithm breaks down for numerical reasons, resort to our
-!  general-purpose polynomial root finder ... with luck this should 
+!  general-purpose polynomial root finder ... with luck this should
 !  be a rare event!
 
           IF ( data%P( im1, im1 ) == zero ) THEN
@@ -2065,15 +2064,15 @@
 
 !  extract the smallest real root in the desired interval
 
-            ROOTS_smallest_root_in_interval = b
+            smallest_root_in_interval = b
             DO j = 1, n
               IF ( AIMAG( data%CROOTS( j ) ) == zero .AND.                     &
                    REAL( data%CROOTS( j ) ) > a )                              &
-                ROOTS_smallest_root_in_interval = MIN(                         &
+                smallest_root_in_interval = MIN(                               &
                   REAL( data%CROOTS( j ), KIND = wp ),                         &
-                  ROOTS_smallest_root_in_interval )
+                  smallest_root_in_interval )
             END DO
-            RETURN
+            GO TO 990
           END IF
 
 !  compute the coefficients of the linear factor q(x)
@@ -2082,14 +2081,14 @@
 ! |                                                                           |
 ! v                                                                           v
 
-!  if growth is indicated, compute the coefficients by solving the 
+!  if growth is indicated, compute the coefficients by solving the
 !  relevant linear system accurately
 
 !         IF ( ABS( data%P( i, i ) ) > ABS( data%P( im1, im1 ) ) * growth ) THEN
           IF ( .FALSE. ) THEN
             IF ( debug ) write( control%out,                                   &
                 "( ' precaution against growth of', ES12.4 )" )                &
-               data%P( i, i ) / data%P( im1, im1 ) 
+               data%P( i, i ) / data%P( im1, im1 )
             ip1 = i + 1
             data%A_mat( : i, 1 ) = data%P( im1 : 0 : - 1, im1 )
             data%A_mat( ip1, 1 ) = zero
@@ -2110,7 +2109,7 @@
 ! |                                                                           |
 ! ------------------------------ not used at present --------------------------
 
-            q_1 = data%P( i, i ) / data%P( im1, im1 ) 
+            q_1 = data%P( i, i ) / data%P( im1, im1 )
             q_0 = ( data%P( im1, i ) - data%P( im2 , im1 ) * q_1 ) /           &
                     data%P( im1, im1 )
 
@@ -2126,7 +2125,7 @@
 
         IF ( debug ) THEN
           DO j = n, 2, - 1
-            q_1 = data%P( j, j ) / data%P( j-1, j-1 ) 
+            q_1 = data%P( j, j ) / data%P( j-1, j-1 )
             q_0 = ( data%P( j-1, j ) - data%P( j-2 , j-1 ) * q_1 ) /           &
                     data%P( j-1, j-1 )
             WRITE( control%out, "( ' q', 2ES24.16 )" ) q_1, q_0
@@ -2139,10 +2138,10 @@
           END DO
         END IF
 
-!  let the variation, var(S_n(x)), be the number of sign changes in 
+!  let the variation, var(S_n(x)), be the number of sign changes in
 !  the sequence
 !
-!     S_n(x) = { p_0(x), p_1(x), ... , p_n(x) } 
+!     S_n(x) = { p_0(x), p_1(x), ... , p_n(x) }
 !
 !  after any zeros are removed. Then Sturm's theorem gives that
 !
@@ -2244,7 +2243,7 @@
             IF ( data%S( i ) * data%S( i + 1 ) < zero ) var_z = var_z + 1
           END DO
 
-!  compute the number of real roots in the interval (low,up) 
+!  compute the number of real roots in the interval (low,up)
 !  using Sturm's theorem
 
 !  check if the smallest root lies outside the initial interval
@@ -2256,14 +2255,14 @@
             roots_in_int = var_low - var_z
             IF ( roots_in_int == 0 ) THEN
 !write(6,*) up, f_up
-              ROOTS_smallest_root_in_interval = b
+              smallest_root_in_interval = b
               IF ( debug ) write( control%out, 2000 ) b
-              RETURN
+              GO TO 990
 
 !  if the only roots are at the interval ends, exit
 
 !           ELSE IF ( roots_in_int == n_roots_a + n_roots_b ) THEN
-!             ROOTS_smallest_root_in_interval = b
+!             smallest_root_in_interval = b
 !             IF ( debug ) write( control%out, 2000 ) b
 !             RETURN
 
@@ -2332,12 +2331,12 @@
         IF ( debug ) write( control%out,*) ' phase 2'
         DO it = 1, itmax
           IF ( ABS( f_low ) < control%zero_f ) THEN
-            ROOTS_smallest_root_in_interval = low
+            smallest_root_in_interval = low
             EXIT
           ELSE IF ( ABS( f_up ) < control%zero_f ) THEN
             z = MAX( up * ( one - control%tol ), half * ( low  + up ) )
           ELSE
-!           ROOTS_smallest_root_in_interval = up
+!           smallest_root_in_interval = up
 !           EXIT
 
 !  compute the Newton step from the currrent best point
@@ -2375,7 +2374,7 @@
             low, up
           IF ( debug ) write( control%out, "( ' z, p_z, dp_z ', 3ES24.16 )" )  &
             z, p_z, dp_z
-          ROOTS_smallest_root_in_interval = z
+          smallest_root_in_interval = z
 
 !  refine the interval
 
@@ -2397,14 +2396,15 @@
 !  check that the step makes progress
 
           IF ( ABS( up - low ) <= control%tol ) THEN
-            ROOTS_smallest_root_in_interval = low
+            smallest_root_in_interval = low
             EXIT
           END IF
-
-
         END DO
       END SELECT
 
+  990 CONTINUE
+!write(6,*) ' 990 out', smallest_root_in_interval
+      ROOTS_smallest_root_in_interval = smallest_root_in_interval
       RETURN
 
 !  non-executable statements
@@ -2476,7 +2476,7 @@
 !  Dummy arguments
 
       TYPE ( ROOTS_data_type ), INTENT( INOUT ) :: data
-      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control        
+      TYPE ( ROOTS_control_type ), INTENT( IN ) :: control
       TYPE ( ROOTS_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -2551,4 +2551,3 @@
 !  End of module ROOTS
 
    END MODULE GALAHAD_ROOTS_double
-

@@ -8,14 +8,14 @@
 
    MODULE GALAHAD_USETRU_double
 
-!  This is the driver program for running TRU for a variety of computing 
-!  systems. It opens and closes all the files, allocate arrays, reads and 
+!  This is the driver program for running TRU for a variety of computing
+!  systems. It opens and closes all the files, allocate arrays, reads and
 !  checks data, and calls the appropriate minimizers
 
 !    USE GALAHAD_CLOCK
      USE GALAHAD_TRU_double
      USE GALAHAD_SYMBOLS
-     USE GALAHAD_SPECFILE_double 
+     USE GALAHAD_SPECFILE_double
      USE GALAHAD_COPYRIGHT
      USE GALAHAD_SPACE_double
      USE GALAHAD_CUTEST_FUNCTIONS_double
@@ -60,6 +60,7 @@
      LOGICAL :: filexx, is_specfile, hessian_pattern_required
 !    REAL :: timeo, timet
 !    REAL ( KIND = wp ) :: clocko, clockt
+     CHARACTER ( LEN = 10 ) :: name
 
 !  Functions
 
@@ -103,7 +104,6 @@
      LOGICAL :: get_max = .FALSE.
      LOGICAL :: warm_start = .FALSE.
      INTEGER :: istore = 0
-!    LOGICAL :: one_norm = .TRUE.
 
 !  Output file characteristics
 
@@ -136,16 +136,16 @@
        spec( 15 )%keyword = 'ignore-derivative-bugs'
        spec( 16 )%keyword = 'ignore-element-derivative-bugs'
        spec( 17 )%keyword = 'ignore-group-derivative-bugs'
-       spec( 18 )%keyword = 'get-scaling-factors' 
-       spec( 19 )%keyword = 'scaling-print-level' 
-       spec( 20 )%keyword = 'use-scaling-factors' 
-       spec( 21 )%keyword = 'use-constraint-scaling-factors' 
-       spec( 22 )%keyword = 'use-variable-scaling-factors' 
-       spec( 23 )%keyword = 'maximizer-sought' 
-       spec( 24 )%keyword = 'restart-from-previous-point' 
+       spec( 18 )%keyword = 'get-scaling-factors'
+       spec( 19 )%keyword = 'scaling-print-level'
+       spec( 20 )%keyword = 'use-scaling-factors'
+       spec( 21 )%keyword = 'use-constraint-scaling-factors'
+       spec( 22 )%keyword = 'use-variable-scaling-factors'
+       spec( 23 )%keyword = 'maximizer-sought'
+       spec( 24 )%keyword = 'restart-from-previous-point'
        spec( 25 )%keyword = 'restart-data-file-name'
        spec( 26 )%keyword = 'restart-data-file-device'
-       spec( 27 )%keyword = 'save-data-for-restart--every'
+       spec( 27 )%keyword = 'save-data-for-restart-every'
        spec( 28 )%keyword = ''
        spec( 29 )%keyword = ''
 
@@ -183,7 +183,7 @@
        CALL SPECFILE_assign_integer( spec( 26 ), wfiledevice, errout )
        CALL SPECFILE_assign_integer( spec( 27 ), istore, errout )
      END IF
-    
+
      IF ( dechk .OR. testal ) THEN ; dechke = .TRUE. ; dechkg = .TRUE. ; END IF
      IF ( not_fatal ) THEN ; not_fatale = .TRUE. ; not_fatalg = .TRUE. ; END IF
      IF ( scale ) THEN ; scaleg = .TRUE. ; scalev = .TRUE. ; END IF
@@ -199,7 +199,7 @@
           OPEN( rfiledevice, FILE = rfilename, FORM = 'FORMATTED',             &
                 STATUS = 'NEW', IOSTAT = iores )
        END IF
-       IF ( iores /= 0 ) THEN 
+       IF ( iores /= 0 ) THEN
          write( errout, 2030 ) iores, rfilename
          STOP
        END IF
@@ -208,7 +208,7 @@
        WRITE( rfiledevice, "( A10 )" ) nlp%pname
      END IF
 
-!  Set copyright 
+!  Set copyright
 
      IF ( out > 0 ) CALL COPYRIGHT( out, '2008' )
 
@@ -226,6 +226,48 @@
      CALL CUTEST_initialize( nlp, cutest_control, cutest_inform, userdata,     &
                              no_hessian = .NOT. hessian_pattern_required )
 
+!  Read a previous solution file for a re-entry
+
+     IF ( warm_start .AND. wfiledevice > 0 ) THEN
+       OPEN( wfiledevice, FILE = wfilename, FORM = 'FORMATTED',                &
+             STATUS = 'OLD', IOSTAT = iores )
+       IF ( iores /= 0 ) THEN
+         WRITE( out, 2030 ) iores, wfilename
+         STOP
+       END IF
+
+       REWIND( wfiledevice )
+       READ( wfiledevice, "( A10 )" ) name
+       IF ( name /= nlp%pname ) THEN
+         WRITE( out, "( /, ' *** Exit from usetru: re-entry requested with',   &
+        &         ' data for problem ', A10, /,                                &
+        &         '     but the most recently decoded problem is ', A10 )" )   &
+          name, nlp%pname
+         STOP
+       END IF
+       READ( wfiledevice, "( I8 )" )i
+       IF ( i /= nlp%n ) THEN
+         WRITE( out, "( /, ' *** Exit from usetru: number of variables'      , &
+        &        ' changed from ', I0,' to ', I0,' on re-entry ' )" ) nlp%n, i
+         STOP
+       END IF
+       READ( wfiledevice, "( I8 )" )i
+       IF ( i /= nlp%m ) THEN
+         WRITE( out, "( /, ' *** Exit from usetru: number of residuals',       &
+        &        ' changed from ', I0, ' to ', I0, ' on re-entry ' )" ) nlp%m, i
+         STOP
+       END IF
+       DO i = 1, nlp%n
+         READ( wfiledevice, "( ES24.16, 2X, A10 )" ) nlp%X( i ), name
+         IF ( name /= nlp%VNAMES( i ) ) THEN
+           WRITE( out, "( /, ' *** Exit from usetru: variable named ',         &
+          &  A, ' out of order on re-entry ' )" ) TRIM( name )
+           STOP
+         END IF
+       END DO
+       CLOSE( wfiledevice )
+     END IF
+
 !  =================
 !  Solve the problem
 !  =================
@@ -239,11 +281,12 @@
 
 !$    WRITE( out, "( ' number of threads = ', I0 )" ) OMP_GET_MAX_THREADS( )
 
+!     write(6,*) ' H ', nlp%H%val(:nlp%H%ne)
 !  ================
 !  Solution details
 !  ================
 
-!  If required, append results to a file, 
+!  If required, append results to a file,
 
       IF ( write_result_summary ) THEN
         BACKSPACE( rfiledevice )
@@ -277,25 +320,25 @@
 !  If required, write the solution
 
       l = 2
-      IF ( fulsol ) l = nlp%n 
+      IF ( fulsol ) l = nlp%n
       IF ( control%print_level >= 10 ) l = nlp%n
 
       WRITE( errout, 2000 )
-      DO j = 1, 2 
-        IF ( j == 1 ) THEN 
-          ir = 1 ; ic = MIN( l, nlp%n ) 
-        ELSE 
-          IF ( ic < nlp%n - l ) WRITE( errout, 2010 ) 
+      DO j = 1, 2
+        IF ( j == 1 ) THEN
+          ir = 1 ; ic = MIN( l, nlp%n )
+        ELSE
+          IF ( ic < nlp%n - l ) WRITE( errout, 2010 )
           ir = MAX( ic + 1, nlp%n - ic + 1 ) ; ic = nlp%n
-        END IF 
-        DO i = ir, ic 
+        END IF
+        DO i = ir, ic
           WRITE( errout, 2020 ) i, nlp%VNAMES( i ), nlp%X( i ), nlp%X_l( i ),  &
             nlp%X_u( i ), nlp%G( i )
         END DO
       END DO
 
       IF ( control%subproblem_direct ) THEN
-        WRITE( errout, "( /, 'name           n  f               du-feas ',     &
+        WRITE( errout, "( /, 'name           n  f              du-feas ',      &
        &  '   its     #g   av fac     time stat' )" )
         IF ( inform%status == GALAHAD_ok .OR.                                  &
              inform%status == GALAHAD_error_unbounded ) THEN
@@ -308,7 +351,7 @@
             inform%factorization_max, - inform%time%clock_total, inform%status
         END IF
       ELSE
-        WRITE( errout, "( /, 'name           n  f               du-feas ',     &
+        WRITE( errout, "( /, 'name           n  f              du-feas ',      &
        &  '   its     #g      #cg       time stat' )" )
         IF ( inform%status == GALAHAD_ok .OR.                                  &
              inform%status == GALAHAD_error_unbounded ) THEN
@@ -333,7 +376,7 @@
            OPEN( sfiledevice, FILE = sfilename, FORM = 'FORMATTED',            &
                 STATUS = 'NEW', IOSTAT = iores )
         END IF
-        IF ( iores /= 0 ) THEN 
+        IF ( iores /= 0 ) THEN
           write( out, 2030 ) iores, sfilename
           STOP
         END IF
@@ -348,9 +391,44 @@
         END DO
 
      END IF
-!do i = 1, nlp%n
-!write(6,*)  nlp%X( i )
-!end do
+
+!  if required, save the solution for a future re-entry
+
+     IF ( wfiledevice > 0 .AND. ( ( istore > 0 .AND.                           &
+            ( inform%status == GALAHAD_ok .OR.                                 &
+              inform%status == GALAHAD_error_ill_conditioned .OR.              &
+              inform%status == GALAHAD_error_tiny_step .OR.                    &
+              inform%status == GALAHAD_error_max_iterations .OR.               &
+              inform%status == GALAHAD_error_time_limit .OR.                   &
+              inform%status == GALAHAD_error_alive ) ) .OR.                    &
+            inform%status == GALAHAD_error_alive ) ) THEN
+       INQUIRE( FILE = wfilename, OPENED = filexx )
+       IF ( .NOT. filexx ) THEN
+         INQUIRE( FILE = wfilename, EXIST = filexx )
+         IF ( filexx ) THEN
+            OPEN( wfiledevice, FILE = wfilename, FORM = 'FORMATTED',           &
+                  STATUS = 'OLD', POSITION = 'APPEND', IOSTAT = iores )
+         ELSE
+            OPEN( wfiledevice, FILE = wfilename, FORM = 'FORMATTED',           &
+                  STATUS = 'NEW', IOSTAT = iores )
+         END IF
+         IF ( iores /= 0 ) THEN
+           WRITE( out, 2030 ) iores, wfilename
+           STOP
+         END IF
+       END IF
+       REWIND( wfiledevice )
+       WRITE( wfiledevice, "( A10, ' problem name ', /,                        &
+      &                       I8,  ' number of variables', /,                  &
+      &                       I8,  ' number of residuals',                     &
+      &                       ' ... and now variables' )" )                    &
+       nlp%pname, nlp%n, nlp%m
+       DO i = 1, nlp%n
+         WRITE( wfiledevice, "( ES24.16, 2X, A10 )" )                          &
+          nlp%X( i ), nlp%VNAMES( i )
+       END DO
+       CLOSE( wfiledevice )
+     END IF
 
 !  Close any opened files and deallocate arrays
 
@@ -363,12 +441,12 @@
  2000 FORMAT( ' Solution: ', /,'                        ',                     &
               '        <------ Bounds ------> ', /                             &
               '      # name          value   ',                                &
-              '    Lower       Upper       Dual ' ) 
+              '    Lower       Upper       Dual ' )
  2010 FORMAT( 6X, '. .', 9X, 4( 2X, 10( '.' ) ) )
- 2020 FORMAT( I7, 1X, A10, 4ES12.4 ) 
+ 2020 FORMAT( I7, 1X, A10, 4ES12.4 )
  2030 FORMAT( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )
- 2040 FORMAT( A10, I6, ES16.8, ES9.1, bn, 2I7, F5.1, I4, F9.2, I5 )
- 2050 FORMAT( A10, I6, ES16.8, ES9.1, bn, 2I7, I9, ' :', F9.2, I5 )
+ 2040 FORMAT( A10, I6, ES16.8, ES8.1, bn, 2I7, F5.1, I4, F9.2, I5 )
+ 2050 FORMAT( A10, I6, ES16.8, ES8.1, bn, 2I7, I9, ' :', F9.2, I5 )
 
 
 !  End of subroutine USE_TRU

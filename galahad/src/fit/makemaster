@@ -1,187 +1,57 @@
 #  Main body of the installation makefile for the GALAHAD FIT package
 
-#  N. Gould, D. Orban, D. Robinson and Ph. L. Toint.
-#  This version: 7 XII 2007
+#  Nick Gould, for GALAHAD productions 
+#  This version: 2021-05-28
 
-SHELL = /bin/$(BINSHELL)
+#  include standard GALAHAD makefile defaults before package-specifics
+ 
+include $(GALAHAD)/src/makedefs/defaults
 
-#  compiler flags
+#  ===========================================================================
+#  ====================  package-dependent parts  ============================
+#  ===========================================================================
 
-FFLAGS    = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(USUAL)
-FFLAGSS   = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F90) $(SPECIAL)
-FFLAGSN   = $(BASIC) $(NOOPTIMIZATION) $(DEBUG) $(MODULES) $(F90)
-FFLAGS77  = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(USUAL)
-FFLAGS77S = $(BASIC) $(OPTIMIZATION) $(DEBUG) $(MODULES) $(F77) $(SPECIAL)
-RUNFFLAGS =          $(OPTIMIZATION) $(DEBUG) $(MODULES)
+#  package name
 
-#  names of random libraries
+package = fit
+PACKAGE = FIT
 
-LG  = $(OBJ)/libgalahad.a
-LGS = $(OBJS)/libgalahad.a
-LGD = $(OBJD)/libgalahad.a
+#  auxiliary packages that current package depends on (prepend with make_)
 
-BLG  = $(OBJ)/libgalahad_blas.a
-BLGS = $(OBJS)/libgalahad_blas.a
-BLGD = $(OBJD)/libgalahad_blas.a
+DEPENDENCIES = make_dummy make_specfile make_zd11 make_smt make_space
 
-LLG  = $(OBJ)/libgalahad_lapack.a
-LLGS = $(OBJS)/libgalahad_lapack.a
-LLGD = $(OBJD)/libgalahad_lapack.a
+#  other packages that depend on package
 
-HLG  = $(OBJ)/libgalahad_hsl.a
-HLGS = $(OBJS)/libgalahad_hsl.a
-HLGD = $(OBJD)/libgalahad_hsl.a
+DEPENDS = qpd
 
-MLG  = $(OBJ)/libgalahad_metis.a
-MLGS = $(OBJS)/libgalahad_metis.a
-MLGD = $(OBJD)/libgalahad_metis.a
+#  auxiliary packages that are needed for tests (prepend with make_)
 
-#  Libraries used
+TESTDEPS =
 
-LIBS = -lgalahad -lgalahad_hsl -lgalahad_metis -lgalahad_lapack -lgalahad_blas
+#  tests to be performed (preprend with test_)
 
-#  Archive manipulation strings
+TESTS = test_full
 
-ARR = $(AR) -rc $(LG)
-RMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(LG)
-RMOBFILE = $(GALAHAD)/bin/rmobfile $(RM) $(OBJ)
+#  CUTEst example for tests
 
-BARR = $(AR) -rc $(BLG)
-BRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(BLG)
+CUTEST_EXAMPLE =
 
-LARR = $(AR) -rc $(LLG)
-LRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(LLG)
+#  ===========================================================================
+#  =================  end of package-dependent parts  ========================
+#  ===========================================================================
 
-HARR = $(AR) -rc $(HLG)
-HRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $(HLG)
+#  include standard GALAHAD makefile definitions
+ 
+include $(GALAHAD)/src/makedefs/definitions
 
-MARR = $(AR) -rc $(MLG)
-MRMARFILE = $(GALAHAD)/bin/rmarfile $(AR) $(GREP) $MHLG)
+#  include compilation and run instructions
+ 
+include $(GALAHAD)/src/makedefs/instructions
 
-#  sed scripts
+#  include standard package compilation instructions
 
-LSEDS = $(GALAHAD)/seds/$(LINEARSOLVER).sed
-LPSEDS = $(GALAHAD)/seds/$(LINEARSOLVER)_precon.sed
+include $(GALAHAD)/src/makedefs/compile
 
-#  compilation agenda
-
-SFIT = basics fit
-DFIT = basics fit
-
-FITS = basics $(LGS)(fit.o)
-FITD = basics $(LGD)(fit.o)
-
-FITSS = $(SFIT) $(OBJS)/fits.o
-FITDS = $(DFIT) $(OBJD)/fits.o
-FITST = $(FITS) $(OBJS)/fitt.o
-FITDT = $(FITD) $(OBJD)/fitt.o
-
-RFITSS = $(OBJD)/fits.o -L$(OBJD) $(LIBS)
-RFITDS = $(OBJD)/fits.o -L$(OBJD) $(LIBS)
-RFITST = $(OBJS)/fitt.o -L$(OBJS) $(LIBS)
-RFITDT = $(OBJD)/fitt.o -L$(OBJD) $(LIBS)
-
-SUCC = precision version) compiled successfully
-
-#  main compilations and runs
-
-all: fit
-
-# fit
-
-fit_silent: fit_silent_$(PRECIS)
-fit_silent_single: $(FITS)
-fit_silent_double: $(FITD)
-
-fit: fit_$(PRECIS)
-	@printf ' %-21s\n' "GALAHAD: FIT ($(PRECIS) $(SUCC)" 
-fit_single: $(FITS)
-	$(RANLIB) $(LGS)
-fit_double: $(FITD)
-	$(RANLIB) $(LGD)
-
-#  basic packages
-
-basics: 
-	( cd ../general ; $(MAKE) -f $(GALAHAD)/makefiles/$(VERSION) \
-            basics_silent PRECIS=$(PRECIS) PWD=$(PWD)/../general )
-
-# run spec-sheet example tests
-
-fitst: $(FITST)
-	echo " Exhaustive test of subroutine interface within fit "
-	cd ../fit ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o dummy_file $(RFITST)
-#	- ../fit/dummy_file
-#	- valgrind -v --tool=memcheck --leak-check=yes --show-reachable=yes ../qpa/dummy_file >& ../fit/fitst.output
-	- ../fit/dummy_file >& ../fit/fitst.output
-	cat ../fit/fitst.output
-	rm ../fit/dummy_file
-
-fitdt: $(FITDT)
-	echo " Exhaustive test of subroutine interface within fit "
-	cd ../fit ; $(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o dummy_file $(RFITDT)
-#	- ../fit/dummy_file
-#	- valgrind -v --tool=memcheck --leak-check=yes --show-reachable=yes ../qpa/dummy_file >& ../fit/fitdt.output
-	- ../fit/dummy_file >& ../fit/fitdt.output
-	cat ../fit/fitdt.output
-	rm ../fit/dummy_file
-
-fitt.o: $(OBJ)/fitt.o
-
-$(OBJ)/fitt.o: ../fit/fitt.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "fitt  "
-	$(SED) -f $(SEDS) ../fit/fitt.f90 > $(OBJ)/fitt1.f90
-	$(SED) -f $(LSEDS) $(OBJ)/fitt1.f90 > $(OBJ)/fitt.f90
-	cd $(OBJ) ; $(FORTRAN) -o fitt.o $(FFLAGS) fitt.f90
-	rm $(OBJ)/*.f90
-	@printf '[ OK ]\n'
-
-fitds: $(FITDS)
-	$(FORTRAN) $(RUNFFLAGS) $(SPECIAL) -o dummy_file $(RFITDS)
-#	- ./dummy_file
-	- ./dummy_file >& fitds.output
-	cat fitds.output
-	rm ./dummy_file
-
-#  Substantial GALAHAD packages
-
-fit.o: $(LG)(fit.o)
-
-$(LG)(fit.o): ../fit/fit.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "fit   "
-	$(SED) -f $(SEDS) ../fit/fit.f90 > $(OBJ)/fit.f90
-	cd $(OBJ); $(FORTRAN) -o fit.o $(FFLAGSS) fit.f90 \
-                || ( printf ' %-26s' "=> Disabling optimization " ; \
-                   $(FORTRAN) -o fit.o $(FFLAGSN) fit.f90 )
-	cd $(OBJ); $(ARR) fit.o ; $(RM) fit.f90 fit1.f90 fit.o
-	$(RMARFILE) qpd.o
-	$(RMOBFILE) fits.o
-	$(RMOBFILE) fitt.o
-	$(MVMODS)
-	@printf '[ OK ]\n'
-
-#  test decks
-
-fits.o: $(OBJ)/fits.o
-
-$(OBJ)/fits.o: ../fit/fits.f90
-	@printf ' %-9s %-15s\t\t' "Compiling" "fits  "
-	$(SED) -f $(SEDS) ../fit/fits.f90 > $(OBJ)/fits1.f90
-	$(SED) -f $(LSEDS) $(OBJ)/fits1.f90 > $(OBJ)/fits.f90
-	cd $(OBJ) ; $(FORTRAN) -o fits.o $(FFLAGS) fits.f90
-	rm $(OBJ)/*.f90
-	@printf '[ OK ]\n'
-
-#  book keeping
-
-clean: 
-	@printf ' %-9s\t\t' "Cleaning" 
-	$(RM) $(LG) $(OBJ)/trimsqpt.o $(OBJ)/trimsqpt.o
-	@printf '[ OK ]\n'
-
-cleanall: 
-	@printf ' %-14s\t\t' "Removing all $(PRECIS) precision object and module files" 
-	$(RM) $(OBJ)/* $(MOD)/*
-	@printf '[ OK ]\n'
-
-
+#  include required package intermediaries
+ 
+include $(GALAHAD)/src/makedefs/intermediaries

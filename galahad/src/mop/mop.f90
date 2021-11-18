@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 30/04/2015 AT 13:30 GMT.
+! THIS VERSION: GALAHAD 2.6 - 23/11/2016 AT 071:55 GMT.
 
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -13,7 +13,7 @@
 !  Copyright reserved, Gould/Orban/Toint, for GALAHAD productions
 !  Principal authors: Nick Gould and Daniel Robinson
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_MOP_double
@@ -26,8 +26,8 @@
 !                                                                             !
 !  Contains:                                                                  !
 !              mop_Ax, mop_getval, mop_row_1_norms, mop_row_2_norms,          !
-!              mop_row_infinity_norms, mop_scaleA                             !
-!                                                                             ! 
+!              mop_row_infinity_norms, mop_column_2_norms, mop_scaleA          !
+!                                                                             !
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -35,17 +35,17 @@
    USE GALAHAD_SMT_double
 
    IMPLICIT NONE
-     
+
    PRIVATE
    PUBLIC :: mop_Ax, mop_getval, mop_row_2_norms, mop_row_one_norms,           &
-             mop_row_infinity_norms, mop_scaleA
+             mop_row_infinity_norms, mop_column_2_norms, mop_scaleA
 
 !  Define the working precision to be double
 
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
 
- CONTAINS  
-  
+ CONTAINS
+
 
 !-*-*-*-*-*  B E G I N  m o p _ A X   S U B R O U T I N E  *-*-*-*-*-*-*-*-*
 
@@ -65,7 +65,7 @@
 !  =========
 !   alpha    a scalar variable of type real.
 !
-!   beta     a scalar variable of type real. 
+!   beta     a scalar variable of type real.
 !            If beta is zero, R need not be initialized.
 !
 !   A        a scalar variable of derived type SMT_type.
@@ -89,7 +89,7 @@
 !            Possible values are:
 !
 !               transpose = .TRUE.      r <- alpha * A^T * x  + beta * x
-!               transpose = .FALSE.     r <- alpha * A * x + beta * x 
+!               transpose = .FALSE.     r <- alpha * A * x + beta * x
 !
 !            If transpose is not present, then "not-transposed" is assumed.
 !
@@ -116,11 +116,11 @@
 !                                    Initial X, inital R, and final R.
 !
 !   m_matrix (optional) is a scalar variable of type integer, which overrides
-!            the row dimension provided in A 
+!            the row dimension provided in A
 !
 !   n_matrix (optional) is a scalar variable of type integer, which overrides
-!            the column dimension provided in A 
-!  
+!            the column dimension provided in A
+!
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 
@@ -140,7 +140,7 @@
      REAL ( KIND = wp ), PARAMETER :: one  = 1.0_wp
 
 !  Local variables
-     
+
      INTEGER :: e_dev, i_dev, printing
      INTEGER :: i, j, nA
      INTEGER :: m, n, Acoli, Arowi
@@ -166,13 +166,13 @@
      ELSE
         printing = 0
      END IF
-    
+
      IF ( PRESENT( transpose ) ) THEN
         trans = transpose
      ELSE
         trans = .FALSE.
      END IF
-     
+
      IF ( PRESENT( symmetric ) ) THEN
         symm = symmetric
      ELSE
@@ -230,13 +230,13 @@
 
      IF ( ( m <= 0 ) .OR. ( n <= 0 ) ) THEN
         WRITE( e_dev, 1001 )
-        GOTO 999
+        GO TO 999
      END IF
 
      IF ( symm ) THEN
         IF ( m /= n ) THEN
            WRITE( e_dev, 1002 )
-           GOTO 999
+           GO TO 999
         END IF
      END IF
 
@@ -251,15 +251,15 @@
         ELSE
            WRITE( i_dev, "(5X, 'A%id   =' )")
         END IF
-        
+
         WRITE( i_dev, 1008 ) trans, m, alpha,      &
                            symm, n, beta
- 
+
         IF ( printing >= 2 ) THEN
 
            SELECT CASE ( SMT_get( A%type ) )
 
-           CASE ( 'DENSE' )
+           CASE ( 'DENSE', 'DENSE_BY_COLUMNS' )
               WRITE( i_dev, 1009 ) &
                     ( A%val(i), i = 1, m*n )
            CASE ( 'SPARSE_BY_ROWS' )
@@ -287,13 +287,21 @@
 
            IF ( printing >= 3 ) THEN
               IF ( m == n ) THEN
-                 WRITE( i_dev, 1014 ) ( X(i), R(i), i = 1,m )
-              ELSEIF ( m < n ) THEN
-                 WRITE( i_dev, 1014 ) ( X(i), R(i), i = 1,m )
-                 WRITE( i_dev, 1015 ) ( X(i), i = m+1,n )
+                 WRITE( i_dev, 1014 ) ( X( i ), R( i ), i = 1, m )
+              ELSE IF ( m < n ) THEN
+                 WRITE( i_dev, 1014 ) ( X( i ), R( i ), i = 1, m )
+                 IF ( trans ) THEN
+                   WRITE( i_dev, 1017 ) ( R( i ), i = m + 1, n )
+                 ELSE
+                   WRITE( i_dev, 1015 ) ( X( i ), i = m + 1, n )
+                 END IF
               ELSE
-                 WRITE( i_dev, 1014 ) ( X(i), R(i), i = 1,n )
-                 WRITE( i_dev, 1017 ) ( R(i), i = n+1,m )
+                 WRITE( i_dev, 1014 ) ( X( i ), R( i ), i = 1,n )
+                 IF ( trans ) THEN
+                   WRITE( i_dev, 1015 ) ( X( i ), i = n + 1, m )
+                 ELSE
+                   WRITE( i_dev, 1017 ) ( R( i ), i = n + 1, m )
+                 END IF
               END IF
               !WRITE( i_dev, 1014 ) X
               !WRITE( i_dev, 1015 ) R
@@ -339,72 +347,111 @@
            nA = 1
 
            IF ( alpha == one ) THEN
-             
+
               DO i = 1, m
                  R( i ) = R( i ) + DOT_PRODUCT( A%val( nA : nA+i-1 ), X(1:i) )
                  R( 1 : i-1 ) = R( 1 : i-1 ) + A%val( nA : nA+i-2 ) * X( i )
                  nA = nA + i
               END DO
               !write(*,*) 'Testing 1'
-           
+
            ELSE
-           
+
               DO i = 1, m
                  R(i) = R(i) + alpha*DOT_PRODUCT( A%val( nA:nA+i-1 ), X(1:i) )
                  R( 1:i-1 ) = R( 1:i-1 ) + alpha*A%val( nA : nA+i-2 ) * X( i )
                  nA = nA + i
               END DO
               !write(*,*) 'Testing 2'
-           
+
            END IF
- 
         ELSE
-           
            IF ( trans ) THEN
-              
               IF ( alpha == one ) THEN
-                
-                 DO j = 1, m
-                    R(1:n) = R(1:n) + X(j) * A%val( n*(j-1) + 1: n*j )
-                 END DO
-                 !write(*,*) 'Testing 3'
-              
+                DO j = 1, m
+                  R(1:n) = R(1:n) + X(j) * A%val( n*(j-1) + 1: n*j )
+                END DO
               ELSE
-              
-                 DO j = 1, m
-                    R(1:n) = R(1:n) + X(j) * alpha * A%val( n*(j-1) + 1 : n*j )
-                 END DO
-                 !write(*,*) 'Testing 4'
-              
+                DO j = 1, m
+                  R(1:n) = R(1:n) + X(j) * alpha * A%val( n*(j-1) + 1 : n*j )
+                END DO
+             END IF
+           ELSE
+              IF ( alpha == one ) THEN
+                DO j = 1, m
+                  R(j) = R(j) + DOT_PRODUCT( A%val( n*(j-1)+1 : n*j ), X(1:n) )
+                END DO
+              ELSE
+                DO j = 1, m
+                  R(j) = R(j) + alpha*DOT_PRODUCT(A%val(n*(j-1)+1:n*j), X(1:n))
+                END DO
               END IF
+
+           END IF
+
+        END IF
+
+
+     ! Storage type GALAHAD_DENSE_BY_COLUMNS
+     ! *************************************
+
+     CASE ( 'DENSE_BY_COLUMNS' )
+
+        IF ( symm ) THEN
+
+           nA = 1
+
+           IF ( alpha == one ) THEN
+
+             DO j = 1, n
+               R( j : m ) = R( j : m ) + A%val( nA : nA+m-j ) * X( j )
+               R( j ) = R( j ) + DOT_PRODUCT( A%val( nA+1 : nA+m-j ), X(j+1:m) )
+               nA = nA + m - j + 1
+             END DO
+              !write(*,*) 'Testing 1'
 
            ELSE
 
+             DO j = 1, n
+               R( j : m ) = R( j : m ) + alpha * A%val( nA : nA+m-j ) * X( j )
+               R( j ) = R( j ) + alpha *                                      &
+                 DOT_PRODUCT( A%val( nA+1 : nA+m-j ), X(j+1:m) )
+               nA = nA + m - j + 1
+             END DO
+              !write(*,*) 'Testing 2'
+
+           END IF
+        ELSE
+           IF ( trans ) THEN
               IF ( alpha == one ) THEN
-                
-                 DO j = 1, m
-                    R(j) = R(j) + DOT_PRODUCT( A%val( n*(j-1)+1 : n*j ), X(1:n) )
-                 END DO
-                 !write(*,*) 'Testing 5'
-              
+                DO j = 1, n
+                  R(j) = R(j) + DOT_PRODUCT(A%val(m*(j-1)+1:m*j), X(1:m))
+                END DO
               ELSE
-              
-                 DO j = 1, m
-                    R(j) = R(j) + alpha*DOT_PRODUCT(A%val(n*(j-1)+1:n*j), X(1:n))
-                 END DO
-                 !write(*,*) 'Testing 6'
-              
+                DO j = 1, n
+                  R(j) = R(j) + alpha*DOT_PRODUCT(A%val(m*(j-1)+1:m*j), X(1:m))
+                END DO
+             END IF
+           ELSE
+              IF ( alpha == one ) THEN
+                DO j = 1, n
+                  R(1:m) = R(1:m) + A%val( m*(j-1)+1 : m*j ) * X(j)
+                END DO
+              ELSE
+                DO j = 1, n
+                  R(1:m) = R(1:m) + alpha*A%val( m*(j-1)+1 : m*j ) * X(j)
+                END DO
               END IF
 
            END IF
-           
+
         END IF
-              
+
      ! Storage type GALAHAD_SPARSE_BY_ROWS
      ! ***********************************
- 
+
      CASE ( 'SPARSE_BY_ROWS' )
-   
+
         IF ( symm ) THEN
 
            IF ( alpha == one ) THEN
@@ -421,9 +468,9 @@
                  R( i ) = ri
               END DO
               !write(*,*) 'Testing 7'
-              
+
            ELSE
-              
+
               DO i = 1, m
                  ri = zero
                  Xi = alpha * X( i )
@@ -436,11 +483,11 @@
                  R( i ) = R( i ) + alpha * ri
               END DO
               !write(*,*) 'Testing 8'
-              
+
            END IF
-           
+
         ELSE
-           
+
            IF ( trans ) THEN
 
               IF ( alpha == one ) THEN
@@ -464,7 +511,7 @@
                  !write(*,*) 'Testing 10'
 
               END IF
-        
+
            ELSE
 
               IF ( alpha == one ) THEN
@@ -490,16 +537,16 @@
                  !write(*,*) 'Testing 12'
 
               END IF
-         
+
            END IF
-           
+
         END IF
 
      ! Storage type GALAHAD_SPARSE_BY_COLUMNS
      ! **************************************
-   
+
      CASE ( 'SPARSE_BY_COLUMNS' )
-      
+
         IF ( symm ) THEN
 
            IF ( alpha == one ) THEN
@@ -528,13 +575,12 @@
                  END DO
               END DO
               !write(*,*) 'Testing 14'
-                 
-           END IF
-       
-        ELSE
 
+           END IF
+
+        ELSE
            IF ( trans ) THEN
-              
+
               IF ( alpha == one ) THEN
 
                  DO j = 1, n
@@ -545,7 +591,7 @@
                     R( j ) = rj
                  END DO
                  !write(*,*) 'Testing 15'
-           
+
               ELSE
 
                  DO j = 1, n
@@ -583,16 +629,16 @@
                  !write(*,*) 'Testing 18'
 
               END IF
-              
+
            END IF
-           
+
         END IF
-       
+
      ! Storage type GALAHAD_COORDINATE
      ! *******************************
-  
-     CASE ( 'COORDINATE' )     
-        
+
+     CASE ( 'COORDINATE' )
+
         IF ( symm ) THEN
 
            IF ( alpha == one ) THEN
@@ -604,16 +650,16 @@
                  Avali = A%val(i)
 
                  R( Arowi ) = R( Arowi ) + Avali * X( Acoli )
-                 
+
                  IF ( Arowi /= Acoli ) THEN
                     R( Acoli ) = R( Acoli ) + Avali * X( Arowi )
                  END IF
-                 
+
               END DO
               !WRITE(*,*) 'Testing 19'
 
            ELSE
-              
+
               DO i = 1, A%ne
 
                  Avali = alpha * A%val(i)
@@ -621,58 +667,39 @@
                  Acoli = A%col(i)
 
                  R( Arowi ) = R( Arowi ) + Avali * X( Acoli )
-                 
+
                  IF ( Arowi /= Acoli ) THEN
                     R( Acoli ) = R( Acoli ) + Avali * X( Arowi )
                  END IF
-                 
+
               END DO
               !WRITE(*,*) 'Testing 20'
-              
-           END IF
 
+           END IF
         ELSE
-           
-           IF ( trans ) THEN
-
-              IF ( alpha == one ) THEN
-
-                 DO i = 1, A%ne
-                    R( A%col(i) ) = R( A%col(i) ) + A%val(i) * X( A%row(i) )
-                 END DO
-                 !WRITE(*,*) 'Testing 21'
-
-              ELSE
-
-                 DO i = 1, A%ne
-                    R( A%col(i) ) = R( A%col(i) ) + alpha*A%val(i) * X( A%row(i) )
-                 END DO
-                 !WRITE(*,*) 'Testing 22'
-
-              END IF
-
-           ELSE
-
-              IF ( alpha == one ) THEN
-
-                 DO i = 1, A%ne
-                    R( A%row(i) ) = R( A%row(i) ) + A%val(i) * X( A%col(i) )
-                 END DO
-                 !WRITE(*,*) 'Testing 23'
-
-              ELSE
-
-                 DO i = 1, A%ne
-                    R( A%row(i) ) = R( A%row(i) ) + alpha*A%val(i) * X( A%col(i) )
-                 END DO
-                 !WRITE(*,*) 'Testing 24'
-
-              END IF
-
-           END IF
-           
+          IF ( trans ) THEN
+            IF ( alpha == one ) THEN
+              DO i = 1, A%ne
+                R( A%col(i) ) = R( A%col(i) ) + A%val(i) * X( A%row(i) )
+              END DO
+            ELSE
+              DO i = 1, A%ne
+                R( A%col(i) ) = R( A%col(i) ) + alpha*A%val(i) * X( A%row(i) )
+              END DO
+            END IF
+          ELSE
+            IF ( alpha == one ) THEN
+              DO i = 1, A%ne
+                R( A%row(i) ) = R( A%row(i) ) + A%val(i) * X( A%col(i) )
+              END DO
+            ELSE
+              DO i = 1, A%ne
+                R( A%row(i) ) = R( A%row(i) ) + alpha*A%val(i) * X( A%col(i) )
+              END DO
+            END IF
+          END IF
         END IF
-        
+
      ! Storage type GALAHAD_DIAGONAL
      ! *****************************
 
@@ -689,7 +716,7 @@
            !WRITE(*,*) 'Testing 26'
 
         END IF
-                
+
      CASE( 'SCALED_IDENTITY' )
 
         IF ( alpha == one ) THEN
@@ -726,7 +753,7 @@
      CASE DEFAULT
 
            WRITE( e_dev, 1000 )
-        
+
      END SELECT
 
 !*****************************************************************
@@ -752,15 +779,15 @@
 
 1000  FORMAT(/,5X,'*** ERROR : mop_AX : Unrecognized value A%type.')
 1001  FORMAT(/,5X,'*** ERROR : mop_AX : A%m <= 0 and/or A%n <= 0 .')
-1002  FORMAT(/,5X,'*** ERROR : mop_AX : '                           ,        &
+1002  FORMAT(/,5X,'*** ERROR : mop_AX : '                           ,          &
                   'symmetric = .TRUE., but A%m /= A%n.',/)
-1005  FORMAT(/,                                                              &
-      3X,'*************************************************************',/,  &
-      3X,'*                     BEGIN: mop_Ax                         *',/,  &
-      3X,'*        GALAHAD sparse matrix operation subroutine         *',/,  &
+1005  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+      3X,'*                     BEGIN: mop_Ax                         *',/,    &
+      3X,'*        GALAHAD sparse matrix operation subroutine         *',/,    &
       3X,'*************************************************************',/)
-1008  FORMAT(/,                                                              &
-      5X,'transpose = ', L1, 5X, 'm =', I6, 5X,'alpha =', ES17.10,/,         &
+1008  FORMAT(/,                                                                &
+      5X,'transpose = ', L1, 5X, 'm =', I6, 5X,'alpha =', ES17.10,/,           &
       5X,'symmetric = ', L1, 5X, 'n =', I6, 5X,'beta  =', ES17.10 )
 1009  FORMAT(/,5X,'      A%val    ',/, &
                5X,'  -------------',/, (5X, ES17.10 ) )
@@ -783,16 +810,16 @@
                5X,'  -------------',/,  &
               (5X, ES17.10) )
 1017  FORMAT( (27X, ES17.10) )
-1020  FORMAT(/,                                                              &
-      3X,'*************************************************************',/,  &
-      3X,'*                      END: mop_Ax                          *',/,  &
+1020  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+      3X,'*                      END: mop_Ax                          *',/,    &
       3X,'*************************************************************',/)
-     
+
    END SUBROUTINE mop_Ax
 
-!-*-*-*-*-*-*  E N D : m o p _ A X   S U B R O U T I N E  *-*-*-*-*-*-*-*-*-*
+!-*-*-*-*-*-* - E N D : m o p _ A X   S U B R O U T I N E  -*-*-*-*-*-*-*-*-*-
 
-!-*-*-*-*-*  B E G I N  m o p _ s c a l e A  S U B R O U T I N E  *-*-*-*-*-*-*-*-*
+!-*-*-*-*-  B E G I N  m o p _ s c a l e A  S U B R O U T I N E  -*-*-*-*-*-*-
 
    SUBROUTINE mop_scaleA( A, u, v, out, error, print_level, symmetric )
 
@@ -808,7 +835,7 @@
 !  Arguments:
 !  =========
 !
-!   A        a scalar variable of derived type SMT_type.   
+!   A        a scalar variable of derived type SMT_type.
 !
 !   out      (optional) is a scalar variable of type integer, which
 !            holds the stream number for informational messages;  the
@@ -850,8 +877,8 @@
   LOGICAL, INTENT( IN ), OPTIONAL :: symmetric
 
 !  Local variables
-     
-  INTEGER :: e_dev, i_dev, printing 
+
+  INTEGER :: e_dev, i_dev, printing
   INTEGER :: i, j, l
   INTEGER :: m, n, first, last, element
   REAL ( KIND = wp ) :: ui, uj, vj
@@ -864,13 +891,13 @@
   ELSE
      e_dev = 6
   END IF
-  
+
   IF ( PRESENT( out ) ) THEN
      i_dev = out
   ELSE
      i_dev = 6
   END IF
-  
+
   IF ( PRESENT( print_level ) ) THEN
      printing = print_level
   ELSE
@@ -885,7 +912,7 @@
 
 ! Print header
 
-  IF ( printing >= 1 ) WRITE( i_dev, 1006 ) 
+  IF ( printing >= 1 ) WRITE( i_dev, 1006 )
 
 ! Make sure that at least one of u and v is supplied.
 
@@ -927,7 +954,7 @@
         GOTO 999
      end if
   END IF
-     
+
   IF ( symm .and. m /= n ) then
      WRITE( e_dev, 1007 )
      GOTO 999
@@ -940,7 +967,7 @@
      WRITE( i_dev, 1004 )
 
      WRITE( i_dev, "(5X, 'A%type    = ', 20a)" ) A%type
-     
+
      IF ( ALLOCATED( A%id ) ) THEN
         WRITE( i_dev, "(5X, 'A%id      = ', 20a)" ) A%id
      ELSE
@@ -948,11 +975,11 @@
      END IF
 
      WRITE( i_dev, "(5X, 'SYMMETRIC = ', L1)" ) symm
-     
+
      WRITE( i_dev, 1008 ) m, n
-     
+
      SELECT CASE ( SMT_get( A%type ) )
-        
+
      CASE ( 'DENSE' )
         WRITE( i_dev, 1009 ) &
              ( A%val(i), i = 1, m*n )
@@ -976,7 +1003,7 @@
         WRITE( e_dev, 1003 )
         GOTO 999
      END SELECT
-     
+
      IF ( .not. present(u) ) then
         WRITE( i_dev, 1015 ) 'v', ( v(i), i = 1,n )
      ELSEIF ( .not. present(v) ) then
@@ -994,7 +1021,7 @@
      END IF
 
   END IF
-  
+
 !*****************************************************************
 ! BEGIN : COMPUTATION                                            !
 !*****************************************************************
@@ -1006,9 +1033,9 @@
      ! ------------------------------------------
 
      SELECT CASE ( SMT_get( A%type ) )
-        
+
      CASE ( 'DENSE' )
-        
+
         element = 1
         do i = 1, m
            ui = u(i)
@@ -1017,7 +1044,7 @@
               element = element + 1
            end do
         end do
-                     
+
      CASE ( 'SPARSE_BY_ROWS' )
 
         do i = 1, m
@@ -1034,20 +1061,20 @@
            do l = A%ptr(j), A%ptr(j+1)-1
               A%val(l) = uj * A%val(l) * u( A%row(l) )
            end do
-        end do   
-        
+        end do
+
      CASE ( 'COORDINATE' )
-        
+
         do i = 1, A%ne
            A%val(i) = u( A%row(i) ) * A%val(i) * u( A%col(i) )
         end do
-        
+
      CASE ( 'DIAGONAL' )
 
         do i = 1, n
            A%val(i) = u(i)**2 * A%val(i)
         end do
-        
+
      CASE DEFAULT
 
         WRITE( e_dev, 1003 )
@@ -1057,15 +1084,15 @@
   else   ! not symmetric.
 
      if ( present(u) .and. present(v) ) then
-    
+
         ! --------------------------------------------------------------
         ! Hit A on the left and right side with u and v, respectively. |
         ! --------------------------------------------------------------
-    
+
         SELECT CASE ( SMT_get( A%type ) )
-            
+
         CASE ( 'DENSE' )
-           
+
            element = 1
            do i = 1, m
               ui = u(i)
@@ -1074,18 +1101,18 @@
                  element = element + 1
               end do
            end do
-           
+
         CASE ( 'SPARSE_BY_ROWS' )
-           
+
            do i = 1, m
               ui = u(i)
               do l = A%ptr(i), A%ptr(i+1)-1
                  A%val(l) = ui * A%val(l) * v( A%col(l) )
               end do
            end do
-           
+
         CASE ( 'SPARSE_BY_COLUMNS' )
-           
+
            do j = 1, n
               vj = v(j)
               do l = A%ptr(j), A%ptr(j+1)-1
@@ -1094,33 +1121,33 @@
            end do
 
         CASE ( 'COORDINATE' )
-           
+
            do i = 1, A%ne
               A%val(i) = u( A%row(i) ) * A%val(i) * v( A%col(i) )
            end do
-           
+
         CASE ( 'DIAGONAL' )
-           
+
            do i = 1, n
-              A%val(i) = u(i) * A%val(i) * v(i) 
+              A%val(i) = u(i) * A%val(i) * v(i)
            end do
-           
+
         CASE DEFAULT
-           
+
            WRITE( e_dev, 1003 )
-           
+
         END SELECT
-        
+
      elseif ( present(u) ) then
-        
+
         ! -------------------------------------
         ! Only hit A on the left side with u. |
         ! -------------------------------------
-    
+
         SELECT CASE ( SMT_get( A%type ) )
-            
+
         CASE ( 'DENSE' )
-            
+
            if ( symm ) then
               first = 1
               do i = 1, m
@@ -1138,18 +1165,18 @@
                  first = first + n
               end do
            end if
-           
+
         CASE ( 'SPARSE_BY_ROWS' )
-           
+
            do i = 1, m
               ui = u(i)
               first = A%ptr(i)
               last = A%ptr(i+1) - 1
               A%val( first:last ) = ui * A%val( first:last )
            end do
-    
+
         CASE ( 'SPARSE_BY_COLUMNS' )
-           
+
            do j = 1, n
               do l = A%ptr(j), A%ptr(j+1) - 1
                  A%val( l ) = u( A%row(l) ) * A%val( l )
@@ -1157,33 +1184,33 @@
            end do
 
         CASE ( 'COORDINATE' )
-           
+
            do i = 1, A%ne
               A%val(i) = u( A%row(i) ) * A%val(i)
            end do
-           
+
         CASE ( 'DIAGONAL' )
-           
+
            do i = 1, n
               A%val(i) = u(i) * A%val(i)
            end do
-           
+
         CASE DEFAULT
-           
+
            WRITE( e_dev, 1003 )
-           
+
         END SELECT
-        
+
      else
-        
+
         ! --------------------------------------
         ! Only hit A on the right side with v. |
         ! --------------------------------------
-    
+
         SELECT CASE ( SMT_get( A%type ) )
-           
+
         CASE ( 'DENSE' )
-           
+
            if ( symm ) then
               first = 0
               do i = 1, m
@@ -1200,44 +1227,44 @@
                  end do
               end do
            end if
-           
+
         CASE ( 'SPARSE_BY_ROWS' )
-           
+
            do i = 1, m
               do l = A%ptr(i), A%ptr(i+1) - 1
                  A%val( l ) = A%val( l ) * v( A%col(l) )
               end do
            end do
-           
+
         CASE ( 'SPARSE_BY_COLUMNS' )
-           
+
            do j = 1, n
               vj = v(j)
               first = A%ptr(j)
               last = A%ptr(j+1) - 1
               A%val( first:last ) = vj * A%val( first:last )
-           end do  
-           
+           end do
+
         CASE ( 'COORDINATE' )
-           
+
            do i = 1, A%ne
               A%val(i) = A%val(i) * v( A%col(i) )
            end do
-           
+
         CASE ( 'DIAGONAL' )
-           
+
            do i = 1, n
               A%val(i) = A%val(i) * v(i)
            end do
-           
+
         CASE DEFAULT
-           
+
            WRITE( e_dev, 1003 )
-           
+
         END SELECT
-        
+
      end if
-     
+
   end if
 
 !*****************************************************************
@@ -1251,7 +1278,7 @@
      WRITE( i_dev, 1005 )
 
      SELECT CASE ( SMT_get( A%type ) )
-        
+
      CASE ( 'DENSE' )
         WRITE( i_dev, 1009 ) &
              ( A%val(i), i = 1, m*n )
@@ -1275,7 +1302,7 @@
         WRITE( e_dev, 1003 )
         GOTO 999
      END SELECT
-     
+
   END IF
 
 999 CONTINUE
@@ -1285,9 +1312,9 @@
   IF ( printing >= 1 ) THEN
      WRITE( i_dev, 1020 ) ! footer
   END IF
-  
+
   RETURN
-  
+
 ! format statements
 
 1000 FORMAT(/,5X,'*** ERROR : mop_scaleA : must supply at ', &
@@ -1295,18 +1322,18 @@
 1001  FORMAT(/,5X,'*** ERROR : mop_scaleA : A%m <= 0 and/or A%n <= 0 .')
 1002  FORMAT(/,5X,'*** ERROR : mop_scaleA : invalid length for u and/or v.')
 1003  FORMAT(/,5X,'*** ERROR : mop_scaleA : Unrecognized value A%type.')
-1004  FORMAT(                                                                &
-      10X,'   ----------------------------',/,                               &
-      10X,'        Matrix Pre-scaling',/,                                    &
+1004  FORMAT(                                                                  &
+      10X,'   ----------------------------',/,                                 &
+      10X,'        Matrix Pre-scaling',/,                                      &
       10X,'   ----------------------------',/ )
-1005  FORMAT(/,                                                              &
-      10X,'   -----------------------------',/,                              &
-      10X,'        Matrix Post-scaling',/,                                   &
+1005  FORMAT(/,                                                                &
+      10X,'   -----------------------------',/,                                &
+      10X,'        Matrix Post-scaling',/,                                     &
       10X,'   -----------------------------' )
-1006  FORMAT(                                                                &
-      3X,'*************************************************************',/,  &
-      3X,'*                 BEGIN: mop_scaleA                         *',/,  &
-      3X,'*        GALAHAD sparse matrix operation subroutine         *',/,  &
+1006  FORMAT(                                                                  &
+      3X,'*************************************************************',/,    &
+      3X,'*                 BEGIN: mop_scaleA                         *',/,    &
+      3X,'*        GALAHAD sparse matrix operation subroutine         *',/,    &
       3X,'*************************************************************',/)
 1007  FORMAT(/,5X,'*** ERROR : mop_scaleA : entered as symmetric, but m/=n.')
 1008  FORMAT(/, 5X, '(m,n) = (', I6, ',', I6, ')' )
@@ -1330,9 +1357,9 @@
 1016  FORMAT(/,5X,'*** ERROR : mop_scaleA : A symmetric, must supply u.')
 1017  FORMAT( (27X, ES17.10) )
 1018  FORMAT( ( 5X, ES17.10) )
-1020  FORMAT(/,                                                              &
-      3X,'*************************************************************',/,  &
-      3X,'*                  END: mop_scaleA                          *',/,  &
+1020  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+      3X,'*                  END: mop_scaleA                          *',/,    &
       3X,'*************************************************************',/)
 
    end SUBROUTINE mop_scaleA
@@ -1399,7 +1426,7 @@
      REAL ( KIND = wp ), PARAMETER :: one  = 1.0_wp
 
 !  Local variables
-     
+
      INTEGER :: ii, i, j, m, n
      INTEGER :: i_dev, e_dev, printing
      LOGICAL :: symm
@@ -1466,9 +1493,9 @@
         ELSE
            WRITE( i_dev, "(5X, 'A%id   =' )")
         END IF
-        
+
         WRITE( i_dev, 1008 ) m, row, symm, n, col
- 
+
         IF ( printing >= 2 ) THEN
 
            SELECT CASE ( SMT_get( A%type ) )
@@ -1577,7 +1604,7 @@
 
     CASE ( 'SCALED_IDENTITY' )
     !******************
-     
+
         if ( i == j ) then
            val = A%val(1)
         else
@@ -1587,7 +1614,7 @@
 
     CASE ( 'IDENTITY' )
     !******************
-     
+
         if ( i == j ) then
            val = one
         else
@@ -1605,7 +1632,7 @@
 
         val = zero
         write( e_dev, 1000 )
-        
+
      END SELECT
 
 999  CONTINUE
@@ -1616,22 +1643,22 @@
         WRITE( i_dev, 1014 ) val
         WRITE( i_dev, 1020 ) ! footer
      END IF
-       
+
      RETURN
 
 !  Format statements
 
 1000  FORMAT(/,5X,'*** ERROR : mop_getval : Unrecognized value A%type.')
 1001  FORMAT(/,5X,'*** ERROR : mop_getval : A%m <= 0 and/or A%n <= 0 .')
-1002  FORMAT(/,5X,'*** ERROR : mop_getval : ',           &
+1002  FORMAT(/,5X,'*** ERROR : mop_getval : ',                                 &
                   'symmetric = .TRUE., but A%m /= A%n.',/)
-1005  FORMAT(/,                                                              &
-      3X,'*************************************************************',/,  &
-      3X,'*                     BEGIN: mop_getval                     *',/,  &
-      3X,'*      GALAHAD gets a single element of a sparse matrix     *',/,  &
+1005  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+      3X,'*                     BEGIN: mop_getval                     *',/,    &
+      3X,'*      GALAHAD gets a single element of a sparse matrix     *',/,    &
       3X,'*************************************************************',/)
-1008  FORMAT(/,                                                              &
-      5X,'m =', I6, 5X,'row =', I6, 5X, 'symmetric = ', L1, /,           &
+1008  FORMAT(/,                                                                &
+      5X,'m =', I6, 5X,'row =', I6, 5X, 'symmetric = ', L1, /,                 &
       5X,'n =', I6, 5X,'col =', I6 )
 1009  FORMAT(/,5X,'      A%val    ',/, &
                5X,'  -------------',/, (5X, ES17.10 ) )
@@ -1643,22 +1670,24 @@
 1012  FORMAT(/,5X,'  A%row             A%val    ',/,  &
                5X,'  -----         -------------',/,  &
               (5X, I7, 7X, ES17.10) )
-1013  FORMAT(/,5X,'  A%row         A%col             A%val    ',/,  &
-               5X,'  -----         -----         -------------',/,  &
+1013  FORMAT(/,5X,'  A%row         A%col             A%val    ',/,             &
+               5X,'  -----         -----         -------------',/,             &
               (5X, I7, 7X, I7, 7X, ES17.10) )
 1014  FORMAT(/,5X,'ON EXIT: value = ', ES16.9 )
-1020  FORMAT(/,                                                              &
-      3X,'*************************************************************',/,  &
-      3X,'*                      END: mop_getval                      *',/,  &
+1020  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+      3X,'*                      END: mop_getval                      *',/,    &
       3X,'*************************************************************',/)
 
    END SUBROUTINE mop_getval
 
 !-*-*-*-*  E N D : m o p _  g e t v a l   S U B R O U T I N E  *-*-*-*-*-*
 
-!-*-*-*-*  B E G I N  m o p _ r o w _ 2 _ n o r m s   S U B R O U T I N E  *-*-*-*-*-*
+!-*-*-  B E G I N  m o p _ r o w _ 2 _ n o r m s   S U B R O U T I N E  *-*-*-
 
-   SUBROUTINE mop_row_2_norms( A, row_norms, symmetric, out, error, print_level )
+   SUBROUTINE mop_row_2_norms( A, row_norms, symmetric, out, error,            &
+                               print_level )
+
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !      ..............................................................
@@ -1707,181 +1736,184 @@
   REAL( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: row_norms
   LOGICAL, INTENT( IN ), OPTIONAL :: symmetric
   INTEGER, INTENT( IN ), OPTIONAL :: error, out, print_level
-  
+
 ! Set Parameters
-  
+
   REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
   REAL ( KIND = wp ), PARAMETER :: one  = 1.0_wp
-  
+
 !  Local variables
-  
-  INTEGER :: i, m, n
+
+  INTEGER :: i, j, l, l1, l2, m, n
   INTEGER :: i_dev, e_dev, printing
+  REAL ( KIND = wp ) :: val
   LOGICAL :: symm
 
-!**************************************************************
+!  Check for optional arguments
 
-  ! Check for optional arguments.
+  IF ( PRESENT( symmetric ) ) THEN
+    symm = symmetric
+  ELSE
+    symm = .false.
+  END IF
+  IF ( PRESENT( error ) ) THEN
+    e_dev = error
+  ELSE
+    e_dev = 6
+  END if
+  IF ( PRESENT( out ) ) THEN
+    i_dev = out
+  ELSE
+    i_dev = 6
+  END IF
+    IF ( PRESENT( print_level ) ) THEN
+    printing = print_level
+  ELSE
+    printing = 0
+  END IF
 
-  if ( present( symmetric ) ) then
-     symm = symmetric
-  else
-     symm = .false.
-  end if
-  
-  if ( present( error ) ) then
-     e_dev = error
-  else
-     e_dev = 6
-  end if
-  
-  if ( present( out ) ) then
-     i_dev = out
-  else
-     i_dev = 6
-  end if
-  
-  if ( present( print_level ) ) then
-     printing = print_level
-  else
-     printing = 0
-  end if
-  
-  ! Print Header
-  
+!   Print Header
+
   IF ( printing >= 1 ) WRITE( i_dev, 1005 )
-  
-  ! Set some convenient variables.
 
-  m = A%m
-  n = A%n
-  
-  ! Check for bad dimensions.
-  
+!   Set some convenient variables
+
+  m = A%m ; n = A%n
+
+!   Check for bad dimensions
+
   IF ( ( m <= 0 ) .OR. ( n <= 0 ) ) THEN
-     WRITE( e_dev, 1001 )
-     GOTO 999
+    WRITE( e_dev, 1001 )
+    GOTO 999
   END IF
-  
+
   IF ( symm ) THEN
-     IF ( m /= n ) THEN
-        WRITE( e_dev, 1002 )
-        GOTO 999
-     END IF
+    IF ( m /= n ) THEN
+      WRITE( e_dev, 1002 )
+      GOTO 999
+    END IF
   END IF
-  
-! Print information according to variable printing.
+
+!  Print information according to variable printing
 
   IF ( printing >= 1 ) THEN
+    WRITE( i_dev, "(5X, 'A%type = ', 20a)" ) A%type
+    IF ( ALLOCATED( A%id ) ) THEN
+       WRITE( i_dev, "(5X, 'A%id   = ', 20a)" ) A%id
+    ELSE
+       WRITE( i_dev, "(5X, 'A%id   =' )")
+    END IF
 
-     WRITE( i_dev, "(5X, 'A%type = ', 20a)" ) A%type
-     
-     IF ( ALLOCATED( A%id ) ) THEN
-        WRITE( i_dev, "(5X, 'A%id   = ', 20a)" ) A%id
-     ELSE
-        WRITE( i_dev, "(5X, 'A%id   =' )")
-     END IF
-     
-     WRITE( i_dev, 1008 ) m, n, symm
-     
-     IF ( printing >= 2 ) THEN
-        
-        SELECT CASE ( SMT_get( A%type ) )
-           
-        CASE ( 'DENSE' )
-           WRITE( i_dev, 1009 ) &
-                ( A%val(i), i = 1, m*n )
-        CASE ( 'SPARSE_BY_ROWS' )
-           WRITE( i_dev, 1010 ) &
-                ( A%col(i), A%val(i), i=1,A%ptr(m+1)-1 )
-           WRITE( i_dev, 1011 ) A%ptr( 1:m+1 )
-        CASE ( 'SPARSE_BY_COLUMNS' )
-           WRITE( i_dev, 1012 ) &
-                ( A%row(i), A%val(i), &
-                i = 1, A%ptr(n+1)-1 )
-           WRITE( i_dev, 1011 ) A%ptr( 1: n+1 )
-        CASE ( 'COORDINATE' )
-           WRITE( i_dev, 1013 ) &
-                ( A%row(i), A%col(i), A%val(i),  &
-                i = 1,A%ne )
-        CASE ( 'DIAGONAL' )
-           WRITE( i_dev, 1009 ) &
-                ( A%val(i), i = 1,m )
-        CASE DEFAULT
-           WRITE( e_dev, 1000 )
-           GOTO 999
-        END SELECT
-        
-     END IF
-     
+    WRITE( i_dev, 1008 ) m, n, symm
+    IF ( printing >= 2 ) THEN
+      SELECT CASE ( SMT_get( A%type ) )
+      CASE ( 'DENSE' )
+        WRITE( i_dev, 1009 ) ( A%val(i), i = 1, m*n )
+      CASE ( 'SPARSE_BY_ROWS' )
+        WRITE( i_dev, 1010 ) ( A%col(i), A%val(i), i=1,A%ptr(m+1)-1 )
+        WRITE( i_dev, 1011 ) A%ptr( 1:m+1 )
+      CASE ( 'SPARSE_BY_COLUMNS' )
+        WRITE( i_dev, 1012 ) ( A%row(i), A%val(i), i = 1, A%ptr(n+1)-1 )
+        WRITE( i_dev, 1011 ) A%ptr( 1: n+1 )
+      CASE ( 'COORDINATE' )
+        WRITE( i_dev, 1013 ) ( A%row(i), A%col(i), A%val(i), i = 1,A%ne )
+      CASE ( 'DIAGONAL' )
+        WRITE( i_dev, 1009 ) ( A%val(i), i = 1,m )
+      CASE DEFAULT
+        WRITE( e_dev, 1000 )
+        GOTO 999
+      END SELECT
+    END IF
   END IF
 
-  !******************************
-  ! Compute row-wise two norms. !
-  !******************************
+! *****************************
+!  Compute row-wise two norms *
+! *****************************
 
   SELECT CASE ( SMT_get( A%type ) )
-
   CASE ( 'DENSE' )
-  !***************
-     
-     write(*,*) ' WARNING: MOP_ROW_2_NORMS: NOT YET IMPLEMENTED'
-
+    IF ( symm ) THEN
+      l = 0
+      DO i = 1, m
+        DO j = 1, i
+          l = l + 1 ; val = A%val( l ) ** 2
+          row_norms( i ) = row_norms( i ) + val
+          IF ( i /= j ) row_norms( j ) = row_norms( j ) + val
+        END DO
+      END DO
+    ELSE
+      l = 1
+      DO i = 1, m
+        l2 = l + n - 1
+        row_norms( i ) = DOT_PRODUCT( A%val( l : l2 ), A%val( l : l2 ) )
+        l = l + n
+      END DO
+    END IF
   CASE ( 'SPARSE_BY_ROWS' )
-  !************************
-
-     write(*,*) ' WARNING: MOP_ROW_2_NORMS: NOT YET IMPLEMENTED'
-
+    IF ( symm ) THEN
+      row_norms = zero
+      DO i = 1, m
+        l1 = A%ptr( i ) ; l2 = A%ptr( i + 1 ) - 1
+        DO l = l1, l2
+          j = A%col( l ) ; val = A%val( l ) ** 2
+          row_norms( i ) = row_norms( i ) + val
+          IF ( i /= j ) row_norms( j ) = row_norms( j ) + val
+        END DO
+      END DO
+    ELSE
+      DO i = 1, m
+        l1 = A%ptr( i ) ; l2 = A%ptr( i + 1 ) - 1
+        IF ( l2 >= l1 ) THEN
+          row_norms( i ) = DOT_PRODUCT( A%val( l1 : l2 ), A%val( l1 : l2 ) )
+        ELSE
+          row_norms( i )  = zero
+        END IF
+      END DO
+    END IF
+    row_norms = SQRT( row_norms )
   CASE ( 'SPARSE_BY_COLUMNS' )
-  !***************************
-
-     write(*,*) ' WARNING: MOP_ROW_2_NORMS: NOT YET IMPLEMENTED'
-
+    IF ( symm ) THEN
+      row_norms = zero
+      DO j = 1, n
+        l1 = A%ptr( j ) ; l2 = A%ptr( j + 1 ) - 1
+        DO l = l1, l2
+          i = A%row( l ) ; val = A%val( l ) ** 2
+          row_norms( i ) = row_norms( i ) + val
+          IF ( i /= j ) row_norms( j ) = row_norms( j ) + val
+        END DO
+      END DO
+    ELSE
+      DO j = 1, n
+        l1 = A%ptr( j ) ; l2 = A%ptr( j + 1 ) - 1
+        IF ( l2 >= l1 ) row_norms( A%row( l1 : l2 ) ) =                        &
+          row_norms( A%row( l1 : l2 ) ) + A%val( l1 : l2 ) ** 2
+      END DO
+    END IF
   CASE ( 'COORDINATE' )
-  !********************
-
-     row_norms = zero
-
-     if ( symm ) then
-        do i = 1, A%ne
-           row_norms( A%row(i) ) = row_norms( A%row(i) ) + A%val(i)**2
-           if ( A%row(i) /= A%col(i) ) then
-              row_norms( A%col(i) ) = row_norms( A%col(i) ) + A%val(i)**2
-           end if
-        end do
-     else
-        do i = 1, A%ne
-           row_norms( A%row(i) ) = row_norms( A%row(i) ) + A%val(i)**2
-        end do
-     end if
-     
-     row_norms = sqrt(row_norms)
-
+    row_norms = zero
+    IF ( symm ) THEN
+      DO l = 1, A%ne
+        i = A%row( l ) ; j = A%col( l ) ; val = A%val( l ) ** 2
+        row_norms( i ) = row_norms( i ) + val
+        IF ( i /= j ) row_norms( j ) = row_norms( j ) + val
+      END DO
+    ELSE
+      DO l = 1, A%ne
+        i = A%row( l )
+        row_norms( i ) = row_norms( i ) + A%val( l ) ** 2
+      END DO
+    END IF
+    row_norms = SQRT( row_norms )
   CASE ( 'DIAGONAL' )
-  !******************
-     
-     row_norms( : n ) = ABS( A%val( : n ) )
-
+    row_norms( : n ) = ABS( A%val( : n ) )
   CASE ( 'SCALED_IDENTITY' )
-  !******************
-     
-     row_norms( : n ) = ABS( A%val( 1 ) )
-
+    row_norms( : n ) = ABS( A%val( 1 ) )
   CASE ( 'IDENTITY' )
-  !******************
-     
-     row_norms( : n ) = one
-
-   CASE( 'NONE', 'ZERO' )
-  !******************
-
-     row_norms( : n ) = zero
-
+    row_norms( : n ) = one
+  CASE( 'NONE', 'ZERO' )
+    row_norms( : n ) = zero
   CASE DEFAULT
-  !***********
-
-     write( e_dev, 1000 )
-        
+    WRITE( e_dev, 1000 )
   END SELECT
 
 999  CONTINUE
@@ -1889,27 +1921,27 @@
   ! possibly print some more.
 
   IF ( printing >= 1 ) THEN
-     WRITE( out, 1014 ) row_norms
-     WRITE( out, 1020 )
+    WRITE( out, 1014 ) row_norms
+    WRITE( out, 1020 )
   END IF
-   
+
   RETURN
 
 !  Format statements
 
 1000  FORMAT(/,5X,'*** ERROR : mop_row_2_norms : Unrecognized value A%type.')
 1001  FORMAT(/,5X,'*** ERROR : mop_row_2_norms : A%m <= 0 and/or A%n <= 0 .')
-1002  FORMAT(/,5X,'*** ERROR : mop_row_2_norms : ',           &
+1002  FORMAT(/,5X,'*** ERROR : mop_row_2_norms : ',                            &
                   'symmetric = .TRUE., but A%m /= A%n.',/)
-1005  FORMAT(/,                                                              &
-      3X,'*************************************************************',/,  &
-!      3X,'*                                                           *',/,  &
-      3X,'*                  BEGIN: mop_row_2_norms                   *',/,  &
-!      3X,'*                                                           *',/,  &
-      3X,'*     GALAHAD computes row-wise norms of a sparse matrix    *',/,  &
-!      3X,'*                                                           *',/,  &
+1005  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+!      3X,'*                                                           *',/,   &
+      3X,'*                  BEGIN: mop_row_2_norms                   *',/,    &
+!      3X,'*                                                           *',/,   &
+      3X,'*     GALAHAD computes row-wise norms of a sparse matrix    *',/,    &
+!      3X,'*                                                           *',/,   &
       3X,'*************************************************************',/)
-1008  FORMAT(/,                                                              &
+1008  FORMAT(/,                                                                &
       5X,'m =', I6, 5X, 'n =', I6, 5X, 'symmetric = ', L1  )
 1009  FORMAT(/,5X,'      A%val    ',/, &
                5X,'  -------------',/, (5X, ES17.10 ) )
@@ -1921,8 +1953,8 @@
 1012  FORMAT(/,5X,'  A%row             A%val    ',/,  &
                5X,'  -----         -------------',/,  &
               (5X, I7, 7X, ES17.10) )
-1013  FORMAT(/,5X,'  A%row         A%col             A%val    ',/,  &
-               5X,'  -----         -----         -------------',/,  &
+1013  FORMAT(/,5X,'  A%row         A%col             A%val    ',/,             &
+               5X,'  -----         -----         -------------',/,             &
               (5X, I7, 7X, I7, 7X, ES17.10) )
 1014  FORMAT(/,5X,'ON EXIT:  row_norms = ', (T28, ES16.9) )
 1020  FORMAT(/,                                                               &
@@ -1990,14 +2022,14 @@
   REAL( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: row_norms
   LOGICAL, INTENT( IN ), OPTIONAL :: symmetric
   INTEGER, INTENT( IN ), OPTIONAL :: error, out, print_level
-  
+
 ! Set Parameters
-  
+
   REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
   REAL ( KIND = wp ), PARAMETER :: one  = 1.0_wp
-  
+
 !  Local variables
-  
+
   INTEGER :: i, m, n
   INTEGER :: i_dev, e_dev, printing
   LOGICAL :: symm
@@ -2011,27 +2043,27 @@
   else
      symm = .false.
   end if
-  
+
   if ( present( error ) ) then
      e_dev = error
   else
      e_dev = 6
   end if
-  
+
   if ( present( out ) ) then
      i_dev = out
   else
      i_dev = 6
   end if
-  
+
   if ( present( print_level ) ) then
      printing = print_level
   else
      printing = 0
   end if
-  
+
   ! Print Header
-  
+
   IF ( printing >= 1 ) WRITE( i_dev, "(                                        &
  &   3X,'***************************************************************',/,   &
 !&   3X,'*                                                             *',/,   &
@@ -2040,20 +2072,20 @@
  &   3X,'*   GALAHAD computes row-wise one norms of a sparse matrix    *',/,   &
 !&   3X,'*                                                             *',/,   &
  &   3X,'***************************************************************',/)" )
-  
+
   ! Set some convenient variables.
 
   m = A%m
   n = A%n
-  
+
   ! Check for bad dimensions.
-  
+
   IF ( ( m <= 0 ) .OR. ( n <= 0 ) ) THEN
      WRITE( e_dev, "(/,5X,'*** ERROR : mop_row_one_norms : A%m <= 0',          &
     &  ' and/or A%n <= 0 .')" )
      GOTO 999
   END IF
-  
+
   IF ( symm ) THEN
      IF ( m /= n ) THEN
         WRITE( e_dev, "(/,5X,'*** ERROR : mop_row_one_norms : ',               &
@@ -2061,26 +2093,26 @@
         GOTO 999
      END IF
   END IF
-  
+
 ! Print information according to variable printing.
 
   IF ( printing >= 1 ) THEN
 
      WRITE( i_dev, "(5X, 'A%type = ', 20a)" ) A%type
-     
+
      IF ( ALLOCATED( A%id ) ) THEN
         WRITE( i_dev, "(5X, 'A%id   = ', 20a)" ) A%id
      ELSE
         WRITE( i_dev, "(5X, 'A%id   =' )")
      END IF
-     
+
      WRITE( i_dev, "(/, 5X,'m =', I6, 5X, 'n =', I6, 5X, 'symmetric = ',       &
     &                L1  )" ) m, n, symm
-     
+
      IF ( printing >= 2 ) THEN
-        
+
         SELECT CASE ( SMT_get( A%type ) )
-           
+
         CASE ( 'DENSE' )
            WRITE( i_dev, 2010 ) &
                 ( A%val(i), i = 1, m*n )
@@ -2108,9 +2140,9 @@
            WRITE( e_dev, 2000 )
            GOTO 999
         END SELECT
-        
+
      END IF
-     
+
   END IF
 
   !******************************
@@ -2121,7 +2153,7 @@
 
   CASE ( 'DENSE' )
   !***************
-     
+
      write(*,*) ' WARNING: MOP_ROW_one_NORMS: NOT YET IMPLEMENTED'
 
   CASE ( 'SPARSE_BY_ROWS' )
@@ -2151,20 +2183,20 @@
            row_norms( A%row(i) ) = row_norms( A%row(i) ) + abs( A%val(i) )
         end do
      end if
-     
+
   CASE ( 'DIAGONAL' )
   !******************
-     
+
      row_norms( : n ) = ABS( A%val( : n ) )
 
   CASE ( 'SCALED_IDENTITY' )
   !******************
-     
+
      row_norms( : n ) = ABS( A%val( 1 ) )
 
   CASE ( 'IDENTITY' )
   !******************
-     
+
      row_norms( : n ) = one
 
    CASE( 'NONE', 'ZERO' )
@@ -2176,7 +2208,7 @@
   !***********
 
      write( e_dev, 2000 )
-        
+
   END SELECT
 
 999  CONTINUE
@@ -2187,27 +2219,22 @@
      WRITE( out, "(/,5X,'ON EXIT:  row_norms = ', (T28, ES16.9) )" ) row_norms
      WRITE( out, "(                                                            &
     &  3X,'*************************************************************',/,   &
-!   &  3X,'*                                                           *',/,   &
     &  3X,'*                  END: mop_row_one_norms                   *',/,   &
-!   &  3X,'*                                                           *',/,   &
-!   &  3X,'*    GALAHAD computes row_wise one norm of a sparse matrix  *',/,   &
-!   &  3X,'*                                                           *',/,   &
     &  3X,'*************************************************************',/)" )
   END IF
-   
+
   RETURN
 
 !  Format statements
 
 2000  FORMAT(/,5X,'*** ERROR : mop_row_one_norms : Unrecognized value A%type.')
-2010  FORMAT(/,5X,'      A%val    ',/, &
-               5X,'  -------------',/, (5X, ES17.10 ) )
+2010  FORMAT(/,5X,'      A%val    ',/, 5X,'  -------------',/, ( 5X, ES17.10 ) )
 2020  FORMAT(/,5X,'  A%ptr',/, 5X,'  -----',/, (5X, I7 ) )
 
 
    END SUBROUTINE mop_row_one_norms
-   
-!  B E G I N  m o p _ r o w _ i n f i n i t y _ n o r m s   S U B R O U T I N E 
+
+!  B E G I N  m o p _ r o w _ i n f i n i t y _ n o r m s   S U B R O U T I N E
 
    SUBROUTINE mop_row_infinity_norms( A, row_norms, symmetric, out, error,     &
                                       print_level )
@@ -2260,14 +2287,14 @@
   REAL( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: row_norms
   LOGICAL, INTENT( IN ), OPTIONAL :: symmetric
   INTEGER, INTENT( IN ), OPTIONAL :: error, out, print_level
-  
+
 ! Set Parameters
-  
+
   REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
   REAL ( KIND = wp ), PARAMETER :: one  = 1.0_wp
-  
+
 !  Local variables
-  
+
   INTEGER :: i, j, l, m, n
   INTEGER :: i_dev, e_dev, printing
   LOGICAL :: symm
@@ -2281,27 +2308,27 @@
   ELSE
      symm = .false.
   END IF
-  
+
   IF ( PRESENT( error ) ) THEN
      e_dev = error
   ELSE
      e_dev = 6
   END IF
-  
+
   IF ( PRESENT( out ) ) THEN
      i_dev = out
   ELSE
      i_dev = 6
   END IF
-  
+
   IF ( PRESENT( print_level ) ) THEN
      printing = print_level
   ELSE
      printing = 0
   END IF
-  
+
   ! Print Header
-  
+
   IF ( printing >= 1 ) WRITE( i_dev, "(                                        &
  &   3X,'*****************************************************************',/, &
 !&   3X,'*                                                               *',/, &
@@ -2310,20 +2337,20 @@
  &   3X,'*  GALAHAD computes row-wise infinity norms of a sparse matrix  *',/, &
 !&   3X,'*                                                               *',/, &
  &   3X,'*****************************************************************',/)")
-  
+
   ! Set some convenient variables.
 
   m = A%m
   n = A%n
-  
+
   ! Check for bad dimensions.
-  
+
   IF ( ( m <= 0 ) .OR. ( n <= 0 ) ) THEN
      WRITE( e_dev, "(/,5X, '*** ERROR : mop_row_infinity_norms : A%m <= 0',    &
     &  ' and/or A%n <= 0')" )
      GO TO 999
   END IF
-  
+
   IF ( symm ) THEN
      IF ( m /= n ) THEN
         WRITE( e_dev, "(/, 5X,'*** ERROR : mop_row_infinity_norms : ',         &
@@ -2331,24 +2358,24 @@
         GO TO 999
      END IF
   END IF
-  
+
 ! Print information according to variable printing.
 
   IF ( printing >= 1 ) THEN
      WRITE( i_dev, "(5X, 'A%type = ', 20a)" ) A%type
-     
+
      IF ( ALLOCATED( A%id ) ) THEN
         WRITE( i_dev, "(5X, 'A%id   = ', 20a)" ) A%id
      ELSE
         WRITE( i_dev, "(5X, 'A%id   =' )")
      END IF
-     
+
      WRITE( i_dev, "(/, 5X,'m =', I6, 5X, 'n =', I6, 5X, 'symmetric = ',       &
     &                L1  )" ) m, n, symm
-     
+
      IF ( printing >= 2 ) THEN
         SELECT CASE ( SMT_get( A%type ) )
-           
+
         CASE ( 'DENSE' )
            WRITE( i_dev, 2010 ) &
                 ( A%val(i), i = 1, m*n )
@@ -2376,9 +2403,9 @@
            WRITE( e_dev, 2000 )
            GOTO 999
         END SELECT
-        
+
      END IF
-     
+
   END IF
 
   !******************************
@@ -2389,7 +2416,7 @@
 
   CASE ( 'DENSE' )
   !***************
-     
+
      WRITE(*,*) ' WARNING: MOP_ROW_infinity_NORMS: NOT YET IMPLEMENTED'
 
   CASE ( 'SPARSE_BY_ROWS' )
@@ -2419,20 +2446,20 @@
          row_norms( i ) = MAX( row_norms( i ), ABS( A%val( l ) ) )
         END DO
      END IF
-     
+
   CASE ( 'DIAGONAL' )
   !******************
-     
+
      row_norms( : n ) = ABS( A%val( : n ) )
 
   CASE ( 'SCALED_IDENTITY' )
   !******************
-     
+
      row_norms( : n ) = ABS( A%val( 1 ) )
 
   CASE ( 'IDENTITY' )
   !******************
-     
+
      row_norms( : n ) = one
 
    CASE( 'NONE', 'ZERO' )
@@ -2444,7 +2471,7 @@
   !***********
 
      WRITE( e_dev, 2000 )
-        
+
   END SELECT
 
 999  CONTINUE
@@ -2455,14 +2482,10 @@
      WRITE( out, "(/,5X,'ON EXIT:  row_norms = ', (T28, ES16.9) )" ) row_norms
      WRITE( out, "(                                                            &
     &  3X,'***************************************************************',/, &
-!   &  3X,'*                                                             *',/, &
     &  3X,'*                END: mop_row_infinity_norms                  *',/, &
-!   &  3X,'*                                                             *',/, &
-!   &  3X,'*  GALAHAD computes row_wise infinity norm of a sparse matrix *',/, &
-!   &  3X,'*                                                             *',/, &
     &  3X,'***************************************************************',/)")
   END IF
-   
+
   RETURN
 
 !  Format statements
@@ -2474,9 +2497,388 @@
 
 
    END SUBROUTINE mop_row_infinity_norms
-   
+
+!-*-  B E G I N  m o p _ c o l u m n _ 2 _ n o r m s   S U B R O U T I N E  -*-
+
+   SUBROUTINE mop_column_2_norms( A, column_norms, W, symmetric, out, error,   &
+                                  print_level )
+
+! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+!   .......................................................................
+!   .                                                                     .
+!   .  Returns the vector of column-wise two norms of the matrix W^1/2 A. .
+!   .                                                                     .
+!   .......................................................................
+
+!  Arguments:
+!  =========
+
+!   A        a scalar variable of derived type SMT_type.
+!
+!   column_norms  rank 1 array of type real. The value column_norms(i)
+!              gives the 2-norm of the i-th column.
+!
+!   W (optional) rank 1 array of type real. The positive value W(i) specifies
+!              the ith entry of the diagonal matrix W.
+
+!   symmetric (optional) is a scalar variable of type logical.  Set
+!             symmetric = .TRUE. if the matrix A is symmetric; otherwise
+!             set symmetric = .FALSE.  If not present, then the
+!             value symmetric = .FALSE. is assumed.
+!
+!   out      (optional) is a scalar variable of type integer, which
+!            holds the stream number for informational messages;  the
+!            file is assumed to already have been opened.  Default
+!            is out = 6.
+!
+!   error    (optional) is a scalar variable of type integer, which
+!            holds the stream number for error messages; the file
+!            is assumed to already have been opened.  Default is error = 6.
+!
+!   print_level  (optional) is scalar variable of type integer.  It
+!                controls the amount of printed information to unit
+!                number defined by out.  Values and their meanings are:
+!
+!                print_level <= 0    Nothing.
+!                print_level  = 1    The following is printed: A%m, A%n,
+!                                    A%type, A%id, row, col, and val.
+!                print_level  = 2    Those from above, in additon to:
+!                                    A%ptr, A%val, A%row, and A%col.
+!
+! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+!  Dummy arguments
+
+  TYPE( SMT_type), INTENT( IN  ) :: A
+  REAL( KIND = wp ), DIMENSION( : ), INTENT( INOUT ) :: column_norms
+  REAL( KIND = wp ), DIMENSION( : ), INTENT( IN ), OPTIONAL :: W
+  LOGICAL, INTENT( IN ), OPTIONAL :: symmetric
+  INTEGER, INTENT( IN ), OPTIONAL :: error, out, print_level
+
+! Set Parameters
+
+  REAL ( KIND = wp ), PARAMETER :: zero = 0.0_wp
+  REAL ( KIND = wp ), PARAMETER :: one  = 1.0_wp
+
+!  Local variables
+
+  INTEGER :: i, j, l, l1, l2, m, n
+  INTEGER :: i_dev, e_dev, printing
+  REAL ( KIND = wp ) :: val
+  LOGICAL :: symm, w_eq_identity
+
+!  Check for optional arguments
+
+  w_eq_identity = .NOT. PRESENT( W )
+  IF ( PRESENT( symmetric ) ) THEN
+    symm = symmetric
+  ELSE
+    symm = .false.
+  END IF
+  IF ( PRESENT( error ) ) THEN
+    e_dev = error
+  ELSE
+    e_dev = 6
+  END if
+  IF ( PRESENT( out ) ) THEN
+    i_dev = out
+  ELSE
+    i_dev = 6
+  END IF
+    IF ( PRESENT( print_level ) ) THEN
+    printing = print_level
+  ELSE
+    printing = 0
+  END IF
+
+!   Print Header
+
+  IF ( printing >= 1 ) WRITE( i_dev, 1005 )
+
+!   Set some convenient variables
+
+  m = A%m ; n = A%n
+
+!   Check for bad dimensions
+
+  IF ( ( m <= 0 ) .OR. ( n <= 0 ) ) THEN
+    WRITE( e_dev, 1001 )
+    GOTO 999
+  END IF
+
+  IF ( symm ) THEN
+    IF ( m /= n ) THEN
+      WRITE( e_dev, 1002 )
+      GOTO 999
+    END IF
+  END IF
+
+!  Print information according to variable printing
+
+  IF ( printing >= 1 ) THEN
+    WRITE( i_dev, "(5X, 'A%type = ', 20a)" ) A%type
+    IF ( ALLOCATED( A%id ) ) THEN
+       WRITE( i_dev, "(5X, 'A%id   = ', 20a)" ) A%id
+    ELSE
+       WRITE( i_dev, "(5X, 'A%id   =' )")
+    END IF
+
+    WRITE( i_dev, 1008 ) m, n, symm
+    IF ( printing >= 2 ) THEN
+      SELECT CASE ( SMT_get( A%type ) )
+      CASE ( 'DENSE' )
+        WRITE( i_dev, 1009 ) ( A%val(i), i = 1, m*n )
+      CASE ( 'SPARSE_BY_ROWS' )
+        WRITE( i_dev, 1010 ) ( A%col(i), A%val(i), i=1,A%ptr(m+1)-1 )
+        WRITE( i_dev, 1011 ) A%ptr( 1:m+1 )
+      CASE ( 'SPARSE_BY_COLUMNS' )
+        WRITE( i_dev, 1012 ) ( A%row(i), A%val(i), i = 1, A%ptr(n+1)-1 )
+        WRITE( i_dev, 1011 ) A%ptr( 1: n+1 )
+      CASE ( 'COORDINATE' )
+        WRITE( i_dev, 1013 ) ( A%row(i), A%col(i), A%val(i), i = 1,A%ne )
+      CASE ( 'DIAGONAL' )
+        WRITE( i_dev, 1009 ) ( A%val(i), i = 1,m )
+      CASE DEFAULT
+        WRITE( e_dev, 1000 )
+        GOTO 999
+      END SELECT
+    END IF
+  END IF
+
+! ********************************
+!  Compute column-wise two norms *
+! ********************************
+
+  SELECT CASE ( SMT_get( A%type ) )
+  CASE ( 'DENSE' )
+    IF ( symm ) THEN
+      IF ( w_eq_identity ) THEN
+        l = 0
+        DO i = 1, m
+          DO j = 1, i
+            l = l + 1 ; val = A%val( l ) ** 2
+            column_norms( j ) = column_norms( j ) + val
+            IF ( i /= j ) column_norms( i ) = column_norms( i ) + val
+          END DO
+        END DO
+      ELSE
+        l = 0
+        DO i = 1, m
+          DO j = 1, i
+            l = l + 1
+            column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+            IF ( i /= j )                                                      &
+              column_norms( i ) = column_norms( i ) + W( j ) * A%val( l ) ** 2
+          END DO
+        END DO
+      END IF
+    ELSE
+      column_norms = zero
+      IF ( w_eq_identity ) THEN
+        l = 1
+        DO i = 1, m
+          l2 = l + n - 1
+          column_norms( : n ) = column_norms( : n ) + A%val( l : l2 ) ** 2
+          l = l + n
+        END DO
+      ELSE
+        l = 1
+        DO i = 1, m
+          DO j = 1, n
+            l = l + 1
+            column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+          END DO
+        END DO
+      END IF
+    END IF
+  CASE ( 'SPARSE_BY_ROWS' )
+    IF ( symm ) THEN
+      column_norms = zero
+      IF ( w_eq_identity ) THEN
+        DO i = 1, m
+          DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
+            j = A%col( l ) ; val = A%val( l ) ** 2
+            column_norms( j ) = column_norms( j ) + val
+            IF ( i /= j ) column_norms( i ) = column_norms( i ) + val
+          END DO
+        END DO
+      ELSE
+        DO i = 1, m
+          DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
+            j = A%col( l )
+            column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+            IF ( i /= j )                                                      &
+              column_norms( i ) = column_norms( i ) + W( j ) * A%val( l ) ** 2
+          END DO
+        END DO
+      END IF
+    ELSE
+      IF ( w_eq_identity ) THEN
+        DO i = 1, m
+          l1 = A%ptr( i ) ; l2 = A%ptr( i + 1 ) - 1
+          IF ( l2 >= l1 ) column_norms( A%col( l1 : l2 ) ) =                   &
+              column_norms( A%col( l1 : l2 ) ) + A%val( l1 : l2 ) ** 2
+        END DO
+      ELSE
+        DO i = 1, m
+          DO l = A%ptr( i ), A%ptr( i + 1 ) - 1
+            j = A%col( l )
+            column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+          END DO
+        END DO
+      END IF
+    END IF
+  CASE ( 'SPARSE_BY_COLUMNS' )
+    IF ( symm ) THEN
+      column_norms = zero
+      IF ( w_eq_identity ) THEN
+        DO j = 1, n
+          DO l = A%ptr( j ), A%ptr( j + 1 ) - 1
+            i = A%row( l ) ; val = A%val( l ) ** 2
+            column_norms( j ) = column_norms( j ) + val
+            IF ( i /= j ) column_norms( i ) = column_norms( i ) + val
+          END DO
+        END DO
+      ELSE
+        DO j = 1, n
+          DO l = A%ptr( j ), A%ptr( j + 1 ) - 1
+            i = A%row( l )
+            column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+            IF ( i /= j )                                                      &
+              column_norms( i ) = column_norms( i ) + W( j ) * A%val( l ) ** 2
+          END DO
+        END DO
+      END IF
+    ELSE
+      IF ( w_eq_identity ) THEN
+        DO j = 1, n
+          l1 = A%ptr( j ) ; l2 = A%ptr( j + 1 ) - 1
+          IF ( l2 >= l1 ) THEN
+            column_norms( j ) = DOT_PRODUCT( A%val( l1 : l2 ), A%val( l1 : l2 ))
+          ELSE
+            column_norms( j )  = zero
+          END IF
+        END DO
+      ELSE
+        DO j = 1, n
+          DO l = A%ptr( j ), A%ptr( j + 1 ) - 1
+            i = A%row( l )
+            column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+          END DO
+        END DO
+      END IF
+    END IF
+    column_norms = SQRT( column_norms )
+  CASE ( 'COORDINATE' )
+    column_norms = zero
+    IF ( symm ) THEN
+      IF ( w_eq_identity ) THEN
+        DO l = 1, A%ne
+          i = A%row( l ) ; j = A%col( l ) ; val = A%val( l ) ** 2
+          column_norms( j ) = column_norms( j ) + val
+          IF ( i /= j ) column_norms( i ) = column_norms( i ) + val
+        END DO
+      ELSE
+        DO l = 1, A%ne
+          i = A%row( l ) ; j = A%col( l )
+          column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+          IF ( i /= j )                                                        &
+            column_norms( i ) = column_norms( i ) + W( j ) * A%val( l ) ** 2
+        END DO
+      END IF
+    ELSE
+      IF ( w_eq_identity ) THEN
+        DO l = 1, A%ne
+          j = A%col( l )
+          column_norms( j ) = column_norms( j ) + A%val( l ) ** 2
+        END DO
+      ELSE
+        DO l = 1, A%ne
+          i = A%row( l ) ; j = A%col( l )
+          column_norms( j ) = column_norms( j ) + W( i ) * A%val( l ) ** 2
+        END DO
+      END IF
+    END IF
+    column_norms = SQRT( column_norms )
+  CASE ( 'DIAGONAL' )
+    IF ( w_eq_identity ) THEN
+      column_norms( : n ) = ABS( A%val( : n ) )
+    ELSE
+      column_norms( : n ) = ABS( SQRT( W( : n ) ) * A%val( : n ) )
+    END IF
+  CASE ( 'SCALED_IDENTITY' )
+    IF ( w_eq_identity ) THEN
+      column_norms( : n ) = ABS( SQRT( W( : n ) ) * A%val( 1 ) )
+    ELSE
+    END IF
+  CASE ( 'IDENTITY' )
+    IF ( w_eq_identity ) THEN
+      column_norms( : n ) = one
+    ELSE
+      column_norms( : n ) = SQRT( W( : n ) )
+    END IF
+  CASE( 'NONE', 'ZERO' )
+    column_norms( : n ) = zero
+  CASE DEFAULT
+    WRITE( e_dev, 1000 )
+  END SELECT
+
+999  CONTINUE
+
+  ! possibly print some more.
+
+  IF ( printing >= 1 ) THEN
+    WRITE( out, 1014 ) column_norms
+    WRITE( out, 1020 )
+  END IF
+
+  RETURN
+
+!  Format statements
+
+1000  FORMAT(/,5X,'*** ERROR : mop_column_2_norms : Unrecognized value A%type.')
+1001  FORMAT(/,5X,'*** ERROR : mop_column_2_norms : A%m <= 0 and/or A%n <= 0 .')
+1002  FORMAT(/,5X,'*** ERROR : mop_column_2_norms : ',                         &
+                  'symmetric = .TRUE., but A%m /= A%n.',/)
+1005  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+!      3X,'*                                                           *',/,   &
+      3X,'*                  BEGIN: mop_column_2_norms                   *',/, &
+!      3X,'*                                                           *',/,   &
+      3X,'*     GALAHAD computes column-wise norms of a sparse matrix    *',/, &
+!      3X,'*                                                           *',/,   &
+      3X,'*************************************************************',/)
+1008  FORMAT(/,                                                                &
+      5X,'m =', I6, 5X, 'n =', I6, 5X, 'symmetric = ', L1  )
+1009  FORMAT(/,5X,'      A%val    ',/, &
+               5X,'  -------------',/, (5X, ES17.10 ) )
+1010  FORMAT(/,5X,'  A%col             A%val    ',/,  &
+               5X,'  -----         -------------',/,  &
+              (5X, I7, 7X, ES17.10) )
+1011  FORMAT(/,5X,'  A%ptr',/, &
+               5X,'  -----',/, (5X, I7 ) )
+1012  FORMAT(/,5X,'  A%row             A%val    ',/,  &
+               5X,'  -----         -------------',/,  &
+              (5X, I7, 7X, ES17.10) )
+1013  FORMAT(/,5X,'  A%row         A%col             A%val    ',/,             &
+               5X,'  -----         -----         -------------',/,             &
+              (5X, I7, 7X, I7, 7X, ES17.10) )
+1014  FORMAT(/,5X,'ON EXIT:  column_norms = ', (T28, ES16.9) )
+1020  FORMAT(/,                                                                &
+      3X,'*************************************************************',/,    &
+!     3X,'*                                                           *',/,    &
+      3X,'*                   END: mop_column_2_norms                    *',/, &
+!     3X,'*                                                           *',/,    &
+!     3X,'*     GALAHAD computes column_wise norms of a sparse matrix    *',/, &
+!     3X,'*                                                           *',/,    &
+      3X,'*************************************************************',/)
+
+
+   END SUBROUTINE mop_column_2_norms
+
  END MODULE GALAHAD_MOP_double
- 
+
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*

@@ -1,0 +1,19 @@
+# GCC for use with g95 Windows (pc version) under MSYS2
+#
+# C compilation and loading
+#
+
+CC=gcc
+CCBASIC='-c -DIsg95 -fPIC'
+CCISO='-ansi -pedantic' # -pedantic-errors'
+CCDEBUG= #-g -DDEBUG_GALAHAD
+CCFFLAGS=-lgfortran
+
+CXX=g++
+CXXBASIC='-c -std=c++11'
+CXXOPT=-O2
+CXXNOOPT=-O0
+CXXDEBUG=''
+CXXFFLAGS=''
+
+HWLOC=''

@@ -119,39 +119,39 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
     }
 #endif
 
-#ifdef PRE
-    /* Attribute memory address of USE_PRE( ) when available */
-    void setup_use_pre( void ( *fn ) (  ) ) {
-        USE_PRE = fn;
+#ifdef PRESOLVE
+    /* Attribute memory address of USE_PRESOLVE( ) when available */
+    void setup_use_presolve( void ( *fn ) (  ) ) {
+        USE_PRESOLVE = fn;
     }
 
-    /* Gateway to USE_PRE */
-    void Init_Galahad_Pre( void ) {
+    /* Gateway to USE_PRESOLVE */
+    void Init_Galahad_Presolve( void ) {
 
-        /* Request address of USE_PRE( ) */
-        /*WRAP_USE_PRE( (void *)setup_use_pre ); */
-        WRAP_USE_PRE( setup_use_pre );
+        /* Request address of USE_PRESOLVE( ) */
+        /*WRAP_USE_PRESOLVE( (void *)setup_use_presolve ); */
+        WRAP_USE_PRESOLVE( setup_use_presolve );
         return;
     }
 #endif
 
-#ifdef LANB
-    /* Attribute memory address of USE_LANB( ) when available */
-    void setup_use_lanb( void ( *fn ) (  ) ) {
-        USE_LANB = fn;
+#ifdef LANCELOT
+    /* Attribute memory address of USE_LANCELOT( ) when available */
+    void setup_use_lancelot( void ( *fn ) (  ) ) {
+        USE_LANCELOT = fn;
     }
 
-    /* Gateway to USE_LANB */
-    void Init_Galahad_Lanb( void ) {
+    /* Gateway to USE_LANCELOT */
+    void Init_Galahad_Lancelot( void ) {
 
-        /* Request address of USE_LANB( ) */
-        /*WRAP_USE_LANB( (void *)setup_use_lanb ); */
-        WRAP_USE_LANB( setup_use_lanb );
+        /* Request address of USE_LANCELOT( ) */
+        /*WRAP_USE_LANCELOT( (void *)setup_use_lancelot ); */
+        WRAP_USE_LANCELOT( setup_use_lancelot );
         return;
     }
 #endif
 
-#ifdef FILT
+#ifdef FILTRANE
     /* Attribute memory address of USE_FILTRANE( ) when available */
     void setup_use_filtrane( void ( *fn ) (  ) ) {
         USE_FILTRANE = fn;
@@ -180,14 +180,14 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
 
     ASL_pfgh *asl;              /* Main ASL structure */
 
-    fint filt = ( fint ) 0;     /* Run Filtrane */
-    fint lanb = ( fint ) 0;     /* Run Lancelot-B */
+    fint filtrane = ( fint ) 0; /* Run Filtrane */
+    fint lancelot = ( fint ) 0; /* Run Lancelot-B */
     fint qpa = ( fint ) 0;      /* Run QPA  */
     fint qpb = ( fint ) 0;      /* Run QPB  */
     fint qpc = ( fint ) 0;      /* Run QPC  */
     fint cqp = ( fint ) 0;      /* Run CQP  */
     fint qp = ( fint ) 0;       /* Run QP  */
-    fint pre = ( fint ) 0;      /* Run PRE  */
+    fint presolve = ( fint ) 0;      /* Run PRESOLVE  */
     fint print = ( fint ) 0;    /* Print problem stats only */
     fint stats = ( fint ) 0;    /* Rprint statistics after solve */
 
@@ -203,23 +203,23 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
      * They do not refer to solver-specific options,
      * as these will be read from the spec files
      * RUNQPA.SPC,  RUNQPB.SPC,  RUNQPC.SPC, RUNCQP.SPC,
-     * RUNQP.SPC, RUNLANB.SPC, RUNPRE.SPC   and RUNFILT.SPC.
+     * RUNQP.SPC, RUNLANCELOT.SPC, RUNPRESOLVE.SPC   and RUNFILTRANE.SPC.
      *
      * Keywords must appear in alphabetical order.
      */
     static keyword keywds[] = {
-        KW( CHR "filt", L_val, &filt, CHR "Use Feasibility solver Filtrane" ),
-        KW( CHR "lanb", L_val, &lanb,
+        KW( CHR "filtrane", L_val, &filtrane, CHR "Use Feasibility solver Filtrane" ),
+        KW( CHR "lancelot", L_val, &lancelot,
             CHR "Use Augmented Lagrangian Nonlinear solver Lancelot-B" ),
-        KW( CHR "pre", L_val, &pre, CHR "Quadratic Program Presolver PRE" ),
+        KW( CHR "presolve", L_val, &presolve, CHR "Quadratic Program Presolver PRESOLVE" ),
         KW( CHR "print", L_val, &print, CHR "Print problem statistics only" ),
         KW( CHR "qpa", L_val, &qpa, CHR "Use Active Set QP solver QPA" ),
         KW( CHR "qpb", L_val, &qpb, CHR "Use Interior-Point QP solver QPB" ),
-        KW( CHR "qpc", L_val, &qpc, 
+        KW( CHR "qpc", L_val, &qpc,
             CHR "Use Interior-Point/Active-Set crossover QP solver QPC" ),
-        KW( CHR "cqp", L_val, &cqp, 
+        KW( CHR "cqp", L_val, &cqp,
             CHR "Use Interior-point convex QP solver CQP" ),
-        KW( CHR "qp", L_val, &cqp, 
+        KW( CHR "qp", L_val, &cqp,
             CHR "Use generic QP solver QP" ),
         KW( CHR "stats", L_val, &stats,
             CHR "Print detailed statistics after solve" )
@@ -365,30 +365,30 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             SETERRQ( 0, "QP/Ampl was not installed" );
 #endif
 
-        } else if( lanb ) {
+        } else if( lancelot ) {
             strcpy( code_name, "Lancelot-B" );
-            /*Init_Galahad_Lanb( ); */
+            /*Init_Galahad_Lancelot( ); */
             /*w_clock.setup = clock(  ) - w_clock.setup;*/
             /*w_clock.solve = clock();*/
-            /*USE_LANB( &input ); *//* Lancelot-B */
+            /*USE_LANCELOT( &input ); *//* Lancelot-B */
             /*w_clock.solve = clock() - w_clock.solve;*/
             SETERRQ( 0, "Lancelot-B/Ampl is not yet available." );
-        } else if( pre ) {
+        } else if( presolve ) {
 
-#ifdef PRE
+#ifdef PRESOLVE
             strcpy( code_name, "Presolve" );
-            Init_Galahad_Pre(  );
+            Init_Galahad_Presolve(  );
             w_clock.setup = clock(  ) - w_clock.setup;
             w_clock.solve = clock();
-            USE_PRE( &input );  /* PRE */
+            USE_PRESOLVE( &input );  /* PRESOLVE */
             w_clock.solve = clock() - w_clock.solve;
 #else
-            SETERRQ( 0, "PRE/Ampl was not installed" );
+            SETERRQ( 0, "PRESOLVE/Ampl was not installed" );
 #endif
 
-        } else if( filt ) {
+        } else if( filtrane ) {
 
-#ifdef FILT
+#ifdef FILTRANE
             strcpy( code_name, "Filtrane" );
             Init_Galahad_Filtrane(  );
             w_clock.setup = clock(  ) - w_clock.setup;
@@ -499,34 +499,34 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
                 fprintf( stderr, "qp: invalid value: %d. Aborting\n", qp );
                 n_badvals++;
         }
-        switch ( lanb ) {
+        switch ( lancelot ) {
             case 0:
                 break;
             case 1:
                 Printf( "Using solver Lancelot-B...\n" );
                 break;
             default:
-                fprintf( stderr, "lanb: invalid value: %d. Aborting\n", lanb );
+                fprintf( stderr, "lancelot: invalid value: %d. Aborting\n", lancelot );
                 n_badvals++;
         }
-        switch ( pre ) {
+        switch ( presolve ) {
             case 0:
                 break;
             case 1:
-                Printf( "Using presolver PRE...\n" );
+                Printf( "Using presolver PRESOLVE...\n" );
                 break;
             default:
-                fprintf( stderr, "pre: invalid value: %d. Aborting\n", pre );
+                fprintf( stderr, "presolve: invalid value: %d. Aborting\n", presolve );
                 n_badvals++;
         }
-        switch ( filt ) {
+        switch ( filtrane ) {
             case 0:
                 break;
             case 1:
                 Printf( "Using solver Filtrane...\n" );
                 break;
             default:
-                fprintf( stderr, "filt: invalid value: %d. Aborting\n", filt );
+                fprintf( stderr, "filtrane: invalid value: %d. Aborting\n", filtrane );
                 n_badvals++;
         }
         switch ( stats ) {
@@ -543,14 +543,14 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             exit( 1 );
 
         /* Only one solver can be specified */
-        if( qpa + qpb + qpc + cqp + qp + lanb + pre + print + filt > 1 )
+        if( qpa + qpb + qpc + cqp + qp + lancelot + presolve + print + filtrane > 1 )
             SETERRQ( AMBIGUOUS_SOLVER_NAME, "Conflicting options specified." );
 
-        if( !( qp || qpa || qpb || qpc || cqp || lanb || pre || print || filt ) ) {
+        if( !( qp || qpa || qpb || qpc || cqp || lancelot || presolve || print || filtrane ) ) {
             /* The default here should be Lancelot-B */
             SETWARNQ( AMBIGUOUS_SOLVER_NAME,
                       "No solver specified. Defaults to PRINT." );
-            qp = qpa = qpb = qpc = cqp = lanb = pre = filt = ( fint ) 0;
+            qp = qpa = qpb = qpc = cqp = lancelot = presolve = filtrane = ( fint ) 0;
             print = ( fint ) 1;
         }
 
@@ -669,7 +669,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
 #endif
 #define __FUNCT__ "usetup"
 
-    void USETUP( integer * funit, integer * iout, integer * n, 
+    void USETUP( integer * funit, integer * iout, integer * n,
                  GalahadReal * x, GalahadReal * bl, GalahadReal * bu,
                  integer * nmax ){
 
@@ -896,7 +896,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             Xtmp[i] = AmplCast ZERO;
 
         /* There might be no objective in feasibility problems */
-        if( filt && !n_obj ) {
+        if( filtrane && !n_obj ) {
             f0 = RealCast dummy_objective( 0, Xtmp, &nerror );
         } else {
             f0 = RealCast objval( 0, Xtmp, &nerror );
@@ -907,7 +907,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             Xtmp[i] = AmplCast * ( x + i );
 #endif
 
-        if( filt && !n_obj ) {
+        if( filtrane && !n_obj ) {
             *f = RealCast dummy_objective( 0, Xtmp, &nerror ) + f0;
         } else {
             *f = RealCast objval( 0, Xtmp, &nerror ) + f0;
@@ -949,7 +949,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             Xtmp[i] = AmplCast ZERO;
 
         /* There might be no objective in feasibility problems */
-        if( filt && !n_obj ) {
+        if( filtrane && !n_obj ) {
             f0 = RealCast dummy_objective( 0, Xtmp, &nerror );
         } else {
             f0 = RealCast objval( 0, Xtmp, &nerror );
@@ -960,7 +960,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             Xtmp[i] = AmplCast * ( x + i );
 #endif
 
-        if( filt && !n_obj ) {
+        if( filtrane && !n_obj ) {
             *f = RealCast dummy_objective( 0, Xtmp, &nerror ) + f0;
         } else {
             *f = RealCast objval( 0, Xtmp, &nerror ) + f0;
@@ -1060,17 +1060,17 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             Xtmp[i] = AmplCast *( x + i );
 
         /* There might be no objective defined in feasibility problems */
-        if( filt && !n_obj )
+        if( filtrane && !n_obj )
             dummy_gradient( 0, Xtmp, g, &nerror );
         else
             objgrd( 0, Xtmp, g, &nerror );
 #else
-        if( filt && !n_obj )
+        if( filtrane && !n_obj )
             dummy_gradient( 0, x, g, &nerror );
         else
             objgrd( 0, x, g, &nerror );
 #endif
-        if( !filt )
+        if( !filtrane )
             ncalls.geval++;     /* Filtrane does not really evaluate g(x) */
 
         /* gradL now contains the gradient of f(x) */
@@ -1125,17 +1125,17 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
             Xtmp[i] = AmplCast *( x + i );
 
         /* There might be no objective defined in feasibility problems */
-        if( filt && !n_obj )
+        if( filtrane && !n_obj )
             dummy_gradient( 0, Xtmp, gradL, &nerror );
         else
             objgrd( 0, Xtmp, gradL, &nerror );
 #else
-        if( filt && !n_obj )
+        if( filtrane && !n_obj )
             dummy_gradient( 0, x, gradL, &nerror );
         else
             objgrd( 0, x, gradL, &nerror );
 #endif
-        if( !filt )
+        if( !filtrane )
             ncalls.geval++;     /* Filtrane does not really evaluate g(x) */
 
         /* gradL now contains the gradient of f(x) */
@@ -1222,7 +1222,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
          * sphes( ) evaluates H and fills sputinfo->hrownos and
          * sputinfo->hcolstarts to describe the upper triangle of H in
          * Harwell-Boeing format.
-         * QP, QPA, QPB, QPC, CQP, PRE and LANB do not use H_col.
+         * QP, QPA, QPB, QPC, CQP, PRE and LANCELOT do not use H_col.
          */
         OW = ( real * ) Malloc( n_obj * sizeof( real ) );
         for( i = 0; i < n_obj; i++ )
@@ -1304,7 +1304,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
          * sphes( ) evaluates H and fills sputinfo->hrownos and
          * sputinfo->hcolstarts to describe the upper triangle of H in
          * Harwell-Boeing format.
-         * QP, QPA, QPB, QPC, CQP, PRE and LANB do not use H_col.
+         * QP, QPA, QPB, QPC, CQP, PRESOLVE and LANCELOT do not use H_col.
          */
         OW = ( real * ) Malloc( n_obj * sizeof( real ) );
         for( i = 0; i < n_obj; i++ )
@@ -1385,7 +1385,7 @@ extern "C" {                /* To prevent C++ compilers from mangling symbols */
          * sphes( ) evaluates H and fills sputinfo->hrownos and
          * sputinfo->hcolstarts to describe the upper triangle of H in
          * Harwell-Boeing format.
-         * QP, QPA, QPB, QPC, CQP, PRE and LANB do not use H_col.
+         * QP, QPA, QPB, QPC, CQP, PRESOLVE and LANCELOT do not use H_col.
          */
         OW = ( real * ) Malloc( n_obj * sizeof( real ) );
         for( i = 0; i < n_obj; i++ )

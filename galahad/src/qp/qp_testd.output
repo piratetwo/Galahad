@@ -5,7 +5,7 @@
  4: QP_solve+solver exit status =    -65    -4
  5: QP_solve+solver exit status =    -65    -5
 18: QP_solve+solver exit status =    -65   -18
-19: optimal objective value =    5.4 status =      0
+19: QP_solve+solver exit status =    -65   -19
 23: QP_solve+solver exit status =    -65   -23
  7: QP_solve+solver exit status =    -65    -7
 

@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Build script for GALAHAD 
+# Build script for GALAHAD
 # version for Bourne/bash shell
+
+# NB, best to use the up-to-date script $ARCHDEFS/install_optsuite
+# instead!
 
 # syntax: install_galahad
 
@@ -19,7 +22,7 @@ fi
 
 #  function to create missing symblic links
 
-galahad_create_missing_link () { 
+galahad_create_missing_link () {
  if [[ -f $1 && ! -L $2 ]] ;
    then echo "creating missing link $2" ;
 #  else echo "link $2 already exists" ;
@@ -46,7 +49,7 @@ fi
 #  determine the platform and operating system used
 
 CORRECT_PLATFORM="false"
-while [ $CORRECT_PLATFORM == "false" ]; do 
+while [ $CORRECT_PLATFORM == "false" ]; do
    echo ' Select platform'
    echo
    echo '   (1) Compaq (DEC) alpha'
@@ -60,11 +63,11 @@ while [ $CORRECT_PLATFORM == "false" ]; do
    echo '   (9) PC with 64-bit Athlon processor'
    echo '  (10) SGI workstation'
    echo '  (11) SUN workstation'
-   echo '  (12) MAC OS/X'   
-   echo '  (13) 64-bit MAC OS/X'   
+   echo '  (12) MAC OS/X'
+   echo '  (13) 64-bit MAC OS/X'
 
    read CHOICE
-   
+
    case  $CHOICE  in
        "1")
             CORRECT_PLATFORM="true"
@@ -72,14 +75,14 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="Compaq Alpha"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
                echo '   (1) Digital Unix'
                echo '   (2) Tru-64 Unix'
                echo '   (3) Linux'
-               
+
                read CHOICE
 
                case  $CHOICE  in
@@ -116,13 +119,13 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="HP workstation"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
                echo '   (1) HP-UX'
                echo '   (2) Linux'
-            
+
                read CHOICE
 
                case  $CHOICE  in
@@ -147,13 +150,13 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="IBM PowerPC"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
                echo '   (1) AIX'
                echo '   (2) Linux'
-           
+
                read CHOICE
 
                case  $CHOICE  in
@@ -178,13 +181,13 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="Intel-like PC"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
                echo '   (1) Windows 2000/XP with MinGW/Msys'
                echo '   (2) Linux'
-           
+
                read CHOICE
 
                case  $CHOICE  in
@@ -209,13 +212,13 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="Intel-like PC with a 64-bit processor"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
                echo '   (1) Windows 2000/XP with MinGW/Msys'
                echo '   (2) Linux'
-           
+
                read CHOICE
 
                case  $CHOICE  in
@@ -261,13 +264,13 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="SGI workstation"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
                echo '   (1) IRIX'
                echo '   (2) Linux'
-            
+
                read CHOICE
 
                case  $CHOICE  in
@@ -292,7 +295,7 @@ while [ $CORRECT_PLATFORM == "false" ]; do
             export MACHINE="Sun workstation"
 
             CORRECT_OS="false"
-            while [ $CORRECT_OS == "false" ]; do 
+            while [ $CORRECT_OS == "false" ]; do
 
                echo ' Select operating system'
                echo
@@ -361,7 +364,7 @@ for i  in  ${LIST[@]}; do
   echo "        ($counter) ${COMP[$count]}"
 done
 
-while [ $CORRECT_COMPILER == "false" ]; do 
+while [ $CORRECT_COMPILER == "false" ]; do
    read CHOICE
    let CHOICE=CHOICE-1
    if (( 0 <= CHOICE && CHOICE < NUMBER )); then
@@ -391,10 +394,18 @@ PLPLOTUSED="unused"
 PLPLOT=""
 MBASIC=""
 
+if [ $OMP4 == "yes" ]; then
+ SSIDS_REQUIRED=1
+ SSIDS="ssids"
+else
+ SSIDS_REQUIRED=0
+ SSIDS="ssids_dum"
+fi
+
 if [[ -e $GALAHAD/versions/$VERSION ]]; then
 
     YESNO=""
-    
+
     warning " There is already a GALAHAD installation with version $VERSION."
     yesno_default_no ' Do you wish to proceed ... existing version will be destroyed'
     [[ $? == 0 ]] && exit 4
@@ -404,7 +415,7 @@ MATLABGCC="gcc-4.4"
 MATLABGFORTRAN="gfortran-4.4"
 matlab=""
 
-while [ $CORRECT_SUBSET == "false" ]; do 
+while [ $CORRECT_SUBSET == "false" ]; do
    echo ' Select subset of GALAHAD packages to be installed'
    echo ' (the chosen subset will optionally be installed below)'
    echo
@@ -425,9 +436,9 @@ while [ $CORRECT_SUBSET == "false" ]; do
    echo '    (13) FILTRANE and its interface to CUTEst'
    echo '    (14) FILTRANE and its interface to AMPL'
    echo '    (15) Just FILTRANE and its dependencies'
-   
+
    read CHOICE
-   
+
    case  $CHOICE  in
        "1")
             CORRECT_SUBSET="true"
@@ -454,7 +465,7 @@ while [ $CORRECT_SUBSET == "false" ]; do
                 type -P gfortran-4.3 &>/dev/null || \
               { echo ' Warning: you need to install gfortran-4.3/gcc-4.3' \
                 echo ' to allow Matlab and GALAHAD interaction. Aborting ' \
-                 >&2; exit 3; }
+                 >&2; exit 7; }
                 type -P gcc-4.3 &>/dev/null || \
               { echo ' Warning: you need to install $MATLABGCC' \
                 echo ' to allow Matlab and GALAHAD interaction. Aborting ' \
@@ -462,8 +473,7 @@ while [ $CORRECT_SUBSET == "false" ]; do
                 FORTRAN="$MATLABGFORTRAN"
                 CC="$MATLABGCC"
                 NEWCC="true"
-                warning "$MATLABGCC and $MATLABGFORTRAN override more modern\n
- GNU compilers to allow for Matlab and GALAHAD interaction"
+                warning "$MATLABGCC and $MATLABGFORTRAN override more modern\n GNU compilers to allow for Matlab and GALAHAD interaction"
               fi
             else
               warning ' Matlab only supports gfortran/gcc\n
@@ -536,7 +546,7 @@ if [[ $NEED_CUTEST == "true" ]]; then
       echo ' Where is your main CUTEst directory?'
 
       YESNO=""
-      
+
       while [[ $YESNO != 'Y' ]]; do
           read CUTEST
           if [[ -d $CUTEST/versions ]]; then
@@ -546,7 +556,7 @@ if [[ $NEED_CUTEST == "true" ]]; then
           fi
       done
     fi
-    
+
     YESNO=""
     CUTEST_FOUND='no'
 
@@ -567,7 +577,7 @@ if [[ $NEED_CUTEST == "true" ]]; then
             echo ' Please respond Y or N'
           fi
       done
-    fi    
+    fi
 
     if [[ $CUTEST_FOUND == 'no' ]]; then
        YESNO="N"
@@ -608,9 +618,9 @@ if [[ $NEED_AMPL == "true" ]]; then
        echo ' AMPLDIR environment variable is not currently set'
        YESNO='N'
     fi
-    
+
     CORRECT_AMPLLIBDIR="false"
-    while [[ $CORRECT_AMPLLIBDIR == "false" ]]; do 
+    while [[ $CORRECT_AMPLLIBDIR == "false" ]]; do
        if [[ $YESNO == 'N' ]]; then
           echo ' Please give the name of the directory'
           echo ' containing the AMPL interface library:'
@@ -638,10 +648,10 @@ if [[ $NEED_AMPL == "true" ]]; then
     done
 
     CORRECT_CCOMPILER="false"
-    while [[ $CORRECT_CCOMPILER == "false" ]]; do 
+    while [[ $CORRECT_CCOMPILER == "false" ]]; do
 
         let count=-1
-    
+
     for i  in  ${LIST[@]}; do
           (( count++ ))
           let counter=count+1
@@ -687,7 +697,7 @@ MODDIR=$GALAHAD/modules/$VERSION
 echo "$MACHINE ($OPSYS) $COMPUSED" > $GALAHAD/versions/$VERSION
 
 if [[ ! -e $OBJDIR ]]; then
-    $MKDIR $OBJDIR 
+    $MKDIR $OBJDIR
     $MKDIR $OBJDIR/double $OBJDIR/single
 else
     if [[ ! -e $OBJDIR/double ]]; then
@@ -699,7 +709,7 @@ else
 fi
 
 if [[ ! -e $MODDIR ]]; then
-    $MKDIR $MODDIR 
+    $MKDIR $MODDIR
     $MKDIR $MODDIR/double $MODDIR/single
 else
     if [[ ! -e $MODDIR/double ]]; then
@@ -754,10 +764,13 @@ echo ' '                                                           >> $MAKEFILE
 echo 'CP = '$CP                                                    >> $MAKEFILE
 echo 'MV = '$MV                                                    >> $MAKEFILE
 echo 'RM = '$RM                                                    >> $MAKEFILE
+echo 'LN = '$LN                                                    >> $MAKEFILE
+echo 'MKDIR = '$MKDIR                                              >> $MAKEFILE
 echo 'SED = '$SED                                                  >> $MAKEFILE
 echo 'CAT = '$CAT                                                  >> $MAKEFILE
 echo 'GREP = '$GREP                                                >> $MAKEFILE
 echo 'AR = '$AR                                                    >> $MAKEFILE
+echo 'ARREPFLAGS = '$ARREPFLAGS                                    >> $MAKEFILE
 echo 'RANLIB = '$RANLIB                                            >> $MAKEFILE
 echo ' '                                                           >> $MAKEFILE
 echo '#  Directory for binaries'                                   >> $MAKEFILE
@@ -802,8 +815,14 @@ echo ' '                                                           >> $MAKEFILE
 echo 'AMPLDIR   = '$AMPLLIBDIR                                     >> $MAKEFILE
 echo 'CC        = '$CC                                             >> $MAKEFILE
 echo 'CCBASIC   = '$CCBASIC                                        >> $MAKEFILE
+echo 'CCISO     = '$CCISO                                          >> $MAKEFILE
 echo 'CCONDEF   = '$CCONDEF                                        >> $MAKEFILE
 echo 'CCDEBUG   = '$CCDEBUG                                        >> $MAKEFILE
+echo ' '                                                           >> $MAKEFILE
+echo 'CXX        = '$CXX                                           >> $MAKEFILE
+echo 'CXXBASIC   = '$CXXBASIC                                      >> $MAKEFILE
+echo 'CXXONDEF   = '$CXXONDEF                                      >> $MAKEFILE
+echo 'CXXDEBUG   = '$CXXDEBUG                                      >> $MAKEFILE
 echo ' '                                                           >> $MAKEFILE
 CUDACOMPTMP=`echo $CUDACOMP | $SED 's/FORTRAN/(FORTRAN)/g'`
 echo 'CUDACOMP   = '$CUDACOMPTMP                                   >> $MAKEFILE
@@ -830,6 +849,10 @@ echo 'METIS = '$METIS                                              >> $MAKEFILE
 echo 'PARDISO = '$PARDISO                                          >> $MAKEFILE
 echo 'WSMP = '$WSMP                                                >> $MAKEFILE
 echo 'PLPLOT = '$PLPLOT                                            >> $MAKEFILE
+echo ' '                                                           >> $MAKEFILE
+echo '#  proper or dummy SSIDS package?'                           >> $MAKEFILE
+echo ' '                                                           >> $MAKEFILE
+echo 'SSIDS = '$SSIDS                                              >> $MAKEFILE
 echo ' '                                                           >> $MAKEFILE
 echo '#  Shell used'                                               >> $MAKEFILE
 echo ' '                                                           >> $MAKEFILE
@@ -882,7 +905,7 @@ if [[ $YESNO == 'Y' ]]; then
         PREC="D"
     fi
         PREC=`echo $PREC | tr a-z A-Z`
-    done 
+    done
     if [[ $PREC == 'S' ]]; then
       PREC="single"
     else
@@ -977,7 +1000,7 @@ if [[ $YESNO == 'Y' ]]; then
     fi
         YESNO2=`echo $YESNO2 | tr a-z A-Z`
     done
-    
+
     if [[ $YESNO2 == 'Y' ]]; then
 
         echo ' '

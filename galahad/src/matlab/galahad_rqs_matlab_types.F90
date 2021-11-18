@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.4. February 10th, 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_RQS_MATLAB_TYPES
@@ -51,7 +51,7 @@
         mwPointer :: total, assemble, analyse, factorize, solve
         mwPointer :: clock_total, clock_assemble
         mwPointer :: clock_analyse, clock_factorize, clock_solve
-      END TYPE 
+      END TYPE
 
       TYPE, PUBLIC :: RQS_history_pointer_type
         mwPointer :: pointer
@@ -62,13 +62,13 @@
         mwPointer :: pointer
         mwPointer :: status, alloc_status, bad_alloc
         mwPointer :: factorizations, max_entries_factors, len_history
-        mwPointer :: obj, x_norm, multiplier, pole, hard_case
+        mwPointer :: obj, obj_regularized, x_norm, multiplier, pole, hard_case
         mwPointer :: time, history
         TYPE ( RQS_time_pointer_type ) :: time_pointer
         TYPE ( RQS_history_pointer_type ) :: history_pointer
         TYPE ( SLS_pointer_type ) :: SLS_pointer
         TYPE ( IR_pointer_type ) :: IR_pointer
-      END TYPE 
+      END TYPE
 
     CONTAINS
 
@@ -333,12 +333,12 @@
 
       mwPointer :: mxCreateStructMatrix
 
-      INTEGER * 4, PARAMETER :: ninform = 15
+      INTEGER * 4, PARAMETER :: ninform = 16
       CHARACTER ( LEN = 21 ), PARAMETER :: finform( ninform ) = (/             &
            'status               ', 'alloc_status         ',                   &
            'bad_alloc            ', 'factorizations       ',                   &
-           'max_entries_factors  ',                                            &
-           'len_history          ', 'obj                  ',                   &
+           'max_entries_factors  ', 'len_history          ',                   &
+           'obj                  ', 'obj_regularized      ',                   &
            'x_norm               ', 'multiplier           ',                   &
            'pole                 ', 'hard_case            ',                   &
            'time                 ', 'history              ',                   &
@@ -382,6 +382,8 @@
         'hard_case', RQS_pointer%hard_case )
       CALL MATLAB_create_real_component( RQS_pointer%pointer,                  &
         'obj', RQS_pointer%obj )
+      CALL MATLAB_create_real_component( RQS_pointer%pointer,                  &
+        'obj_regularized', RQS_pointer%obj_regularized )
       CALL MATLAB_create_real_component( RQS_pointer%pointer,                  &
         'x_norm', RQS_pointer%x_norm )
       CALL MATLAB_create_real_component( RQS_pointer%pointer,                  &
@@ -479,6 +481,8 @@
                                mxGetPr( RQS_pointer%hard_case ) )
       CALL MATLAB_copy_to_ptr( RQS_inform%obj,                                 &
                                mxGetPr( RQS_pointer%obj ) )
+      CALL MATLAB_copy_to_ptr( RQS_inform%obj_regularized,                     &
+                               mxGetPr( RQS_pointer%obj_regularized ) )
       CALL MATLAB_copy_to_ptr( RQS_inform%x_norm,                              &
                                mxGetPr( RQS_pointer%x_norm ) )
       CALL MATLAB_copy_to_ptr( RQS_inform%multiplier,                          &

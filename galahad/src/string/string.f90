@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 31/03/2015 AT 14:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 03/06/2021 AT 11:30 GMT.
 
 !-*-*-*-*-*-*-*-  G A L A H A D _ S T R I N G   M O D U L E  *-*-*-*-*-*-*-*-*
 
@@ -8,10 +8,10 @@
 !  History -
 !   originally released GALAHAD Version 2.0. September 14th 2005
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
-   MODULE GALAHAD_STRING_double
+   MODULE GALAHAD_STRING
 
 !     ----------------------------
 !    |  Set strings appropriate   |
@@ -20,13 +20,14 @@
 !    |  other useful strings      |
 !     ----------------------------
 
-     IMPLICIT NONE     
+     IMPLICIT NONE
 
      PRIVATE
      PUBLIC :: STRING_pleural, STRING_verb_pleural, STRING_are, STRING_have,   &
                STRING_ies, STRING_their, STRING_sign, STRING_choice,           &
                STRING_lower, STRING_upper, STRING_lower_word,                  &
-               STRING_upper_word, STRING_put, STRING_get, STRING_integer_6,    &
+               STRING_upper_word, STRING_put, STRING_get,                      &
+               STRING_integer_6, STRING_integer_right_6,                       &
                STRING_real_7, STRING_real_12, STRING_trim_real_24,             &
                STRING_trim_integer_16, STRING_es, STRING_es12,                 &
                STRING_exponent, STRING_ordinal
@@ -38,7 +39,7 @@
 
      REAL( KIND = sp ), PARAMETER :: teneps_s = 10.0_sp * EPSILON( 1.0_sp )
      REAL( KIND = dp ), PARAMETER :: teneps_d = 10.0_dp * EPSILON( 1.0_dp )
-   
+
 !---------------------------------
 !   I n t e r f a c e  B l o c k s
 !---------------------------------
@@ -69,6 +70,14 @@
 
      INTERFACE STRING_exponent
        MODULE PROCEDURE STRING_exponent_single, STRING_exponent_double
+     END INTERFACE
+
+     INTERFACE STRING_lower
+       MODULE PROCEDURE STRING_lower_scalar, STRING_lower_component
+     END INTERFACE
+
+     INTERFACE STRING_upper
+       MODULE PROCEDURE STRING_upper_scalar, STRING_upper_component
      END INTERFACE
 
    CONTAINS
@@ -236,7 +245,7 @@
 !   Given an integer val, returns string1 if val /= 1, otherwise returns string2
 
      CHARACTER ( len = 120 ) :: STRING_choice
- 
+
 !--------------------------------
 !   D u m m y   A r g u m e n t
 !--------------------------------
@@ -320,9 +329,9 @@
 
       END FUNCTION STRING_sign_double
 
-!-*-*-*-*-*-*-*-   S T R I N G _ l o w e r   S U B R O U T I N E  -*-*-*-*-*-*-
+!-*-*-*-  S T R I N G _ l o w e r _ s c a l a r   S U B R O U T I N E  -*-*-*-
 
-     SUBROUTINE STRING_lower( string )
+     SUBROUTINE STRING_lower_scalar( string )
 
 !  Convert a character variable from upper to lower case
 
@@ -356,13 +365,42 @@
 
      RETURN
 
-!  End of subroutine STRING_lower
+!  End of subroutine STRING_lower_scalar
 
-     END SUBROUTINE STRING_lower
+     END SUBROUTINE STRING_lower_scalar
 
-!-*-*-*-*-*-*-*-   S T R I N G _ u p p e r   S U B R O U T I N E  -*-*-*-*-*-*-
+!-*-*-  S T R I N G _ l o w e r _ c o m p o n e n t  S U B R O U T I N E  -*-*-
 
-     SUBROUTINE STRING_upper( string )
+     SUBROUTINE STRING_lower_component( string )
+
+!  Convert a character variable from upper to lower case
+
+!--------------------------------
+!   D u m m y   A r g u m e n t
+!--------------------------------
+
+     CHARACTER, INTENT( INOUT ), DIMENSION( 1 ) :: string
+
+!  Local variables
+
+     CHARACTER :: string_scalar
+
+!  See if the current letter is lower case. If so replace it by its
+!  lower case counterpart
+
+     string_scalar = string( 1 )
+     CALL STRING_lower_scalar( string_scalar )
+     string( 1 ) = string_scalar
+
+     RETURN
+
+!  End of subroutine STRING_lower_component
+
+     END SUBROUTINE STRING_lower_component
+
+!-*-*-*-*-  S T R I N G _ u p p e r _ s c a l a r  S U B R O U T I N E  -*-*-*-
+
+     SUBROUTINE STRING_upper_scalar( string )
 
 !  Convert a character variable from lower to upper case
 
@@ -396,9 +434,38 @@
 
      RETURN
 
-!  End of subroutine STRING_upper
+!  End of subroutine STRING_upper_scalar
 
-     END SUBROUTINE STRING_upper
+     END SUBROUTINE STRING_upper_scalar
+
+!-*-*-  S T R I N G _ u p p e r _ c o m p o n e n t  S U B R O U T I N E  -*-*-
+
+     SUBROUTINE STRING_upper_component( string )
+
+!  Convert a character variable from lower to upper case
+
+!--------------------------------
+!   D u m m y   A r g u m e n t
+!--------------------------------
+
+     CHARACTER, INTENT( INOUT ), DIMENSION( 1 ) :: string
+
+!  Local variables
+
+     CHARACTER :: string_scalar
+
+!  See if the current letter is lower case. If so replace it by its
+!  upper case counterpart
+
+     string_scalar = string( 1 )
+     CALL STRING_upper_scalar( string_scalar )
+     string( 1 ) = string_scalar
+
+     RETURN
+
+!  End of subroutine STRING_upper_component
+
+     END SUBROUTINE STRING_upper_component
 
 !-*-*-*-*-   S T R I N G _ l o w e r  _ w o r d   S U B R O U T I N E  -*-*-*-*-
 
@@ -410,7 +477,7 @@
 !   D u m m y   A r g u m e n t
 !--------------------------------
 
-     CHARACTER (LEN = * ), INTENT( INOUT ) :: word
+     CHARACTER ( LEN = * ), INTENT( INOUT ) :: word
 
 !  Local variables
 
@@ -438,7 +505,7 @@
 !   D u m m y   A r g u m e n t
 !--------------------------------
 
-     CHARACTER (LEN = * ), INTENT( INOUT ) :: word
+     CHARACTER ( LEN = * ), INTENT( INOUT ) :: word
 
 !  Local variables
 
@@ -586,6 +653,50 @@
 
      END FUNCTION STRING_integer_6
 
+!-*-  G A L A H A D -  S T R I N G _ i n t e g e r _ 6   F U N C T I O N  -*-*-
+
+     FUNCTION STRING_integer_right_6( i )
+
+     CHARACTER ( LEN = 6 ) :: STRING_integer_right_6
+
+!  Obtain a 6 character representation of the integer i.
+!  Extracted from LANCELOT module OTHERS
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( IN ) :: i
+
+!  Local variables
+
+     INTEGER :: ik, im, ig
+     CHARACTER :: ci * 6
+
+     string_integer_right_6( 1 : 6 ) = '       '
+     ik = i / 1000
+     im = ik / 1000
+     ig = im / 1000
+     IF ( i <= 999999 ) THEN
+       WRITE( UNIT = ci, FMT = "( I6 )" ) i
+       string_integer_right_6 = ci
+     ELSE IF ( ik <= 99999 ) THEN
+       WRITE( UNIT = ci( 1 : 5 ), FMT = "( I5 )" ) ik
+       string_integer_right_6 = ci( 1 : 5 ) // 'k'
+     ELSE IF ( im <= 99999 ) THEN
+       WRITE( UNIT = ci( 1 : 5 ), FMT = "( I5 )" ) im
+       string_integer_right_6 = ci( 1 : 5 ) // 'm'
+     ELSE
+       WRITE( UNIT = ci( 1 : 5 ), FMT = "( I5 )" ) ig
+       string_integer_right_6 = ci( 1 : 5 ) // 'g'
+     END IF
+
+     RETURN
+
+!  End of string_integer_right_6
+
+     END FUNCTION string_integer_right_6
+
 !-  G A L A H A D -  S T R I N G _ r e a l _ 7 _ s i n g l e  F U N C T I O N -
 
      FUNCTION STRING_real_7_single( re )
@@ -708,7 +819,7 @@
 
      END FUNCTION STRING_real_7_double
 
-!-  G A L A H A D -  S T R I N G _ r e a l _ 1 2 _ s i n g l e  F U N C T I O N 
+!-  G A L A H A D -  S T R I N G _ r e a l _ 1 2 _ s i n g l e  F U N C T I O N
 
      FUNCTION STRING_real_12_single( r )
 
@@ -861,7 +972,7 @@
 
      END FUNCTION STRING_real_12_single
 
-!-  G A L A H A D -  S T R I N G _ r e a l _ 1 2 _ d o u b l e  F U N C T I O N 
+!-  G A L A H A D -  S T R I N G _ r e a l _ 1 2 _ d o u b l e  F U N C T I O N
 
      FUNCTION STRING_real_12_double( r )
 
@@ -1020,7 +1131,7 @@
      CHARACTER ( LEN = 24 ) :: STRING_trim_real_24_single
      REAL ( KIND = sp ) :: value
 
-!  write a real value into 24 characters trimming as much as possible 
+!  write a real value into 24 characters trimming as much as possible
 !  without losing precision
 
      INTEGER :: i, i_start, i_point, i_end, j, k, l, zs
@@ -1218,7 +1329,7 @@
                END IF
                IF ( j == i_start ) THEN
                  DO l = i_end - 1, i_start, - 1
-                   field24( l + 1 : l + 1 ) = field24( l : l ) 
+                   field24( l + 1 : l + 1 ) = field24( l : l )
                  END DO
                  field24( i_start : i_start ) = '1'
                END IF
@@ -1244,7 +1355,7 @@
 !        STRING_trim_real_24_single( i - 1 : i - 1 )                           &
 !          = STRING_trim_real_24_single( i : i )
 !      END DO
-!    END IF 
+!    END IF
 
      zeros = .FALSE.
      DO i = 1, 24
@@ -1395,7 +1506,7 @@
      CHARACTER ( LEN = 24 ) :: STRING_trim_real_24_double
      REAL ( KIND = dp ) :: value
 
-!  write a real value into 24 characters trimming as much as possible 
+!  write a real value into 24 characters trimming as much as possible
 !  without losing precision
 
      INTEGER :: i, i_start, i_point, i_end, j, k, l, zs
@@ -1593,7 +1704,7 @@
                END IF
                IF ( j == i_start ) THEN
                  DO l = i_end - 1, i_start, - 1
-                   field24( l + 1 : l + 1 ) = field24( l : l ) 
+                   field24( l + 1 : l + 1 ) = field24( l : l )
                  END DO
                  field24( i_start : i_start ) = '1'
                END IF
@@ -1619,7 +1730,7 @@
 !        STRING_trim_real_24_double( i - 1 : i - 1 )                           &
 !          = STRING_trim_real_24_double( i : i )
 !      END DO
-!    END IF 
+!    END IF
 
      zeros = .FALSE.
      DO i = 1, 24
@@ -1993,4 +2104,4 @@
 
 !  End of module GALAHAD_STRING
 
-   END MODULE GALAHAD_STRING_double
+   END MODULE GALAHAD_STRING

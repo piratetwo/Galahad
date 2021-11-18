@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Build script for sifdecode
 # version for Bourne/bash shell
@@ -477,6 +477,7 @@ echo ' '                                                           >> $MAKEFILE
 echo 'AMPLDIR   = '$AMPLLIBDIR                                     >> $MAKEFILE
 echo 'CC        = '$CC                                             >> $MAKEFILE
 echo 'CCBASIC   = '$CCBASIC                                        >> $MAKEFILE
+echo 'CCISO     = '$CCISO                                          >> $MAKEFILE
 echo 'CCONDEF   = '$CCONDEF                                        >> $MAKEFILE
 echo 'CCDEBUG   = '$CCDEBUG                                        >> $MAKEFILE
 echo ' '                                                           >> $MAKEFILE

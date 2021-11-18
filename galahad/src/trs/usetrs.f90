@@ -8,15 +8,15 @@
 
    MODULE GALAHAD_USETRS_double
 
-!  This is the driver program for running TRS for a variety of computing 
-!  systems. It opens and closes all the files, allocate arrays, reads and 
+!  This is the driver program for running TRS for a variety of computing
+!  systems. It opens and closes all the files, allocate arrays, reads and
 !  checks data, and calls the appropriate minimizers
 
      USE CUTEst_interface_double
      USE GALAHAD_CLOCK
      USE GALAHAD_SYMBOLS
      USE GALAHAD_TRS_double
-     USE GALAHAD_SPECFILE_double 
+     USE GALAHAD_SPECFILE_double
      USE GALAHAD_COPYRIGHT
      USE GALAHAD_SPACE_double
      IMPLICIT NONE
@@ -61,9 +61,14 @@
      REAL ( KIND = wp ) :: clock_now, clock_record
      REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: W1, W2, W3
 
+!  Functions
+
+!$   INTEGER :: OMP_GET_MAX_THREADS
+
 !  Problem characteristics
 
      INTEGER :: n, nnzh
+     INTEGER :: n_threads = 1
      REAL ( KIND = wp ) ::  f
      CHARACTER ( LEN = 10 ) :: pname
      REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: X, X0, X_l, X_u, G
@@ -156,8 +161,8 @@
        CALL SPECFILE_assign_logical( spec( 14 ), more_sorensen, errout )
        CALL SPECFILE_assign_logical( spec( 15 ), trs, errout )
      END IF
-    
-!  Set copyright 
+
+!  Set copyright
 
      IF ( out > 0 ) CALL COPYRIGHT( out, '2008' )
 
@@ -175,7 +180,7 @@
        WRITE( errout, "( ' more than 2000 variables ... stopping ' )" )
        STOP
      END IF
-       
+
      ALLOCATE( X( n ), X0( n ), X_l( n ), X_u( n ), G( n ), VNAMES( n ) )
      CALL CUTEST_usetup( cutest_status, input, control%error, io_buffer,       &
                          n, X0, X_l, X_u )
@@ -193,7 +198,7 @@
 
 !  Evaluate the gradient
 
-     CALL CUTEST_ugr( cutest_status, n, X0, G )     
+     CALL CUTEST_ugr( cutest_status, n, X0, G )
      IF ( cutest_status /= 0 ) GO TO 910
 
 !  Use TRS
@@ -222,7 +227,7 @@
             OPEN( trs_rfiledevice, FILE = trs_rfilename, FORM = 'FORMATTED',   &
                   STATUS = 'NEW', IOSTAT = iores )
          END IF
-         IF ( iores /= 0 ) THEN 
+         IF ( iores /= 0 ) THEN
            write( errout, 2030 ) iores, trs_rfilename
            STOP
          END IF
@@ -239,10 +244,13 @@
        IF ( control%print_level > 0 .AND. control%out > 0 )                    &
          WRITE( control%out, "( /, ' TRS used ' )" )
        IF ( control%print_level > 0 .AND. control%out > 0 )                    &
-         WRITE( control%out, "( /, ' non-zeros and fill-in ', I0, 1X, I0 )" )  &
-           nnzh, inform%SLS_inform%entries_in_factors
+         WRITE( control%out, "( /, ' non-zeros and fill-in ', I0, 1X, I0,      &
+        &    ', solver: ', A )" ) nnzh, inform%SLS_inform%entries_in_factors,  &
+           TRIM( control%definite_linear_solver )
+!$      n_threads = OMP_GET_MAX_THREADS( )
+        WRITE( out, "( ' number of threads = ', I0 )" ) n_threads
 
-!  If required, append results to a file, 
+!  If required, append results to a file,
 
        IF ( write_result_summary ) THEN
          BACKSPACE( trs_rfiledevice )
@@ -261,18 +269,18 @@
 
        IF ( control%print_level > 0 .AND. control%out > 0 ) THEN
          l = 2
-         IF ( fulsol ) l = n 
+         IF ( fulsol ) l = n
          IF ( control%print_level >= 10 ) l = n
 
          WRITE( errout, 2000 )
-         DO j = 1, 2 
-           IF ( j == 1 ) THEN 
-             ir = 1 ; ic = MIN( l, n ) 
-           ELSE 
-             IF ( ic < n - l ) WRITE( errout, 2010 ) 
+         DO j = 1, 2
+           IF ( j == 1 ) THEN
+             ir = 1 ; ic = MIN( l, n )
+           ELSE
+             IF ( ic < n - l ) WRITE( errout, 2010 )
              ir = MAX( ic + 1, n - ic + 1 ) ; ic = n
-           END IF 
-           DO i = ir, ic 
+           END IF
+           DO i = ir, ic
              WRITE( errout, 2020 ) i, VNAMES( i ), X( i )
            END DO
          END DO
@@ -299,7 +307,7 @@
             OPEN( trs_sfiledevice, FILE = trs_sfilename, FORM = 'FORMATTED',   &
                  STATUS = 'NEW', IOSTAT = iores )
          END IF
-         IF ( iores /= 0 ) THEN 
+         IF ( iores /= 0 ) THEN
            write( out, 2030 ) iores, trs_sfilename ; STOP ; END IF
          WRITE( trs_sfiledevice, "( /, ' Problem:    ', A10, /, ' Solver :   ',&
         &       A, /, ' Objective:', ES24.16 )" ) pname, solv, inform%obj
@@ -334,7 +342,7 @@
             OPEN( ms_rfiledevice, FILE = ms_rfilename, FORM = 'FORMATTED',     &
                   STATUS = 'NEW', IOSTAT = iores )
          END IF
-         IF ( iores /= 0 ) THEN 
+         IF ( iores /= 0 ) THEN
            write( errout, 2030 ) iores, ms_rfilename
            STOP
          END IF
@@ -369,7 +377,7 @@
          inform%status = - 99
        END SELECT
 
-!  If required, append results to a file, 
+!  If required, append results to a file,
 
        IF ( write_result_summary ) THEN
          BACKSPACE( ms_rfiledevice )
@@ -388,18 +396,18 @@
 
        IF ( control%print_level > 0 .AND. control%out > 0 ) THEN
          l = 2
-         IF ( fulsol ) l = n 
+         IF ( fulsol ) l = n
          IF ( control%print_level >= 10 ) l = n
 
          WRITE( errout, 2000 )
-         DO j = 1, 2 
-           IF ( j == 1 ) THEN 
-             ir = 1 ; ic = MIN( l, n ) 
-           ELSE 
-             IF ( ic < n - l ) WRITE( errout, 2010 ) 
+         DO j = 1, 2
+           IF ( j == 1 ) THEN
+             ir = 1 ; ic = MIN( l, n )
+           ELSE
+             IF ( ic < n - l ) WRITE( errout, 2010 )
              ir = MAX( ic + 1, n - ic + 1 ) ; ic = n
-           END IF 
-           DO i = ir, ic 
+           END IF
+           DO i = ir, ic
              WRITE( errout, 2020 ) i, VNAMES( i ), X( i )
            END DO
          END DO
@@ -426,7 +434,7 @@
             OPEN( ms_sfiledevice, FILE = ms_sfilename, FORM = 'FORMATTED',     &
                  STATUS = 'NEW', IOSTAT = iores )
          END IF
-         IF ( iores /= 0 ) THEN 
+         IF ( iores /= 0 ) THEN
            write( out, 2030 ) iores, ms_sfilename ; STOP ; END IF
          WRITE( ms_sfiledevice, "( /, ' Problem:    ', A10, /, ' Solver :   ', &
         &       A, /, ' Objective:', ES24.16 )" ) pname, solv, inform%obj
@@ -453,7 +461,7 @@
 
  2000 FORMAT( /, ' Solution: ', /, '      # name          value   ' )
  2010 FORMAT( 6X, '. .', 9X, ( 2X, 10( '.' ) ) )
- 2020 FORMAT( I7, 1X, A10, ES12.4 ) 
+ 2020 FORMAT( I7, 1X, A10, ES12.4 )
  2030 FORMAT( ' IOSTAT = ', I6, ' when opening file ', A9, '. Stopping ' )
  2040 FORMAT( A10, I6, 2ES16.8, I4, F9.2, I5 )
  2050 FORMAT( A10, I6, 2ES16.8, I4, F9.2, I5, 1X, A )

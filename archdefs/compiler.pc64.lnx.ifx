@@ -1,0 +1,47 @@
+# Intel ifx compiler
+#
+# Fortran compilation and loading
+#
+
+FORTRAN='ifx'
+BASIC='-c'
+LIBCMD=''
+MODCMD='-module $MOD -I$MOD'
+MODCMDB='-I$MOD'
+MVMODS=':'
+OPTIMIZATION='-O'
+NOOPTIMIZATION='-O0'
+DEBUG=
+#OPENMP='-qopenmp'
+OPENMP=''
+SOMP=''
+F77='-fixed -warn nogeneral'
+F90='-warn nogeneral'
+F95='-warn nogeneral'
+NOFMAIN='-nofor-main'
+CCONDEF=
+USUAL=
+SPECIAL=
+F77SUFFIX=f90
+F95SUFFIX=f90
+CUDA=
+CUDACOMP=$FORTRAN
+CUDAARCH=
+CUDACODE=
+CUDABASIC=
+CUDALIBS=
+CUDAOPENMP=$OPENMP
+TIMER=GEN
+BLAS=
+LAPACK=
+OMP4=yes
+IEEECK=
+HSL=
+SPRAL='-lgalahad_spral'
+METIS='-lgalahad_metis'
+PARDISO='-lgalahad_pardiso'
+MKL_PARDISO='-lgalahad_mkl_pardiso'
+WSMP='-lgalahad_wsmp'
+NOT95=IS95
+NOT64=IS64
+BINSHELL=sh

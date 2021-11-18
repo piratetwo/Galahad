@@ -196,7 +196,8 @@ while [ $CORRECT_PLATFORM == "false" ]; do
 
                echo -e ' Select operating system\n'
                echo '   (1) Windows 2000/XP with MinGW/Msys'
-               echo '   (2) Linux'
+               echo '   (2) Windows 10 with MinGW64/Msys2'
+               echo '   (3) Linux'
 
                read CHOICE
 
@@ -208,11 +209,16 @@ while [ $CORRECT_PLATFORM == "false" ]; do
 ;;
                2)
                   CORRECT_OS="true"
+                  export OS="msys2"
+                  export OPSYS="MSYS2"
+;;
+               3)
+                  CORRECT_OS="true"
                   export OS="lnx"
                   export OPSYS="Linux"
 ;;
                *)
-                  echo ' Please give an integer between 1 and 2'
+                  echo ' Please give an integer between 1 and 3'
                esac
             done
 ;;
@@ -335,7 +341,9 @@ if (( $MATLAB_REQUIRED )); then
      echo '   (1) before R2011a'
      echo '   (2) R2011a-R2013a'
      echo '   (3) R2013b-R2016a'
-     echo '   (4) R2016b or later'
+     echo '   (4) R2016b-R2017b'
+     echo '   (5) R2018a-R2020a'
+     echo '   (6) R2020b or later'
 
      read CHOICE
 
@@ -389,37 +397,79 @@ if (( $MATLAB_REQUIRED )); then
                 MATLABOMP4="yes"
               fi
 ;;
+         "5")
+              CORRECT_MATLAB="true"
+              if [[ ${OS} == "osx" ]]; then
+                MATLABGCC="gcc-4.3"
+                MATLABGCXX="g++-4.3"
+                MATLABGFORTRAN="gfortran-4.3"
+              else
+                MATLABGCC="gcc-6"
+                MATLABGCXX="g++-6"
+                MATLABGFORTRAN="gfortran-6"
+                MATLABOMP4="yes"
+              fi
+;;
+         "6")
+              CORRECT_MATLAB="true"
+              if [[ ${OS} == "osx" ]]; then
+                MATLABGCC="icc"
+                MATLABGCXX="icc"
+                MATLABGFORTRAN="ifort"
+              else
+                MATLABGCC="gcc-8"
+                MATLABGCXX="g++-8"
+                MATLABGFORTRAN="gfortran-8"
+                MATLABOMP4="yes"
+              fi
+;;
          *)
-           echo ' Please give an integer between 1 and 4'
+           echo ' Please give an integer between 1 and 6'
      esac
   done
 else
   if [[ ${OS} == "osx" ]]; then
-    MATLABGCC="gcc-4.3"
-    MATLABGFORTRAN="gfortran-4.3"
+    MATLABGCC="icc"
+    MATLABGFORTRAN="ifort"
   else
-    MATLABGCC="gcc-4.9"
-    MATLABGFORTRAN="gfortran-4.9"
+    MATLABGCC="gcc-8"
+    MATLABGFORTRAN="gfortran-8"
   fi
 fi
 
 if (( $MATLAB_REQUIRED )); then
-  COMP=( `$LS $ARCH/compiler.${MCH}.${OS}.gfo 2>/dev/null` )
-  NUMBER=${#COMP[@]}
-  if (( $NUMBER )) ; then
-    type -P $MATLABGFORTRAN &>/dev/null || \
-     { echo " Warning: you need to install $MATLABGFORTRAN" \
-       echo " to allow for Matlab and CUTEst interaction. Aborting " \
-       >&2; exit 3; }
-    echo " GNU $MATLABGFORTRAN compiler will be used for Matlab compatibility"
-    COMPILER="compiler.${MCH}.${OS}.gfo"
-    CMP="gfo"
-    COMPUSED=`$LS $ARCH/compiler.${MCH}.${OS}.gfo 2>/dev/null`
-  else
-    error " GNU $MATLABGFORTRAN/$MATLABGCC compilers required for
+  if [[ ${OS} == "osx" ]]; then
+    COMP=( `$LS $ARCH/compiler.${MCH}.${OS}.ifr 2>/dev/null` )
+    NUMBER=${#COMP[@]}
+    if (( $NUMBER )) ; then
+      type -P $MATLABGFORTRAN &>/dev/null || \
+       { printf " Warning: you need to install $MATLABGFORTRAN to allow\n for Matlab and CUTEst interaction. Aborting\n" >&2; exit 3; }
+      echo " Intel $MATLABGFORTRAN compiler will be used for Matlab compatibility"
+      COMPILER="compiler.${MCH}.${OS}.ifr"
+      CMP="ifr"
+      COMPUSED=`$LS $ARCH/compiler.${MCH}.${OS}.ifr 2>/dev/null`
+    else
+      error " GNU $MATLABGFORTRAN/$MATLABGCC compilers required for
  Matlab compatibility not available.
  Installation abandoned"
-    exit 999
+      exit 999
+    fi
+  else
+    COMP=( `$LS $ARCH/compiler.${MCH}.${OS}.gfo 2>/dev/null` )
+    NUMBER=${#COMP[@]}
+    if (( $NUMBER )) ; then
+      type -P $MATLABGFORTRAN &>/dev/null || \
+       { printf " Warning: you need to install $MATLABGFORTRAN to allow\n for Matlab and CUTEst interaction. Aborting\n" >&2; exit 3; }
+      echo " GNU $MATLABGFORTRAN compiler will be used for Matlab compatibility"
+      COMPILER="compiler.${MCH}.${OS}.gfo"
+      CMP="gfo"
+      COMPUSED=`$LS $ARCH/compiler.${MCH}.${OS}.gfo 2>/dev/null`
+    else
+      error " GNU $MATLABGFORTRAN/$MATLABGCC compilers required for
+ Matlab compatibility not available.
+ Installation abandoned"
+      exit 999
+    fi
   fi
 else
   echo -e ' Select fortran compiler\n'
@@ -476,9 +526,14 @@ VERSION=${MCH}.${OS}.${CMP}
 #echo "omp4 ? " $OMP4
 
 if [ $OMP4 == "yes" ]; then
- SSIDS_REQUIRED=1
- SSIDS="ssids"
- SPRAL="$SPRAL -lstdc++ -lhwloc"
+ if [[ ${OS} == "osx" ]]; then
+  SSIDS_REQUIRED=0
+  SSIDS="ssids_dum"
+ else
+  SSIDS_REQUIRED=1
+  SSIDS="ssids"
+  SPRAL="$SPRAL -lstdc++ -lhwloc"
+ fi
 else
  SSIDS_REQUIRED=0
  SSIDS="ssids_dum"
@@ -489,23 +544,46 @@ fi
 if (( $AMPL_REQUIRED )) || (( $MATLAB_REQUIRED )) || \
    (( $CUTEST_REQUIRED )) || (( $SSIDS_REQUIRED )); then
   if (( $MATLAB_REQUIRED )); then
-    CCOMP=( `$LS $ARCH/ccompiler.${MCH}.${OS}.gcc 2>/dev/null` )
-    NUMBER=${#CCOMP[@]}
-    if (( $NUMBER )) ; then
-      type -P $MATLABGCC &>/dev/null || \
-       { echo " Warning: you need to install $MATLABGCC" \
-         echo "to allow for Matlab and CUTEst interaction. Aborting " \
-         >&2; exit 3; }
-      echo " GNU $MATLABGCC compiler will be used for Matlab compatibility"
-      CCOMPILER="ccompiler.${MCH}.${OS}.gcc"
-      #CMP="gcc"
-      CCOMPUSED=`$LS $ARCH/ccompiler.${MCH}.${OS}.gcc 2>/dev/null`
-#     SSIDS="ssids_dum"
-    else
-      error " GNU $MATLABGFORTRAN/$MATLABGCC compilers required for
+    if [[ ${OS} == "osx" ]]; then
+      CCOMP=( `$LS $ARCH/ccompiler.${MCH}.${OS}.icc 2>/dev/null` )
+      NUMBER=${#CCOMP[@]}
+      if (( $NUMBER )) ; then
+        type -P $MATLABGCC &>/dev/null || \
+         { echo " Warning: you need to install $MATLABGCC" \
+           echo "to allow for Matlab and CUTEst interaction. Aborting " \
+           >&2; exit 3; }
+        echo " Intel $MATLABGCC compiler will be used for Matlab compatibility"
+        CCOMPILER="ccompiler.${MCH}.${OS}.icc"
+        #CMP="icc"
+        CCOMPUSED=`$LS $ARCH/ccompiler.${MCH}.${OS}.icc 2>/dev/null`
+        SSIDS="ssids_dum"
+      else
+        error " GNU $MATLABGFORTRAN/$MATLABGCC compilers required for
  Matlab compatibility not available.
  Installation abandoned"
-      exit 999
+        exit 999
+      fi
+    else
+      CCOMP=( `$LS $ARCH/ccompiler.${MCH}.${OS}.gcc 2>/dev/null` )
+      NUMBER=${#CCOMP[@]}
+      if (( $NUMBER )) ; then
+        type -P $MATLABGCC &>/dev/null || \
+         { echo " Warning: you need to install $MATLABGCC" \
+           echo "to allow for Matlab and CUTEst interaction. Aborting " \
+           >&2; exit 3; }
+        echo " GNU $MATLABGCC compiler will be used for Matlab compatibility"
+        CCOMPILER="ccompiler.${MCH}.${OS}.gcc"
+        #CMP="gcc"
+        CCOMPUSED=`$LS $ARCH/ccompiler.${MCH}.${OS}.gcc 2>/dev/null`
+        if [[ ${OS} == "osx" ]]; then
+          SSIDS="ssids_dum"
+        fi
+      else
+        error " GNU $MATLABGFORTRAN/$MATLABGCC compilers required for
+ Matlab compatibility not available.
+ Installation abandoned"
+        exit 999
+      fi
     fi
   else
     echo -e ' Select C compiler\n'
@@ -609,4 +687,3 @@ else
 fi
 
 #echo "ssids 2 ? " $SSIDS
-

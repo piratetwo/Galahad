@@ -6,20 +6,20 @@ Lagrangian Hessian and the gradient of either the objective/Lagrangian
 in sparse format.
 .SH SYNOPSIS
 .HP 1i
-CALL CUTEST_csgrsh( status, n, m, X, Y, grlagf,  
-nnzj, lj, J_val, J_var, J_fun, 
+CALL CUTEST_csgrsh( status, n, m, X, Y, grlagf,
+nnzj, lj, J_val, J_var, J_fun,
 nnzh, lh, H_val, H_row, H_col )
 .SH DESCRIPTION
 The CUTEST_csgrsh subroutine evaluates the gradients of the general
-constraints, the Hessian matrix of the Lagrangian function 
+constraints, the Hessian matrix of the Lagrangian function
 .EQ
 l(x,y) = f(x) + y sup T c(x)
 .EN
 and the gradient of either the objective function or the Lagrangian
 corresponding to the problem decoded from a SIF file by the script
-\fIsifdecoder\fP at the point 
+\fIsifdecoder\fP at the point
 .EQ
-(x,y) = 
+(x,y) =
 .EN
 (X,Y).
 The data is stored in sparse format.
@@ -64,14 +64,14 @@ and simple bounds
 .EQ
 x sup l ~<=~ x ~<=~ x sup u.
 .EN
-The objective function is group-partially separable and 
+The objective function is group-partially separable and
 all constraint functions are partially separable.
-.LP 
+.LP
 .SH ARGUMENTS
 The arguments of CUTEST_csgrsh are as follows
 .TP 5
 .B status \fP[out] - integer
-the outputr status: 0 for a succesful call, 1 for an array 
+the outputr status: 0 for a succesful call, 1 for an array
 allocation/deallocation error, 2 for an array bound error,
 3 for an evaluation error,
 .TP
@@ -91,8 +91,7 @@ Lagrangian function is required and .FALSE. if the gradient of the
 objective function is sought,
 .TP
 .B Y \fP[in] - real/double precision
-an array which should give the Lagrange multipliers whenever grlagf is
-set .TRUE. but need not otherwise be set,
+an array which should give the Lagrange multipliers,
 .TP
 .B nnzj \fP[out] - integer
 the number of nonzeros in J_val,
@@ -144,7 +143,7 @@ CUTEST_csh.
 .SH AUTHORS
 I. Bongartz, A.R. Conn, N.I.M. Gould, D. Orban and Ph.L. Toint
 .SH "SEE ALSO"
-\fICUTEst: a Constrained and Unconstrained Testing 
+\fICUTEst: a Constrained and Unconstrained Testing
 Environment with safe threads\fP,
    N.I.M. Gould, D. Orban and Ph.L. Toint,
    Computational Optimization and Applications \fB60\fP:3, pp.545-557, 2014.
@@ -155,7 +154,7 @@ Environment, revisited\fP,
    ACM TOMS, \fB29\fP:4, pp.373-394, 2003.
 
 \fICUTE: Constrained and Unconstrained Testing Environment\fP,
-   I. Bongartz, A.R. Conn, N.I.M. Gould and Ph.L. Toint, 
+   I. Bongartz, A.R. Conn, N.I.M. Gould and Ph.L. Toint,
    ACM TOMS, \fB21\fP:1, pp.123-160, 1995.
 
 cutest_cgr(3M), sifdecoder(1).

@@ -14,7 +14,7 @@
      USE GALAHAD_SYMBOLS
      USE GALAHAD_SMT_double
 
-     IMPLICIT NONE     
+     IMPLICIT NONE
 
      PRIVATE
      PUBLIC :: SPACE_resize_pointer, SPACE_resize_array,                       &
@@ -28,7 +28,7 @@
      INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
      INTEGER, PARAMETER :: wcp = KIND( ( 1.0D+0, 1.0D+0 ) )
 
-!  generic interfaces to cope with both pointer and allocatable 
+!  generic interfaces to cope with both pointer and allocatable
 !  real and integer arrays
 
      INTERFACE SPACE_resize_pointer
@@ -39,7 +39,8 @@
                         SPACE_resize_integerlu_pointer,                        &
                         SPACE_resize_integer2_pointer,                         &
                         SPACE_resize_logical_pointer,                          &
-                        SPACE_resize_character_pointer
+                        SPACE_resize_character_pointer,                        &
+                        SPACE_resize_character2_pointer
      END INTERFACE SPACE_resize_pointer
 
      INTERFACE SPACE_resize_cpointer
@@ -61,7 +62,8 @@
                         SPACE_resize_integerlu_array,                          &
                         SPACE_resize_integer2_array,                           &
                         SPACE_resize_logical_array,                            &
-                        SPACE_resize_character_array
+                        SPACE_resize_character_array,                          &
+                        SPACE_resize_character2_array
      END INTERFACE SPACE_resize_array
 
      INTERFACE SPACE_resize_carray
@@ -72,7 +74,8 @@
 
      INTERFACE SPACE_extend_array
        MODULE PROCEDURE SPACE_extend_array_integer,                            &
-                        SPACE_extend_array_real
+                        SPACE_extend_array_real,                               &
+                        SPACE_extend_array_logical
      END INTERFACE SPACE_extend_array
 
      INTERFACE SPACE_extend_carray
@@ -86,7 +89,8 @@
                         SPACE_dealloc_integer_pointer,                         &
                         SPACE_dealloc_integer2_pointer,                        &
                         SPACE_dealloc_logical_pointer,                         &
-                        SPACE_dealloc_character_pointer
+                        SPACE_dealloc_character_pointer,                       &
+                        SPACE_dealloc_character2_pointer
      END INTERFACE SPACE_dealloc_pointer
 
      INTERFACE SPACE_dealloc_array
@@ -97,7 +101,8 @@
                         SPACE_dealloc_integer_array,                           &
                         SPACE_dealloc_integer2_array,                          &
                         SPACE_dealloc_logical_array,                           &
-                        SPACE_dealloc_character_array
+                        SPACE_dealloc_character_array,                         &
+                        SPACE_dealloc_character2_array
      END INTERFACE SPACE_dealloc_array
 
    CONTAINS
@@ -107,10 +112,10 @@
      SUBROUTINE SPACE_resize_real_pointer( len, point, status, alloc_status,   &
        deallocate_error_fatal, point_name, exact_size, bad_alloc, out )
 
-!  Ensure that the real pointer array "point" is of lenth at least len.
+!  Ensure that the real pointer array "point" is of length at least len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -134,20 +139,20 @@
      IF ( ASSOCIATED( point ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( point ) /= len ) THEN 
+           IF ( SIZE( point ) /= len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( point ) < len ) THEN 
+           IF ( SIZE( point ) < len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( point ) < len ) THEN 
+         IF ( SIZE( point ) < len ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -186,14 +191,14 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_real_pointer
 
      END SUBROUTINE SPACE_resize_real_pointer
 
-! -  S P A C E _ R E S I Z E _ R E A L L U _ P O I N T E R  S U B R O U T I N E 
+! -  S P A C E _ R E S I Z E _ R E A L L U _ P O I N T E R  S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_reallu_pointer( l, u, point, status, alloc_status,&
        deallocate_error_fatal, point_name, exact_size, bad_alloc, out )
@@ -225,20 +230,20 @@
      IF ( ASSOCIATED( point ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( LBOUND( point, 1 ) /= l .OR. UBOUND( point, 1 ) /= u ) THEN 
+           IF ( LBOUND( point, 1 ) /= l .OR. UBOUND( point, 1 ) /= u ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN 
+           IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN 
+         IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -277,8 +282,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_reallu_pointer
 
@@ -290,10 +295,11 @@
        alloc_status, deallocate_error_fatal, point_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the 2D real pointer array "point" is of lenth at least len.
+!  Ensure that the 2D real pointer array "point" is of length at least 
+!  (len1,len2).
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -318,14 +324,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( SIZE( point, 1 ) /= len1 .OR.                                  &
-                SIZE( point, 2 ) /= len2  ) THEN 
+                SIZE( point, 2 ) /= len2  ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( SIZE( point, 1 ) /= len1 .OR.                                  &
-                SIZE( point, 2 ) < len2  ) THEN 
+                SIZE( point, 2 ) < len2  ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -333,7 +339,7 @@
          END IF
        ELSE
          IF ( SIZE( point, 1 ) /= len1 .OR.                                    &
-              SIZE( point, 2 ) < len2  ) THEN 
+              SIZE( point, 2 ) < len2  ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -353,7 +359,7 @@
        END IF
      END IF
 
-!  Reallocate point to be of length len, checking for error returns
+!  Reallocate point to be of length len1, len2, checking for error returns
 
      IF ( reallocate ) ALLOCATE( point( len1, len2 ), STAT = alloc_status )
      IF ( alloc_status /= 0 ) THEN
@@ -372,8 +378,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_real2_pointer
 
@@ -383,11 +389,11 @@
 
      SUBROUTINE SPACE_resize_integer_pointer( len, point, status, alloc_status, &
        deallocate_error_fatal, point_name, exact_size, bad_alloc, out )
- 
-!  Ensure that the integer pointer array "point" is of lenth at least len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  Ensure that the integer pointer array "point" is of length at least len.
+
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -411,20 +417,20 @@
      IF ( ASSOCIATED( point ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( point ) /= len ) THEN 
+           IF ( SIZE( point ) /= len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( point ) < len ) THEN 
+           IF ( SIZE( point ) < len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( point ) < len ) THEN 
+         IF ( SIZE( point ) < len ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -463,14 +469,14 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integer_pointer
 
      END SUBROUTINE SPACE_resize_integer_pointer
 
-! - S P A C E _ R E S I Z E _ I N T E G E R L U _ P O I N T E R  SUBROUTINE -  
+! - S P A C E _ R E S I Z E _ I N T E G E R L U _ P O I N T E R  SUBROUTINE -
 
      SUBROUTINE SPACE_resize_integerlu_pointer( l, u, point, status,           &
       alloc_status, deallocate_error_fatal, point_name, exact_size,            &
@@ -503,20 +509,20 @@
      IF ( ASSOCIATED( point ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( LBOUND( point, 1 ) /= l .OR. UBOUND( point, 1 ) /= u ) THEN 
+           IF ( LBOUND( point, 1 ) /= l .OR. UBOUND( point, 1 ) /= u ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN 
+           IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN 
+         IF ( LBOUND( point, 1 ) > l .OR. UBOUND( point, 1 ) < u ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -555,8 +561,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integerlu_pointer
 
@@ -568,10 +574,11 @@
        alloc_status, deallocate_error_fatal, point_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the 2D integer pointer array "point" is of lenth at least len.
+!  Ensure that the 2D integer pointer array "point" is of length at least 
+!  (len1,len2)
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -596,14 +603,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( SIZE( point, 1 ) /= len1 .OR.                                  &
-                SIZE( point, 2 ) /= len2  ) THEN 
+                SIZE( point, 2 ) /= len2  ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( SIZE( point, 1 ) /= len1 .OR.                                  &
-                SIZE( point, 2 ) < len2  ) THEN 
+                SIZE( point, 2 ) < len2  ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -611,7 +618,7 @@
          END IF
        ELSE
          IF ( SIZE( point, 1 ) /= len1 .OR.                                    &
-              SIZE( point, 2 ) < len2  ) THEN 
+              SIZE( point, 2 ) < len2  ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -631,7 +638,7 @@
        END IF
      END IF
 
-!  Reallocate point to be of length len, checking for error returns
+!  Reallocate point to be of length len1, len2, checking for error returns
 
      IF ( reallocate ) ALLOCATE( point( len1, len2 ), STAT = alloc_status )
      IF ( alloc_status /= 0 ) THEN
@@ -650,8 +657,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integer2_pointer
 
@@ -662,10 +669,10 @@
      SUBROUTINE SPACE_resize_logical_pointer( len, point, status, alloc_status,&
        deallocate_error_fatal, point_name, exact_size, bad_alloc, out )
 
-!  Ensure that the logical pointer array "point" is of lenth at least len.
+!  Ensure that the logical pointer array "point" is of length at least len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -689,20 +696,20 @@
      IF ( ASSOCIATED( point ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( point ) /= len ) THEN 
+           IF ( SIZE( point ) /= len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( point ) < len ) THEN 
+           IF ( SIZE( point ) < len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( point ) < len ) THEN 
+         IF ( SIZE( point ) < len ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -741,23 +748,23 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_logical_pointer
 
      END SUBROUTINE SPACE_resize_logical_pointer
 
-! S P A C E _ R E S I Z E _ C H A R A C T E R _ P O I N T E R S U B R O U T I N E
+! -*- S P A C E _ R E S I Z E _ C H A R A C T E R _ P O I N T E R  SUBROUTINE -
 
      SUBROUTINE SPACE_resize_character_pointer( len, point, status,            &
        alloc_status, deallocate_error_fatal, point_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the character pointer array "point" is of lenth at least len.
+!  Ensure that the character pointer array "point" is of length at least len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -781,20 +788,20 @@
      IF ( ASSOCIATED( point ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( point ) /= len ) THEN 
+           IF ( SIZE( point ) /= len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( point ) < len ) THEN 
+           IF ( SIZE( point ) < len ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( point ) < len ) THEN 
+         IF ( SIZE( point ) < len ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -833,22 +840,118 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_character_pointer
 
      END SUBROUTINE SPACE_resize_character_pointer
+
+! -  S P A C E _ R E S I Z E _ C H A R A C T E R 2 _ P O I N T E R SUBROUTINE  -
+
+     SUBROUTINE SPACE_resize_character2_pointer( len1, len2, point, status,    &
+       alloc_status, deallocate_error_fatal, point_name, exact_size,           &
+       bad_alloc, out )
+
+!  Ensure that the character pointer array "point" is of length at least 
+!  (len1,len2)
+
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
+!  than len
+
+!  Dummy arguments
+
+     INTEGER, INTENT( IN ) :: len1, len2
+     INTEGER, INTENT( OUT ) :: status, alloc_status
+     CHARACTER( LEN = * ), POINTER, DIMENSION( : , : ) :: point
+     INTEGER, OPTIONAL :: out
+     LOGICAL, OPTIONAL :: deallocate_error_fatal, exact_size
+     CHARACTER ( LEN = 80 ), OPTIONAL :: point_name
+     CHARACTER ( LEN = 80 ), OPTIONAL :: bad_alloc
+
+!  Local variable
+
+     LOGICAL :: reallocate
+
+!  Check to see if a reallocation (or initial allocation) is needed
+
+     status = GALAHAD_ok ; alloc_status = 0 ; reallocate = .TRUE.
+     IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
+     IF ( ASSOCIATED( point ) ) THEN
+       IF ( PRESENT( exact_size ) ) THEN
+         IF ( exact_size ) THEN
+           IF ( SIZE( point, 1 ) /= len1 .OR.                                  &
+                SIZE( point, 2 ) /= len2  ) THEN
+             CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
+                                         point_name, bad_alloc, out )
+           ELSE ; reallocate = .FALSE.
+           END IF
+         ELSE
+           IF ( SIZE( point, 1 ) /= len1 .OR.                                  &
+                SIZE( point, 2 ) < len2  ) THEN
+             CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
+                                         point_name, bad_alloc, out )
+           ELSE ; reallocate = .FALSE.
+           END IF
+         END IF
+       ELSE
+         IF ( SIZE( point, 1 ) /= len1 .OR.                                    &
+              SIZE( point, 2 ) < len2  ) THEN
+           CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
+                                       point_name, bad_alloc, out )
+          ELSE ; reallocate = .FALSE.
+          END IF
+       END IF
+     END IF
+
+!  If a deallocation error occured, return if desired
+
+     IF ( PRESENT( deallocate_error_fatal ) ) THEN
+       IF ( deallocate_error_fatal .AND. alloc_status /= 0 ) THEN
+         status = GALAHAD_error_deallocate ; RETURN
+       END IF
+     ELSE
+       IF ( alloc_status /= 0 ) THEN
+         status = GALAHAD_error_deallocate ; RETURN
+       END IF
+     END IF
+
+!  Reallocate point to be of length len1, len2, checking for error returns
+
+     IF ( reallocate ) ALLOCATE( point( len1, len2 ), STAT = alloc_status )
+     IF ( alloc_status /= 0 ) THEN
+       status = GALAHAD_error_allocate
+       IF ( PRESENT( bad_alloc ) .AND. PRESENT( point_name ) )                 &
+         bad_alloc = point_name
+       IF ( PRESENT( out ) ) THEN
+         IF ( PRESENT( point_name ) ) THEN
+           IF ( out > 0 ) WRITE( out, 2900 ) TRIM( point_name ), alloc_status
+         ELSE
+           IF ( out > 0 ) WRITE( out, 2910 ) alloc_status
+         END IF
+       END IF
+     END IF
+     RETURN
+
+!  Non-executable statements
+
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
+
+!  End of SPACE_resize_character2_pointer
+
+     END SUBROUTINE SPACE_resize_character2_pointer
 
 !  - S P A C E _ R E S I Z E _ R E A L _ C P O I N T E R  S U B R O U T I N E -
 
      SUBROUTINE SPACE_resize_real_cpointer( len, point, status, alloc_status,  &
        deallocate_error_fatal, point_name, exact_size, bad_alloc, out )
 
-!  Ensure that the real c-style pointer array "point" is of lenth at least len.
+!  Ensure that the real c-style pointer array "point" is of length at least len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -873,14 +976,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) /= len - 1 ) THEN 
+                UBOUND( point, 1 ) /= len - 1 ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) < len - 1 ) THEN 
+                UBOUND( point, 1 ) < len - 1 ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -888,7 +991,7 @@
          END IF
        ELSE
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) < len - 1 ) THEN 
+                UBOUND( point, 1 ) < len - 1 ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -927,8 +1030,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_real_cpointer
 
@@ -940,11 +1043,11 @@
        alloc_status, deallocate_error_fatal, point_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the integer c-style pointer array "point" is of lenth at least 
+!  Ensure that the integer c-style pointer array "point" is of length at least
 !  len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -969,14 +1072,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) /= len - 1 ) THEN 
+                UBOUND( point, 1 ) /= len - 1 ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) < len - 1 ) THEN 
+                UBOUND( point, 1 ) < len - 1 ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -984,7 +1087,7 @@
          END IF
        ELSE
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) < len - 1 ) THEN 
+                UBOUND( point, 1 ) < len - 1 ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1023,8 +1126,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integer_cpointer
 
@@ -1036,11 +1139,11 @@
        alloc_status, deallocate_error_fatal, point_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the logical c-style pointer array "point" is of lenth at least 
+!  Ensure that the logical c-style pointer array "point" is of length at least
 !  len.
 
-!  If exact_size is prsent and true, point is reallocated to be of size len. 
-!  Otherwise point is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, point is reallocated to be of size len.
+!  Otherwise point is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -1065,14 +1168,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) /= len - 1 ) THEN 
+                UBOUND( point, 1 ) /= len - 1 ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) < len - 1 ) THEN 
+                UBOUND( point, 1 ) < len - 1 ) THEN
              CALL SPACE_dealloc_pointer( point, status, alloc_status,          &
                                          point_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1080,7 +1183,7 @@
          END IF
        ELSE
            IF ( LBOUND( point, 1 ) /= 0 .OR.                                   &
-                UBOUND( point, 1 ) < len - 1 ) THEN 
+                UBOUND( point, 1 ) < len - 1 ) THEN
            CALL SPACE_dealloc_pointer( point, status, alloc_status,            &
                                        point_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1119,8 +1222,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_logical_cpointer
 
@@ -1131,10 +1234,10 @@
      SUBROUTINE SPACE_resize_real_array( len, array, status, alloc_status,     &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the real allocatable array "array" is of lenth at least len.
+!  Ensure that the real allocatable array "array" is of length at least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -1158,20 +1261,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( array ) /= len ) THEN 
+           IF ( SIZE( array ) /= len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( array ) < len ) THEN 
+           IF ( SIZE( array ) < len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( array ) < len ) THEN 
+         IF ( SIZE( array ) < len ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,             &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1210,14 +1313,14 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_real_array
 
      END SUBROUTINE SPACE_resize_real_array
 
-! -  S P A C E _ R E S I Z E _ R E A L L U _ A R R A Y   S U B R O U T I N E  
+! -  S P A C E _ R E S I Z E _ R E A L L U _ A R R A Y   S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_reallu_array( l, u, array, status, alloc_status,  &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
@@ -1249,20 +1352,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( LBOUND( array, 1 ) /= l .OR. UBOUND( array, 1 ) /= u ) THEN 
+           IF ( LBOUND( array, 1 ) /= l .OR. UBOUND( array, 1 ) /= u ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN 
+           IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN 
+         IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1301,8 +1404,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_reallu_array
 
@@ -1314,10 +1417,11 @@
        alloc_status, deallocate_error_fatal, array_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the 2D real allocatable array "array" is of lenth at least len.
+!  Ensure that the 2D real allocatable array "array" is of length at least 
+!  (len1,len2)
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -1342,14 +1446,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( SIZE( array, 1 ) /= len1 .OR.                                  &
-                SIZE( array, 2 ) /= len2  ) THEN 
+                SIZE( array, 2 ) /= len2  ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( SIZE( array, 1 ) /= len1 .OR.                                  &
-                SIZE( array, 2 ) < len2  ) THEN 
+                SIZE( array, 2 ) < len2  ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1357,7 +1461,7 @@
          END IF
        ELSE
          IF ( SIZE( array, 1 ) /= len1 .OR.                                    &
-              SIZE( array, 2 ) < len2  ) THEN 
+              SIZE( array, 2 ) < len2  ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                        array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1377,7 +1481,7 @@
        END IF
      END IF
 
-!  Reallocate array to be of length len, checking for error returns
+!  Reallocate array to be of length len1, len2, checking for error returns
 
      IF ( reallocate ) ALLOCATE( array( len1, len2 ), STAT = alloc_status )
      IF ( alloc_status /= 0 ) THEN
@@ -1396,20 +1500,20 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_real2_array
 
      END SUBROUTINE SPACE_resize_real2_array
 
-! -  S P A C E _ R E S I Z E _ R E A L L U 2 _ A R R A Y   S U B R O U T I N E  
+! -  S P A C E _ R E S I Z E _ R E A L L U 2 _ A R R A Y   S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_reallu2_array( l1l, l1u, l2, array,               &
        status, alloc_status, deallocate_error_fatal,                           &
        array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the real allocatable array "array" has bounds at least l1l 
+!  Ensure that the real allocatable array "array" has bounds at least l1l
 !  and l1u for its first argument and l2 for its second
 
 !  If exact_size is prsent and true, array is reallocated to have bounds l and u
@@ -1438,14 +1542,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( array, 1 ) /= l1l .OR. UBOUND( array, 1 ) /= l1u .OR.  &
-                SIZE( array, 2 ) /= l2 ) THEN 
+                SIZE( array, 2 ) /= l2 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( array, 1 ) /= l1l .OR. UBOUND( array, 1 ) /= l1u .OR.  &
-                SIZE( array, 2 ) < l2 ) THEN 
+                SIZE( array, 2 ) < l2 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1453,7 +1557,7 @@
          END IF
        ELSE
          IF ( LBOUND( array, 1 ) /= l1l .OR. UBOUND( array, 1 ) /= l1u .OR.    &
-              SIZE( array, 2 ) < l2 ) THEN 
+              SIZE( array, 2 ) < l2 ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                        array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1492,20 +1596,20 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_reallu2_array
 
      END SUBROUTINE SPACE_resize_reallu2_array
 
-!  S P A C E _ R E S I Z E _ R E A L L U L U  _ A R R A Y   S U B R O U T I N E 
+!  S P A C E _ R E S I Z E _ R E A L L U L U  _ A R R A Y   S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_reallulu_array( l1l, l1u, l2l, l2u, array,        &
        status, alloc_status, deallocate_error_fatal,                           &
        array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the real allocatable array "array" has bounds at least l1l 
+!  Ensure that the real allocatable array "array" has bounds at least l1l
 !  and l1u for its first argument and l21 and l2u for its second
 
 !  If exact_size is prsent and true, array is reallocated to have bounds l and u
@@ -1589,8 +1693,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_reallulu_array
 
@@ -1632,7 +1736,7 @@
          IF ( exact_size ) THEN
            IF ( SIZE( array, 3 ) /= l3 .OR.                                    &
                 LBOUND( array, 2 ) /= l2l .OR. UBOUND( array, 2 ) /= l2u .OR.  &
-                SIZE( array, 1 ) /= l1 ) THEN 
+                SIZE( array, 1 ) /= l1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1640,7 +1744,7 @@
          ELSE
            IF ( SIZE( array, 3 ) < l3 .OR.                                     &
                 LBOUND( array, 2 ) /= l2l .OR. UBOUND( array, 2 ) /= l2u .OR.  &
-                SIZE( array, 1 ) /= l1 ) THEN 
+                SIZE( array, 1 ) /= l1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1649,7 +1753,7 @@
        ELSE
          IF ( SIZE( array, 3 ) < l3 .OR.                                       &
               LBOUND( array, 2 ) /= l2l .OR. UBOUND( array, 2 ) /= l2u .OR.    &
-              SIZE( array, 1 ) /= l1 ) THEN 
+              SIZE( array, 1 ) /= l1 ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1689,8 +1793,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_reallu3_array
 
@@ -1708,7 +1812,7 @@
 
 !  If exact_size is prsent and true, array is reallocated to have bounds l and u
 !  Otherwise array is only reallocated if its bounds are insufficient to cover
-!  l1 for the first argument, l2l and l2u for the second and l3l and l3u for 
+!  l1 for the first argument, l2l and l2u for the second and l3l and l3u for
 !  the third
 
 !  Dummy arguments
@@ -1734,7 +1838,7 @@
          IF ( exact_size ) THEN
            IF ( LBOUND( array, 3 ) /= l3l .OR. UBOUND( array, 3 ) /= l3u .OR.  &
                 LBOUND( array, 2 ) /= l2l .OR. UBOUND( array, 2 ) /= l2u .OR.  &
-                SIZE( array, 1 ) /= l1 ) THEN 
+                SIZE( array, 1 ) /= l1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1742,7 +1846,7 @@
          ELSE
            IF ( LBOUND( array, 3 ) > l3l .OR. UBOUND( array, 3 ) < l3u .OR.    &
                 LBOUND( array, 2 ) /= l2l .OR. UBOUND( array, 2 ) /= l2u .OR.  &
-                SIZE( array, 1 ) /= l1 ) THEN 
+                SIZE( array, 1 ) /= l1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -1751,7 +1855,7 @@
        ELSE
          IF ( LBOUND( array, 3 ) > l3l .OR. UBOUND( array, 3 ) < l3u .OR.      &
               LBOUND( array, 2 ) /= l2l .OR. UBOUND( array, 2 ) /= l2u .OR.    &
-              SIZE( array, 1 ) /= l1 ) THEN 
+              SIZE( array, 1 ) /= l1 ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1791,8 +1895,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_reallulu3_array
 
@@ -1803,10 +1907,10 @@
      SUBROUTINE SPACE_resize_complex_array( len, array, status, alloc_status,  &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the complex allocatable array "array" is of lenth at least len.
+!  Ensure that the complex allocatable array "array" is of length at least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -1830,20 +1934,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( array ) /= len ) THEN 
+           IF ( SIZE( array ) /= len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( array ) < len ) THEN 
+           IF ( SIZE( array ) < len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( array ) < len ) THEN 
+         IF ( SIZE( array ) < len ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,             &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1882,8 +1986,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_complex_array
 
@@ -1894,10 +1998,10 @@
      SUBROUTINE SPACE_resize_integer_array( len, array, status, alloc_status,  &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the integer allocatable array "array" is of lenth at least len.
+!  Ensure that the integer allocatable array "array" is of length at least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -1921,20 +2025,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( array ) /= len ) THEN 
+           IF ( SIZE( array ) /= len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( array ) < len ) THEN 
+           IF ( SIZE( array ) < len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( array ) < len ) THEN 
+         IF ( SIZE( array ) < len ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,             &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -1973,8 +2077,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integer_array
 
@@ -2013,20 +2117,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( LBOUND( array, 1 ) /= l .OR. UBOUND( array, 1 ) /= u ) THEN 
+           IF ( LBOUND( array, 1 ) /= l .OR. UBOUND( array, 1 ) /= u ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN 
+           IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN 
+         IF ( LBOUND( array, 1 ) > l .OR. UBOUND( array, 1 ) < u ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2065,8 +2169,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integerlu_array
 
@@ -2078,10 +2182,11 @@
        alloc_status, deallocate_error_fatal, array_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the 2D integer allocatable array "array" is of lenth at least len
+!  Ensure that the 2D integer allocatable array "array" is of length at least
+!  (len1,len2)
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -2106,14 +2211,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( SIZE( array, 1 ) /= len1 .OR.                                  &
-                SIZE( array, 2 ) /= len2  ) THEN 
+                SIZE( array, 2 ) /= len2  ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( SIZE( array, 1 ) /= len1 .OR.                                  &
-                SIZE( array, 2 ) < len2  ) THEN 
+                SIZE( array, 2 ) < len2  ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -2121,7 +2226,7 @@
          END IF
        ELSE
          IF ( SIZE( array, 1 ) /= len1 .OR.                                    &
-              SIZE( array, 2 ) < len2  ) THEN 
+              SIZE( array, 2 ) < len2  ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                        array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2141,7 +2246,7 @@
        END IF
      END IF
 
-!  Reallocate array to be of length len, checking for error returns
+!  Reallocate array to be of length len1, len2, checking for error returns
 
      IF ( reallocate ) ALLOCATE( array( len1, len2 ), STAT = alloc_status )
      IF ( alloc_status /= 0 ) THEN
@@ -2160,22 +2265,22 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integer2_array
 
      END SUBROUTINE SPACE_resize_integer2_array
 
-!  -  S P A C E _ R E S I Z E _ L O G I C A L _ A R R A Y  S U B R O U T I N E  
+!  -  S P A C E _ R E S I Z E _ L O G I C A L _ A R R A Y  S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_logical_array( len, array, status, alloc_status,  &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the logical allocatable array "array" is of lenth at least len.
+!  Ensure that the logical allocatable array "array" is of length at least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -2199,20 +2304,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( array ) /= len ) THEN 
+           IF ( SIZE( array ) /= len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( array ) < len ) THEN 
+           IF ( SIZE( array ) < len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( array ) < len ) THEN 
+         IF ( SIZE( array ) < len ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,             &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2251,8 +2356,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_logical_array
 
@@ -2264,10 +2369,10 @@
        alloc_status, deallocate_error_fatal, array_name, exact_size,           &
        bad_alloc, out )
 
-!  Ensure that the character allocatable array "array" is of lenth at least len.
+!  Ensure that the character allocatable array "array" is of length at least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -2291,20 +2396,20 @@
      IF ( ALLOCATED( array ) ) THEN
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
-           IF ( SIZE( array ) /= len ) THEN 
+           IF ( SIZE( array ) /= len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
-           IF ( SIZE( array ) < len ) THEN 
+           IF ( SIZE( array ) < len ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,           &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          END IF
        ELSE
-         IF ( SIZE( array ) < len ) THEN 
+         IF ( SIZE( array ) < len ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,             &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2343,23 +2448,119 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_character_array
 
      END SUBROUTINE SPACE_resize_character_array
+
+! S P A C E _ R E S I Z E _ C H A R A C T E R 2 _ A R R A Y  S U B R O U T I N E
+
+     SUBROUTINE SPACE_resize_character2_array( len1, len2, array, status,      &
+       alloc_status, deallocate_error_fatal, array_name, exact_size,           &
+       bad_alloc, out )
+
+!  Ensure that the character allocatable array "array" is of length at least
+!  (len1,len2)
+
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
+!  than len
+
+!  Dummy arguments
+
+     INTEGER, INTENT( IN ) :: len1, len2
+     INTEGER, INTENT( OUT ) :: status, alloc_status
+     CHARACTER ( LEN = * ), ALLOCATABLE, DIMENSION( : , : ) :: array
+     INTEGER, OPTIONAL :: out
+     LOGICAL, OPTIONAL :: deallocate_error_fatal, exact_size
+     CHARACTER ( LEN = 80 ), OPTIONAL :: array_name
+     CHARACTER ( LEN = 80 ), OPTIONAL :: bad_alloc
+
+!  Local variable
+
+     LOGICAL :: reallocate
+
+!  Check to see if a reallocation (or initial allocation) is needed
+
+     status = GALAHAD_ok ; alloc_status = 0 ; reallocate = .TRUE.
+     IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
+     IF ( ALLOCATED( array ) ) THEN
+       IF ( PRESENT( exact_size ) ) THEN
+         IF ( exact_size ) THEN
+           IF ( SIZE( array, 1 ) /= len1 .OR.                                  &
+                SIZE( array, 2 ) /= len2  ) THEN
+             CALL SPACE_dealloc_array( array, status, alloc_status,            &
+                                       array_name, bad_alloc, out )
+           ELSE ; reallocate = .FALSE.
+           END IF
+         ELSE
+           IF ( SIZE( array, 1 ) /= len1 .OR.                                  &
+                SIZE( array, 2 ) < len2  ) THEN
+             CALL SPACE_dealloc_array( array, status, alloc_status,            &
+                                       array_name, bad_alloc, out )
+           ELSE ; reallocate = .FALSE.
+           END IF
+         END IF
+       ELSE
+         IF ( SIZE( array, 1 ) /= len1 .OR.                                    &
+              SIZE( array, 2 ) < len2  ) THEN
+           CALL SPACE_dealloc_array( array, status, alloc_status,              &
+                                     array_name, bad_alloc, out )
+          ELSE ; reallocate = .FALSE.
+          END IF
+       END IF
+     END IF
+
+!  If a deallocation error occured, return if desired
+
+     IF ( PRESENT( deallocate_error_fatal ) ) THEN
+       IF ( deallocate_error_fatal .AND. alloc_status /= 0 ) THEN
+         status = GALAHAD_error_deallocate ; RETURN
+       END IF
+     ELSE
+       IF ( alloc_status /= 0 ) THEN
+         status = GALAHAD_error_deallocate ; RETURN
+       END IF
+     END IF
+
+!  Reallocate array to be of length len1, len2, checking for error returns
+
+     IF ( reallocate ) ALLOCATE( array( len1, len2 ), STAT = alloc_status )
+     IF ( alloc_status /= 0 ) THEN
+       status = GALAHAD_error_allocate
+       IF ( PRESENT( bad_alloc ) .AND. PRESENT( array_name ) )                 &
+         bad_alloc = array_name
+       IF ( PRESENT( out ) ) THEN
+         IF ( PRESENT( array_name ) ) THEN
+           IF ( out > 0 ) WRITE( out, 2900 ) TRIM( array_name ), alloc_status
+         ELSE
+           IF ( out > 0 ) WRITE( out, 2910 ) alloc_status
+         END IF
+       END IF
+     END IF
+     RETURN
+
+!  Non-executable statements
+
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
+
+!  End of SPACE_resize_character2_array
+
+     END SUBROUTINE SPACE_resize_character2_array
 
 !  *-  S P A C E _ R E S I Z E _ R E A L _ C A R R A Y  S U B R O U T I N E   -*
 
      SUBROUTINE SPACE_resize_real_carray( len, array, status, alloc_status,    &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the real allocatable c-style array "array" is of lenth at 
+!  Ensure that the real allocatable c-style array "array" is of length at
 !  least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -2384,14 +2585,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( array, 1 ) /= 0 .OR.                                   &
-                UBOUND( array, 1 ) /= len - 1 ) THEN 
+                UBOUND( array, 1 ) /= len - 1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( array, 1 ) /= 0 .OR.                                   &
-                UBOUND( array, 1 ) < len - 1 ) THEN 
+                UBOUND( array, 1 ) < len - 1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -2399,7 +2600,7 @@
          END IF
        ELSE
          IF ( LBOUND( array, 1 ) /= 0 .OR.                                     &
-              UBOUND( array, 1 ) < len - 1 ) THEN 
+              UBOUND( array, 1 ) < len - 1 ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2438,23 +2639,23 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_real_carray
 
      END SUBROUTINE SPACE_resize_real_carray
 
-!  - S P A C E _ R E S I Z E _ I N T E G E R _ C A R R A Y  S U B R O U T I N E 
+!  - S P A C E _ R E S I Z E _ I N T E G E R _ C A R R A Y  S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_integer_carray( len, array, status, alloc_status, &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the integer allocatable c-style array "array" is of lenth at 
+!  Ensure that the integer allocatable c-style array "array" is of length at
 !  least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -2479,14 +2680,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( array, 1 ) /= 0 .OR.                                   &
-                UBOUND( array, 1 ) /= len - 1 ) THEN 
+                UBOUND( array, 1 ) /= len - 1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( array, 1 ) /= 0 .OR.                                   &
-                UBOUND( array, 1 ) < len - 1 ) THEN 
+                UBOUND( array, 1 ) < len - 1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -2494,7 +2695,7 @@
          END IF
        ELSE
          IF ( LBOUND( array, 1 ) /= 0 .OR.                                     &
-              UBOUND( array, 1 ) < len - 1 ) THEN 
+              UBOUND( array, 1 ) < len - 1 ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2533,23 +2734,23 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_integer_carray
 
      END SUBROUTINE SPACE_resize_integer_carray
 
-!  - S P A C E _ R E S I Z E _ L O G I C A L _ C A R R A Y  S U B R O U T I N E 
+!  - S P A C E _ R E S I Z E _ L O G I C A L _ C A R R A Y  S U B R O U T I N E
 
      SUBROUTINE SPACE_resize_logical_carray( len, array, status, alloc_status, &
        deallocate_error_fatal, array_name, exact_size, bad_alloc, out )
 
-!  Ensure that the logical allocatable c-style array "array" is of lenth at 
+!  Ensure that the logical allocatable c-style array "array" is of length at
 !  least len.
 
-!  If exact_size is prsent and true, array is reallocated to be of size len. 
-!  Otherwise array is only reallocated if its length is currently smaller 
+!  If exact_size is prsent and true, array is reallocated to be of size len.
+!  Otherwise array is only reallocated if its length is currently smaller
 !  than len
 
 !  Dummy arguments
@@ -2574,14 +2775,14 @@
        IF ( PRESENT( exact_size ) ) THEN
          IF ( exact_size ) THEN
            IF ( LBOUND( array, 1 ) /= 0 .OR.                                   &
-                UBOUND( array, 1 ) /= len - 1 ) THEN 
+                UBOUND( array, 1 ) /= len - 1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
            END IF
          ELSE
            IF ( LBOUND( array, 1 ) /= 0 .OR.                                   &
-                UBOUND( array, 1 ) < len - 1 ) THEN 
+                UBOUND( array, 1 ) < len - 1 ) THEN
              CALL SPACE_dealloc_array( array, status, alloc_status,            &
                                        array_name, bad_alloc, out )
            ELSE ; reallocate = .FALSE.
@@ -2589,7 +2790,7 @@
          END IF
        ELSE
          IF ( LBOUND( array, 1 ) /= 0 .OR.                                     &
-              UBOUND( array, 1 ) < len - 1 ) THEN 
+              UBOUND( array, 1 ) < len - 1 ) THEN
            CALL SPACE_dealloc_array( array, status, alloc_status,              &
                                      array_name, bad_alloc, out )
           ELSE ; reallocate = .FALSE.
@@ -2628,8 +2829,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Allocation error status = ', I6 ) 
+2900 FORMAT( ' ** Allocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Allocation error status = ', I6 )
 
 !  End of SPACE_resize_logical_carray
 
@@ -2642,7 +2843,7 @@
                                             status, alloc_status )
 
 !  -------------------------------------------------------------------------
-!  extend an integer array so that its length is increaed from old_length to 
+!  extend an integer array so that its length is increaed from old_length to
 !  as close to new_length as possible while keeping existing data intact
 !  -------------------------------------------------------------------------
 
@@ -2790,7 +2991,7 @@
                                          status, alloc_status )
 
 !  ---------------------------------------------------------------------
-!  extend a real array so that its length is increaed from old_length to 
+!  extend a real array so that its length is increaed from old_length to
 !  as close to new_length as possible while keeping existing data intact
 !  ---------------------------------------------------------------------
 
@@ -2931,6 +3132,154 @@
 
      END SUBROUTINE SPACE_extend_array_real
 
+!-  S P A C E _ e x t e n d _ a r r a y _ l o g i c a l   S U B R O U T I N E -
+
+     SUBROUTINE SPACE_extend_array_logical( ARRAY, old_length, used_length,    &
+                                            new_length, min_length, buffer,    &
+                                            status, alloc_status )
+
+!  -------------------------------------------------------------------------
+!  extend an integer array so that its length is increaed from old_length to
+!  as close to new_length as possible while keeping existing data intact
+!  -------------------------------------------------------------------------
+
+!  History -
+!   fortran 90 version released pre GALAHAD Version 1.0. February 7th 1995 as
+!     EXTEND_array_integer as part of the GALAHAD module EXTEND
+!   fortran 2003 version released in SIFDECODE/CUTEst, 5th November 2012
+!   borrowed for GALAHAD, 12th May 2013
+
+!-----------------------------------------------
+!   D u m m y   A r g u m e n t s
+!-----------------------------------------------
+
+     INTEGER, INTENT( IN ) :: old_length, buffer
+     INTEGER, INTENT( OUT ) :: status, alloc_status
+     INTEGER, INTENT( INOUT ) :: used_length, min_length, new_length
+     LOGICAL, ALLOCATABLE, DIMENSION( : ) :: ARRAY
+
+     INTEGER :: length
+     LOGICAL :: file_open
+     LOGICAL, ALLOCATABLE, DIMENSION( : ) :: DUMMY
+
+!  make sure that the new length is larger than the old
+
+     IF ( new_length <= old_length ) new_length = 2 * old_length
+
+!  ensure that the input data is consistent
+
+     used_length = MIN( used_length, old_length )
+     min_length = MAX( old_length + 1, MIN( min_length, new_length ) )
+
+!  if possible, allocate DUMMY to hold the old values of ARRAY
+
+     ALLOCATE( DUMMY( used_length ), STAT = alloc_status )
+
+!  if the allocation failed, resort to using an external unit
+
+     IF ( alloc_status /= 0 ) GO TO 100
+
+     DUMMY( : used_length ) = ARRAY( : used_length )
+
+!  extend the length of ARRAY
+
+     DEALLOCATE( ARRAY, STAT = alloc_status )
+     IF ( alloc_status /= 0 ) THEN
+       status = GALAHAD_error_deallocate
+       RETURN
+     END IF
+     length = new_length
+
+  10 CONTINUE
+     ALLOCATE( ARRAY( length ), STAT = alloc_status )
+
+!  if the allocation failed, reduce the new length and retry
+
+     IF ( alloc_status /= 0 ) THEN
+       length = length + ( length - min_length ) / 2
+
+!  if there is insufficient room for both ARRAY and DUMMY, use an external unit
+
+       IF ( length < min_length ) THEN
+
+!  rewind the buffer i/o unit
+
+         INQUIRE( UNIT = buffer, OPENED = file_open )
+         IF ( file_open ) THEN
+           REWIND( UNIT = buffer )
+         ELSE
+           OPEN( UNIT = buffer )
+         END IF
+
+!  copy the contents of ARRAY into the buffer i/o area
+
+         WRITE( UNIT = buffer, FMT = * ) DUMMY( : used_length )
+
+!  extend the length of ARRAY
+
+         DEALLOCATE( DUMMY )
+         GO TO 110
+       END IF
+       GO TO 10
+     END IF
+
+!  copy the contents of ARRAY back from the buffer i/o area
+
+     ARRAY( : used_length ) = DUMMY( : used_length )
+     DEALLOCATE( DUMMY )
+     new_length = length
+     GO TO 200
+
+!  use an external unit for writing
+
+ 100 CONTINUE
+
+!  rewind the buffer i/o unit
+
+     INQUIRE( UNIT = buffer, OPENED = file_open )
+     IF ( file_open ) THEN
+       REWIND( UNIT = buffer )
+     ELSE
+       OPEN( UNIT = buffer )
+     END IF
+
+!  copy the contents of ARRAY into the buffer i/o area
+
+     WRITE( UNIT = buffer, FMT = * ) ARRAY( : used_length )
+
+!  extend the length of ARRAY
+
+     DEALLOCATE( ARRAY )
+
+ 110 CONTINUE
+     ALLOCATE( ARRAY( new_length ), STAT = alloc_status )
+
+!  if the allocation failed, reduce the new length and retry
+
+     IF ( alloc_status /= 0 ) THEN
+       new_length = min_length + ( new_length - min_length ) / 2
+       IF ( new_length < min_length ) THEN
+         status = GALAHAD_error_allocate
+         RETURN
+       END IF
+       GO TO 110
+     END IF
+
+!  copy the contents of ARRAY back from the buffer i/o area
+
+     REWIND( UNIT = buffer )
+     READ( UNIT = buffer, FMT = * ) ARRAY( : used_length )
+
+!  successful exit
+
+ 200 CONTINUE
+     status = GALAHAD_ok
+     RETURN
+
+!  end of subroutine SPACE_extend_array_logical
+
+     END SUBROUTINE SPACE_extend_array_logical
+
 !-  S P A C E _ e x t e n d _ c a r r a y _ i n t e g e r  S U B R O U T I N E -
 
      SUBROUTINE SPACE_extend_carray_integer( ARRAY, old_length, used_length,   &
@@ -2938,8 +3287,8 @@
                                              status, alloc_status )
 
 !  -------------------------------------------------------------------------
-!  extend an integer c-style array so that its length is increaed from 
-!  old_length to as close to new_length as possible while keeping existing 
+!  extend an integer c-style array so that its length is increaed from
+!  old_length to as close to new_length as possible while keeping existing
 !  data intact
 !  -------------------------------------------------------------------------
 
@@ -3087,7 +3436,7 @@
                                           status, alloc_status )
 
 !  ---------------------------------------------------------------------
-!  extend a real c-style array so that its length is increaed from old_length 
+!  extend a real c-style array so that its length is increaed from old_length
 !  to as close to new_length as possible while keeping existing data intact
 !  ---------------------------------------------------------------------
 
@@ -3245,7 +3594,7 @@
 
      status = GALAHAD_ok ; alloc_status = 0
      IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
-     IF ( ASSOCIATED( point) ) THEN
+     IF ( ASSOCIATED( point ) ) THEN
        DEALLOCATE( point, STAT = alloc_status )
        IF ( alloc_status /= 0 ) THEN
          status = GALAHAD_error_deallocate
@@ -3264,8 +3613,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_real_pointer
 
@@ -3288,7 +3637,7 @@
 
      status = GALAHAD_ok ; alloc_status = 0
      IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
-     IF ( ASSOCIATED( point) ) THEN
+     IF ( ASSOCIATED( point ) ) THEN
        DEALLOCATE( point, STAT = alloc_status )
        IF ( alloc_status /= 0 ) THEN
          status = GALAHAD_error_deallocate
@@ -3307,8 +3656,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_real2_pointer
 
@@ -3331,7 +3680,7 @@
 
      status = GALAHAD_ok ; alloc_status = 0
      IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
-     IF ( ASSOCIATED( point) ) THEN
+     IF ( ASSOCIATED( point ) ) THEN
        DEALLOCATE( point, STAT = alloc_status )
        IF ( alloc_status /= 0 ) THEN
          status = GALAHAD_error_deallocate
@@ -3350,8 +3699,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_integer_pointer
 
@@ -3374,7 +3723,7 @@
 
      status = GALAHAD_ok ; alloc_status = 0
      IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
-     IF ( ASSOCIATED( point) ) THEN
+     IF ( ASSOCIATED( point ) ) THEN
        DEALLOCATE( point, STAT = alloc_status )
        IF ( alloc_status /= 0 ) THEN
          status = GALAHAD_error_deallocate
@@ -3393,8 +3742,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_integer2_pointer
 
@@ -3417,7 +3766,7 @@
 
      status = GALAHAD_ok ; alloc_status = 0
      IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
-     IF ( ASSOCIATED( point) ) THEN
+     IF ( ASSOCIATED( point ) ) THEN
        DEALLOCATE( point, STAT = alloc_status )
        IF ( alloc_status /= 0 ) THEN
          status = GALAHAD_error_deallocate
@@ -3436,8 +3785,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_logical_pointer
 
@@ -3460,7 +3809,7 @@
 
      status = GALAHAD_ok ; alloc_status = 0
      IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
-     IF ( ASSOCIATED( point) ) THEN
+     IF ( ASSOCIATED( point ) ) THEN
        DEALLOCATE( point, STAT = alloc_status )
        IF ( alloc_status /= 0 ) THEN
          status = GALAHAD_error_deallocate
@@ -3479,12 +3828,55 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_character_pointer
 
      END SUBROUTINE SPACE_dealloc_character_pointer
+
+!-  S P A C E _ D E A L L O C _ C H A R A C T E R 2 _ P O I N T E R  SUBROUTINE 
+
+     SUBROUTINE SPACE_dealloc_character2_pointer( point, status, alloc_status, &
+                                                  point_name, bad_alloc, out )
+
+!  Deallocate the character pointer array "point"
+
+!  Dummy arguments
+
+     INTEGER, INTENT( OUT ) :: status, alloc_status
+     CHARACTER( LEN = * ), POINTER, DIMENSION( : , : ) :: point
+     INTEGER, OPTIONAL :: out
+     CHARACTER ( LEN = 80 ), OPTIONAL :: point_name
+     CHARACTER ( LEN = 80 ), OPTIONAL :: bad_alloc
+
+     status = GALAHAD_ok ; alloc_status = 0
+     IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
+     IF ( ASSOCIATED( point ) ) THEN
+       DEALLOCATE( point, STAT = alloc_status )
+       IF ( alloc_status /= 0 ) THEN
+         status = GALAHAD_error_deallocate
+         IF ( PRESENT( bad_alloc ) .AND. PRESENT( point_name ) )               &
+           bad_alloc = point_name
+         IF ( PRESENT( out ) ) THEN
+           IF ( PRESENT( point_name ) ) THEN
+             IF ( out > 0 ) WRITE( out, 2900 ) TRIM( point_name ), alloc_status
+           ELSE
+             IF ( out > 0 ) WRITE( out, 2910 ) alloc_status
+           END IF
+         END IF
+       END IF
+     END IF
+     RETURN
+
+!  Non-executable statements
+
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
+
+!  End of subroutine SPACE_dealloc_character2_pointer
+
+     END SUBROUTINE SPACE_dealloc_character2_pointer
 
 !-*-  S P A C E _ D E A L L O C _ R E A L _ A R R A Y   S U B R O U T I N E  -*-
 
@@ -3522,8 +3914,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_real_array
 
@@ -3565,8 +3957,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_real2_array
 
@@ -3608,8 +4000,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_real3_array
 
@@ -3651,8 +4043,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_complex_array
 
@@ -3694,14 +4086,14 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_integer_array
 
      END SUBROUTINE SPACE_dealloc_integer_array
 
-!- S P A C E _ D E A L L O C _ I N T E G E R 2 _ A R R A Y  S U B R O U T I N E 
+!- S P A C E _ D E A L L O C _ I N T E G E R 2 _ A R R A Y  S U B R O U T I N E
 
      SUBROUTINE SPACE_dealloc_integer2_array( array, status, alloc_status,     &
                                               array_name, bad_alloc, out )
@@ -3737,8 +4129,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_integer2_array
 
@@ -3780,8 +4172,8 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_logical_array
 
@@ -3823,12 +4215,55 @@
 
 !  Non-executable statements
 
-2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 ) 
-2910 FORMAT( ' ** Deallocation error status = ', I6 ) 
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
 
 !  End of subroutine SPACE_dealloc_character_array
 
      END SUBROUTINE SPACE_dealloc_character_array
+
+!-  S P A C E _ D E A L L O C _ C H A R A C T E R 2 _ A R R A Y  SUBROUTINE  -*
+
+     SUBROUTINE SPACE_dealloc_character2_array( array, status, alloc_status,   &
+                                                array_name, bad_alloc, out )
+
+!  Deallocate the character allocatable array "array"
+
+!  Dummy arguments
+
+     INTEGER, INTENT( OUT ) :: status, alloc_status
+     CHARACTER( LEN = * ), ALLOCATABLE, DIMENSION( : , : ) :: array
+     INTEGER, OPTIONAL :: out
+     CHARACTER ( LEN = 80 ), OPTIONAL :: array_name
+     CHARACTER ( LEN = 80 ), OPTIONAL :: bad_alloc
+
+     status = GALAHAD_ok ; alloc_status = 0
+     IF ( PRESENT( bad_alloc ) ) bad_alloc = ''
+     IF ( ALLOCATED( array) ) THEN
+       DEALLOCATE( array, STAT = alloc_status )
+       IF ( alloc_status /= 0 ) THEN
+         status = GALAHAD_error_deallocate
+         IF ( PRESENT( bad_alloc ) .AND. PRESENT( array_name ) )              &
+           bad_alloc = array_name
+         IF ( PRESENT( out ) ) THEN
+           IF ( PRESENT( array_name ) ) THEN
+             IF ( out > 0 ) WRITE( out, 2900 ) TRIM( array_name ), alloc_status
+           ELSE
+             IF ( out > 0 ) WRITE( out, 2910 ) alloc_status
+           END IF
+         END IF
+       END IF
+     END IF
+     RETURN
+
+!  Non-executable statements
+
+2900 FORMAT( ' ** Deallocation error for ', A, /, '     status = ', I6 )
+2910 FORMAT( ' ** Deallocation error status = ', I6 )
+
+!  End of subroutine SPACE_dealloc_character2_array
+
+     END SUBROUTINE SPACE_dealloc_character2_array
 
 !-*-*-  S P A C E _ D E A L L O C _ S M T _ T Y P E   S U B R O U T I N E  -*-*-
 

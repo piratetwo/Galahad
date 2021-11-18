@@ -6,6 +6,7 @@
 
 CC=xlc
 CCBASIC='-c'
+CCISO=''
 CCDEBUG= #-g -DDEBUG_GALAHAD
 CCFFLAGS='-lgfortran -lm'
 
@@ -15,3 +16,5 @@ CXXOPT=-O2
 CXXNOOPT=-O0
 CXXDEBUG=''
 CXXFFLAGS=''
+
+HWLOC=''

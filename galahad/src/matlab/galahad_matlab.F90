@@ -1,6 +1,6 @@
 #include <fintrf.h>
 
-!  THIS VERSION: GALAHAD 2.5 - 13/04/2010 AT 16:00 GMT.
+!  THIS VERSION: GALAHAD 3.1 - 20/08/2018 AT 16:50 GMT.
 
 !-*-*-*-*-*-*-*-*- G A L A H A D _ M A T L A B   M O D U L E -*-*-*-*-*-*-*-*-
 
@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.1. July 25th 2007
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_MATLAB
@@ -48,6 +48,8 @@
                 galmxCopyLongArrayToPtr,                                       &
 !               galmxCopyRealArrayToPtr,                                       &
 !               galmxCopyIntegerArrayToPtr,                                    &
+                galmxCopyPtrToInteger44,                                       &
+                galmxCopyPtrToInteger84,                                       &
                 MATLAB_get_value
 
 !----------------------------
@@ -69,15 +71,16 @@
       INTEGER * 2 :: dummy_int2__
       INTEGER * 4 :: dummy_int4__
       INTEGER * 8 :: dummy_int8__
-      INTEGER :: dummy_default_integer__
+!     INTEGER :: dummy_default_integer__
       INTEGER, PARAMETER, PUBLIC :: int1_ = KIND( dummy_int1__ )
       INTEGER, PARAMETER, PUBLIC :: int2_ = KIND( dummy_int2__ )
       INTEGER, PARAMETER, PUBLIC :: int4_ = KIND( dummy_int4__ )
       INTEGER, PARAMETER, PUBLIC :: int8_ = KIND( dummy_int8__ )
-      INTEGER, PARAMETER, PUBLIC :: di_ = KIND( dummy_default_integer__ )
+!     INTEGER, PARAMETER, PUBLIC :: di_ = KIND( dummy_default_integer__ )
+      INTEGER, PARAMETER, PUBLIC :: di_ = 4
       INTEGER, PARAMETER :: long = SELECTED_INT_KIND( 18 )
 
-!  real kinds 
+!  real kinds
 
       REAL * 4 :: dummy_real4__
       REAL * 8 :: dummy_real8__
@@ -178,7 +181,9 @@
       END INTERFACE MATLAB_fill_component
 
       INTERFACE MATLAB_copy_from_ptr
-        MODULE PROCEDURE galmxCopyPtrToInteger44,                              &
+        MODULE PROCEDURE galmxCopyPtrToInteger4,                               &
+                         galmxCopyPtrToInteger8,                               &
+                         galmxCopyPtrToInteger44,                              &
                          galmxCopyPtrToInteger48,                              &
                          galmxCopyPtrToInteger84,                              &
                          galmxCopyPtrToInteger88,                              &
@@ -309,7 +314,7 @@
 
 !  -----------------------------------------------
 
-      pr = galmxCreateInteger( ) 
+      pr = galmxCreateInteger( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -340,7 +345,7 @@
       mwSize :: nn
 
       nn = n
-      pr = galmxCreateIntegerArray( nn ) 
+      pr = galmxCreateIntegerArray( nn )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -371,7 +376,7 @@
       mwSize :: nn
 
       nn = n
-      pr = galmxCreateIntegerArray( nn ) 
+      pr = galmxCreateIntegerArray( nn )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -403,7 +408,7 @@
       mwSize :: mm, nn
 
       mm = m ; nn = n
-      pr = galmxCreateIntegerMatrix( mm, nn ) 
+      pr = galmxCreateIntegerMatrix( mm, nn )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -435,7 +440,7 @@
       mwSize :: mm, nn
 
       mm = m ; nn = n
-      pr = galmxCreateIntegerMatrix( mm, nn ) 
+      pr = galmxCreateIntegerMatrix( mm, nn )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -461,7 +466,7 @@
 
 !  -----------------------------------------------
 
-      pr = galmxCreateLong( ) 
+      pr = galmxCreateLong( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -489,7 +494,7 @@
 
 !  -----------------------------------------------------
 
-      pr = galmxCreateLongArray( n ) 
+      pr = galmxCreateLongArray( n )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -517,7 +522,7 @@
 
 !  -----------------------------------------------------
 
-      pr = galmxCreateLongMatrix( m, n ) 
+      pr = galmxCreateLongMatrix( m, n )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -543,7 +548,7 @@
 
 !  --------------------------------------------
 
-      pr = galmxCreateReal( ) 
+      pr = galmxCreateReal( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -571,7 +576,7 @@
 
 !  --------------------------------------------------
 
-      pr = galmxCreateRealArray4( n ) 
+      pr = galmxCreateRealArray4( n )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -598,7 +603,7 @@
 
 !  --------------------------------------------------
 
-      pr = galmxCreateRealArray8( n ) 
+      pr = galmxCreateRealArray8( n )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -627,7 +632,7 @@
 
 !  --------------------------------------------------
 
-      pr = galmxCreateRealMatrix4( m, n ) 
+      pr = galmxCreateRealMatrix4( m, n )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -656,7 +661,7 @@
 
 !  --------------------------------------------------
 
-      pr = galmxCreateRealMatrix8( m, n ) 
+      pr = galmxCreateRealMatrix8( m, n )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -777,12 +782,12 @@
 !  name - name of component
 !  pr - pointer to the structure
 
-! ** - NB - ** This is a bodge since Mex doesn't appear 
+! ** - NB - ** This is a bodge since Mex doesn't appear
 !              to handle Fortran logicals ** - NB - **
 
 !  ----------------------------------------------------
 
-      pr = galmxCreateInteger( ) 
+      pr = galmxCreateInteger( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
 
       RETURN
@@ -794,7 +799,7 @@
       SUBROUTINE galmxGetInteger( ps, name, pc, value )
       mwPointer :: ps, pc
       CHARACTER ( LEN = * ) :: name
-      INTEGER :: value
+      INTEGER * 4 :: value
 
 !  ---------------------------------------------------------
 
@@ -810,10 +815,11 @@
 !  ---------------------------------------------------------
 
       mwPointer :: mxGetField
-      REAL ( KIND = wp ) :: mxGetScalar 
+      REAL ( KIND = wp ) :: mxGetScalar
 
       pc = mxGetField( ps, 1_mwi_, name )
-      value = INT( mxGetScalar( pc ) )
+!     value = INT( mxGetScalar( pc ) )
+      value = INT( mxGetScalar( pc ), KIND = KIND( value ) )
 
       RETURN
       END SUBROUTINE galmxGetInteger
@@ -840,7 +846,7 @@
 !  ---------------------------------------------------------
 
       mwPointer :: mxGetField
-      REAL ( KIND = wp ) :: mxGetScalar 
+      REAL ( KIND = wp ) :: mxGetScalar
 
       pc = mxGetField( ps, 1_mwi_, name )
       value = INT( mxGetScalar( pc ) )
@@ -870,7 +876,7 @@
 !  -----------------------------------------------------
 
       mwPointer :: mxGetField
-      REAL ( KIND = wp ) :: mxGetScalar 
+      REAL ( KIND = wp ) :: mxGetScalar
 
       pc = mxGetField( ps, 1_mwi_, name )
       value = mxGetScalar( pc )
@@ -884,7 +890,7 @@
       SUBROUTINE galmxGetLogical( ps, name, pc, value )
       mwPointer :: ps, pc
       CHARACTER ( LEN = * ) :: name
-      LOGICAL :: value
+      LOGICAL * 4 :: value
 
 !  ---------------------------------------------------------
 
@@ -897,13 +903,13 @@
 !  pc - pointer to the component
 !  value - value of the component
 
-! ** - NB - ** This is a bodge since Mex doesn't appear 
+! ** - NB - ** This is a bodge since Mex doesn't appear
 !              to handle Fortran logicals ** - NB - **
 
 !  ---------------------------------------------------------
 
       mwPointer :: mxGetField
-      REAL ( KIND = wp ) :: mxGetScalar 
+      REAL ( KIND = wp ) :: mxGetScalar
 
       pc = mxGetField( ps, 1_mwi_, name )
       IF ( INT( mxGetScalar( pc ) ) == 1 ) THEN
@@ -943,13 +949,89 @@
       INTEGER( KIND = int4_ ) :: i
 
       pc = mxGetField( ps, 1_mwi_, name )
-      i = mxGetString( pc, value, len )
+!     i = mxGetString( pc, value, len )
+      i = INT( mxGetString( pc, value, len ), KIND = int4_ )
 
       RETURN
       END SUBROUTINE galmxGetCharacter
 
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r  4 -*-*-*-*-*-
 
-!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 4 4 -*-*-*-*-*- 
+      SUBROUTINE galmxCopyPtrToInteger4( px, y )
+      mwPointer :: px
+      INTEGER * 4 :: y
+
+!  -----------------------------------------------------------------
+
+!  Copy INTEGER values from Matlab pointer array to Fortran variable
+
+!  Arguments
+
+!  px  - Pointer to variable
+!  y   - Integer*4 Fortran variable
+
+!  -----------------------------------------------------------------
+
+      mwSize :: nn
+      INTEGER * 4 :: Y_array( 1 )
+
+!     CALL mexWarnMsgTxt( ' 4 ' )
+
+      nn = 1
+      SELECT CASE ( di_ )
+      CASE ( int8_ )
+        CALL mxCopyPtrToInteger8( px, Y_array, nn )
+      CASE ( int2_ )
+        CALL mxCopyPtrToInteger2( px, Y_array, nn )
+      CASE ( int1_ )
+        CALL mxCopyPtrToInteger1( px, Y_array, nn )
+      CASE default
+        CALL mxCopyPtrToInteger4( px, Y_array, nn )
+      END SELECT
+      y = Y_array( 1 )
+
+      RETURN
+      END SUBROUTINE galmxCopyPtrToInteger4
+
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r  8 -*-*-*-*-*-
+
+      SUBROUTINE galmxCopyPtrToInteger8( px, y )
+      mwPointer :: px
+      INTEGER * 8 :: y
+
+!  -----------------------------------------------------------------
+
+!  Copy INTEGER values from Matlab pointer array to Fortran variable
+
+!  Arguments
+
+!  px  - Pointer to variable
+!  y   - Integer*4 Fortran variable
+
+!  -----------------------------------------------------------------
+
+      mwSize :: nn
+      INTEGER * 8 :: Y_array( 1 )
+
+!     CALL mexWarnMsgTxt( ' 4 ' )
+
+      nn = 1
+      SELECT CASE ( di_ )
+      CASE ( int8_ )
+        CALL mxCopyPtrToInteger8( px, Y_array, nn )
+      CASE ( int2_ )
+        CALL mxCopyPtrToInteger2( px, Y_array, nn )
+      CASE ( int1_ )
+        CALL mxCopyPtrToInteger1( px, Y_array, nn )
+      CASE default
+        CALL mxCopyPtrToInteger4( px, Y_array, nn )
+      END SELECT
+      y = Y_array( 1 )
+
+      RETURN
+      END SUBROUTINE galmxCopyPtrToInteger8
+
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 4 4 -*-*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToInteger44( px, Y, n, sparse )
       mwPointer :: px
@@ -973,13 +1055,14 @@
       INTEGER :: alloc_stat
       mwIndex, DIMENSION(:), ALLOCATABLE :: temp_mwi
 
+!     CHARACTER ( len = 80 ) :: debug = REPEAT( ' ', 80 )
 !     CALL mexWarnMsgTxt( ' 44 ' )
 
       nn = n
       IF ( PRESENT( sparse ) ) THEN
         SELECT CASE( mwi_ )
         CASE( kind( Y ) )
-            CALL mxCopyPtrToInteger4( px, Y, nn )
+          CALL mxCopyPtrToInteger4( px, Y, nn )
         CASE default
           ALLOCATE( temp_mwi( n ), STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' allocation failure ' )
@@ -993,8 +1076,9 @@
           CASE default
             CALL mxCopyPtrToInteger4( px, temp_mwi, nn )
           END SELECT
-          Y( : n ) = temp_mwi( : n )
-          DEALLOCATE( temp_mwi, STAT = alloc_stat ) 
+!         Y( : n ) = temp_mwi( : n )
+          Y( : n ) = INT( temp_mwi( : n ), KIND = KIND( Y ) )
+          DEALLOCATE( temp_mwi, STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' deallocation failure ' )
         END SELECT
       ELSE
@@ -1006,15 +1090,17 @@
         CASE ( int1_ )
           CALL mxCopyPtrToInteger1( px, Y, nn )
         CASE default
+!         CALL mexWarnMsgTxt( ' default ' )
           CALL mxCopyPtrToInteger4( px, Y, nn )
+!         write(debug,*) px, nn
+!         CALL mexErrMsgTxt( TRIM(debug))
         END SELECT
       END IF
 
       RETURN
       END SUBROUTINE galmxCopyPtrToInteger44
 
-
-!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 8 4 -*-*-*-*-*- 
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 8 4 -*-*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToInteger84( px, Y, n, sparse )
       mwPointer :: px
@@ -1060,7 +1146,7 @@
             CALL mxCopyPtrToInteger4( px, temp_mwi, nn )
           END SELECT
           Y( : n ) = temp_mwi( : n )
-          DEALLOCATE( temp_mwi, STAT = alloc_stat ) 
+          DEALLOCATE( temp_mwi, STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' deallocation failure ' )
         END SELECT
       ELSE
@@ -1079,7 +1165,7 @@
       RETURN
       END SUBROUTINE galmxCopyPtrToInteger84
 
-!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 4 8 -*-*-*-*-*- 
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 4 8 -*-*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToInteger48( px, Y, n, sparse )
       mwPointer :: px
@@ -1125,8 +1211,9 @@
           CASE default
             CALL mxCopyPtrToInteger4( px, temp_mwi, nn )
           END SELECT
-          Y( : n ) = temp_mwi( : n )
-          DEALLOCATE( temp_mwi, STAT = alloc_stat ) 
+!         Y( : n ) = temp_mwi( : n )
+          Y( : n ) = INT( temp_mwi( : n ), KIND = KIND( Y ) )
+          DEALLOCATE( temp_mwi, STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' deallocation failure ' )
         END SELECT
       ELSE
@@ -1145,7 +1232,7 @@
       RETURN
       END SUBROUTINE galmxCopyPtrToInteger48
 
-!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 8 8 -*-*-*-*-*- 
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  I n t e g e r 8 8 -*-*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToInteger88( px, Y, n, sparse )
       mwPointer :: px
@@ -1190,7 +1277,7 @@
             CALL mxCopyPtrToInteger4( px, temp_mwi, nn )
           END SELECT
           Y( : n ) = temp_mwi( : n )
-          DEALLOCATE( temp_mwi, STAT = alloc_stat ) 
+          DEALLOCATE( temp_mwi, STAT = alloc_stat )
           IF ( alloc_stat /= 0 ) CALL mexErrMsgTxt( ' deallocation failure ' )
         END SELECT
       ELSE
@@ -1209,9 +1296,7 @@
       RETURN
       END SUBROUTINE galmxCopyPtrToInteger88
 
-
-
-!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  -*-*-*-*-*-*- 
+!  -*-*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  -*-*-*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToReal( px, Y )
       mwPointer :: px
@@ -1225,7 +1310,6 @@
 
 !  px  - Pointer to ir or jc array
 !  Y   - Real Fortran array
-!  n   - number of elements to copy
 
 !  -----------------------------------------------------------
 
@@ -1242,7 +1326,7 @@
       END SUBROUTINE galmxCopyPtrToReal
 
 
-!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  A r r a y 4  -*-*-*-*- 
+!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  A r r a y 4  -*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToRealArray4( px, Y, n )
       mwPointer :: px
@@ -1276,7 +1360,7 @@
       END SUBROUTINE galmxCopyPtrToRealArray4
 
 
-!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  A r r a y 8  -*-*-*-*- 
+!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  A r r a y 8  -*-*-*-*-
 
       SUBROUTINE galmxCopyPtrToRealArray8( px, Y, n )
       mwPointer :: px
@@ -1310,7 +1394,7 @@
       END SUBROUTINE galmxCopyPtrToRealArray8
 
 
-!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  M a t r i x 4  -*-*-*- 
+!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  M a t r i x 4  -*-*-*-
 
       SUBROUTINE galmxCopyPtrToRealMatrix4( px, Y, m, n )
       mwPointer :: px
@@ -1344,7 +1428,7 @@
       RETURN
       END SUBROUTINE galmxCopyPtrToRealMatrix4
 
-!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  M a t r i x 8  -*-*-*- 
+!  -*-*-*-*-*- g a l m x  C o p y  P t r  T o  R e a l  M a t r i x 8  -*-*-*-
 
       SUBROUTINE galmxCopyPtrToRealMatrix8( px, Y, m, n )
       mwPointer :: px
@@ -1397,6 +1481,12 @@
 
 !  ---------------------------------------------------------
 
+!   INTEGER ::  mexPrintf
+!   integer*4 out
+!   CHARACTER ( LEN = 200 ) :: str
+!   WRITE( str, "( ' Y = ', I0, ' di = ', I0  )" ) Y, di_
+!   out = mexPrintf( TRIM( str ) // achar(10) )
+
       SELECT CASE ( di_ )
       CASE ( int8_ )
         CALL mxCopyInteger8ToPtr( Y, px, 1_mws_ )
@@ -1430,6 +1520,12 @@
 
 !  ---------------------------------------------------------
 
+!   INTEGER ::  mexPrintf
+!   integer*4 out
+!   CHARACTER ( LEN = 200 ) :: str
+!   WRITE( str, "( ' Y = ', I0, ' di = ', I0  )" ) Y, di_
+!   out = mexPrintf( TRIM( str ) // achar(10) )
+
       SELECT CASE ( di_ )
       CASE ( int8_ )
         CALL mxCopyInteger8ToPtr( Y, px, 1_mws_ )
@@ -1438,7 +1534,8 @@
       CASE ( int1_ )
         CALL mxCopyInteger1ToPtr( Y, px, 1_mws_ )
       CASE default
-        CALL mxCopyInteger4ToPtr( Y, px, 1_mws_ )
+!       CALL mxCopyInteger4ToPtr( Y, px, 1_mws_ )
+        CALL mxCopyInteger8ToPtr( Y, px, 1_mws_ )
       END SELECT
 
       RETURN
@@ -1512,7 +1609,8 @@
       CASE ( int1_ )
         CALL mxCopyInteger1ToPtr( Y, px, nn )
       CASE default
-        CALL mxCopyInteger4ToPtr( Y, px, nn )
+!       CALL mxCopyInteger4ToPtr( Y, px, nn )
+        CALL mxCopyInteger8ToPtr( Y, px, nn )
       END SELECT
 
       RETURN
@@ -1586,7 +1684,8 @@
       CASE ( int1_ )
         CALL mxCopyInteger1ToPtr( Y, px, nn )
       CASE default
-        CALL mxCopyInteger4ToPtr( Y, px, nn )
+!       CALL mxCopyInteger4ToPtr( Y, px, nn )
+        CALL mxCopyInteger8ToPtr( Y, px, nn )
       END SELECT
 
       RETURN
@@ -1838,7 +1937,7 @@
 
       SUBROUTINE galmxCopyLogicalToPtr( Y, px )
       mwPointer :: px
-      LOGICAL :: Y
+      LOGICAL * 4 :: Y
 
 !  --------------------------------------------------------
 
@@ -2013,16 +2112,16 @@
       SELECT CASE ( di_ )
       CASE ( int8_ )
         galmxCreateInteger = mxCreateNumericMatrix( 1_mws_, 1_mws_,            &
-                               mxClassIDFromClassName('int64'), 0_int4_ ) 
+                               mxClassIDFromClassName('int64'), 0_int4_ )
       CASE ( int2_ )
         galmxCreateInteger = mxCreateNumericMatrix( 1_mws_, 1_mws_,            &
-                               mxClassIDFromClassName('int16'), 0_int4_ ) 
+                               mxClassIDFromClassName('int16'), 0_int4_ )
       CASE ( int1_ )
         galmxCreateInteger = mxCreateNumericMatrix( 1_mws_, 1_mws_,            &
-                               mxClassIDFromClassName('int8'),  0_int4_ ) 
+                               mxClassIDFromClassName('int8'),  0_int4_ )
       CASE default
         galmxCreateInteger = mxCreateNumericMatrix( 1_mws_, 1_mws_,            &
-                               mxClassIDFromClassName('int32'), 0_int4_ ) 
+                               mxClassIDFromClassName('int32'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2051,7 +2150,7 @@
       SELECT CASE ( di_ )
       CASE ( int8_ )
          galmxCreateIntegerArray = mxCreateNumericArray( 2_mws_,               &
-           (/ n, 1_mws_ /), mxClassIDFromClassName('int64'), 0_int4_ ) 
+           (/ n, 1_mws_ /), mxClassIDFromClassName('int64'), 0_int4_ )
       CASE ( int2_ )
         galmxCreateIntegerArray = mxCreateNumericArray( 2_mws_,                &
            (/ n, 1_mws_ /), mxClassIDFromClassName('int16'), 0_int4_ )
@@ -2089,7 +2188,7 @@
       SELECT CASE ( di_ )
       CASE ( int8_ )
          galmxCreateIntegerMatrix = mxCreateNumericArray( 2_mws_,              &
-           (/ m, n /), mxClassIDFromClassName('int64'), 0_int4_ ) 
+           (/ m, n /), mxClassIDFromClassName('int64'), 0_int4_ )
       CASE ( int2_ )
         galmxCreateIntegerMatrix = mxCreateNumericArray( 2_mws_,               &
            (/ m, n /), mxClassIDFromClassName('int16'), 0_int4_ )
@@ -2123,16 +2222,16 @@
       SELECT CASE ( long )
       CASE ( int8_ )
         galmxCreateLong = mxCreateNumericMatrix( 1_mws_, 1_mws_,               &
-                               mxClassIDFromClassName('int64'), 0_int4_ ) 
+                               mxClassIDFromClassName('int64'), 0_int4_ )
       CASE ( int2_ )
         galmxCreateLong = mxCreateNumericMatrix( 1_mws_, 1_mws_,               &
-                               mxClassIDFromClassName('int16'), 0_int4_ ) 
+                               mxClassIDFromClassName('int16'), 0_int4_ )
       CASE ( int1_ )
         galmxCreateLong = mxCreateNumericMatrix( 1_mws_, 1_mws_,               &
-                               mxClassIDFromClassName('int8'),  0_int4_ ) 
+                               mxClassIDFromClassName('int8'),  0_int4_ )
       CASE default
         galmxCreateLong = mxCreateNumericMatrix( 1_mws_, 1_mws_,               &
-                               mxClassIDFromClassName('int32'), 0_int4_ ) 
+                               mxClassIDFromClassName('int32'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2160,7 +2259,7 @@
       SELECT CASE ( long )
       CASE ( int8_ )
          galmxCreateLongArray = mxCreateNumericArray( 2_mws_,                  &
-           (/ n, 1_mws_ /), mxClassIDFromClassName('int64'), 0_int4_ ) 
+           (/ n, 1_mws_ /), mxClassIDFromClassName('int64'), 0_int4_ )
       CASE ( int2_ )
         galmxCreateLongArray = mxCreateNumericArray( 2_mws_,                   &
            (/ n, 1_mws_ /), mxClassIDFromClassName('int16'), 0_int4_ )
@@ -2198,7 +2297,7 @@
       SELECT CASE ( long )
       CASE ( int8_ )
          galmxCreateLongMatrix = mxCreateNumericArray( 2_mws_,                 &
-           (/ m, n /), mxClassIDFromClassName('int64'), 0_int4_ ) 
+           (/ m, n /), mxClassIDFromClassName('int64'), 0_int4_ )
       CASE ( int2_ )
         galmxCreateLongMatrix = mxCreateNumericArray( 2_mws_,                  &
            (/ m, n /), mxClassIDFromClassName('int16'), 0_int4_ )
@@ -2234,10 +2333,10 @@
       SELECT CASE ( digits( ddig ) )
       CASE ( 53 )
         galmxCreateReal = mxCreateNumericMatrix( 1_mws_, 1_mws_,               &
-                            mxClassIDFromClassName('double'), 0_int4_ ) 
+                            mxClassIDFromClassName('double'), 0_int4_ )
       CASE default
         galmxCreateReal = mxCreateNumericMatrix( 1_mws_, 1_mws_,               &
-                            mxClassIDFromClassName('single'), 0_int4_ ) 
+                            mxClassIDFromClassName('single'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2269,10 +2368,10 @@
       SELECT CASE ( digits( ddig ) )
       CASE ( 53 )
         galmxCreateRealArray4 = mxCreateNumericArray( 2_mws_, (/ nn, 1_mws_ /),&
-                                 mxClassIDFromClassName('double'), 0_int4_ ) 
+                                 mxClassIDFromClassName('double'), 0_int4_ )
       CASE default
         galmxCreateRealArray4 = mxCreateNumericArray( 2_mws_, (/ nn, 1_mws_ /),&
-                                 mxClassIDFromClassName('single'), 0_int4_ ) 
+                                 mxClassIDFromClassName('single'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2304,10 +2403,10 @@
       SELECT CASE ( digits( ddig ) )
       CASE ( 53 )
         galmxCreateRealArray8 = mxCreateNumericArray( 2_mws_, (/ nn, 1_mws_ /),&
-                                 mxClassIDFromClassName('double'), 0_int4_ ) 
+                                 mxClassIDFromClassName('double'), 0_int4_ )
       CASE default
         galmxCreateRealArray8 = mxCreateNumericArray( 2_mws_, (/ nn, 1_mws_ /),&
-                                 mxClassIDFromClassName('single'), 0_int4_ ) 
+                                 mxClassIDFromClassName('single'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2340,10 +2439,10 @@
       SELECT CASE ( digits( ddig ) )
       CASE ( 53 )
         galmxCreateRealMatrix4 = mxCreateNumericArray( 2_mws_, (/ mm, nn /),   &
-                            mxClassIDFromClassName('double'), 0_int4_ ) 
+                            mxClassIDFromClassName('double'), 0_int4_ )
       CASE default
         galmxCreateRealMatrix4 = mxCreateNumericArray( 2_mws_, (/ mm, nn /),   &
-                            mxClassIDFromClassName('single'), 0_int4_ ) 
+                            mxClassIDFromClassName('single'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2375,10 +2474,10 @@
       SELECT CASE ( digits( ddig ) )
       CASE ( 53 )
         galmxCreateRealMatrix8 = mxCreateNumericArray( 2_mws_, (/ mm, nn /),   &
-                            mxClassIDFromClassName('double'), 0_int4_ ) 
+                            mxClassIDFromClassName('double'), 0_int4_ )
       CASE default
         galmxCreateRealMatrix8 = mxCreateNumericArray( 2_mws_, (/ mm, nn /),   &
-                            mxClassIDFromClassName('single'), 0_int4_ ) 
+                            mxClassIDFromClassName('single'), 0_int4_ )
       END SELECT
 
       RETURN
@@ -2394,7 +2493,7 @@
 
 !  -----------------------------------------------
 
-!  Create a named INTEGER component of a structure 
+!  Create a named INTEGER component of a structure
 !  and copy a value into the component
 
 !  Arguments
@@ -2408,7 +2507,7 @@
       mwPointer :: pr, px
       mwPointer :: mxGetPr
 
-      pr = galmxCreateInteger( ) 
+      pr = galmxCreateInteger( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
       px = mxGetPr( pr )
 !     SELECT CASE ( di_ )
@@ -2434,7 +2533,7 @@
 
 !  -----------------------------------------------
 
-!  Create a named INTEGER component of a structure 
+!  Create a named INTEGER component of a structure
 !  and copy a value into the component
 
 !  Arguments
@@ -2448,7 +2547,7 @@
       mwPointer :: pr, px
       mwPointer :: mxGetPr
 
-      pr = galmxCreateInteger( ) 
+      pr = galmxCreateInteger( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
       px = mxGetPr( pr )
  !    SELECT CASE ( di_ )
@@ -2475,7 +2574,7 @@
 
 !  -----------------------------------------------
 
-!  Create a named LONG INTEGER component of a structure 
+!  Create a named LONG INTEGER component of a structure
 !  and copy a value into the component
 
 !  Arguments
@@ -2489,7 +2588,7 @@
       mwPointer :: pr, px
       mwPointer :: mxGetPr
 
-      pr = galmxCreateLong( ) 
+      pr = galmxCreateLong( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
       px = mxGetPr( pr )
       SELECT CASE ( long )
@@ -2531,7 +2630,7 @@
       REAL ( KIND = wp ) :: ddig = 1.0_wp
       mwPointer :: mxGetPr
 
-      pr = galmxCreateReal( ) 
+      pr = galmxCreateReal( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
       px = mxGetPr( pr )
       SELECT CASE ( digits( ddig ) )
@@ -2550,7 +2649,7 @@
       SUBROUTINE MATLAB_fill_logical_component( struct, name, Y )
       mwPointer :: struct
       CHARACTER ( len = * ) :: name
-      LOGICAL :: Y
+      LOGICAL * 4 :: Y
 
 !  -----------------------------------------------------
 
@@ -2563,7 +2662,7 @@
 !  name - name of component
 !  Y   - Logical Fortran scalar
 
-! ** - NB - ** This is a bodge since Mex doesn't appear 
+! ** - NB - ** This is a bodge since Mex doesn't appear
 !              to handle Fortran logicals ** - NB - **
 
 !  ----------------------------------------------------
@@ -2572,7 +2671,7 @@
       INTEGER * 4 :: ly
       mwPointer :: mxGetPr
 
-      pr = galmxCreateInteger( ) 
+      pr = galmxCreateInteger( )
       CALL mxSetField( struct, 1_mwi_, name, pr )
       px = mxGetPr( pr )
       IF ( Y ) THEN
@@ -2615,5 +2714,3 @@
 !-*-*-*-*-*-*- E N D  o f  G A L A H A D _ M A T L A B   M O D U L E -*-*-*-*-*-
 
     END MODULE GALAHAD_MATLAB
-
-

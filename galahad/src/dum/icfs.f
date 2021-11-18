@@ -11,15 +11,16 @@
 !  These subroutine definitions should be replaced by their actual
 !  MINPACK2 counterparts an d dependencies if available
 
-      SUBROUTINE DICFS( N, NNZ, A, ADIAG, ACOL_PTR, AROW_IND,               
-     *                  L, LDIAG, LCOL_PTR, LROW_IND,                     
+      SUBROUTINE DICFS( N, NNZ, A, ADIAG, ACOL_PTR, AROW_IND,
+     *                  L, LDIAG, LCOL_PTR, LROW_IND,
      *                  P, ALPHA, IWA, WA1, WA2 )
 
 !-----------------------------------------------
 !   D u m m y   A r g u m e n t s
 !-----------------------------------------------
 
-      INTEGER, INTENT( IN ) :: N, NNZ, P
+      INTEGER, INTENT( INOUT ) :: N
+      INTEGER, INTENT( IN ) :: NNZ, P
       INTEGER, INTENT( IN ) :: ACOL_PTR( N + 1 ), AROW_IND( NNZ )
       INTEGER :: LCOL_PTR( N + 1 )
       INTEGER :: LROW_IND( NNZ + N * P )
@@ -32,21 +33,22 @@
 
 !  Dummy subroutine available with LANCELOT B
 
-      WRITE ( 6, 2000 )
-      STOP
+      IF ( IWA( 1 ) >= 0 ) WRITE ( IWA( 1 ), 2000 )
+      N = - 26
+      RETURN
 
 !  Non-executable statements
 
- 2000 FORMAT( /, 
-     *    ' We regret that the solution options that you have', /, 
+ 2000 FORMAT( /,
+     *    ' We regret that the solution options that you have', /,
      *    ' chosen are not all freely available with LANCELOT.', /,
-     *    ' This code is part of the ICFS package (itself part', /, 
-     *    " of MINPACK2), and may be obtained from Jorge More'",/, 
-     *    ' (more@mcs.anl.gov) from the WWW page:', /, 
-     *    '   http:////www-unix.mcs.anl.gov//~more//icfs//', /,     
-     *    ' If you have the ICFS package, this option may be ', /,  
-     *    ' enabled by replacing all the dummy subroutines in',/,   
-     *    ' the LANCELOT dumicfs.f90 file with their MINPACK2', /,  
+     *    ' This code is part of the ICFS package (itself part', /,
+     *    " of MINPACK2), and may be obtained from Jorge More'",/,
+     *    ' (more@mcs.anl.gov) from the WWW page:', /,
+     *    '   http:////www-unix.mcs.anl.gov//~more//icfs//', /,
+     *    ' If you have the ICFS package, this option may be ', /,
+     *    ' enabled by replacing all the dummy subroutines in',/,
+     *    ' the LANCELOT dumicfs.f90 file with their MINPACK2', /,
      *    ' namesakes and dependencies, and recompiling it.', /,
      *    ' See $GALAHAD/src/makedefs/packages for details.', //,
      *    ' *** EXECUTION TERMINATING *** ', / )
@@ -62,33 +64,17 @@
 !-----------------------------------------------
 
       CHARACTER ( LEN = 60 ), INTENT( IN ) :: TASK
-      INTEGER, INTENT( IN ) :: N
+      INTEGER, INTENT( INOUT ) :: N
       INTEGER, INTENT( IN ) :: JPTR( N + 1 ), INDR( * )
       DOUBLE PRECISION, INTENT( IN ) :: L( * ), LDIAG( N )
       DOUBLE PRECISION, INTENT( INOUT ) :: R( N )
 
 !  Dummy subroutine available with LANCELOT B
 
-      WRITE ( 6, 2000 )
-      STOP
-
-!  Non-executable statements
-
- 2000 FORMAT( /, 
-     *   ' We regret that the solution options that you have',  /, 
-     *   ' chosen are not all freely available with LANCELOT.', /, 
-     *   ' This code is part of the ICFS package (itself part', /, 
-     *   " of MINPACK2), and may be obtained from Jorge More'",/, 
-     *   ' (more@mcs.anl.gov) from the WWW page:',              /, 
-     *   '   http:////www-unix.mcs.anl.gov//~more//icfs//', /,     
-     *   ' If you have the ICFS package, this option may be ', /,  
-     *   ' enabled by replacing all the dummy subroutines in', /,   
-     *   ' the LANCELOT dumicfs.f90 file with their MINPACK2', /,  
-     *   ' namesakes and dependencies, and recompiling it.', /,   
-     *   ' See $GALAHAD/src/makedefs/packages for details.', //,
-     *   ' *** EXECUTION TERMINATING *** ', / )
+      N = - 26
+      RETURN
 
 !  End of dummy subroutine DICFS
 
-         END SUBROUTINE  DSTRSOL
+      END SUBROUTINE  DSTRSOL
 

@@ -630,7 +630,7 @@ c
       SUBROUTINE DGEMM ( TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB,
      $                   BETA, C, LDC )
 *     .. Scalar Arguments ..
-      CHARACTER*1        TRANSA, TRANSB
+      CHARACTER (len=1)  TRANSA, TRANSB
       INTEGER            M, N, K, LDA, LDB, LDC
       DOUBLE PRECISION   ALPHA, BETA
 *     .. Array Arguments ..
@@ -977,7 +977,7 @@ c
 *
      $                   BETA, C, LDC )
 *     .. Scalar Arguments ..
-      CHARACTER*1        TRANSA, TRANSB
+      CHARACTER (len=1)  TRANSA, TRANSB
       INTEGER            M, N, K, LDA, LDB, LDC
       REAL               ALPHA, BETA
 *     .. Array Arguments ..
@@ -7546,7 +7546,7 @@ c
 *  Purpose
 *  =======
 *
-*  DCABS1 computes absolute value of a double complex number 
+*  DCABS1 computes absolute value of a double complex number
 *
 *     .. Intrinsic Functions ..
       INTRINSIC ABS,DBLE,DIMAG

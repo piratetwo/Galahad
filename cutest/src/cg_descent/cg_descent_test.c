@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #define INT long int
 #define INT_INF LONG_MAX
@@ -82,8 +83,8 @@ int cg_descent /*  return status of solution process:
                              memory = 0 => need 4*n */
 )
 {
-  int status ;
-  double f, gnorm ;
+  int status, i ;
+  double f, gnorm, t, gi ;
   double *g ;
   g = (double *) malloc (n*sizeof (double)) ;
 

@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.4 - 24/08/2009 AT 23:30 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*- G A L A H A D _ U L S    M O D U L E  -*-*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.4. August 24th 2009
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_ULS_double
@@ -27,13 +27,13 @@
      USE GALAHAD_SPACE_double
      USE GALAHAD_SPECFILE_double
      USE GALAHAD_SMT_double
-     USE GALAHAD_STRING_double, ONLY: STRING_put, STRING_get, STRING_lower_word
+     USE GALAHAD_STRING, ONLY: STRING_put, STRING_get, STRING_lower_word
      USE GALAHAD_GLS_double
      USE HSL_ZD11_double
      USE HSL_MA48_double
 
      IMPLICIT NONE
- 
+
      PRIVATE
      PUBLIC :: ULS_initialize, ULS_factorize, ULS_solve,                       &
                ULS_fredholm_alternative, ULS_terminate,                        &
@@ -44,7 +44,7 @@
 !   P r e c i s i o n
 !--------------------
 
-     INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+     INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
      INTEGER, PARAMETER :: real_bytes = 8
      INTEGER, PARAMETER :: long = SELECTED_INT_KIND( 18 )
 
@@ -64,9 +64,9 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: ULS_control_type
 
@@ -148,8 +148,8 @@
 
        REAL ( KIND = wp ) :: switch_to_full_code_density = 0.5_wp
 
-!  if previously allocated internal workspace arrays are greater than 
-!  array_decrease_factor times the currently required sizes, they are reset 
+!  if previously allocated internal workspace arrays are greater than
+!  array_decrease_factor times the currently required sizes, they are reset
 !  to current requirements
 
        REAL ( KIND = wp ) :: array_decrease_factor = 2.0_wp
@@ -166,23 +166,23 @@
 
        REAL ( KIND = wp ) :: zero_tolerance = 0.0_wp
 
-!  refinement will cease as soon as the residual ||Ax-b|| falls below 
+!  refinement will cease as soon as the residual ||Ax-b|| falls below
 !     max( acceptable_residual_relative * ||b||, acceptable_residual_absolute )
 
        REAL ( KIND = wp ) :: acceptable_residual_relative = 10.0_wp * epsmch
        REAL ( KIND = wp ) :: acceptable_residual_absolute = 10.0_wp * epsmch
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
        CHARACTER ( LEN = 30 ) :: prefix = '""                            '
      END TYPE ULS_control_type
-   
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
      TYPE, PUBLIC :: ULS_inform_type
 
@@ -258,7 +258,7 @@
 
        INTEGER :: iterative_refinements = 0
 
-!  has an "alternative" y: A^T y = 0 and yT b > 0 been found when trying to 
+!  has an "alternative" y: A^T y = 0 and yT b > 0 been found when trying to
 !  solve A x = b ?
 
        LOGICAL :: alternative = .FALSE.
@@ -276,13 +276,13 @@
        TYPE ( MA48_sinfo ) :: ma48_sinfo
 
      END TYPE ULS_inform_type
-     
+
 !  ...................
-!   data derived type 
+!   data derived type
 !  ...................
 
      TYPE, PUBLIC :: ULS_data_type
-       PRIVATE 
+       PRIVATE
        INTEGER :: len_solver = - 1
        INTEGER :: m, n, ne, matrix_ne, pardiso_mtype
        CHARACTER ( LEN = len_solver ) :: solver = '                    '
@@ -315,7 +315,7 @@
        TYPE ( MA48_sinfo ) :: ma48_sinfo
 
      END TYPE ULS_data_type
-     
+
 !--------------------------------
 !   I n t e r f a c e  B l o c k
 !--------------------------------
@@ -323,7 +323,7 @@
 !!$      INTERFACE
 !!$        SUBROUTINE pardiso( PT, maxfct, mnum, mtype, phase, n, A, IA, JA,   &
 !!$                            PERM, nrhs, IPARM, msglvl, B, X, error )
-!!$        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+!!$        INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
 !!$        INTEGER, INTENT( INOUT ), DIMENSION( 64 ) :: PT
 !!$        INTEGER, INTENT( IN ) :: maxfct, mnum, mtype, phase, n, nrhs, msglvl
 !!$        INTEGER, INTENT( OUT ) :: error
@@ -335,17 +335,17 @@
 !!$        REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n , nrhs ) :: B
 !!$        REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n , nrhs ) :: X
 !!$        END SUBROUTINE pardiso
-!!$      END INTERFACE 
+!!$      END INTERFACE
 
    CONTAINS
 
 !-*-*-*-*-*-   U L S _ I N I T I A L I Z E   S U B R O U T I N E   -*-*-*-*-*-
-   
+
      SUBROUTINE ULS_initialize( solver, data, control, inform )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Set initial values, including default control data and solver used, for ULS. 
+!  Set initial values, including default control data and solver used, for ULS.
 !  This routine must be called before the first call to ULS_factorize
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -363,37 +363,36 @@
 
 !  initialize solver-specific controls
 
-     SELECT CASE( data%solver( 1 : data%len_solver ) )
+!     SELECT CASE( data%solver( 1 : data%len_solver ) )
 
 !  = GLS =
 
-     CASE ( 'gls', 'ma28' )
+!     CASE ( 'gls', 'ma28' )
        CALL GLS_initialize( data%gls_factors, data%gls_control )
 !      control%print_level = data%gls_control%ldiag
        control%relative_pivot_tolerance = data%gls_control%u
 
 !  = MA48 =
 
-     CASE ( 'ma48' )
+!     CASE ( 'ma48' )
        CALL MA48_initialize( data%ma48_factors, data%ma48_control )
 !      control%print_level = data%ma48_control%ldiag
-       control%relative_pivot_tolerance = data%ma48_control%u
+!       control%relative_pivot_tolerance = data%ma48_control%u
+!     END SELECT
 
-     END SELECT
-
-     RETURN  
+     RETURN
 
 !  End of ULS_initialize
 
      END SUBROUTINE ULS_initialize
-   
+
 !-*-*-*-*-*-   U L S _ I N I T I A L I Z E   S U B R O U T I N E   -*-*-*-*-*-
-   
+
      SUBROUTINE ULS_initialize_solver( solver, data, inform )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-!  Set initial values, including default control data and solver used, for ULS. 
+!  Set initial values, including default control data and solver used, for ULS.
 !  This routine must be called before the first call to ULS_factorize
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -431,20 +430,20 @@
        inform%status = GALAHAD_error_unknown_solver
      END SELECT
 
-     RETURN  
+     RETURN
 
 !  End of ULS_initialize_solver
 
      END SUBROUTINE ULS_initialize_solver
-   
+
 !-*-*-*-*-   U L S _ R E A D _ S P E C F I L E  S U B R O U T I N E   -*-*-*-*-
 
      SUBROUTINE ULS_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by ULS_initialize could (roughly) 
+!  The defauly values as given by ULS_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN ULS SPECIFICATIONS (DEFAULT)
@@ -477,7 +476,7 @@
 
 !  Dummy arguments
 
-     TYPE ( ULS_control_type ), INTENT( INOUT ) :: control        
+     TYPE ( ULS_control_type ), INTENT( INOUT ) :: control
      INTEGER, INTENT( IN ) :: device
      CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -547,9 +546,9 @@
      spec( relative_pivot_tolerance )%keyword = 'relative-pivot-tolerance'
      spec( absolute_pivot_tolerance )%keyword = 'absolute-pivot-tolerance'
      spec( zero_tolerance )%keyword = 'zero-tolerance'
-     spec( acceptable_residual_relative )%keyword                             &
+     spec( acceptable_residual_relative )%keyword                              &
        = 'acceptable-residual-relative'
-     spec( acceptable_residual_absolute )%keyword                             &
+     spec( acceptable_residual_absolute )%keyword                              &
        = 'acceptable-residual-absolute'
 
 !  Logical key-words
@@ -685,7 +684,7 @@
 !!$   INTEGER :: OMP_GET_NUM_THREADS
      LOGICAL :: printi
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -715,7 +714,7 @@
        data%matrix_ne = matrix%ne
      CASE ( 'SPARSE_BY_ROWS' )
        data%matrix_ne = matrix%PTR( matrix%n + 1 ) - 1
-     CASE ( 'DENSE' ) 
+     CASE ( 'DENSE' )
        data%matrix_ne = matrix%m * matrix%n
      END SELECT
      data%matrix%ne = data%matrix_ne
@@ -751,7 +750,7 @@
              data%matrix%COL( l ) = matrix%COL( l )
            END DO
          END DO
-       CASE ( 'DENSE' ) 
+       CASE ( 'DENSE' )
          data%matrix%m = matrix%m
          data%matrix%n = matrix%n
          data%matrix%ne = matrix%m * matrix%n
@@ -781,7 +780,12 @@
 !  = GLS =
 
        CASE ( 'gls', 'ma28' )
-         CALL ULS_copy_control_to_gls( control, data%gls_control ) 
+         CALL ULS_copy_control_to_gls( control, data%gls_control )
+         IF ( control%print_level <= 0 .OR. control%out <= 0 ) THEN
+           data%gls_control%lp = - 1
+           data%gls_control%wp = - 1
+           data%gls_control%mp = - 1
+         END IF
          SELECT CASE ( STRING_get( MATRIX%type ) )
          CASE ( 'SPARSE_BY_ROWS', 'DENSE' )
            CALL GLS_analyse( data%matrix, data%gls_factors, data%gls_control,  &
@@ -790,9 +794,9 @@
            CALL GLS_analyse( MATRIX, data%gls_factors, data%gls_control,       &
                              data%gls_ainfo, data%gls_finfo )
          END SELECT
-         inform%gls_ainfo = data%gls_ainfo 
-         inform%gls_finfo = data%gls_finfo 
-         inform%status = data%gls_finfo%flag 
+         inform%gls_ainfo = data%gls_ainfo
+         inform%gls_finfo = data%gls_finfo
+         inform%status = data%gls_finfo%flag
          IF ( data%gls_ainfo%flag == - 1 .OR. data%gls_ainfo%flag == - 2 .OR.  &
               data%gls_ainfo%flag == - 3 ) THEN
            inform%status = GALAHAD_error_restrictions
@@ -802,16 +806,18 @@
            inform%alloc_status = data%gls_ainfo%stat
          ELSE IF ( data%gls_ainfo%flag == - 7 ) THEN
            inform%status = GALAHAD_error_real_ws
+         ELSE IF ( data%gls_ainfo%flag == GALAHAD_unavailable_option ) THEN
+           inform%status = GALAHAD_unavailable_option
          ELSE
            inform%alloc_status = data%gls_ainfo%stat
            inform%more_info = data%gls_ainfo%more
            inform%workspace_factors = INT( data%gls_ainfo%len_factorize, long )
            inform%entries_dropped = data%gls_ainfo%drop
-           inform%rank = data%gls_ainfo%rank 
-           inform%structural_rank = data%gls_ainfo%struc_rank 
-           inform%compresses = data%gls_ainfo%ncmpa   
-           inform%out_of_range = data%gls_ainfo%oor     
-           inform%duplicates = data%gls_ainfo%dup     
+           inform%rank = data%gls_ainfo%rank
+           inform%structural_rank = data%gls_ainfo%struc_rank
+           inform%compresses = data%gls_ainfo%ncmpa
+           inform%out_of_range = data%gls_ainfo%oor
+           inform%duplicates = data%gls_ainfo%dup
            IF ( data%gls_finfo%flag == - 1 .OR. data%gls_finfo%flag == - 2 .OR.&
                 data%gls_finfo%flag == - 3 ) THEN
              inform%status = GALAHAD_error_restrictions
@@ -823,20 +829,25 @@
              inform%status = GALAHAD_error_real_ws
            ELSE
              inform%status = GALAHAD_ok
-             inform%alloc_status = data%gls_finfo%stat 
+             inform%alloc_status = data%gls_finfo%stat
              inform%more_info = data%gls_finfo%more
              inform%entries_in_factors = INT( data%gls_finfo%size_factor, long )
              inform%workspace_factors                                          &
                = INT( data%gls_finfo%len_factorize, long )
              inform%entries_dropped = data%gls_finfo%drop
-             inform%rank = data%gls_finfo%rank 
+             inform%rank = data%gls_finfo%rank
            END IF
          END IF
 
 !  = MA48 =
 
        CASE ( 'ma48' )
-         CALL ULS_copy_control_to_ma48( control, data%ma48_control ) 
+         CALL ULS_copy_control_to_ma48( control, data%ma48_control )
+         IF ( control%print_level <= 0 .OR. control%out <= 0 ) THEN
+           data%ma48_control%lp = - 1
+           data%ma48_control%wp = - 1
+           data%ma48_control%mp = - 1
+         END IF
          SELECT CASE ( STRING_get( MATRIX%type ) )
          CASE ( 'SPARSE_BY_ROWS', 'DENSE' )
            CALL MA48_analyse( data%matrix, data%ma48_factors,                  &
@@ -846,9 +857,9 @@
            CALL MA48_analyse( MATRIX, data%ma48_factors, data%ma48_control,    &
                               data%ma48_ainfo, data%ma48_finfo )
          END SELECT
-         inform%ma48_ainfo = data%ma48_ainfo 
-         inform%ma48_finfo = data%ma48_finfo 
-         inform%status = data%ma48_finfo%flag 
+         inform%ma48_ainfo = data%ma48_ainfo
+         inform%ma48_finfo = data%ma48_finfo
+         inform%status = data%ma48_finfo%flag
          IF ( data%ma48_ainfo%flag == - 1 .OR. data%ma48_ainfo%flag == - 2     &
               .OR. data%ma48_ainfo%flag == - 3 ) THEN
            inform%status = GALAHAD_error_restrictions
@@ -858,6 +869,8 @@
            inform%alloc_status = data%ma48_ainfo%stat
          ELSE IF ( data%ma48_ainfo%flag == - 7 ) THEN
            inform%status = GALAHAD_error_real_ws
+         ELSE IF ( data%ma48_ainfo%flag == GALAHAD_unavailable_option ) THEN
+           inform%status = GALAHAD_unavailable_option
          ELSE
            inform%alloc_status = data%ma48_ainfo%stat
            inform%more_info = data%ma48_ainfo%more
@@ -865,11 +878,11 @@
            inform%workspace_factors = INT( data%ma48_ainfo%lena_factorize +    &
              data%ma48_ainfo%leni_factorize, long )
            inform%entries_dropped = data%ma48_ainfo%drop
-           inform%rank = data%ma48_ainfo%rank 
-           inform%structural_rank = data%ma48_ainfo%struc_rank 
-           inform%compresses = data%ma48_ainfo%ncmpa   
-           inform%out_of_range = data%ma48_ainfo%oor     
-           inform%duplicates = data%ma48_ainfo%dup     
+           inform%rank = data%ma48_ainfo%rank
+           inform%structural_rank = data%ma48_ainfo%struc_rank
+           inform%compresses = data%ma48_ainfo%ncmpa
+           inform%out_of_range = data%ma48_ainfo%oor
+           inform%duplicates = data%ma48_ainfo%dup
            IF ( data%ma48_finfo%flag == - 1 .OR. data%ma48_finfo%flag == - 2   &
                .OR. data%ma48_finfo%flag == - 3 ) THEN
              inform%status = GALAHAD_error_restrictions
@@ -881,14 +894,14 @@
              inform%status = GALAHAD_error_real_ws
            ELSE
              inform%status = GALAHAD_ok
-             inform%alloc_status = data%ma48_finfo%stat 
+             inform%alloc_status = data%ma48_finfo%stat
              inform%more_info = data%ma48_finfo%more
              inform%entries_in_factors                                         &
                = INT( data%ma48_finfo%size_factor, long )
              inform%workspace_factors = INT( data%ma48_finfo%lena_factorize +  &
                data%ma48_finfo%leni_factorize, long )
              inform%entries_dropped = data%ma48_finfo%drop
-             inform%rank = data%ma48_finfo%rank 
+             inform%rank = data%ma48_finfo%rank
            END IF
          END IF
        END SELECT
@@ -965,11 +978,11 @@
          CALL SPACE_resize_array( MAX( m, n ), data%RES,                       &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'uls: data%RES' ; RETURN ; END IF 
+           inform%bad_alloc = 'uls: data%RES' ; RETURN ; END IF
          CALL SPACE_resize_array( MAX( m, n ), data%SOL,                       &
                                   inform%status, inform%alloc_status )
          IF ( inform%status /= GALAHAD_ok ) THEN
-           inform%bad_alloc = 'uls: data%SOL' ; RETURN ; END IF 
+           inform%bad_alloc = 'uls: data%SOL' ; RETURN ; END IF
          data%set_res = .TRUE.
        END IF
 
@@ -1019,7 +1032,7 @@
                      data%RES( j ) = data%RES( j ) - MATRIX%val( l ) * X( i )
                  END DO
                END DO
-             CASE ( 'DENSE' ) 
+             CASE ( 'DENSE' )
                l = 0
                DO i = 1, m
                  DO j = 1, n
@@ -1087,7 +1100,7 @@
                      data%RES( i ) = data%RES( i ) - MATRIX%val( l ) * X( j )
                  END DO
                END DO
-             CASE ( 'DENSE' ) 
+             CASE ( 'DENSE' )
                l = 0
                DO i = 1, m
                  DO j = 1, n
@@ -1149,7 +1162,7 @@
 !  = GLS =
 
      CASE ( 'gls', 'ma28' )
-       CALL ULS_copy_control_to_gls( control, data%gls_control ) 
+       CALL ULS_copy_control_to_gls( control, data%gls_control )
        SELECT CASE ( STRING_get( MATRIX%type ) )
        CASE ( 'COORDINATE' )
          CALL GLS_solve( matrix, data%gls_factors, RHS, X,                     &
@@ -1167,14 +1180,14 @@
          inform%status = GALAHAD_error_allocate
          inform%alloc_status = data%gls_sinfo%stat
        ELSE
-         inform%more_info = data%gls_sinfo%more 
-         inform%alloc_status = data%gls_sinfo%stat 
+         inform%more_info = data%gls_sinfo%more
+         inform%alloc_status = data%gls_sinfo%stat
        END IF
 
 !  = MA48 =
 
      CASE ( 'ma48' )
-       CALL ULS_copy_control_to_ma48( control, data%ma48_control ) 
+       CALL ULS_copy_control_to_ma48( control, data%ma48_control )
        SELECT CASE ( STRING_get( MATRIX%type ) )
        CASE ( 'COORDINATE' )
          CALL MA48_solve( matrix, data%ma48_factors, RHS, X,                   &
@@ -1192,8 +1205,8 @@
          inform%status = GALAHAD_error_allocate
          inform%alloc_status = data%ma48_sinfo%stat
        ELSE
-         inform%more_info = data%ma48_sinfo%more 
-         inform%alloc_status = data%ma48_sinfo%stat 
+         inform%more_info = data%ma48_sinfo%more
+         inform%alloc_status = data%ma48_sinfo%stat
        END IF
      END SELECT
      RETURN
@@ -1208,7 +1221,7 @@
                                           inform, alternative )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-! GLS_fredholm_alternative uses the factors produced by GLS_factorize 
+! GLS_fredholm_alternative uses the factors produced by GLS_factorize
 !   to find either x so that Ax=b or a "direction of linear infinite descent"
 !   y so that A^T y = 0 and b^T y > 0
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -1225,13 +1238,13 @@
 
 !    INTEGER :: j, l
 !    REAL ( KIND = wp ) :: RES( matrix%n )
-     
+
      SELECT CASE( data%solver( 1 : data%len_solver ) )
 
 !  = GLS =
 
      CASE ( 'gls', 'ma28' )
-       CALL ULS_copy_control_to_gls( control, data%gls_control ) 
+       CALL ULS_copy_control_to_gls( control, data%gls_control )
        SELECT CASE ( STRING_get( MATRIX%type ) )
        CASE ( 'COORDINATE' )
          CALL GLS_fredholm_alternative( matrix, data%gls_factors, RHS, X,      &
@@ -1272,8 +1285,8 @@
          inform%status = GALAHAD_error_allocate
          inform%alloc_status = data%gls_sinfo%stat
        ELSE
-         inform%more_info = data%gls_sinfo%more 
-         inform%alloc_status = data%gls_sinfo%stat 
+         inform%more_info = data%gls_sinfo%more
+         inform%alloc_status = data%gls_sinfo%stat
          inform%alternative = alternative
        END IF
 
@@ -1299,8 +1312,8 @@
 !        inform%status = GALAHAD_error_allocate
 !        inform%alloc_status = data%ma48_sinfo%stat
 !      ELSE
-!        inform%more_info = data%ma48_sinfo%more 
-!        inform%alloc_status = data%ma48_sinfo%stat 
+!        inform%more_info = data%ma48_sinfo%more
+!        inform%alloc_status = data%ma48_sinfo%stat
 !      END IF
      END SELECT
 
@@ -1369,7 +1382,7 @@
      END SUBROUTINE ULS_enquire
 
 !-*-*-*-*-*-*-*-   U L S _ T E R M I N A T E  S U B R O U T I N E   -*-*-*-*-*-
- 
+
      SUBROUTINE ULS_terminate( data, control, inform )
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -1396,14 +1409,14 @@
 !  = GLS =
 
      CASE ( 'gls', 'ma28' )
-       CALL ULS_copy_control_to_gls( control, data%gls_control ) 
+       CALL ULS_copy_control_to_gls( control, data%gls_control )
        CALL GLS_finalize( data%gls_factors, data%gls_control, info )
        inform%status = info
 
 !  = MA48 =
 
      CASE ( 'ma48' )
-       CALL ULS_copy_control_to_ma48( control, data%ma48_control ) 
+       CALL ULS_copy_control_to_ma48( control, data%ma48_control )
        CALL MA48_finalize( data%ma48_factors, data%ma48_control, info )
        inform%status = info
 
@@ -1436,7 +1449,7 @@
 
 !-*   U L S _ C O P Y _ C O N T R O L _ T O _ S I L S  S U B R O U T I N E   *-
 
-     SUBROUTINE ULS_copy_control_to_gls( control, control_gls ) 
+     SUBROUTINE ULS_copy_control_to_gls( control, control_gls )
 
 !  copy control parameters to their GLS equivalents
 
@@ -1446,9 +1459,9 @@
      TYPE ( GLS_control ), INTENT( INOUT ) :: control_gls
 
      IF ( control%print_level_solver > 0 ) THEN
-       control_gls%lp = control%error  
-       control_gls%wp = control%warning  
-       control_gls%mp = control%out  
+       control_gls%lp = control%error
+       control_gls%wp = control%warning
+       control_gls%mp = control%out
      ELSE
        control_gls%lp = 0
        control_gls%wp = 0
@@ -1459,8 +1472,8 @@
      control_gls%la = control%min_real_factor_size
      control_gls%la_int = control%min_integer_factor_size
      control_gls%maxla = INT( control%max_factor_size )
-     control_gls%multiplier = control%array_increase_factor  
-     control_gls%reduce = control%array_decrease_factor  
+     control_gls%multiplier = control%array_increase_factor
+     control_gls%reduce = control%array_decrease_factor
      control_gls%btf = control%minimum_size_for_btf
      IF ( control%pivot_control == 5 ) THEN
        control_gls%diagonal_pivoting = .TRUE.
@@ -1470,13 +1483,13 @@
 !       inform%pivot_control = 1
      END IF
      control_gls%pivoting = control%pivot_search_limit
-     control_gls%u = control%relative_pivot_tolerance  
+     control_gls%u = control%relative_pivot_tolerance
      control_gls%tolerance = control%absolute_pivot_tolerance
      control_gls%drop = control%zero_tolerance
-     control_gls%factor_blocking = control%blas_block_size_factorize  
+     control_gls%factor_blocking = control%blas_block_size_factorize
      IF ( control_gls%factor_blocking < 1 )                                    &
        control_gls%factor_blocking = blas_block_size_factor_default
-     control_gls%solve_blas = control%blas_block_size_solve  
+     control_gls%solve_blas = control%blas_block_size_solve
      IF ( control_gls%solve_blas < 1 )                                         &
        control_gls%solve_blas = blas_block_size_solve_default
      control_gls%struct = control%stop_if_singular
@@ -1490,7 +1503,7 @@
 
 !-*-   U L S _ C O P Y _ C O N T R O L _ T O _ M A 5 7  S U B R O U T I N E  -*-
 
-     SUBROUTINE ULS_copy_control_to_ma48( control, control_ma48 ) 
+     SUBROUTINE ULS_copy_control_to_ma48( control, control_ma48 )
 
 !  copy control parameters to their MA48 equivalents
 
@@ -1499,15 +1512,15 @@
      TYPE ( ULS_control_type ), INTENT( IN ) :: control
      TYPE ( MA48_control ), INTENT( INOUT ) :: control_ma48
 
-     control_ma48%lp = control%error  
-     control_ma48%wp = control%warning  
-     control_ma48%mp = control%out 
+     control_ma48%lp = control%error
+     control_ma48%wp = control%warning
+     control_ma48%mp = control%out
      control_ma48%ldiag = control%print_level_solver
      control_ma48%fill_in = control%initial_fill_in_factor
 !    control_ma48%la = control%min_real_factor_size_default
 !    control_ma48%maxla = INT( control%max_factor_size )
-     control_ma48%multiplier = control%array_increase_factor  
-!    control_ma48%reduce = control%array_decrease_factor  
+     control_ma48%multiplier = control%array_increase_factor
+!    control_ma48%reduce = control%array_decrease_factor
      control_ma48%btf = control%minimum_size_for_btf
      IF ( control%pivot_control == 5 ) THEN
        control_ma48%diagonal_pivoting = .TRUE.
@@ -1518,13 +1531,13 @@
      END IF
      control_ma48%pivoting = control%pivot_search_limit
      control_ma48%struct = control%stop_if_singular
-     control_ma48%u = control%relative_pivot_tolerance  
+     control_ma48%u = control%relative_pivot_tolerance
      control_ma48%tolerance = control%absolute_pivot_tolerance
      control_ma48%drop = control%zero_tolerance
-     control_ma48%factor_blocking = control%blas_block_size_factorize  
+     control_ma48%factor_blocking = control%blas_block_size_factorize
      IF ( control_ma48%factor_blocking < 1 )                                   &
        control_ma48%factor_blocking = blas_block_size_factor_default
-     control_ma48%solve_blas = control%blas_block_size_solve  
+     control_ma48%solve_blas = control%blas_block_size_solve
      IF ( control_ma48%solve_blas < 1 )                                        &
        control_ma48%solve_blas = blas_block_size_solve_default
      control_ma48%switch = control%switch_to_full_code_density
@@ -1546,7 +1559,7 @@
 
 !  Check to see if the string is an appropriate keyword
 
-     SELECT CASE( STRING_get( array ) ) 
+     SELECT CASE( STRING_get( array ) )
 
 !  Keyword known
 

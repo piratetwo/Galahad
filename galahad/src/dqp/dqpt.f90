@@ -7,14 +7,14 @@
    REAL ( KIND = wp ), PARAMETER :: infty = 10.0_wp ** 20
    TYPE ( QPT_problem_type ) :: p
    TYPE ( DQP_data_type ) :: data
-   TYPE ( DQP_control_type ) :: control        
+   TYPE ( DQP_control_type ) :: control
    TYPE ( DQP_inform_type ) :: info
    INTEGER :: n, m, h_ne, a_ne, tests, smt_stat
-   INTEGER :: data_storage_type, i, j, status, scratch_out = 56
+   INTEGER :: data_storage_type, i, status, scratch_out = 56
    CHARACTER ( len = 1 ) :: st
    INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_stat, X_stat
 
-   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4 
+   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4
    ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ) )
    ALLOCATE( p%C( m ), p%C_l( m ), p%C_u( m ) )
    ALLOCATE( p%X( n ), p%Y( m ), p%Z( n ) )
@@ -35,7 +35,7 @@
      IF ( status == - GALAHAD_error_deallocate ) CYCLE
 !    IF ( status == - GALAHAD_error_restrictions ) CYCLE
 !    IF ( status == - GALAHAD_error_bad_bounds ) CYCLE
-!    IF ( status == - GALAHAD_error_primal_infeasible ) CYCLE
+     IF ( status == - GALAHAD_error_primal_infeasible ) CYCLE
      IF ( status == - GALAHAD_error_dual_infeasible ) CYCLE
      IF ( status == - GALAHAD_error_unbounded ) CYCLE
      IF ( status == - GALAHAD_error_no_center ) CYCLE
@@ -77,24 +77,28 @@
      ALLOCATE( p%H%val( h_ne ), p%H%row( 0 ), p%H%col( h_ne ) )
      ALLOCATE( p%A%val( a_ne ), p%A%row( 0 ), p%A%col( a_ne ) )
      IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )
-     CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat ) 
+     CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat )
      p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 1.0_wp /)
      p%H%col = (/ 1, 2, 3, 2 /)
      p%H%ptr = (/ 1, 2, 3, 5 /)
      IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
-     CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat ) 
+     CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
      p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
      p%A%col = (/ 1, 2, 2, 3 /)
      p%A%ptr = (/ 1, 3, 5 /)
      p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
 
+!    control%out = 6 ; control%print_level = 1
+
      IF ( status == - GALAHAD_error_restrictions ) THEN
        p%n = 0 ; p%m = - 1
-     ELSE IF ( status == - GALAHAD_error_bad_bounds ) THEN 
+     ELSE IF ( status == - GALAHAD_error_bad_bounds ) THEN
        p%X_u( 1 ) = - 2.0_wp
      ELSE IF ( status == - GALAHAD_error_primal_infeasible ) THEN
-!      control%print_level = 3
-!      control%maxit = 5
+!      control%subspace_direct = .TRUE.
+       control%print_level = 4
+       control%gltr_control%print_level = 1
+       control%maxit = 5
        p%X_l = (/ - 1.0_wp, 8.0_wp, - infty /)
        p%X_u = (/ 1.0_wp, infty, 2.0_wp /)
      ELSE IF ( status == - GALAHAD_error_max_iterations ) THEN
@@ -107,12 +111,10 @@
 !      control%maxit = 1
      ELSE IF ( status == - GALAHAD_error_inertia ) THEN
        p%H%val( 4 ) = 4.0_wp
-     ELSE IF ( status == - GALAHAD_error_upper_entry ) THEN 
+     ELSE IF ( status == - GALAHAD_error_upper_entry ) THEN
        p%H%col( 1 ) = 2
      ELSE
      END IF
-
-!    control%out = 6 ; control%print_level = 1
 
      CALL DQP_solve( p, data, control, info, C_stat, X_stat )
      IF ( info%status == 0 ) THEN
@@ -126,11 +128,13 @@
      DEALLOCATE( p%A%val, p%A%row, p%A%col )
      CALL DQP_terminate( data, control, info )
 !    IF ( status == - GALAHAD_error_max_iterations ) STOP
-!    IF ( status == - GALAHAD_error_primal_infeasible ) STOP
+    IF ( status == - GALAHAD_error_primal_infeasible ) STOP
 !    IF ( status == - GALAHAD_error_cpu_limit ) STOP
    END DO
 
 !  special case
+
+   GO TO 10
 
    status = 5
 
@@ -149,17 +153,19 @@
    ALLOCATE( p%H%val( h_ne ), p%H%row( 0 ), p%H%col( h_ne ) )
    ALLOCATE( p%A%val( a_ne ), p%A%row( 0 ), p%A%col( a_ne ) )
    IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )
-   CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat ) 
+   CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat )
    p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 1.0_wp /)
    p%H%col = (/ 1, 2, 3, 2 /)
    p%H%ptr = (/ 1, 2, 3, 5 /)
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
-   CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat ) 
+   CALL SMT_put( p%A%type, 'SPARSE_BY_ROWS', smt_stat )
    p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
    p%A%col = (/ 1, 2, 2, 3 /)
    p%A%ptr = (/ 1, 3, 5 /)
    p%X = 0.0_wp ; p%Y = 0.0_wp ; p%Z = 0.0_wp
 
+   control%print_level = 101
+   control%gltr_control%print_level = 1
    CALL DQP_solve( p, data, control, info, C_stat, X_stat )
    control%exact_arc_search = .FALSE.
    IF ( info%status == 0 ) THEN
@@ -170,9 +176,11 @@
      WRITE( 6, "(I2, ': DQP_solve exit status = ', I6 )") status, info%status
    END IF
 
-   CALL DQP_terminate( data, control, info )
    DEALLOCATE( p%H%val, p%H%row, p%H%col )
    DEALLOCATE( p%A%val, p%A%row, p%A%col )
+10 CONTINUE
+
+   CALL DQP_terminate( data, control, info )
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
    DEALLOCATE( p%X, p%Y, p%Z, p%C, X_stat, C_stat )
    DEALLOCATE( p%H%ptr, p%A%ptr )
@@ -185,7 +193,7 @@
 
    WRITE( 6, "( /, ' basic tests of storage formats ', / )" )
 
-   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4 
+   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4
    ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ) )
    ALLOCATE( p%C( m ), p%C_l( m ), p%C_u( m ) )
    ALLOCATE( p%X( n ), p%Y( m ), p%Z( n ) )
@@ -297,7 +305,7 @@
 
    WRITE( 6, "( /, ' basic tests of weighted combinations ', / )" )
 
-   n = 3 ; m = 2 ; a_ne = 4 
+   n = 3 ; m = 2 ; a_ne = 4
    ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ), p%X0( n ), p%WEIGHT( n ) )
    ALLOCATE( p%C( m ), p%C_l( m ), p%C_u( m ) )
    ALLOCATE( p%X( n ), p%Y( m ), p%Z( n ) )
@@ -321,7 +329,9 @@
    control%restore_problem = 2
 !  control%out = 6 ; control%print_level = 1
    control%dual_starting_point = 3
+!  DO i = 1, 1
    DO i = 1, 4
+!  DO i = 3, 3
      p%new_problem_structure = .TRUE.
      IF ( i == 1 ) THEN
        p%Hessian_kind = 1
@@ -348,6 +358,9 @@
        p%gradient_kind = 1
        p%f = - 5.0_wp
      END IF
+!    control%maxit = 1
+!    control%print_level = 101
+!    control%gltr_control%print_level = 1
      CALL DQP_solve( p, data, control, info, C_stat, X_stat )
 !write(6,*) ' X ', p%X
 
@@ -356,8 +369,7 @@
    &            F6.1, ' status = ', I6 )" ) i, info%iter,                      &
                 info%obj, info%status
      ELSE
-       WRITE( 6, "( A1, I1,': DQP_solve exit status = ', I6 ) " )              &
-         st, i, info%status
+       WRITE( 6, "( I2,': DQP_solve exit status = ', I6 ) " ) i, info%status
      END IF
 !    STOP
    END DO
@@ -373,7 +385,7 @@
 
    WRITE( 6, "( /, ' basic tests of options ', / )" )
 
-   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4 
+   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4
    ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ) )
    ALLOCATE( p%C( m ), p%C_l( m ), p%C_u( m ) )
    ALLOCATE( p%X( n ), p%Y( m ), p%Z( n ) )
@@ -404,7 +416,9 @@
    p%A%col = (/ 1, 2, 2, 3 /) ; p%A%ne = a_ne
    p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
 
-!   n = 2 ; m = 1 ; h_ne = 2 ; a_ne = 2 
+!  GO TO 20
+
+!   n = 2 ; m = 1 ; h_ne = 2 ; a_ne = 2
 !   ALLOCATE( p%G( n ), p%X_l( n ), p%X_u( n ) )
 !   ALLOCATE( p%C( m ), p%C_l( m ), p%C_u( m ) )
 !   ALLOCATE( p%X( n ), p%Y( m ), p%Z( n ) )
@@ -434,7 +448,7 @@
    control%infinity = infty
    control%restore_problem = 2
 !  control%out = 6 ; control%print_level = 1
-   
+
 !  test with new and existing data
 
    tests = 11
@@ -448,25 +462,27 @@
        control%dual_starting_point = 3
      ELSE IF ( i == 4 ) THEN
        control%dual_starting_point = 4
-     ELSE IF ( i == 5 ) THEN     
+     ELSE IF ( i == 5 ) THEN
        control%dual_starting_point = 0
        control%exact_arc_search = .FALSE.
 !      control%print_level = 1
 !      control%GLTR_control%print_level = 1
-     ELSE IF ( i == 6 ) THEN     
+     ELSE IF ( i == 6 ) THEN
 !      control%print_level = 0
        control%exact_arc_search = .TRUE.
        control%subspace_direct = .TRUE.
-     ELSE IF ( i == 7 ) THEN     
+     ELSE IF ( i == 7 ) THEN
        control%max_sc = 0
-     ELSE IF ( i == 8 ) THEN     
+     ELSE IF ( i == 8 ) THEN
        control%max_sc = 100
        control%exact_arc_search = .FALSE.
        control%subspace_arc_search = .FALSE.
        control%subspace_direct = .FALSE.
      ELSE IF ( i == 9 ) THEN
+!      control%print_level = 1
        control%exact_arc_search = .TRUE.
        control%subspace_direct = .TRUE.
+       control%subspace_arc_search = .TRUE.
      ELSE IF ( i == 10 ) THEN
        control%max_sc = 0
      ELSE IF ( i == 11 ) THEN
@@ -534,10 +550,11 @@
 
 !  case when there are no free variables
 
+!20 CONTINUE
    p%X_l = (/ 0.5_wp, 0.5_wp, 0.5_wp /)
    p%X_u = (/ 0.5_wp, 0.5_wp, 0.5_wp /)
-   p%C_l = (/ 1.0_wp, 0.0_wp /)
-   p%C_u = (/ 4.0_wp, infty /)
+   p%C_l = (/ 1.0_wp, 1.0_wp /)
+   p%C_u = (/ 2.0_wp, infty /)
    p%new_problem_structure = .TRUE.
    IF ( ALLOCATED( p%H%type ) ) DEALLOCATE( p%H%type )
    CALL SMT_put( p%H%type, 'SPARSE_BY_ROWS', smt_stat )
@@ -552,6 +569,8 @@
 !  control%print_level = 4
    control%infinity = infty
    control%restore_problem = 2
+!  control%print_level = 101
+!  control%gltr_control%print_level = 1
    DO i = tests + 2, tests + 2
      p%H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 1.0_wp /)
      p%A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
@@ -574,6 +593,7 @@
    DEALLOCATE( p%G, p%X_l, p%X_u, p%C_l, p%C_u )
    DEALLOCATE( p%X, p%Y, p%Z, p%C, X_stat, C_stat )
    DEALLOCATE( p%H%ptr, p%A%ptr )
+!  stop
 
 !  ============================
 !  full test of generic problem
@@ -594,10 +614,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
    p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%C_l = (/ 4.0_wp, 2.0_wp, 6.0_wp, - infty, - infty,                        &
               4.0_wp, 2.0_wp, 6.0_wp, - infty, - infty,                        &
               - 10.0_wp, - 10.0_wp, - 10.0_wp, - 10.0_wp,                      &
@@ -635,7 +655,7 @@
                 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17 /)
    p%A%col = (/ 1, 3, 5, 1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 2, 4, 6,                &
                 8, 10, 12, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 9, 11, 13,      &
-                1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /) 
+                1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /)
 
    CALL DQP_initialize( data, control, info )
    control%infinity = infty
@@ -678,10 +698,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
    p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%C_l = (/ 4.0_wp, 2.0_wp, 6.0_wp, - infty, - infty,                        &
               4.0_wp, 2.0_wp, 6.0_wp, - infty, - infty,                        &
               - 10.0_wp, - 10.0_wp, - 10.0_wp, - 10.0_wp,                      &
@@ -713,7 +733,7 @@
                 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17 /)
    p%A%col = (/ 1, 3, 5, 1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 2, 4, 6,                &
                 8, 10, 12, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 9, 11, 13,      &
-                1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /) 
+                1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /)
 
    CALL DQP_initialize( data, control, info )
    control%infinity = infty
@@ -750,10 +770,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
    p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%C_l = (/ 4.0_wp, 2.0_wp, 6.0_wp, - infty, - infty,                        &
               4.0_wp, 2.0_wp, 6.0_wp, - infty, - infty,                        &
               - 10.0_wp, - 10.0_wp, - 10.0_wp, - 10.0_wp,                      &
@@ -785,7 +805,7 @@
                 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17 /)
    p%A%col = (/ 1, 3, 5, 1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 2, 4, 6,                &
                 8, 10, 12, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 9, 11, 13,      &
-                1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /) 
+                1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14 /)
 
    CALL DQP_initialize( data, control, info )
    control%infinity = infty
@@ -830,10 +850,10 @@
    CALL SMT_put( p%H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( p%A%type ) ) DEALLOCATE( p%A%type )
    CALL SMT_put( p%A%type, 'COORDINATE', smt_stat )
-   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne 
+   p%n = n ; p%m = m ; p%H%ne = h_ne ; p%A%ne = a_ne
    p%f = 1.0_wp
    p%G = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,            &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    p%X_l = (/ - infty, - infty, - infty, - infty, - infty, - infty, - infty,   &
               - infty, - infty, - infty, - infty, - infty, - infty, - infty  /)
    p%X_u = - p%X_l

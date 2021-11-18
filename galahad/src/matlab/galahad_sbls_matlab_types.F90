@@ -10,7 +10,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.4. February 12th, 2010
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_SBLS_MATLAB_TYPES
@@ -49,7 +49,7 @@
         mwPointer :: pointer
         mwPointer :: total, form, factorize, apply
         mwPointer :: clock_total, clock_form, clock_factorize, clock_apply
-      END TYPE 
+      END TYPE
 
       TYPE, PUBLIC :: SBLS_pointer_type
         mwPointer :: pointer
@@ -60,7 +60,7 @@
         TYPE ( SBLS_time_pointer_type ) :: time_pointer
         TYPE ( SLS_pointer_type ) :: SLS_pointer
         TYPE ( ULS_pointer_type ) :: ULS_pointer
-      END TYPE 
+      END TYPE
     CONTAINS
 
 !-*-  S B L S _ M A T L A B _ C O N T R O L _ S E T  S U B R O U T I N E   -*-
@@ -435,8 +435,8 @@
          'rank_def', SBLS_pointer%rank_def )
       CALL MATLAB_create_logical_component( SBLS_pointer%pointer,              &
          'perturbed', SBLS_pointer%perturbed )
-      CALL MATLAB_create_integer_component( SBLS_pointer%iter_pcg,             &
-         'perturbed', SBLS_pointer%iter_pcg )
+      CALL MATLAB_create_integer_component( SBLS_pointer%pointer,              &
+         'iter_pcg', SBLS_pointer%iter_pcg )
       CALL MATLAB_create_real_component( SBLS_pointer%pointer,                 &
          'norm_residual', SBLS_pointer%norm_residual )
 
@@ -495,12 +495,18 @@
       TYPE ( SBLS_inform_type ) :: SBLS_inform
       TYPE ( SBLS_pointer_type ) :: SBLS_pointer
 
+!     INTEGER ::  mexPrintf
+!     integer*4 out
+!     CHARACTER ( LEN = 200 ) :: str
+
 !  local variables
 
       mwPointer :: mxGetPr
 
       CALL MATLAB_copy_to_ptr( SBLS_inform%status,                             &
                                mxGetPr( SBLS_pointer%status ) )
+! WRITE( str, "( ' alloc_status'  )" )
+! out = mexPrintf( TRIM( str ) // achar(10) )
       CALL MATLAB_copy_to_ptr( SBLS_inform%alloc_status,                       &
                                mxGetPr( SBLS_pointer%alloc_status ) )
       CALL MATLAB_copy_to_ptr( SBLS_pointer%pointer,                           &
@@ -566,6 +572,3 @@
 !-*-*-*-  E N D  o f  G A L A H A D _ S B L S _ T Y P E S   M O D U L E  -*-*-*-
 
     END MODULE GALAHAD_SBLS_MATLAB_TYPES
-
-
-

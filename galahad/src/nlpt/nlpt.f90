@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.1 - 13/02/2008 AT 09:20 GMT.
+! THIS VERSION: GALAHAD 3.3 - 28/01/2020 AT 08:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 !-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -17,8 +17,8 @@
 !   originally released with GALAHAD Version 1.2. November 17th 2002
 !   update released with GALAHAD Version 2.0. February 16th 2005
 
-!  For full documentation, see 
-!   http://galahad.rl.ac.uk/galahad-www/specs.html 
+!  For full documentation, see
+!   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_NLPT_double
 
@@ -37,8 +37,9 @@
 !-------------------------
 
       USE GALAHAD_NORMS_double
-      USE GALAHAD_TOOLS_double
       USE GALAHAD_SMT_double
+      USE GALAHAD_USERDATA_double, NLPT_USERDATA_type => GALAHAD_userdata_type
+      USE GALAHAD_TOOLS
       USE GALAHAD_SYMBOLS,                                                     &
           SILENT              => GALAHAD_SILENT,                               &
           TRACE               => GALAHAD_TRACE,                                &
@@ -61,7 +62,7 @@
       PUBLIC :: NLPT_write_variables, NLPT_write_stats,                        &
                 NLPT_write_constraints, NLPT_write_problem,                    &
                 NLPT_J_perm_from_C_to_Srow, NLPT_J_perm_from_C_to_Scol,        &
-                NLPT_cleanup, SMT_type, SMT_put, SMT_get
+                NLPT_cleanup, SMT_type, SMT_put, SMT_get, NLPT_userdata_type
 
 !--------------------
 !   P r e c i s i o n
@@ -77,7 +78,7 @@
 !===============================================================================
 
 !-------------------------------------------------------------------------------
-!                        The problem structure 
+!                        The problem structure
 !-------------------------------------------------------------------------------
 
       TYPE, PUBLIC :: NLPT_problem_type
@@ -88,7 +89,7 @@
 
         ! number of variables
 
-        INTEGER :: n   
+        INTEGER :: n
 
         ! names of the variables
 
@@ -114,13 +115,13 @@
 
          REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: x_scale
 
-        ! variables' status 
+        ! variables' status
 
         INTEGER, ALLOCATABLE, DIMENSION( : ) :: x_status
 
         ! the objective function value
 
-        REAL ( KIND = wp ) :: f 
+        REAL ( KIND = wp ) :: f
 
         ! gradient of the objective function
 
@@ -128,7 +129,7 @@
 
         ! the value of the Lagrangian
 
-        REAL ( KIND = wp ) :: L 
+        REAL ( KIND = wp ) :: L
 
         ! gradient of the Lagrangian
 
@@ -141,12 +142,12 @@
 
         ! the number of nonzeroes in the lower triangular part of the Hessian
         ! of the objective function (unconstrained) or of the Lagrangian
-        ! (constrained) 
+        ! (constrained)
 
         INTEGER :: H_ne
 
         ! Hessian of the objective funtion (unconstrained) or of the
-        ! Lagrangian (constrained) 
+        ! Lagrangian (constrained)
 
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: H_val
 
@@ -159,19 +160,19 @@
         INTEGER, ALLOCATABLE, DIMENSION( : ) :: H_ptr
 
         ! number of nonlinear constraints
-                     
-        INTEGER :: m 
 
-        ! number of linear constraints (if the user wishes to  separate them 
+        INTEGER :: m
+
+        ! number of linear constraints (if the user wishes to  separate them
         ! from the nonlinear ones)
-                     
+
         INTEGER :: m_a
 
-        ! names of the linear constraints   
+        ! names of the linear constraints
 
         CHARACTER( LEN = 10 ), ALLOCATABLE, DIMENSION( : ) :: anames
 
-        ! current values of the linear constraints 
+        ! current values of the linear constraints
 
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: Ax
 
@@ -195,7 +196,7 @@
 
         REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: c_u
 
-        ! names of the constraints   
+        ! names of the constraints
 
         CHARACTER( LEN = 10 ), ALLOCATABLE, DIMENSION( : ) :: cnames
 
@@ -220,7 +221,7 @@
 
          REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: c_scale
 
-        ! constraints' status 
+        ! constraints' status
 
         INTEGER, ALLOCATABLE, DIMENSION( : ) :: c_status
 
@@ -242,11 +243,12 @@
         INTEGER, ALLOCATABLE, DIMENSION( : ) :: J_col
         INTEGER, ALLOCATABLE, DIMENSION( : ) :: J_ptr
 
-        ! Three scalar variables of derived type SMT_type.  Used to hold the
-        ! Jacobian of the (linear and nonlinear) constraints and the Hessian of 
-        ! the Lagrangian. These will eventually replace all of the above.
-  
-        TYPE ( SMT_type ) :: A, J, H
+        ! Four scalar variables of derived type SMT_type.  Used to hold the
+        ! Jacobian of the (linear and nonlinear) constraints, the Hessian of
+        ! the Lagrangian, and the matrix of products of each constraint Hessian
+        ! with a vector.  These will eventually replace all of the above.
+
+        TYPE ( SMT_type ) :: A, J, H, P
 
         ! the convential value of infinity (that is the value beyond which
         ! bounds are assumed to be infinite)
@@ -255,50 +257,11 @@
 
       END TYPE
 
-!  ===================================
-!  The NLPT_userdata_type derived type
-!  ===================================
-
-      TYPE, PUBLIC :: NLPT_userdata_type
-         INTEGER, ALLOCATABLE, DIMENSION( : ) :: integer
-         REAL( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: real
-         COMPLEX ( KIND = wcp ), ALLOCATABLE, DIMENSION( : ) :: complex
-         CHARACTER, ALLOCATABLE, DIMENSION( : ) :: character
-         LOGICAL, ALLOCATABLE, DIMENSION( : ) :: logical
-         INTEGER, POINTER, DIMENSION( : ) :: integer_pointer => null( )
-         REAL( KIND = wp ), POINTER, DIMENSION( : ) :: real_pointer => null( )
-         COMPLEX ( KIND = wcp ), POINTER,                                      &
-           DIMENSION( : ) :: complex_pointer => null( )
-         CHARACTER, POINTER, DIMENSION( : ) :: character_pointer => null( )
-         LOGICAL, POINTER, DIMENSION( : ) :: logical_pointer => null( )
-      END TYPE NLPT_userdata_type
-
 !  ----------------
 !  Other parameters
 !  ----------------
 
       REAL ( KIND = wp ), PRIVATE, PARAMETER :: ZERO = 0.0_wp
-
-!  ----------------------------------------------------------------------------
-!  Interface blocks for the single and double precision BLAS routines
-!  giving the two-norm.
-!  ----------------------------------------------------------------------------
-
-!     INTERFACE TWO_NORM
-!
-!        FUNCTION SNRM2( n, x, incx )
-!          REAL  :: SNRM2
-!          INTEGER, INTENT( IN ) :: n, incx
-!          REAL, INTENT( IN ), DIMENSION( incx * ( n - 1 ) + 1 ) :: x
-!        END FUNCTION SNRM2
-!
-!        FUNCTION DNRM2( n, x, incx )
-!          DOUBLE PRECISION  :: DNRM2
-!          INTEGER, INTENT( IN ) :: n, incx
-!          DOUBLE PRECISION, INTENT( IN ), DIMENSION( incx * ( n - 1 ) + 1 ) :: x
-!        END FUNCTION DNRM2
-!
-!     END INTERFACE
 
    CONTAINS
 
@@ -307,8 +270,8 @@
 
       SUBROUTINE NLPT_J_perm_from_C_to_Srow( problem, perm, col, ptr )
 
-!     Build the permutation that transforms the Jacobian from coordinate 
-!     storage to sparse by row, as well as the associated ptr and col vectors. 
+!     Build the permutation that transforms the Jacobian from coordinate
+!     storage to sparse by row, as well as the associated ptr and col vectors.
 
 !     Arguments:
 
@@ -351,7 +314,7 @@
 !     its col numbers.
 
       DO k = 1, problem%J_ne
-         i  = problem%J_row( k ) 
+         i  = problem%J_row( k )
          ii = ptr( i )
          perm( k ) = ii
          col( k )  = problem%J_col( k )
@@ -366,7 +329,7 @@
       ptr( 1 ) = 1
 
       RETURN
-    
+
       END SUBROUTINE NLPT_J_perm_from_C_to_Srow
 
 !===============================================================================
@@ -374,9 +337,9 @@
 
       SUBROUTINE NLPT_J_perm_from_C_to_Scol( problem, perm, row, ptr )
 
-!     Build the permutation that transforms the Jacobian from coordinate 
+!     Build the permutation that transforms the Jacobian from coordinate
 !     storage to sparse by column, as well as the associated ptr and row
-!     vectors.  
+!     vectors.
 
 !     Arguments:
 
@@ -417,7 +380,7 @@
 !     its row numbers.
 
       DO k = 1, problem%J_ne
-         i  = problem%J_col( k ) 
+         i  = problem%J_col( k )
          ii = ptr( i )
          perm( ii ) = k
          row( ii ) = problem%J_row( k )
@@ -432,7 +395,7 @@
       ptr( 1 ) = 1
 
       RETURN
-    
+
       END SUBROUTINE NLPT_J_perm_from_C_to_Scol
 
 !===============================================================================
@@ -445,15 +408,15 @@
 !  and that both problem%c_l and problem%c_u are associated when problem%m > 0.
 
 !  Arguments
-  
+
    TYPE ( NLPT_problem_type ), INTENT( IN ) :: problem
-  
+
 !         the setup problem
-  
+
    INTEGER, INTENT( IN ) :: out
-  
+
 !         the printout device number.
-  
+
 !  Programming: Ph. Toint, November 2002.
 !
 !===============================================================================
@@ -551,7 +514,7 @@
       WRITE( out, 1002 ) n_free, n_lower, m_lower, n_upper, m_upper, n_range,  &
                        m_range, n_fixed, m_equal, m_linear, problem%n, problem%m
    END IF
-   
+
    RETURN
 
 !  Formats
@@ -569,7 +532,7 @@
             ' Range bounded   ',1x,i15,5x,i15,/                                &
             ' Fixed/equalities',1x,i15,5x,i15,/                                &
             ' Linear          ',21x,i15,' Total           ',1x,i15,5x,i15)
-            
+
 
    END SUBROUTINE NLPT_write_stats
 
@@ -581,21 +544,21 @@
 !  Writes the variables and associated multipliers.  This routine assumes that
 !  problem%pname and problem%x are associated. The bounds are printed
 !  whenever problem%x_l and problem%x_u are associated. Moreover, it is also
-!  assumed in this case that problem%g is associated when problem%m = 0, and 
+!  assumed in this case that problem%g is associated when problem%m = 0, and
 !  that problem%z is associated when problem%m > 0. The variables
 !  names are used whenever problem%vnames is associated, but this is not
 !  mandatory.
-  
+
 !  Arguments
-  
+
    TYPE ( NLPT_problem_type ), INTENT( IN ) :: problem
-  
-!         the setup problem 
- 
+
+!         the setup problem
+
    INTEGER, INTENT( IN ) :: out
-  
+
 !         the printout device number.
-  
+
 !  Programming: Ph. Toint, November 2002.
 !
 !===============================================================================
@@ -677,14 +640,14 @@
                   ELSE IF ( xu < problem%infinity ) THEN
                      WRITE( out, 2002 ) j, problem%x( j ), xu, problem%g( j )
                   ELSE
-                     WRITE( out, 2003 ) j, problem%x( j ), problem%g( j ) 
+                     WRITE( out, 2003 ) j, problem%x( j ), problem%g( j )
                   END IF
                END IF
             END DO
          ELSE
             WRITE( out, 5004 )
             DO j = 1, problem%n
-               WRITE( out, 4003 ) j, problem%x( j ), problem%g( j ) 
+               WRITE( out, 4003 ) j, problem%x( j ), problem%g( j )
             END DO
          END IF
       END IF
@@ -734,17 +697,17 @@
 
    RETURN
 
-1000 FORMAT( 1x,i5,1x,a10,4(1x,1pE12.4 ) ) 
-1001 FORMAT( 1x,i5,1x,a10,2(1x,1pE12.4 ), 14x, 1pE12.4 ) 
-1002 FORMAT( 1x,i5,1x,a10,1x,1pE12.4, 13x, 2(1x,1pE12.4) ) 
-1003 FORMAT( 1x,i5,1x,a10,14x,1pE12.4, 14x, 1pE12.4 ) 
+1000 FORMAT( 1x,i5,1x,a10,4(1x,1pE12.4 ) )
+1001 FORMAT( 1x,i5,1x,a10,2(1x,1pE12.4 ), 14x, 1pE12.4 )
+1002 FORMAT( 1x,i5,1x,a10,1x,1pE12.4, 13x, 2(1x,1pE12.4) )
+1003 FORMAT( 1x,i5,1x,a10,14x,1pE12.4, 14x, 1pE12.4 )
 1004 FORMAT( 1x,i5,1x,a10,14x,1pE12.4)
-2000 FORMAT( 1x,' X(', i5, ') ', 4(1x,1pE12.4 ) ) 
-2001 FORMAT( 1x,' X(', i5, ') ', 2(1x,1pE12.4 ), 14x, 1pE12.4 ) 
-2002 FORMAT( 1x,' X(', i5, ') ', 1x,1pE12.4, 13x, 2(1x,1pE12.4) ) 
-2003 FORMAT( 1x,' X(', i5, ') ', 14x,1pE12.4,14x,1pE12.4 ) 
+2000 FORMAT( 1x,' X(', i5, ') ', 4(1x,1pE12.4 ) )
+2001 FORMAT( 1x,' X(', i5, ') ', 2(1x,1pE12.4 ), 14x, 1pE12.4 )
+2002 FORMAT( 1x,' X(', i5, ') ', 1x,1pE12.4, 13x, 2(1x,1pE12.4) )
+2003 FORMAT( 1x,' X(', i5, ') ', 14x,1pE12.4,14x,1pE12.4 )
 2004 FORMAT( 1x,' X(', i5, ') ', 14x,1pE12.4 )
-3003 FORMAT( 1x,i5,1x,a10,1x, 1pE12.4,1x,1pE12.4 ) 
+3003 FORMAT( 1x,i5,1x,a10,1x, 1pE12.4,1x,1pE12.4 )
 4003 FORMAT( 1x,' X(', i5, ') ', 1pE12.4,1x,1pE12.4 )
 5000 FORMAT(/,11x,'+--------------------------------------------------------+',&
             /,11x,'|',18x,'Problem : ',a10,18x,'|',                            &
@@ -765,7 +728,7 @@
 6006 FORMAT(1x,'           ',4(1x,'X(',i13,')'))
 
    END SUBROUTINE NLPT_write_variables
-      
+
 !===============================================================================
 !===============================================================================
 
@@ -775,18 +738,18 @@
 !  problem%c, problem%c_l, problem%c_u, problem%y, problem%equation and
 !  problem%linear are associated and contain relevant values.  The
 !  constraints' names are used whenever problem%cnames is associated, but this
-!  is not mandatory. 
-  
+!  is not mandatory.
+
 !  Arguments
-  
+
    TYPE ( NLPT_problem_type ), INTENT( IN ) :: problem
-  
+
 !         the setup problem
-  
+
    INTEGER, INTENT( IN ) :: out
-  
+
 !         the printout device number.
-  
+
 !  Programming: Ph. Toint, November 2002.
 !
 !===============================================================================
@@ -843,7 +806,7 @@
                WRITE( out, 1002 ) i, problem%cnames( i ), problem%c( i ), cu,  &
                                   problem%y( i ), type
             ELSE
-               WRITE( out, 1003 ) i, problem%cnames( i ), problem%c( i ), type 
+               WRITE( out, 1003 ) i, problem%cnames( i ), problem%c( i ), type
             END IF
          END DO
       ELSE
@@ -876,7 +839,7 @@
             ELSE IF ( cu < problem%infinity ) THEN
                WRITE( out, 3002 ) i, problem%c( i ), cu, problem%y( i ), type
             ELSE
-               WRITE( out, 3003 ) i, problem%c( i ), type 
+               WRITE( out, 3003 ) i, problem%c( i ), type
             END IF
          END DO
       END IF
@@ -954,14 +917,14 @@
 
    RETURN
 
-1000 FORMAT( 1x,i5,1x,a10,4(1x,1pE12.4 ),1x,a10 ) 
-1001 FORMAT( 1x,i5,1x,a10,2(1x,1pE12.4 ),14x, 1pE12.4,1x,a10 ) 
-1002 FORMAT( 1x,i5,1x,a10,13x,3(1x,1pE12.4),1x,a10 ) 
-1003 FORMAT( 1x,i5,1x,a10,14x,1pE12.4,1x,a10 ) 
-3000 FORMAT( 1x,' C(',i5,') ',4(1x,1pE12.4 ),1x,a10 ) 
-3001 FORMAT( 1x,' C(',i5,') ',2(1x,1pE12.4 ),14x,1pE12.4,1x,a10 ) 
-3002 FORMAT( 1x,' C(',i5,') ',13x,3(1x,1pE12.4),1x,a10 ) 
-3003 FORMAT( 1x,' C(',i5,') ',14x,1pE12.4,1x,a10 ) 
+1000 FORMAT( 1x,i5,1x,a10,4(1x,1pE12.4 ),1x,a10 )
+1001 FORMAT( 1x,i5,1x,a10,2(1x,1pE12.4 ),14x, 1pE12.4,1x,a10 )
+1002 FORMAT( 1x,i5,1x,a10,13x,3(1x,1pE12.4),1x,a10 )
+1003 FORMAT( 1x,i5,1x,a10,14x,1pE12.4,1x,a10 )
+3000 FORMAT( 1x,' C(',i5,') ',4(1x,1pE12.4 ),1x,a10 )
+3001 FORMAT( 1x,' C(',i5,') ',2(1x,1pE12.4 ),14x,1pE12.4,1x,a10 )
+3002 FORMAT( 1x,' C(',i5,') ',13x,3(1x,1pE12.4),1x,a10 )
+3003 FORMAT( 1x,' C(',i5,') ',14x,1pE12.4,1x,a10 )
 5000 FORMAT(/,11x,'+--------------------------------------------------------+',&
             /,11x,'|',18x,'Problem : ',a10,18x,'|',                            &
             /,11x,'+--------------------------------------------------------+',&
@@ -981,7 +944,7 @@
 6008 FORMAT(a80)
 
    END SUBROUTINE NLPT_write_constraints
-      
+
 !===============================================================================
 !===============================================================================
 
@@ -990,7 +953,7 @@
 !  Write the problem's current values. This routine assumes that
 !  problem%x, is associated and contain relevant. The bounds are printed
 !  whenever problem%x_l and problem%x_u are associated. Moreover, it is also
-!  assumed in this case that problem%g is associated when problem%m = 0, and 
+!  assumed in this case that problem%g is associated when problem%m = 0, and
 !  that problem%z, problem%c, problem%c_l, problem%c_u, problem%y,
 !  problem%equation and problem%linear are associated when problem%m > 0. The
 !  variables/constraints' names are used whenever
@@ -1023,7 +986,7 @@
 
    CALL NLPT_write_stats( problem, out )
 
-   IF ( print_level >= ACTION ) THEN         
+   IF ( print_level >= ACTION ) THEN
       CALL NLPT_write_variables( problem, out )
       WRITE( out, 105 ) problem%f
       WRITE( out, 106 )
@@ -1047,10 +1010,10 @@
          IF ( print_level >= DETAILS .AND. ALLOCATED( problem%J_val ) )THEN
             WRITE( out, 108 )
             SELECT CASE ( problem%J_type )
-            CASE ( COORDINATE ) 
+            CASE ( COORDINATE )
                CALL TOOLS_output_matrix_C( problem%J_ne,problem%J_val,         &
                                            problem%J_row, problem%J_col, out )
-            CASE ( SPARSE ) 
+            CASE ( SPARSE )
                CALL TOOLS_output_matrix_S( problem%J_ne,problem%J_val,         &
                                            problem%J_ptr, problem%J_col, out )
             CASE ( DENSE )
@@ -1085,7 +1048,7 @@
             END IF
          END DO
          WRITE( out, 104 ) max_violation
-      END IF           
+      END IF
    END IF
 
 !  Indicate end of problem.
@@ -1118,7 +1081,7 @@
 !  Deallocates the pointers used by problem.
 
       TYPE ( NLPT_problem_type ), INTENT( INOUT ) :: problem
- 
+
 !            the setup problem;
 
       INTEGER, INTENT( IN ), OPTIONAL :: print_level
@@ -1145,7 +1108,7 @@
    END IF
 
    IF ( PRESENT( print_level ) )  THEN
-      plevel = print_level 
+      plevel = print_level
    ELSE
       plevel = SILENT
    END IF
@@ -1196,7 +1159,7 @@
    IF ( ALLOCATED( problem%gL       ) ) DEALLOCATE( problem%gL       )
 
    IF ( plevel >= TRACE ) THEN
-      IF ( plevel >= DETAILS ) WRITE( iout, 1002 ) 
+      IF ( plevel >= DETAILS ) WRITE( iout, 1002 )
       WRITE( iout, 1003 )
    END IF
 

@@ -1,6 +1,6 @@
 #include <fintrf.h>
 
-!  THIS VERSION: GALAHAD 2.4 - 26/02/2010 AT 16:15 GMT.
+!  THIS VERSION: GALAHAD 3.1 - 20/08/2018 AT 16:50 GMT.
 
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 !
@@ -8,25 +8,25 @@
 !
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 !
-!  Given a symmetric n by n matrix H (and possibly M), an n-vector g, 
-!  a constant f, and scalars p and sigma, find an approximate solution 
+!  Given a symmetric n by n matrix H (and possibly M), an n-vector g,
+!  a constant f, and scalars p and sigma, find an approximate solution
 !  of the REGULARISED quadratic subproblem
 !    minimize  1/p sigma ||x||_M^p + 1/2 <x, H x> + <c, x> + f
 !  using an iterative method.
 !  Here ||x||_M^2 = x' * M * x and M is positive definite; if M is
-!  not given, M=I and ||x||_M is thus taken to be the Euclidean (l_2-)norm 
-!  sqrt(x' * x). H need not be definite. Advantage is taken of sparse H. 
+!  not given, M=I and ||x||_M is thus taken to be the Euclidean (l_2-)norm
+!  sqrt(x' * x). H need not be definite. Advantage is taken of sparse H.
 !
 !  Simple usage -
 !
 !  to solve the regularized quadratic subproblem
-!   [ x, obj, inform ] 
+!   [ x, obj, inform ]
 !     = galahad_glrt( H, c, f, p, sigma, control, M )
 !
 !  Sophisticated usage -
 !
 !  to initialize data and control structures prior to solution
-!   [ control ] 
+!   [ control ]
 !     = galahad_glrt( 'initial' )
 !
 !  to solve the problem using existing data structures
@@ -47,7 +47,7 @@
 !    control: a structure containing control parameters.
 !            The components are of the form control.value, where
 !            value is the name of the corresponding component of
-!            the derived type GLRT_control as described in the 
+!            the derived type GLRT_control as described in the
 !            manual for the fortran 90 package GALAHAD_GLRT.
 !            See: http://galahad.rl.ac.uk/galahad-www/doc/glrt.pdf
 !          M: the n by n symmetric, positive-definite matrix M
@@ -61,8 +61,8 @@
 !   inform: a structure containing information parameters
 !      The components are of the form inform.value, where
 !      value is the name of the corresponding component of
-!      the derived type GLRT_inform as described in the manual for 
-!      the fortran 90 package GALAHAD_GLRT. 
+!      the derived type GLRT_inform as described in the manual for
+!      the fortran 90 package GALAHAD_GLRT.
 !      See: http://galahad.rl.ac.uk/galahad-www/doc/glrt.pdf
 !      Note that as the objective value is already available
 !      the component obj from GLRT_inform is omitted.
@@ -75,7 +75,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.3.1. March 5th 2009
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
       SUBROUTINE mexFunction( nlhs, plhs, nrhs, prhs )
@@ -108,7 +108,8 @@
 
 !  local variables
 
-      INTEGER :: i, j, l, n, info
+      INTEGER :: i, j, l, info
+      INTEGER * 4 :: i4, n
       mwSize :: h_arg, c_arg, f_arg, p_arg, sigma_arg, con_arg, m_arg
       mwSize :: x_arg, obj_arg, i_arg
       mwSize :: s_len
@@ -118,7 +119,7 @@
       mwPointer :: g_pr, f_pr, p_pr, sigma_pr
 
       CHARACTER ( len = 80 ) :: output_unit, filename
-      LOGICAL :: filexx, opened, initial_set = .FALSE.
+      LOGICAL :: opened, initial_set = .FALSE.
       INTEGER :: iores
       REAL ( KIND = wp ) :: val
       CHARACTER ( len = 8 ) :: mode
@@ -131,7 +132,7 @@
       REAL ( KIND = wp ), ALLOCATABLE, DIMENSION( : ) :: R, VECTOR, H_VECTOR
       TYPE ( SMT_type ) :: H, M
       TYPE ( GLRT_data_type ), SAVE :: data
-      TYPE ( GLRT_control_type ), SAVE :: control        
+      TYPE ( GLRT_control_type ), SAVE :: control
       TYPE ( GLRT_inform_type ) :: inform
 
       TYPE ( PSLS_data_type ), SAVE :: PSLS_data
@@ -192,7 +193,7 @@
 
       IF ( .NOT. TRIM( mode ) == 'final' ) THEN
 
-!  Check that GLRT_initialize has been called 
+!  Check that GLRT_initialize has been called
 
         IF ( .NOT. initial_set )                                               &
           CALL mexErrMsgTxt( ' "initial" must be called first' )
@@ -204,7 +205,6 @@
           c_in = prhs( con_arg )
           IF ( .NOT. mxIsStruct( c_in ) )                                      &
             CALL mexErrMsgTxt( ' control input argument must be a structure' )
-          END IF
           CALL GLRT_matlab_control_set( c_in, control, s_len )
         END IF
 
@@ -212,30 +212,18 @@
 
         IF ( control%error > 0 ) THEN
           WRITE( output_unit, "( I0 )" ) control%error
-          filename = "output_glrt." // TRIM( output_unit ) 
-          INQUIRE( FILE = filename, EXIST = filexx )
-          IF ( filexx ) THEN
-             OPEN( control%error, FILE = filename, FORM = 'FORMATTED',         &
-                    STATUS = 'OLD', IOSTAT = iores )
-          ELSE
-             OPEN( control%error, FILE = filename, FORM = 'FORMATTED',         &
-                     STATUS = 'NEW', IOSTAT = iores )
-          END IF
+          filename = "output_glrt." // TRIM( output_unit )
+           OPEN( control%error, FILE = filename, FORM = 'FORMATTED',           &
+                STATUS = 'REPLACE', IOSTAT = iores )
         END IF
 
         IF ( control%out > 0 ) THEN
           INQUIRE( control%out, OPENED = opened )
           IF ( .NOT. opened ) THEN
             WRITE( output_unit, "( I0 )" ) control%out
-            filename = "output_glrt." // TRIM( output_unit ) 
-            INQUIRE( FILE = filename, EXIST = filexx )
-            IF ( filexx ) THEN
-               OPEN( control%out, FILE = filename, FORM = 'FORMATTED',         &
-                      STATUS = 'OLD', IOSTAT = iores )
-            ELSE
-               OPEN( control%out, FILE = filename, FORM = 'FORMATTED',         &
-                       STATUS = 'NEW', IOSTAT = iores )
-            END IF
+            filename = "output_glrt." // TRIM( output_unit )
+             OPEN( control%out, FILE = filename, FORM = 'FORMATTED',           &
+                   STATUS = 'REPLACE', IOSTAT = iores )
           END IF
         END IF
 
@@ -313,7 +301,7 @@
         IF ( .NOT. control%unitm ) THEN
           IF ( TRIM( mode ) == 'initial' .OR. TRIM( mode ) == 'all' )          &
             CALL PSLS_initialize( PSLS_data, PSLS_control, PSLS_inform )
-
+          PSLS_control%definite_linear_solver = 'sils'
           PSLS_control%preconditioner = 5
           CALL PSLS_form_and_factorize( M, PSLS_data, PSLS_control,            &
                                         PSLS_inform )
@@ -370,24 +358,30 @@
             i = mexPrintf( TRIM( str ) // ACHAR( 10 ) )
           END DO
         END IF
-   500 CONTINUE
+    500 CONTINUE
 
 !  Output solution
 
-        i = 1
-        plhs( x_arg ) = MATLAB_create_real( n, i )
+        i4 = 1
+        plhs( x_arg ) = MATLAB_create_real( n, i4 )
         x_pr = mxGetPr( plhs( x_arg ) )
         CALL MATLAB_copy_to_ptr( X, x_pr, n )
 
 !  Output optimal objective
 
-        plhs( obj_arg ) = MATLAB_create_real( i )
+        plhs( obj_arg ) = MATLAB_create_real( i4 )
         obj_pr = mxGetPr( plhs( obj_arg ) )
-        CALL MATLAB_copy_to_ptr( inform%obj, obj_pr )
+        CALL MATLAB_copy_to_ptr( inform%obj_regularized, obj_pr )
 
 !  Record output information
 
-       CALL GLRT_matlab_inform_get( inform, GLRT_pointer )
+        CALL GLRT_matlab_inform_get( inform, GLRT_pointer )
+
+!  Check for errors
+
+        IF ( inform%status < 0 )                                               &
+          CALL mexErrMsgTxt( ' Call to glrt_solve failed ' )
+      END IF
 
 !  all components now set
 

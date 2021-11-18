@@ -1,12 +1,12 @@
 ! THIS VERSION: GALAHAD 2.4 - 04/05/2010 AT 20:30 GMT.
    PROGRAM GALAHAD_SBLS_EXAMPLE
    USE GALAHAD_SBLS_double                            ! double precision version
-   USE GALAHAD_LMS_double      
+   USE GALAHAD_LMS_double
    IMPLICIT NONE
    INTEGER, PARAMETER :: wp = KIND( 1.0D+0 ) ! set precision
    TYPE ( SMT_type ) :: H, A, C
    TYPE ( SBLS_data_type ) :: data
-   TYPE ( SBLS_control_type ) :: control        
+   TYPE ( SBLS_control_type ) :: control
    TYPE ( SBLS_inform_type ) :: info
    TYPE ( LMS_data_type ) :: H_lm, H_lmr
    TYPE ( LMS_control_type ) :: LMS_control
@@ -25,7 +25,7 @@
    CALL SMT_put( C%type, 'COORDINATE', smt_stat ) ; C%ne = 0
    ALLOCATE( C%val( C%ne ), C%row( C%ne ), C%col( C%ne ) )
 
-   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4 
+   n = 3 ; m = 2 ; h_ne = 4 ; a_ne = 4
    ALLOCATE( H%ptr( n + 1 ), A%ptr( m + 1 ) )
 
 !  ================
@@ -54,12 +54,12 @@
      ALLOCATE( H%val( h_ne ), H%col( h_ne ) )
      ALLOCATE( A%val( a_ne ), A%col( a_ne ) )
      IF ( ALLOCATED( H%type ) ) DEALLOCATE( H%type )
-     CALL SMT_put( H%type, 'SPARSE_BY_ROWS', smt_stat ) 
+     CALL SMT_put( H%type, 'SPARSE_BY_ROWS', smt_stat )
      H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp /)
      H%col = (/ 1, 2, 3, 1 /)
      H%ptr = (/ 1, 2, 3, 5 /)
      IF ( ALLOCATED( A%type ) ) DEALLOCATE( A%type )
-     CALL SMT_put( A%type, 'SPARSE_BY_ROWS', smt_stat ) 
+     CALL SMT_put( A%type, 'SPARSE_BY_ROWS', smt_stat )
      A%val = (/ 2.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
      A%col = (/ 1, 2, 2, 3 /)
      A%ptr = (/ 1, 3, 5 /)
@@ -98,7 +98,7 @@
    CALL LMS_initialize( H_lm, LMS_control, LMS_inform )
    LMS_control%memory_length = 2
    LMS_control%method = 1
-   CALL LMS_setup( n, H_lm, LMS_control, LMS_inform )  
+   CALL LMS_setup( n, H_lm, LMS_control, LMS_inform )
    DO i = 1, 5
      S = 1.0_wp
      S( 1 ) = REAL( MOD( i, 3 ) + 1, KIND = wp )
@@ -125,7 +125,7 @@
    CALL LMS_initialize( H_lmr, LMS_control, LMS_inform )
    LMS_control%memory_length = 2
    LMS_control%method = 1
-   CALL LMS_setup( n + 1, H_lmr, LMS_control, LMS_inform )  
+   CALL LMS_setup( n + 1, H_lmr, LMS_control, LMS_inform )
    DO i = 1, 5
      S = 1.0_wp
      S( 1 ) = REAL( MOD( i, 3 ) + 1, KIND = wp )
@@ -144,7 +144,6 @@
    DO i = 1, n
      H_lmr%RESTRICTION( i ) = n + 1 - i
    END DO
-
 !  WRITE(6,*) delta
 !  DO i = 1, 3
 !    S = 0.0_wp
@@ -152,7 +151,7 @@
 !    CALL LMS_apply( S, Y, H_lmr, LMS_control, LMS_inform )
 !    write(6,"( 3ES12.4 )" ) Y
 !  END DO
-   DEALLOCATE( S, Y )  
+   DEALLOCATE( S, Y )
 !  DO prec = 6, 8
 !  DO prec = 6, 11
    DO prec = 1, 15
@@ -160,7 +159,7 @@
      WRITE( 6, "( /, 8X, 'storage prec fact  new   status residual' )" )
      SELECT CASE( prec)
      CASE( 1 : 8 ) ; preconditioner = prec
-     CASE( 9 : 11 ) ; preconditioner = prec - 3   ! restricted LBFGS 
+     CASE( 9 : 11 ) ; preconditioner = prec - 3   ! restricted LBFGS
      CASE( 12 ) ; preconditioner = 11
      CASE( 13 ) ; preconditioner = 12
      CASE( 14 ) ; preconditioner = -1
@@ -387,13 +386,13 @@
              DEALLOCATE( C%val, C%row, C%col )
            ELSE IF ( data_storage_type == - 1 ) THEN
              DEALLOCATE( C%val, C%col )
-           ELSE IF ( data_storage_type == - 2 .OR.                            & 
+           ELSE IF ( data_storage_type == - 2 .OR.                            &
                      data_storage_type == - 3 .OR.                            &
                      data_storage_type == - 4 ) THEN
              DEALLOCATE( C%val )
            END IF
          ELSE
-           IF ( data_storage_type == 0 .OR.                                   & 
+           IF ( data_storage_type == 0 .OR.                                   &
                 data_storage_type == - 1 .OR.                                 &
                 data_storage_type == - 2 .OR.                                 &
                 data_storage_type == - 3 ) THEN
@@ -585,7 +584,7 @@
 
    WRITE( 6, "( /, ' basic tests of options ' )" )
 
-   n = 2 ; m = 1 ; h_ne = 2 ; a_ne = 2 
+   n = 2 ; m = 1 ; h_ne = 2 ; a_ne = 2
    ALLOCATE( H%ptr( n + 1 ), A%ptr( m + 1 ) )
    ALLOCATE( SOL( n + m ) )
 
@@ -608,7 +607,7 @@
    A%ptr = (/ 1, 3 /)
    CALL SBLS_initialize( data, control, info )
    control%get_norm_residual = .TRUE.
-   
+
 !  test with new and existing data
 
    WRITE( 6, "( /, ' test   status residual' )" )
@@ -624,13 +623,13 @@
        control%preconditioner = 3
      ELSE IF ( i == 4 ) THEN
        control%preconditioner = 4
-     ELSE IF ( i == 5 ) THEN     
+     ELSE IF ( i == 5 ) THEN
        control%factorization = - 1
-     ELSE IF ( i == 6 ) THEN     
+     ELSE IF ( i == 6 ) THEN
        control%factorization = 1
-     ELSE IF ( i == 7 ) THEN     
+     ELSE IF ( i == 7 ) THEN
        control%max_col = 0
-     ELSE IF ( i == 8 ) THEN     
+     ELSE IF ( i == 8 ) THEN
        control%factorization = 2
        control%preconditioner = 0
      ELSE IF ( i == 9 ) THEN
@@ -646,7 +645,7 @@
 
      ELSE IF ( i == 14 ) THEN
        control%max_col = 5
-!      control%primal = .TRUE.       
+!      control%primal = .TRUE.
      ELSE IF ( i == 15 ) THEN
        control%max_col = 75
      ELSE IF ( i == 16 ) THEN
@@ -704,9 +703,9 @@
    CALL SMT_put( H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( A%type ) ) DEALLOCATE( A%type )
    CALL SMT_put( A%type, 'COORDINATE', smt_stat )
-   H%ne = h_ne ; A%ne = a_ne 
+   H%ne = h_ne ; A%ne = a_ne
    SOL( : n ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,     &
-                   0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+                   0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    SOL( n + 1 : ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp,         &
                        1.0_wp, 2.0_wp /)
    H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 2.0_wp, 3.0_wp, 3.0_wp,                  &
@@ -771,9 +770,9 @@
    CALL SMT_put( H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( A%type ) ) DEALLOCATE( A%type )
    CALL SMT_put( A%type, 'COORDINATE', smt_stat )
-   H%ne = h_ne ; A%ne = a_ne 
+   H%ne = h_ne ; A%ne = a_ne
    SOL( : n ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,    &
-                   0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+                   0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    SOL( n + 1 : ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp,                        &
                        0.0_wp, 0.0_wp, 1.0_wp, 2.0_wp /)
    H%val = (/ 1.0_wp, 1.0_wp, 2.0_wp, 2.0_wp, 3.0_wp, 3.0_wp,                 &
@@ -790,11 +789,10 @@
                 6, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8 /)
    A%col = (/ 1, 3, 5, 1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 2, 4, 6,                 &
                 8, 10, 12, 8, 9, 8, 10, 11, 12, 13, 14 /)
-
    CALL SBLS_initialize( data, control, info )
    control%get_norm_residual = .TRUE.
 !  control%print_level = 1
-   control%preconditioner = -2 ; control%factorization = 2
+   control%preconditioner = - 2 ; control%factorization = 2
    CALL SBLS_form_and_factorize( n, m, H, A, C, data, control, info )
    CALL SBLS_solve( n, m, A, C, data, control, info, SOL )
    IF ( info%status == 0 ) THEN
@@ -822,9 +820,9 @@
    CALL SMT_put( H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( A%type ) ) DEALLOCATE( A%type )
    CALL SMT_put( A%type, 'COORDINATE', smt_stat )
-   H%ne = h_ne ; A%ne = a_ne 
+   H%ne = h_ne ; A%ne = a_ne
    SOL( : n ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,    &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    SOL( n + 1 : ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp,                &
                        0.0_wp, 1.0_wp, 2.0_wp /)
    A%val = (/ 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp,                         &
@@ -833,7 +831,7 @@
                 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp,                       &
                 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
    A%row = (/ 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 5, 5,                    &
-                6, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8 /)  
+                6, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8 /)
    A%col = (/ 1, 3, 5, 1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 2, 6,                    &
                 8, 10, 12, 8, 9, 8, 10, 11, 12, 13, 14 /)
    H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp, 5.0_wp, 6.0_wp, 7.0_wp,         &
@@ -890,9 +888,9 @@
    CALL SMT_put( H%type, 'COORDINATE', smt_stat )
    IF ( ALLOCATED( A%type ) ) DEALLOCATE( A%type )
    CALL SMT_put( A%type, 'COORDINATE', smt_stat )
-   H%ne = h_ne ; A%ne = a_ne 
+   H%ne = h_ne ; A%ne = a_ne
    SOL( : n ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp,    &
-            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /) 
+            0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp /)
    SOL( n + 1 : ) = (/ 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp,                &
                        0.0_wp, 1.0_wp, 2.0_wp /)
    A%val = (/ 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp,                         &
@@ -901,7 +899,7 @@
                 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp,                       &
                 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp, 1.0_wp /)
    A%row = (/ 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 5, 5,                    &
-                6, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8 /)  
+                6, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8 /)
    A%col = (/ 1, 3, 5, 1, 2, 1, 2, 3, 4, 5, 6, 5, 6, 2, 6,                    &
                 8, 10, 12, 8, 9, 8, 10, 11, 12, 13, 14 /)
    H%val = (/ 1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp, 5.0_wp, 6.0_wp, 7.0_wp,         &

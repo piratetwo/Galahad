@@ -1,0 +1,17 @@
+! error-printout-device                             6
+! printout-device                                   6
+! problem-device                                    0
+! print-level                                       0
+! has-h-changed                                     2
+! max-degree-taylor-approximant                     3
+! smallest-eigenvalue-allowed                       1.0D-8
+! lower-bound-on-multiplier                         0.0
+! upper-bound-on-multiplier                         1.0D+300
+! stop-normal-case                                  1.0D-12
+! stop-hard-case                                    1.0D-12
+! build-goldfarb-preconditioner                     F
+! space-critical                                    F
+! deallocate-error-fatal                            F
+! symmetric-linear-equation-solver                  sils
+! problem-file                                      dps_problem.data
+! output-line-prefix                                ""

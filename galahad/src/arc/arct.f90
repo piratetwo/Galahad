@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 02/06/2015 AT 15:50 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/04/2021 AT 14:30 GMT.
    PROGRAM GALAHAD_ARC_test_deck
    USE GALAHAD_ARC_double                       ! double precision version
    USE GALAHAD_SYMBOLS
@@ -21,18 +21,19 @@
    CALL SMT_put( nlp%H%type, 'COORDINATE', s )  ! Specify co-ordinate storage
    ALLOCATE( nlp%H%val( nlp%H%ne ), nlp%H%row( nlp%H%ne ), nlp%H%col( nlp%H%ne))
    nlp%H%row = (/ 1 /) ; nlp%H%col = (/ 1 /)
-! problem data complete   
+! problem data complete
 
 !  ================
 !  error exit tests
 !  ================
 
-   WRITE( 6, "( /, ' error exit tests ', / )" )
+   WRITE( 6, "( /, ' error exit tests' )" )
 
 !  tests for s = - 1 ... - 40
 
    DO s = 1, 40
 
+     IF ( s > 24 .AND. s <= 40 ) CYCLE
      IF ( s == - GALAHAD_error_allocate ) CYCLE
      IF ( s == - GALAHAD_error_deallocate ) CYCLE
 !    IF ( s == - GALAHAD_error_restrictions ) CYCLE
@@ -57,7 +58,6 @@
      IF ( s == - GALAHAD_error_io ) CYCLE
      IF ( s == - GALAHAD_error_upper_entry ) CYCLE
      IF ( s == - GALAHAD_error_sort ) CYCLE
-     IF ( s > 24 .AND. s < 40 ) CYCLE
      CALL ARC_initialize( data, control,inform ) ! Initialize control parameters
 !     control%print_level = 4
 !     control%RQS_control%print_level = 4
@@ -142,11 +142,11 @@
    ALLOCATE( nlp%H%val( nlp%H%ne ), nlp%H%row( nlp%H%ne ), nlp%H%col( nlp%H%ne))
    nlp%H%row = (/ 1, 3, 2, 3, 3 /)            ! Hessian H
    nlp%H%col = (/ 1, 1, 2, 2, 3 /)            ! NB lower triangle
-! problem data complete   
+! problem data complete
    ALLOCATE( userdata%real( 1 ) )             ! Allocate space to hold parameter
    userdata%real( 1 ) = p                     ! Record parameter, p
 
-   WRITE( 6, "( /, ' test of availible options ', / )" )
+   WRITE( 6, "( /, ' test of availible options', / )" )
 
    DO i = 1, 7
      CALL ARC_initialize( data, control, inform )! Initialize control parameters
@@ -206,6 +206,10 @@
      ELSE IF ( i == 6 ) THEN
        control%model = 1
        control%maxit = 1000
+!      control%out = 6
+!      control%error = 6
+!      control%print_level = 1
+       control%stop_g_absolute = 0.001_wp
        CALL ARC_solve( nlp, control, inform, data, userdata,                   &
                        eval_F = FUN, eval_G = GRAD )
      ELSE IF ( i == 7 ) THEN
@@ -222,6 +226,7 @@
      END IF
 
      CALL ARC_terminate( data, control, inform )  ! delete internal workspace
+!    stop
    END DO
    DEALLOCATE( nlp%X, nlp%G, nlp%H%val, nlp%H%row, nlp%H%col, userdata%real )
 
@@ -237,11 +242,11 @@
    ALLOCATE( nlp%H%val( nlp%H%ne ), nlp%H%row( nlp%H%ne ), nlp%H%col( nlp%H%ne))
    nlp%H%row = (/ 1, 3, 2, 3, 3 /)            ! Hessian H
    nlp%H%col = (/ 1, 1, 2, 2, 3 /)            ! NB lower triangle
-! problem data complete   
+! problem data complete
    ALLOCATE( userdata%real( 1 ) )             ! Allocate space to hold parameter
    userdata%real( 1 ) = p                     ! Record parameter, p
 
-   WRITE( 6, "( /, ' full test of generic problems ', / )" )
+   WRITE( 6, "( /, ' full test of generic problems', / )" )
 
    DO i = 1, 6
      CALL ARC_initialize( data, control, inform )! Initialize control parameters
@@ -263,6 +268,7 @@
        CALL ARC_solve( nlp, control, inform, data, userdata, eval_F = FUN,     &
               eval_G = GRAD, eval_HPROD = HESSPROD, eval_PREC = PREC )
      ELSE IF ( i == 4 .OR. i == 5 .OR. i == 6 ) THEN
+       nlp%H%ne = 5
        IF ( i == 4 ) THEN
          control%subproblem_direct = .TRUE.         ! Use a direct method
        ELSE

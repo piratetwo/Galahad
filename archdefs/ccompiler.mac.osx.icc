@@ -5,7 +5,9 @@
 #
 
 CC=icc
-CCBASIC='-c -ansi -vec-report0 -DIsifr' # -mmacosx-version-min=10.4'
+CCBASIC='-c -vec-report0 -DIsifr' # -mmacosx-version-min=10.4'
+CCBASIC='-c -DIsifr'
+CCISO='-ansi'
 CCDEBUG=#-DDEBUG_GALAHAD
 CCFFLAGS=-nofor_main
 
@@ -15,3 +17,5 @@ CXXOPT=-O2
 CXXNOOPT=-O0
 CXXDEBUG=''
 CXXFFLAGS=''
+
+HWLOC='un'

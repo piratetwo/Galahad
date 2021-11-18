@@ -5,7 +5,8 @@
 #
 
 CC=icc
-CCBASIC='-c -ansi -DIsifr'
+CCBASIC='-c -DIsifr'
+CCISO='-ansi'
 CCDEBUG=#-DDEBUG_GALAHAD
 CCFFLAGS=-nofor_main
 
@@ -15,3 +16,5 @@ CXXOPT=-O2
 CXXNOOPT=-O0
 CXXDEBUG=''
 CXXFFLAGS=''
+
+HWLOC='un'

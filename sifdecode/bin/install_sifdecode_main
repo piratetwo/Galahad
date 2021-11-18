@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # partial build script for sifdecode
 # version for Bourne/bash shell
@@ -129,6 +129,7 @@ echo ' '                                                           >> $MAKEFILE
 echo 'AMPLDIR   = '$AMPLLIBDIR                                     >> $MAKEFILE
 echo 'CC        = '$CC                                             >> $MAKEFILE
 echo 'CCBASIC   = '$CCBASIC                                        >> $MAKEFILE
+echo 'CCISO     = '$CCISO                                          >> $MAKEFILE
 echo 'CCONDEF   = '$CCONDEF                                        >> $MAKEFILE
 echo 'CCDEBUG   = '$CCDEBUG                                        >> $MAKEFILE
 echo ' '                                                           >> $MAKEFILE
@@ -166,6 +167,8 @@ if [[ $? != 0 ]]; then
     if (( $DRYRUN )) ; then
       echo "$MAKE $OPTIONS all $MACROS"
     else
+      echo " compiling in $SIFDECODE/src with the comand"
+      echo " $MAKE $OPTIONS all"
       $MAKE $OPTIONS all $MACROS
       [[ $? != 0 ]] && exit 2
     fi

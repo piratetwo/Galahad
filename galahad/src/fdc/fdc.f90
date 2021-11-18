@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 15/10/2014 AT 13:20 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ F D C    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.0.August 14th 2006
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
    MODULE GALAHAD_FDC_double
@@ -23,7 +23,7 @@
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING_double
+      USE GALAHAD_STRING
       USE GALAHAD_SPACE_double
       USE GALAHAD_SMT_double
       USE GALAHAD_SLS_double
@@ -90,7 +90,7 @@
         REAL ( KIND = wp ) :: zero_pivot = epsmch
 
 !  the largest permitted residual
-   
+
 !    REAL ( KIND = wp ) :: max_infeas = epsmch ** 0.33_wp
      REAL ( KIND = wp ) :: max_infeas = epsmch
 
@@ -121,9 +121,9 @@
         CHARACTER ( LEN = 30 ) :: unsymmetric_linear_solver =                  &
            "gls" // REPEAT( ' ', 27 )
 
-!  all output lines will be prefixed by 
+!  all output lines will be prefixed by
 !    prefix(2:LEN(TRIM(%prefix))-1)
-!  where prefix contains the required string enclosed in quotes, 
+!  where prefix contains the required string enclosed in quotes,
 !  e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -190,7 +190,7 @@
 
         INTEGER ( KIND = long ) :: factorization_real = - 1
 
-!  the smallest pivot which was not judged to be zero when detecting linearly 
+!  the smallest pivot which was not judged to be zero when detecting linearly
 !   dependent constraints
 
         REAL ( KIND = wp ) :: non_negligible_pivot = - one
@@ -230,7 +230,7 @@
 !
 !  Default control data for FDC. This routine should be called before
 !  FDC_find_dependent
-! 
+!
 !  --------------------------------------------------------------------
 !
 !  Arguments:
@@ -273,7 +273,7 @@
       control%zero_pivot = epsmch ** 0.75
       control%SLS_control%relative_pivot_tolerance = half
 
-      RETURN  
+      RETURN
 
 !  End of FDC_initialize
 
@@ -283,10 +283,10 @@
 
       SUBROUTINE FDC_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by FDC_initialize could (roughly) 
+!  The defauly values as given by FDC_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN FDC SPECIFICATIONS (DEFAULT)
@@ -306,7 +306,7 @@
 
 !  Dummy arguments
 
-      TYPE ( FDC_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( FDC_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -342,7 +342,7 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
       spec( indmin )%keyword = 'initial-integer-workspace'
       spec( valmin )%keyword = 'initial-real-workspace'
 
@@ -475,23 +475,23 @@
 !
 !   n is an INTEGER variable, which must be set by the user to the
 !    number of columns of A. RESTRICTION: n >= 1
-!                 
+!
 !   m is an INTEGER variable, which must be set by the user to the
 !    number of rows of A. RESTRICTION: m >= 0
-!        
-!   A_val is a REAL array of length A_ptr( m + 1 ) - 1 that must be set by 
+!
+!   A_val is a REAL array of length A_ptr( m + 1 ) - 1 that must be set by
 !    the user to the values of the components of A, stored by row, that is
 !    entries for row i must directly preceed those in row i+1 (the order
 !    within each row is unimportant).
 !
-!   A_col is an INTEGER array of length A_ptr( m + 1 ) - 1 that must be set by 
+!   A_col is an INTEGER array of length A_ptr( m + 1 ) - 1 that must be set by
 !    the user to the column indices of the components of A corresponding
 !    to the values in A_val
 !
-!   A_ptr is an INTEGER array of length that must be set by the user to point 
+!   A_ptr is an INTEGER array of length that must be set by the user to point
 !    to the position in A_val and A_col for the start of each row, as well
 !    as one position past the last entry.
-!         
+!
 !   C is a REAL array of length m, which is used to store the values of c
 !
 !   n_depen is an INTEGER variable that gives the number of rows of A that
@@ -503,16 +503,16 @@
 !
 !   data is a structure of type FDC_data_type that need not be set by the user.
 !
-!   control is a structure of type FDC_control_type that controls the 
+!   control is a structure of type FDC_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
-!   the elements may be set by a call to FDC_initialize. See FDC_initialize 
+!   the elements may be set by a call to FDC_initialize. See FDC_initialize
 !   for details
 !
-!   inform is a structure of type FDC_inform_type that provides 
-!    information on exit from FDC_find_dependent. The component status 
+!   inform is a structure of type FDC_inform_type that provides
+!    information on exit from FDC_find_dependent. The component status
 !    has possible values:
-!  
-!     0 Normal termination with a prediction of how many (and which) 
+!
+!     0 Normal termination with a prediction of how many (and which)
 !       constraints are dependent
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -527,22 +527,22 @@
 !
 !    -9 The ordering failed. The return status from the factorization
 !      package is given in inform%factorization_status
-!    
+!
 !   -10 The factorization failed. The return status from the factorization
 !      package is given in inform%factorization_status
-!    
-!  On exit from FDC_find_dependent, other components of inform give the 
+!
+!  On exit from FDC_find_dependent, other components of inform give the
 !  following:
 !
-!     alloc_status = The status of the last attempted allocation/deallocation 
+!     alloc_status = The status of the last attempted allocation/deallocation
 !     factorization_status = The return status from the factorization
-!     factorization_integer = The total integer workspace required by the 
+!     factorization_integer = The total integer workspace required by the
 !              factorization.
-!     factorization_real = The total real workspace required by the 
+!     factorization_real = The total real workspace required by the
 !              factorization.
 !     nfacts = The total number of factorizations performed.
 !     factorization_status = the return status from the matrix factorization
-!              package.   
+!              package.
 !     non_negligible_pivot = the smallest pivot which was not judged to be
 !       zero when detecting linearly dependent constraints
 !     bad_alloc = the name of the array for which an allocation/deallocation
@@ -566,7 +566,7 @@
 
       INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_depen
       TYPE ( FDC_data_type ), INTENT( INOUT ) :: data
-      TYPE ( FDC_control_type ), INTENT( IN ) :: control        
+      TYPE ( FDC_control_type ), INTENT( IN ) :: control
       TYPE ( FDC_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -580,7 +580,7 @@
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' entering FDC_find_dependent ' )" ) prefix
 
-      CALL CPU_TIME( time_start ) ; CALL CLOCK_time( clock_start ) 
+      CALL CPU_TIME( time_start ) ; CALL CLOCK_time( clock_start )
       IF ( control%use_sls ) THEN
         CALL FDC_find_dependent_sls( n, m, A_val, A_col, A_ptr, C,             &
                                      n_depen, C_depen, data, control, inform )
@@ -595,8 +595,8 @@
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving FDC_find_dependent ' )" ) prefix
-      RETURN  
- 
+      RETURN
+
 !  End of FDC_find_dependent
 
       END SUBROUTINE FDC_find_dependent
@@ -631,7 +631,7 @@
 
       INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_depen
       TYPE ( FDC_data_type ), INTENT( INOUT ) :: data
-      TYPE ( FDC_control_type ), INTENT( IN ) :: control        
+      TYPE ( FDC_control_type ), INTENT( IN ) :: control
       TYPE ( FDC_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -664,13 +664,13 @@
 !  Check that the problem makes sense
 
       IF ( n < 0 .OR. m < 0 ) THEN
-        inform%status = GALAHAD_error_restrictions ; RETURN ; END IF 
+        inform%status = GALAHAD_error_restrictions ; RETURN ; END IF
 
 !  Check the case where n is zero
 
       IF ( n == 0 ) THEN
         IF ( MAXVAL( C ) <= data%control%max_infeas ) THEN
-          DO i = 1, m - 1 
+          DO i = 1, m - 1
             C_depen( i ) = i
           END DO
           n_depen = m - 1
@@ -685,7 +685,7 @@
 
       A_ne = A_ptr( m + 1 ) - 1
       data%K%n = n + m ; data%K%ne = A_ne + n
-      CALL STRING_put( data%K%type, 'COORDINATE', inform%status ) 
+      CALL STRING_put( data%K%type, 'COORDINATE', inform%status )
 
 !  Allocate the arrays for the analysis phase
 
@@ -760,7 +760,7 @@
 
 !  Analyse the sparsity pattern of the matrix
 
-      CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record ) 
+      CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
       CALL SLS_analyse( data%K, data%SLS_data, data%control%SLS_control,       &
                         inform%SLS_inform )
       CALL CPU_TIME( time_now ); CALL CLOCK_time( clock_now )
@@ -794,7 +794,7 @@
 
 !  Factorize the matrix
 
-      CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record ) 
+      CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
       CALL SLS_factorize( data%K, data%SLS_data, data%control%SLS_control,     &
                           inform%SLS_inform )
       CALL CPU_TIME( time_now ); CALL CLOCK_time( clock_now )
@@ -820,7 +820,7 @@
               prefix, inform%SLS_inform%status
         inform%status = GALAHAD_error_factorization
         RETURN
-      END IF 
+      END IF
 
 !  Record warning conditions
 
@@ -862,7 +862,7 @@
 
 !  Compute the smallest and largest eigenvalues of the block diagonal factor
 
-      n_depen = 0 ; twobytwo = .FALSE. 
+      n_depen = 0 ; twobytwo = .FALSE.
       dmax = zero ; dmin = HUGE( one )
       dmax_allowed = zero
       big = one / MAX( data%control%zero_pivot, epsmch )
@@ -884,14 +884,14 @@
             CALL ROOTS_quadratic( data%D( 1, i ) * data%D( 1, i + 1 )          &
                                   - data%D( 2, i ) ** 2,                       &
                                   - data%D( 1, i ) - data%D( 1, i + 1 ),       &
-                                  one, epsmch, nroots, root1, root2, .FALSE. ) 
+                                  one, epsmch, nroots, root1, root2, .FALSE. )
             rmax = MAX( ABS( root1 ), ABS( root2 ) )
             rmin = MIN( ABS( root1 ), ABS( root2 ) )
             dmax = MAX( rmax, dmax ) ; dmin = MIN( rmin, dmin )
 
             pmax = MAX( ABS( data%P( i ) ), ABS( data%P( i + 1 ) ) )
             pmin = MIN( ABS( data%P( i ) ), ABS( data%P( i + 1 ) ) )
-            
+
             IF ( rmax >= big ) THEN
               n_depen = n_depen + 1
               IF ( out > 0 .AND. data%control%print_level >= 3 ) THEN
@@ -916,7 +916,7 @@
               n_depen = n_depen + 1
               IF ( out > 0 .AND. data%control%print_level >= 3 ) THEN
                 WRITE( out, "( A, ' 2x2 block ', 2i7, ' eval = infinity' )" )  &
-                   prefix, pmin - n, pmax - n 
+                   prefix, pmin - n, pmax - n
               END IF
             END IF
             IF ( rmax < big .AND. rmin > zero )                                &
@@ -927,7 +927,7 @@
           ELSE
             rmax = ABS( data%D( 1, i ) ) ; rmin = rmax
             dmax = MAX( rmax, dmax ) ; dmin = MIN( rmin, dmin )
-            IF ( rmax >= big ) THEN    
+            IF ( rmax >= big ) THEN
               n_depen = n_depen + 1
               IF ( out > 0 .AND. data%control%print_level >= 3 ) THEN
                 WRITE( out, "( A, ' 1x1 block ', i7, 8x, 'eval = ', ES12.4 )" )&
@@ -949,13 +949,13 @@
 
           rmax = ABS( data%D( 1, i ) ) ; rmin = rmax
           dmax = MAX( rmax, dmax ) ; dmin = MIN( rmin, dmin )
-          IF ( rmax >= big ) THEN    
+          IF ( rmax >= big ) THEN
             n_depen = n_depen + 1
             IF ( out > 0 .AND. data%control%print_level >= 3 ) THEN
               WRITE( out, "( A, ' 1x1 block ', i7, 7x, ' eval = ', ES12.4 )" ) &
                 prefix, data%P( i ) - n,  one / rmax
             END IF
-          ELSE IF ( rmax == zero ) THEN    
+          ELSE IF ( rmax == zero ) THEN
             n_depen = n_depen + 1
             IF ( out > 0 .AND. data%control%print_level >= 3 ) THEN
               WRITE( out, "( A, ' 1x1 block ', i7, 7x, ' eval = infinity ' )" )&
@@ -1014,8 +1014,8 @@
         IF ( inform%status /= GALAHAD_ok ) RETURN
 
 !  A second loop over the diagonal blocks
-  
-        n_depen = 0 ; twobytwo = .FALSE. 
+
+        n_depen = 0 ; twobytwo = .FALSE.
         DO i = 1, inform%SLS_inform%rank
           IF ( twobytwo ) THEN
             twobytwo = .FALSE.
@@ -1027,7 +1027,7 @@
 
             IF ( data%P( i ) < 0 ) THEN
               twobytwo = .TRUE.
-  
+
               CALL ROOTS_quadratic( data%D( 1, i ) * data%D( 1, i + 1 )        &
                                     - data%D( 2, i ) ** 2,                     &
                                     - data%D( 1, i ) - data%D( 1, i + 1 ),     &
@@ -1053,7 +1053,7 @@
 !  A 1x1 block
 
               IF ( ABS( data%D( 1, i ) ) >= big .OR.                           &
-                        data%D( 1, i ) == zero ) THEN    
+                        data%D( 1, i ) == zero ) THEN
                 n_depen = n_depen + 1
                 C_depen( n_depen ) = data%P( i ) - n
                 data%D( 1, i ) = zero
@@ -1121,8 +1121,8 @@
        "( A, 4( ' -' ), ' end of SLS test for rank defficiency', 4( ' - ' ) )")&
            prefix
 
-      RETURN  
- 
+      RETURN
+
 !  End of FDC_find_dependent_sls
 
       END SUBROUTINE FDC_find_dependent_sls
@@ -1156,7 +1156,7 @@
 
       INTEGER, ALLOCATABLE, DIMENSION( : ) :: C_depen
       TYPE ( FDC_data_type ), INTENT( INOUT ) :: data
-      TYPE ( FDC_control_type ), INTENT( IN ) :: control        
+      TYPE ( FDC_control_type ), INTENT( IN ) :: control
       TYPE ( FDC_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -1171,7 +1171,7 @@
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
         prefix = control%prefix( 2 : LEN( TRIM( control%prefix ) ) - 1 )
 
-! initialize solver-specific data; ensure that block-triangular form is NOT 
+! initialize solver-specific data; ensure that block-triangular form is NOT
 ! used as this may underestimate the rank
 
       data%control = control
@@ -1190,13 +1190,13 @@
 !  Check that the problem makes sense
 
       IF ( n < 0 .OR. m < 0 ) THEN
-        inform%status = GALAHAD_error_restrictions ; RETURN ; END IF 
+        inform%status = GALAHAD_error_restrictions ; RETURN ; END IF
 
 !  Check the case where n is zero
 
       IF ( n == 0 ) THEN
         IF ( MAXVAL( C ) <= data%control%max_infeas ) THEN
-          DO i = 1, m - 1 
+          DO i = 1, m - 1
             C_depen( i ) = i
           END DO
           n_depen = m - 1
@@ -1219,7 +1219,7 @@
 
       A_ne = A_ptr( m + 1 ) - 1
       data%A%n = n ; data%A%m = m ; data%A%ne = A_ne
-      CALL STRING_put( data%A%type, 'COORDINATE', inform%status ) 
+      CALL STRING_put( data%A%type, 'COORDINATE', inform%status )
 
 !  Allocate the arrays for the analysis phase
 
@@ -1282,10 +1282,10 @@
 
 !  Factorize the matrix
 
-      CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record ) 
+      CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record )
       CALL ULS_factorize( data%A, data%ULS_data, data%control%ULS_control,     &
                           inform%ULS_inform )
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       inform%time%factorize = inform%time%factorize + time_now - time_record
       inform%time%clock_factorize =                                            &
         inform%time%clock_factorize + time_now - time_record
@@ -1308,7 +1308,7 @@
               prefix, inform%ULS_inform%status
         inform%status = GALAHAD_error_factorization
         RETURN
-      END IF 
+      END IF
 
 !  record how many dependencies there are
 
@@ -1413,8 +1413,8 @@
        "( A, 4( ' -' ), ' end of ULS test for rank defficiency', 4( ' - ' ) )")&
            prefix
 
-      RETURN  
- 
+      RETURN
+
 !  End of FDC_find_dependent_uls
 
       END SUBROUTINE FDC_find_dependent_uls
@@ -1444,10 +1444,10 @@
 !  Dummy arguments
 
       TYPE ( FDC_data_type ), INTENT( INOUT ) :: data
-      TYPE ( FDC_control_type ), INTENT( IN ) :: control        
+      TYPE ( FDC_control_type ), INTENT( IN ) :: control
       TYPE ( FDC_inform_type ), INTENT( INOUT ) :: inform
       INTEGER, ALLOCATABLE, OPTIONAL, DIMENSION( : ) :: C_depen
- 
+
 !  Local variables
 
       CHARACTER ( LEN = 80 ) :: array_name
@@ -1566,7 +1566,7 @@
 
 !  End of subroutine FDC_terminate
 
-      END SUBROUTINE FDC_terminate 
+      END SUBROUTINE FDC_terminate
 
 !  End of module FDC
 

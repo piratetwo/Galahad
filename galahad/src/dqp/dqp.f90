@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.6 - 15/10/2014 AT 13:20 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ D Q P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -8,36 +8,46 @@
 !  History -
 !   originally released in GALAHAD Version 2.5. August 1st 2012
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
     MODULE GALAHAD_DQP_double
 
-!     ----------------------------------------------------
-!     |                                                  |
-!     | Minimize the quadratic objective function        |
-!     |                                                  |
-!     |        1/2 x^T H x + g^T x + f                   |
-!     |                                                  |
-!     | or linear/seprable objective function            |
-!     |                                                  |
-!     |  1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f       |
-!     |                                                  |
-!     | subject to the linear constraints and bounds     |
-!     |                                                  |
-!     |           c_l <= A x <= c_u                      |
-!     |           x_l <=  x <= x_u                       |
-!     |                                                  |
-!     | for some positive definite Hessian H or diagonal | 
-!     | matrix W using a dual gradient-projection method |
-!     |                                                  |
-!     ----------------------------------------------------
+!     ----------------------------------------------------------
+!     |                                                        |
+!     | Minimize the quadratic objective function              |
+!     |                                                        |
+!     |         q(x) = 1/2 x^T H x + g^T x + f                 |
+!     |                                                        |
+!     | or linear/seprable objective function                  |
+!     |                                                        |
+!     |     s(x) = 1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f   |
+!     |                                                        |
+!     | subject to the linear constraints and bounds           |
+!     |                                                        |
+!     |             c_l <= A x <= c_u                          |
+!     |             x_l <=  x <= x_u                           |
+!     |                                                        |
+!     | for some positive definite Hessian H or diagonal       |
+!     | matrix W using a dual gradient-projection method       |
+!     |                                                        |
+!     | Optionally, minimize instead the penalty function      |
+!     |                                                        |
+!     |    q(x) + rho || min( A x - c_l, c_u - A x, 0 )||_1    |
+!     |                                                        |
+!     | or                                                     |
+!     |                                                        |
+!     |    s(x) + rho || min( A x - c_l, c_u - A x, 0 )||_1    |
+!     |                                                        |
+!     | subject to the bound constraints x_l <= x <= x_u       |
+!     |                                                        |
+!     ----------------------------------------------------------
 
 !$    USE omp_lib
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_verb_pleural,    &
+      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_verb_pleural,           &
                                        STRING_ies, STRING_are, STRING_ordinal, &
                                        STRING_their, STRING_integer_6
       USE GALAHAD_SPACE_double
@@ -56,6 +66,9 @@
       USE GALAHAD_SBLS_double
       USE GALAHAD_GLTR_double
       USE GALAHAD_NORMS_double, ONLY: TWO_norm
+      USE GALAHAD_CHECKPOINT_double
+      USE GALAHAD_RPD_double, ONLY: RPD_inform_type, RPD_write_qp_problem_data
+
       IMPLICIT NONE
 
       PRIVATE
@@ -68,6 +81,7 @@
 !--------------------
 
       INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
+      INTEGER, PARAMETER :: sp = KIND( 1.0 )
       INTEGER, PARAMETER :: long = SELECTED_INT_KIND( 18 )
 
 !----------------------
@@ -90,6 +104,7 @@
       REAL ( KIND = wp ), PARAMETER :: gzero = ten ** ( - 20 )
       REAL ( KIND = wp ), PARAMETER :: hzero = zero
       REAL ( KIND = wp ), PARAMETER :: big_radius = ten ** 10
+!     REAL ( KIND = wp ), PARAMETER :: big_radius = ten ** 20
       REAL ( KIND = wp ), PARAMETER :: alpha_search = one
       REAL ( KIND = wp ), PARAMETER :: beta_search = half
       REAL ( KIND = wp ), PARAMETER :: mu_search = 0.1_wp
@@ -99,14 +114,14 @@
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: DQP_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -131,6 +146,7 @@
 
 !   which starting point should be used for the dual problem
 
+!     -1 user supplied comparing primal vs dual variables
 !      0 user supplied
 !      1 minimize linearized dual
 !      2 minimize simplified quadratic dual
@@ -139,7 +155,7 @@
 
        INTEGER :: dual_starting_point = 0
 
-!   at most maxit inner iterations are allowed 
+!   at most maxit inner iterations are allowed
 
         INTEGER :: maxit = 1000
 
@@ -150,7 +166,7 @@
         INTEGER :: max_sc = 100
 
 !   a subspace step will only be taken when the current Cauchy step has
-!    changed no more than than cauchy_only active constraints; the subspace 
+!    changed no more than than cauchy_only active constraints; the subspace
 !    step will always be taken if cauchy_only < 0
 
        INTEGER :: cauchy_only = - 1
@@ -163,6 +179,13 @@
 
        INTEGER :: cg_maxit = 1000
 
+!   once a potentially optimal subspace has been found, investigate it
+!      0 as per an ordinary subspace
+!      1 by increasing the maximum number of allowed CG iterations
+!      2 by switching to a direct method
+
+       INTEGER :: explore_optimal_subspace = 0
+
 !   indicate whether and how much of the input problem
 !    should be restored on output. Possible values are
 
@@ -172,12 +195,24 @@
 
         INTEGER :: restore_problem = 2
 
-!    specifies the unit number to write generated SIF file describing the 
+!    specifies the unit number to write generated SIF file describing the
 !     current problem
 
         INTEGER :: sif_file_device = 52
 
-!   any bound larger than infinity in modulus will be regarded as infinite 
+!    specifies the unit number to write generated QPLIB file describing the
+!     current problem
+
+        INTEGER :: qplib_file_device = 53
+
+!    the penalty weight, rho. The general constraints are not enforced
+!     explicitly, but instead included in the objective as a penalty term
+!     weighted by rho when rho > 0. If rho <= 0, the general constraints are
+!     explicit (that is, there is no penalty term in the objective function)
+
+        REAL ( KIND = wp ) :: rho = zero
+
+!   any bound larger than infinity in modulus will be regarded as infinite
 
         REAL ( KIND = wp ) :: infinity = ten ** 19
 
@@ -196,8 +231,8 @@
         REAL ( KIND = wp ) :: stop_abs_c = epsmch
         REAL ( KIND = wp ) :: stop_rel_c = epsmch
 
-!  the CG iteration will be stopped as soon as the current norm of the 
-!  preconditioned gradient is smaller than 
+!  the CG iteration will be stopped as soon as the current norm of the
+!  preconditioned gradient is smaller than
 !    max( stop_cg_relative * initial preconditioned gradient, stop_cg_absolute )
 
        REAL ( KIND = wp ) :: stop_cg_relative = ten ** ( - 2 )
@@ -211,7 +246,7 @@
 
        REAL ( KIND = wp ) :: max_growth = ten ** 7
 
-!   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than 
+!   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than
 !    identical_bounds_tol will be reset to the average of their values
 
         REAL ( KIND = wp ) :: identical_bounds_tol = epsmch
@@ -228,41 +263,51 @@
 
 !   the initial penalty weight
 
-        REAL ( KIND = wp ) :: initial_penalty = point1
+        REAL ( KIND = wp ) :: initial_perturbation = point1
 
 !   the penalty weight reduction factor
 
-        REAL ( KIND = wp ) :: penalty_reduction = point1
+        REAL ( KIND = wp ) :: perturbation_reduction = point1
 
 !   the final penalty weight
 
-        REAL ( KIND = wp ) :: final_penalty = ten ** ( - 6 )
+        REAL ( KIND = wp ) :: final_perturbation = ten ** ( - 6 )
+
+!   are the factors of the optimal augmented matrix required?
+
+        LOGICAL :: factor_optimal_matrix = .FALSE.
 
 !  ---------------------------------------
 
-!   the equality constraints will be preprocessed to remove any linear 
+!   the equality constraints will be preprocessed to remove any linear
 !    dependencies if true
 
         LOGICAL :: remove_dependencies = .TRUE.
 
-!    any problem bound with the value zero will be treated as if it were a 
+!    any problem bound with the value zero will be treated as if it were a
 !     general value if true
 
         LOGICAL :: treat_zero_bounds_as_general = .FALSE.
 
-!   if %exact_arc_search is true, an exact piecewise arc search will be 
-!     performed. Otherwise an ineaxt search using a backtracing Armijo 
+!   if %exact_arc_search is true, an exact piecewise arc search will be
+!     performed. Otherwise an ineaxt search using a backtracing Armijo
 !     strategy will be employed
 
         LOGICAL :: exact_arc_search = .TRUE.
 
-!   if %subspace_direct is true, an piecewise arc search will be performed 
-!     along the subspace step. Otherwise the search will stop at the first
-!     constraint encountered
+!   if %subspace_direct is true, the subspace step will be calculated
+!    using a direct (factorization) method, while if it is false, an
+!    iterative (conjugate-gradient) method will be used.
 
         LOGICAL :: subspace_direct = .FALSE.
 
-!   if %subspace_arc_search is true, a piecewise arc search will be performed 
+!   if %subspace_alternate is true, the subspace step will alternate
+!    between a direct (factorization) method and an iterative
+!    (GLTR conjugate-gradient) method. This will override %subspace_direct
+
+        LOGICAL :: subspace_alternate = .FALSE.
+
+!   if %subspace_arc_search is true, a piecewise arc search will be performed
 !     along the subspace step. Otherwise the search will stop at the first
 !     constraint encountered
 
@@ -278,10 +323,15 @@
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
-!   if %generate_sif_file is .true. if a SIF file describing the current 
+!   if %generate_sif_file is .true. if a SIF file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_sif_file = .FALSE.
+
+!   if %generate_qplib_file is .true. if a QPLIB file describing the current
+!    problem is to be generated
+
+        LOGICAL :: generate_qplib_file = .FALSE.
 
 !  indefinite linear equation solver set in symmetric_linear_solver
 
@@ -303,8 +353,13 @@
         CHARACTER ( LEN = 30 ) :: sif_file_name =                              &
          "DQPPROB.SIF"  // REPEAT( ' ', 18 )
 
+!  name of generated QPLIB file containing input problem
+
+        CHARACTER ( LEN = 30 ) :: qplib_file_name =                            &
+         "DQPPROB.qplib"  // REPEAT( ' ', 16 )
+
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -323,7 +378,7 @@
 
 !  control parameters for GLTR
 
-        TYPE ( GLTR_control_type ) :: GLTR_control 
+        TYPE ( GLTR_control_type ) :: GLTR_control
 
       END TYPE DQP_control_type
 
@@ -390,9 +445,9 @@
         REAL ( KIND = wp ) :: clock_search = 0.0
       END TYPE DQP_time_type
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: DQP_inform_type
 
@@ -436,7 +491,7 @@
 
         INTEGER :: threads = 1
 
-!  the value of the objective function at the best estimate of the solution 
+!  the value of the objective function at the best estimate of the solution
 !   determined by DQP_solve
 
         REAL ( KIND = wp ) :: obj = HUGE( one )
@@ -453,7 +508,7 @@
 
         REAL ( KIND = wp ) :: complementary_slackness = HUGE( one )
 
-!  the smallest pivot that was not judged to be zero when detecting linearly 
+!  the smallest pivot that was not judged to be zero when detecting linearly
 !   dependent constraints
 
         REAL ( KIND = wp ) :: non_negligible_pivot = - one
@@ -461,6 +516,13 @@
 !  is the returned "solution" feasible?
 
         LOGICAL :: feasible = .FALSE.
+
+!  checkpoints(i) records the iteration at which the criticality measures
+!   first fall below 10**-i, i = 1, ..., 16 (-1 means not achieved)
+
+!      INTEGER, DIMENSION( 16 ) :: checkpoints = - 1
+       INTEGER, DIMENSION( 16 ) :: checkpointsIter = - 1
+       REAL ( KIND = wp ), DIMENSION( 16 ) :: checkpointsTime = - one
 
 !  timings (see above)
 
@@ -480,25 +542,17 @@
 
 !  return information from GLTR
 
-        TYPE ( GLTR_info_type ) :: GLTR_inform
+        TYPE ( GLTR_inform_type ) :: GLTR_inform
 
 !  inform parameters for SCU
 
         INTEGER :: scu_status = 0
-        TYPE ( SCU_info_type ) :: SCU_inform
+        TYPE ( SCU_inform_type ) :: SCU_inform
+
+!  inform parameters for RPD
+
+        TYPE ( RPD_inform_type ) :: RPD_inform
       END TYPE DQP_inform_type
-
-!  =================================
-!  The CAUCHY_data_type derived type
-!  =================================
-
-!     TYPE :: DQP_CAUCHY_data_type
-!       INTEGER :: iterca, iter, itmax, n_freed, nbreak, nzero
-!       REAL ( KIND = wp ) :: tk, qc1, qc2, epstl2, tpttp, tcauch 
-!       REAL ( KIND = wp ) :: tbreak, deltat, epsqrt, qc1old, g0tp
-!       REAL ( KIND = wp ) :: t, tamax , ptp, gtp, flxt, tnew
-!       LOGICAL :: prnter, pronel, recomp
-!     END TYPE DQP_CAUCHY_data_type
 
     CONTAINS
 
@@ -509,8 +563,8 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Default control data for DQP. This routine should be called before
-!  DQP_primal_dual
-! 
+!  DQP_solve
+!
 !  ---------------------------------------------------------------------------
 !
 !  Arguments:
@@ -522,7 +576,7 @@
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
       TYPE ( DQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( DQP_control_type ), INTENT( OUT ) :: control        
+      TYPE ( DQP_control_type ), INTENT( OUT ) :: control
       TYPE ( DQP_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -558,14 +612,16 @@
                             inform%GLTR_inform )
 !     control%GLTR_control%unitm = .FALSE.
 !     control%GLTR_control%Lanczos_itmax = 5
+      control%GLTR_control%steihaug_toint = .TRUE.
       control%GLTR_control%prefix = '" - GLTR:"                    '
+      control%GLTR_control%rminvr_zero = epsmch ** 1.25
 
 !  initialise private data
 
       data%trans = 0 ; data%tried_to_remove_deps = .FALSE.
       data%save_structure = .TRUE.
 
-      RETURN  
+      RETURN
 
 !  End of DQP_initialize
 
@@ -576,10 +632,10 @@
       SUBROUTINE DQP_read_specfile( control, device, alt_specname,             &
                                     main_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The default values as given by DQP_initialize could (roughly) 
+!  The default values as given by DQP_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN DQP SPECIFICATIONS (DEFAULT)
@@ -594,9 +650,12 @@
 !  cauchy-only-until-change-level                    -1
 !  maximum-number-of-steps-per-arc-search            -1
 !  maximum-number-of-cg-iterations-per-iteration     1000
+!  explore-optimal-subspace                          0
 !  restore-problem-on-output                         2
 !  dual-starting-point                               0
 !  sif-file-device                                   52
+!  qplib-file-device                                 53
+!  penalty-weight                                    0.0D+0
 !  infinity-value                                    1.0D+19
 !  absolute-primal-accuracy                          1.0D-5
 !  relative-primal-accuracy                          1.0D-5
@@ -614,6 +673,7 @@
 !  remove-linear-dependencies                        T
 !  treat-zero-bounds-as-general                      F
 !  direct-solution-of-subspace-problem               F
+!  alternate-solution-of-subspace-problem            F
 !  perform-exact-arc-search                          F
 !  perform-subspace-arc-search                       T
 !  space-critical                                    F
@@ -622,13 +682,15 @@
 !  definite-linear-equation-solver                   sils
 !  unsymmetric-linear-equation-solver                gls
 !  generate-sif-file                                 F
+!  generate-qplib-file                               F
 !  sif-file-name                                     DQPPROB.SIF
+!  qplib-file-name                                   DQPPROB.qplib
 !  output-line-prefix                                ""
 ! END DQP SPECIFICATIONS (DEFAULT)
 
 !  Dummy arguments
 
-      TYPE ( DQP_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( DQP_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
       CHARACTER( LEN = * ), OPTIONAL :: main_specname
@@ -648,10 +710,13 @@
       INTEGER, PARAMETER :: cauchy_only = max_sc + 1
       INTEGER, PARAMETER :: arc_search_maxit = cauchy_only + 1
       INTEGER, PARAMETER :: cg_maxit = arc_search_maxit + 1
-      INTEGER, PARAMETER :: dual_starting_point = cg_maxit + 1
+      INTEGER, PARAMETER :: explore_optimal_subspace = cg_maxit + 1
+      INTEGER, PARAMETER :: dual_starting_point = explore_optimal_subspace + 1
       INTEGER, PARAMETER :: restore_problem = dual_starting_point + 1
       INTEGER, PARAMETER :: sif_file_device = restore_problem + 1
-      INTEGER, PARAMETER :: infinity = sif_file_device + 1
+      INTEGER, PARAMETER :: qplib_file_device = sif_file_device + 1
+      INTEGER, PARAMETER :: rho = qplib_file_device + 1
+      INTEGER, PARAMETER :: infinity = rho + 1
       INTEGER, PARAMETER :: stop_abs_p = infinity + 1
       INTEGER, PARAMETER :: stop_rel_p = stop_abs_p + 1
       INTEGER, PARAMETER :: stop_abs_d = stop_rel_p + 1
@@ -662,27 +727,30 @@
       INTEGER, PARAMETER :: stop_cg_absolute = stop_cg_relative + 1
       INTEGER, PARAMETER :: cg_zero_curvature = stop_cg_absolute + 1
       INTEGER, PARAMETER :: max_growth = stop_cg_absolute + 1
-      INTEGER, PARAMETER :: identical_bounds_tol = max_growth + 1 
+      INTEGER, PARAMETER :: identical_bounds_tol = max_growth + 1
       INTEGER, PARAMETER :: cpu_time_limit = identical_bounds_tol + 1
       INTEGER, PARAMETER :: clock_time_limit = cpu_time_limit + 1
-      INTEGER, PARAMETER :: initial_penalty = clock_time_limit + 1
-      INTEGER, PARAMETER :: penalty_reduction = initial_penalty + 1
-      INTEGER, PARAMETER :: final_penalty = penalty_reduction + 1
-      INTEGER, PARAMETER :: remove_dependencies = final_penalty + 1
+      INTEGER, PARAMETER :: initial_perturbation = clock_time_limit + 1
+      INTEGER, PARAMETER :: perturbation_reduction = initial_perturbation + 1
+      INTEGER, PARAMETER :: final_perturbation = perturbation_reduction + 1
+      INTEGER, PARAMETER :: remove_dependencies = final_perturbation + 1
       INTEGER, PARAMETER :: treat_zero_bounds_as_general                       &
                               = remove_dependencies + 1
       INTEGER, PARAMETER :: subspace_direct = treat_zero_bounds_as_general + 1
-      INTEGER, PARAMETER :: exact_arc_search = subspace_direct + 1
+      INTEGER, PARAMETER :: subspace_alternate = subspace_direct + 1
+      INTEGER, PARAMETER :: exact_arc_search = subspace_alternate + 1
       INTEGER, PARAMETER :: subspace_arc_search = exact_arc_search + 1
       INTEGER, PARAMETER :: space_critical = subspace_arc_search + 1
       INTEGER, PARAMETER :: deallocate_error_fatal = space_critical + 1
       INTEGER, PARAMETER :: generate_sif_file = deallocate_error_fatal + 1
-      INTEGER, PARAMETER :: symmetric_linear_solver = generate_sif_file + 1
+      INTEGER, PARAMETER :: generate_qplib_file = generate_sif_file + 1
+      INTEGER, PARAMETER :: symmetric_linear_solver = generate_qplib_file + 1
       INTEGER, PARAMETER :: definite_linear_solver = symmetric_linear_solver + 1
       INTEGER, PARAMETER :: unsymmetric_linear_solver                          &
                               = definite_linear_solver + 1
       INTEGER, PARAMETER :: sif_file_name = unsymmetric_linear_solver + 1
-      INTEGER, PARAMETER :: prefix = sif_file_name + 1
+      INTEGER, PARAMETER :: qplib_file_name = sif_file_name + 1
+      INTEGER, PARAMETER :: prefix = qplib_file_name + 1
       INTEGER, PARAMETER :: lspec = prefix
       CHARACTER( LEN = 4 ), PARAMETER :: specname = 'DQP'
       TYPE ( SPECFILE_item_type ), DIMENSION( lspec ) :: spec
@@ -693,7 +761,7 @@
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
       spec( start_print )%keyword = 'start-print'
       spec( stop_print )%keyword = 'stop-print'
       spec( print_gap )%keyword = 'iterations-between-printing'
@@ -703,12 +771,15 @@
       spec( arc_search_maxit )%keyword                                         &
         = 'maximum-number-of-steps-per-arc-search'
       spec( cg_maxit )%keyword = 'maximum-number-of-cg-iterations-per-iteration'
+      spec( explore_optimal_subspace )%keyword = 'explore-optimal-subspace'
       spec( dual_starting_point )%keyword = 'dual-starting-point'
       spec( restore_problem )%keyword = 'restore-problem-on-output'
       spec( sif_file_device )%keyword = 'sif-file-device'
+      spec( qplib_file_device )%keyword = 'qplib-file-device'
 
 !  Real key-words
 
+      spec( rho )%keyword = 'penalty-weight'
       spec( infinity )%keyword = 'infinity-value'
       spec( stop_abs_p )%keyword = 'absolute-primal-accuracy'
       spec( stop_rel_p )%keyword = 'relative-primal-accuracy'
@@ -723,9 +794,9 @@
       spec( identical_bounds_tol )%keyword = 'identical-bounds-tolerance'
       spec( cpu_time_limit )%keyword = 'maximum-cpu-time-limit'
       spec( clock_time_limit )%keyword = 'maximum-clock-time-limit'
-      spec( initial_penalty )%keyword = 'initial-penalty-parameter'
-      spec( penalty_reduction )%keyword = 'penalty-parameter-reduction-factor'
-      spec( final_penalty )%keyword = 'final-penalty-parameter'
+      spec( initial_perturbation )%keyword = 'initial-perturbation'
+      spec( perturbation_reduction )%keyword = 'perturbation-reduction-factor'
+      spec( final_perturbation )%keyword = 'final-perturbation'
 
 !  Logical key-words
 
@@ -733,11 +804,14 @@
       spec( treat_zero_bounds_as_general )%keyword                             &
         = 'treat-zero-bounds-as-general'
       spec( subspace_direct )%keyword = 'direct-solution-of-subspace-problem'
+      spec( subspace_alternate )%keyword                                       &
+        = 'alternate-solution-of-subspace-problem'
       spec( exact_arc_search )%keyword = 'perform-exact-arc-search'
       spec( subspace_arc_search )%keyword = 'perform-subspace-arc-search'
       spec( space_critical )%keyword = 'space-critical'
       spec( deallocate_error_fatal )%keyword = 'deallocate-error-fatal'
       spec( generate_sif_file )%keyword = 'generate-sif-file'
+      spec( generate_qplib_file )%keyword = 'generate-qplib-file'
 
 !  Character key-words
 
@@ -747,6 +821,7 @@
       spec( unsymmetric_linear_solver )%keyword                                &
         = 'unsymmetric-linear-equation-solver'
       spec( sif_file_name )%keyword = 'sif-file-name'
+      spec( qplib_file_name )%keyword = 'qplib-file-name'
       spec( prefix )%keyword = 'output-line-prefix'
 
 !  Read the specfile
@@ -796,6 +871,9 @@
      CALL SPECFILE_assign_value( spec( cg_maxit ),                             &
                                  control%cg_maxit,                             &
                                  control%error )
+     CALL SPECFILE_assign_value( spec( explore_optimal_subspace ),             &
+                                 control%explore_optimal_subspace,             &
+                                 control%error )
      CALL SPECFILE_assign_value( spec( dual_starting_point ),                  &
                                  control%dual_starting_point,                  &
                                  control%error )
@@ -805,9 +883,15 @@
      CALL SPECFILE_assign_value( spec( sif_file_device ),                      &
                                  control%sif_file_device,                      &
                                  control%error )
+     CALL SPECFILE_assign_value( spec( qplib_file_device ),                    &
+                                 control%qplib_file_device,                    &
+                                 control%error )
 
 !  Set real values
 
+     CALL SPECFILE_assign_value( spec( rho ),                                  &
+                                 control%rho,                                  &
+                                 control%error )
      CALL SPECFILE_assign_value( spec( infinity ),                             &
                                  control%infinity,                             &
                                  control%error )
@@ -850,14 +934,14 @@
      CALL SPECFILE_assign_value( spec( clock_time_limit ),                     &
                                  control%clock_time_limit,                     &
                                  control%error )
-     CALL SPECFILE_assign_value( spec( initial_penalty ),                      &
-                                 control%initial_penalty,                      &
+     CALL SPECFILE_assign_value( spec( initial_perturbation ),                 &
+                                 control%initial_perturbation,                 &
                                  control%error )
-     CALL SPECFILE_assign_value( spec( penalty_reduction ),                    &
-                                 control%penalty_reduction,                    &
+     CALL SPECFILE_assign_value( spec( perturbation_reduction ),               &
+                                 control%perturbation_reduction,               &
                                  control%error )
-     CALL SPECFILE_assign_value( spec( final_penalty ),                        &
-                                 control%final_penalty,                        &
+     CALL SPECFILE_assign_value( spec( final_perturbation ),                   &
+                                 control%final_perturbation,                   &
                                  control%error )
 
 !  Set logical values
@@ -870,6 +954,9 @@
                                  control%error )
      CALL SPECFILE_assign_value( spec( subspace_direct ),                      &
                                  control%subspace_direct,                      &
+                                 control%error )
+     CALL SPECFILE_assign_value( spec( subspace_alternate ),                   &
+                                 control%subspace_alternate,                   &
                                  control%error )
      CALL SPECFILE_assign_value( spec( exact_arc_search ),                     &
                                  control%exact_arc_search,                     &
@@ -885,6 +972,9 @@
                                  control%error )
      CALL SPECFILE_assign_value( spec( generate_sif_file ),                    &
                                  control%generate_sif_file,                    &
+                                 control%error )
+     CALL SPECFILE_assign_value( spec( generate_qplib_file ),                  &
+                                 control%generate_qplib_file,                  &
                                  control%error )
 
 !  Set character values
@@ -909,6 +999,9 @@
                                  control%error )
      CALL SPECFILE_assign_value( spec( sif_file_name ),                        &
                                  control%sif_file_name,                        &
+                                 control%error )
+     CALL SPECFILE_assign_value( spec( qplib_file_name ),                      &
+                                 control%qplib_file_name,                      &
                                  control%error )
      CALL SPECFILE_assign_value( spec( prefix ),                               &
                                  control%prefix,                               &
@@ -961,13 +1054,13 @@
 
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
-!  Minimize quadratic objective
+!  Minimize the quadratic objective
 !
-!        1/2 x^T H x + g^T x + f
+!        q(x) = 1/2 x^T H x + g^T x + f
 !
 !  or the linear/separable objective
 !
-!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f  
+!        s(x) = 1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f
 !
 !  where
 !
@@ -977,18 +1070,28 @@
 !
 !  where x is a vector of n components ( x_1, .... , x_n ),
 !  A is an m by n matrix, and any of the bounds (c_l)_i, (c_u)_i
-!  (x_l)_i, (x_u)_i may be infinite, using a primal-dual method.
-!  The subroutine is particularly appropriate when A is sparse.
+!  (x_l)_i, (x_u)_i may be infinite, using a dual gradient-projection
+!  method. The subroutine is particularly appropriate when A is sparse.
+!
+!  Optionally, minimize instead the penalty function
+!
+!      q(x) + rho || min( A x - c_l, c_u - A x, 0 )||_1
+!
+!  or
+!
+!      s(x) + rho || min( A x - c_l, c_u - A x, 0 )||_1
+!
+!  subject to the bound constraints x_l <= x <= x_u
 !
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Arguments:
 !
-!  prob is a structure of type QPT_problem_type, whose components hold 
+!  prob is a structure of type QPT_problem_type, whose components hold
 !   information about the problem on input, and its solution on output.
 !   The following components must be set:
 !
-!   %new_problem_structure is a LOGICAL variable, which must be set to 
+!   %new_problem_structure is a LOGICAL variable, which must be set to
 !    .TRUE. by the user if this is the first problem with this "structure"
 !    to be solved since the last call to DQP_initialize, and .FALSE. if
 !    a previous call to a problem with the same "structure" (but different
@@ -996,23 +1099,23 @@
 !
 !   %n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !   %m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
+!
 !   %Hessian_kind is an INTEGER variable which defines the type of objective
 !    function to be used. Possible values are
 !
-!     0  all the weights will be zero, and the analytic centre of the 
+!     0  all the weights will be zero, and the analytic centre of the
 !        feasible region will be found. %WEIGHT (see below) need not be set
 !
 !     1  all the weights will be one. %WEIGHT (see below) need not be set
 !
 !     2  the weights will be those given by %WEIGHT (see below)
 !
-!    <0  the positive definite Hessian H will be used 
+!    <0  the positive definite Hessian H will be used
 !
-!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of H. Seven storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -1023,7 +1126,7 @@
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
 !       H%col( : )   the column indices of the components of H
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !
 !    ii) sparse, by rows
@@ -1042,7 +1145,7 @@
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -1065,13 +1168,14 @@
 !
 !       H%type( 1 : 8 ) = 'IDENTITY'
 !
-!    vii) L-BFGS Hessian 
+!    vii) L-BFGS Hessian
 !
 !       In this case, the following must be set:
 !
 !       H%type( 1 : 5 ) = 'LBFGS'
 !
 !       The Hessian in this case is available via the component H_lm below
+!       ** N.B. YET TO BE IMPLEMENTED **
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
@@ -1082,12 +1186,13 @@
 !   %H_lm is a structure of type LMS_data_type, whose components hold the
 !     L-BFGS Hessian. Access to this structure is via the module GALAHAD_LMS,
 !     and this component needs only be set if %H%type( 1 : 5 ) = 'LBFGS.'
-!    
+!   ** N.B. YET TO BE IMPLEMENTED **
+!
 !   %WEIGHT is a REAL array, which need only be set if %Hessian_kind is larger
 !    than 1. If this is so, it must be of length at least %n, and contain the
-!    weights W for the objective function. 
+!    weights W for the objective function.
 !
-!   %target_kind is an INTEGER variable that defines possible special 
+!   %target_kind is an INTEGER variable that defines possible special
 !     targets X0. Possible values are
 !
 !     0  X0 will be a vector of zeros.
@@ -1097,32 +1202,32 @@
 !        %X0 (see below) need not be set
 !
 !     any other value - the values of X0 will be those given by %X0 (see below)
-!  
+!
 !   %X0 is a REAL array, which need only be set if %Hessian_kind is larger
-!    that 0 and %target_kind /= 0,1. If this is so, it must be of length at 
-!    least %n, and contain the targets X^0 for the objective function. 
-!  
+!    that 0 and %target_kind /= 0,1. If this is so, it must be of length at
+!    least %n, and contain the targets X^0 for the objective function.
+!
 !   %gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term g will be zero, and the analytic centre of the 
+!     0  the linear term g will be zero, and the analytic centre of the
 !        feasible region will be found if in addition %Hessian_kind is 0.
 !        %G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        %G (see below) need not be set
 !
 !     any other value - the gradients will be those given by %G (see below)
 !
-!   %G is a REAL array, which need only be set if %gradient_kind is not 0 
+!   %G is a REAL array, which need only be set if %gradient_kind is not 0
 !    or 1. If this is so, it must be of length at least %n, and contain the
-!    linear terms g for the objective function. 
-!  
+!    linear terms g for the objective function.
+!
 !   %f is a REAL variable, which must be set by the user to the value of
 !    the constant term f in the objective function. On exit, it may have
 !    been changed to reflect variables which have been fixed.
 !
-!   %A is a structure of type SMT_type used to hold the matrix A. 
+!   %A is a structure of type SMT_type used to hold the matrix A.
 !    Three storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -1151,68 +1256,68 @@
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
 !    However, if scheme (i) is used for input, the output A%row will contain
 !    the row numbers corresponding to the values in A%val, and thus in this
-!    case the output matrix will be available in both formats (i) and (ii).   
-! 
-!   %C is a REAL array of length %m, which is used to store the values of 
-!    A x. It need not be set on entry. On exit, it will have been filled 
+!    case the output matrix will be available in both formats (i) and (ii).
+!
+!   %C is a REAL array of length %m, which is used to store the values of
+!    A x. It need not be set on entry. On exit, it will have been filled
 !    with appropriate values.
 !
 !   %X is a REAL array of length %n, which must be set by the user
-!    to estimaes of the solution, x. On successful exit, it will contain 
+!    to estimaes of the solution, x. On successful exit, it will contain
 !    the required solution, x.
 !
 !   %C_l, %C_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays c_l and c_u of lower and upper bounds on A x.
-!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %C_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %C_u to a value larger than 
-!    control%infinity. On exit, %C_l and %C_u will most likely have been 
+!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %C_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %C_u to a value larger than
+!    control%infinity. On exit, %C_l and %C_u will most likely have been
 !    reordered.
-!   
+!
 !   %Y is a REAL array of length %m, which must be set by the user to
-!    appropriate estimates of the values of the Lagrange multipliers 
-!    corresponding to the general constraints c_l <= A x <= c_u. 
-!    On successful exit, it will contain the required vector of Lagrange 
+!    appropriate estimates of the values of the Lagrange multipliers
+!    corresponding to the general constraints c_l <= A x <= c_u.
+!    On successful exit, it will contain the required vector of Lagrange
 !    multipliers.
 !
 !   %X_l, %X_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays x_l and x_u of lower and upper bounds on x.
-!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %X_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %X_u to a value larger than 
-!    control%infinity. On exit, %X_l and %X_u will most likely have been 
+!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %X_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %X_u to a value larger than
+!    control%infinity. On exit, %X_l and %X_u will most likely have been
 !    reordered.
-!   
+!
 !   %Z is a REAL array of length %n, which must be set by the user to
-!    appropriate estimates of the values of the dual variables 
-!    (Lagrange multipliers corresponding to the simple bound constraints 
+!    appropriate estimates of the values of the dual variables
+!    (Lagrange multipliers corresponding to the simple bound constraints
 !    x_l <= x <= x_u). On successful exit, it will contain
-!   the required vector of dual variables. 
+!   the required vector of dual variables.
 !
 !  data is a structure of type DQP_data_type which holds private internal data
 !
-!  control is a structure of type DQP_control_type that controls the 
+!  control is a structure of type DQP_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
 !   the elements may be set by a call to DQP_initialize. See the preamble
 !   for details
 !
-!  inform is a structure of type DQP_inform_type that provides 
-!    information on exit from DQP_solve. The component status 
+!  inform is a structure of type DQP_inform_type that provides
+!    information on exit from DQP_solve. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination with a locally optimal solution.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -1221,7 +1326,7 @@
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!   - 3 one of the restrictions 
+!   - 3 one of the restrictions
 !        prob%n     >=  1
 !        prob%m     >=  0
 !        prob%A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE' }
@@ -1236,43 +1341,43 @@
 !
 !    -8 The analytic center appears to be unbounded.
 !
-!    -9 The analysis phase of the factorization failed; the return status 
+!    -9 The analysis phase of the factorization failed; the return status
 !       from the factorization package is given in the component factor_status.
-!      
+!
 !   -10 The factorization failed; the return status from the factorization
 !       package is given in the component factor_status.
-!      
-!   -11 The solve of a required linear system failed; the return status from 
+!
+!   -11 The solve of a required linear system failed; the return status from
 !       the factorization package is given in the component factor_status.
-!      
-!   -16 The problem is so ill-conditoned that further progress is impossible.  
+!
+!   -16 The problem is so ill-conditoned that further progress is impossible.
 !
 !   -17 The step is too small to make further impact.
 !
 !   -18 Too many iterations have been performed. This may happen if
-!       control%maxit is too small, but may also be symptomatic of 
+!       control%maxit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !   -19 Too much time has passed. This may happen if control%cpu_time_limit or
-!       control%clock_time_limit is too small, but may also be symptomatic of 
+!       control%clock_time_limit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !  On exit from DQP_solve, other components of inform are given in the preamble
 !
-!  C_stat is an optional INTEGER array of length m, which if present will be 
-!   set on exit to indicate the likely ultimate status of the constraints. 
-!   Possible values are 
-!   C_stat( i ) < 0, the i-th constraint is likely in the active set, 
-!                    on its lower bound, 
+!  C_stat is an optional INTEGER array of length m, which if present will be
+!   set on exit to indicate the likely ultimate status of the constraints.
+!   Possible values are
+!   C_stat( i ) < 0, the i-th constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is likely not in the active set
 !
-!  X_stat is an optional  INTEGER array of length n, which if present will be 
-!   set on exit to indicate the likely ultimate status of the simple bound 
-!   constraints. Possible values are 
-!   X_stat( i ) < 0, the i-th bound constraint is likely in the active set, 
-!                    on its lower bound, 
+!  X_stat is an optional  INTEGER array of length n, which if present will be
+!   set on exit to indicate the likely ultimate status of the simple bound
+!   constraints. Possible values are
+!   X_stat( i ) < 0, the i-th bound constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is likely not in the active set
@@ -1283,7 +1388,7 @@
 
       TYPE ( QPT_problem_type ), INTENT( INOUT ) :: prob
       TYPE ( DQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( DQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( DQP_control_type ), INTENT( IN ) :: control
       TYPE ( DQP_inform_type ), INTENT( OUT ) :: inform
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%m ) :: C_stat
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%n ) :: X_stat
@@ -1291,7 +1396,7 @@
 !  Local variables
 
       INTEGER :: i, j, l, n_depen, nzc, nv, lbd, dual_starting_point
-      REAL ( KIND = wp ) :: time_start, time_record, time_now
+      REAL :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize
@@ -1306,7 +1411,7 @@
 
 !$    INTEGER :: OMP_GET_MAX_THREADS
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -1316,7 +1421,7 @@
         WRITE( control%out, "( A, ' entering DQP_solve ' )" ) prefix
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
       IF ( control%generate_sif_file ) THEN
         CALL QPD_SIF( prob, control%sif_file_name, control%sif_file_device,    &
@@ -1325,6 +1430,14 @@
 
 !  SIF file generated
 ! -------------------------------------------------------------------
+
+! -------------------------------------------------------------------
+!  If desired, generate a QPLIB file for problem passed
+
+      IF ( control%generate_qplib_file ) THEN
+        CALL RPD_write_qp_problem_data( prob, control%qplib_file_name,         &
+                    control%qplib_file_device, inform%rpd_inform )
+      END IF
 
 !  initialize time
 
@@ -1336,7 +1449,7 @@
       inform%alloc_status = 0 ; inform%bad_alloc = ''
       inform%factorization_status = 0
       inform%iter = - 1 ; inform%nfacts = - 1
-      inform%factorization_integer = - 1 ; inform%factorization_real = - 1 
+      inform%factorization_integer = - 1 ; inform%factorization_real = - 1
       inform%obj = - one
       inform%non_negligible_pivot = zero
       inform%feasible = .FALSE.
@@ -1345,7 +1458,7 @@
 
 !  basic single line of output per iteration
 
-      printi = control%out > 0 .AND. control%print_level >= 1 
+      printi = control%out > 0 .AND. control%print_level >= 1
 
 !  ensure that input parameters are within allowed ranges
 
@@ -1353,94 +1466,98 @@
            .NOT. QPT_keyword_A( prob%A%type ) ) THEN
         inform%status = GALAHAD_error_restrictions
         IF ( control%error > 0 .AND. control%print_level > 0 )                 &
-          WRITE( control%error, 2010 ) prefix, inform%status 
-        GO TO 800 
-      END IF 
+          WRITE( control%error, 2010 ) prefix, inform%status
+        GO TO 800
+      END IF
 
-!  if required, write out problem 
+!  if required, write out problem
 
       IF ( control%out > 0 .AND. control%print_level >= 20 ) THEN
-        WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) prob%n, prob%m
-        WRITE( control%out, "( ' f = ', ES12.4 )" ) prob%f
+        WRITE( control%out, "( /, A, ' n = ', I0, ', m = ', I0, ', f =',       &
+       &                       ES24.16 )" ) prefix, prob%n, prob%m, prob%f
         IF ( prob%gradient_kind == 0 ) THEN
-          WRITE( control%out, "( ' G = zeros' )" )
+          WRITE( control%out, "( A, ' G = zeros' )" ) prefix
         ELSE IF ( prob%gradient_kind == 1 ) THEN
-          WRITE( control%out, "( ' G = ones' )" )
+          WRITE( control%out, "( A, ' G = ones' )" ) prefix
         ELSE
-          WRITE( control%out, "( ' G = ', /, ( 5ES12.4 ) )" )                  &
-            prob%G( : prob%n )
+          WRITE( control%out, "( A, ' G =', /, ( 5X, 3ES24.16 ) )" )           &
+            prefix, prob%G( : prob%n )
         END IF
         IF ( prob%Hessian_kind == 0 ) THEN
-          WRITE( control%out, "( ' W = zeros' )" )
+          WRITE( control%out, "( A, ' W = zeros' )" ) prefix
         ELSE IF ( prob%Hessian_kind == 1 ) THEN
-          WRITE( control%out, "( ' W = ones ' )" )
+          WRITE( control%out, "( A, ' W = ones ' )" ) prefix
           IF ( prob%target_kind == 0 ) THEN
-            WRITE( control%out, "( ' X0 = zeros ' )" )
+            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
           ELSE IF ( prob%target_kind == 1 ) THEN
-            WRITE( control%out, "( ' X0 = ones ' )" )
+            WRITE( control%out, "( A, ' X0 = ones ' )" ) prefix
           ELSE
-            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" )               &
-              prob%X0( : prob%n )
+            WRITE( control%out, "( A, ' X0 =', /, ( 5X, 3ES24.16 ) )" )        &
+              prefix, prob%X0( : prob%n )
           END IF
         ELSE IF ( prob%Hessian_kind == 2 ) THEN
-          WRITE( control%out, "( ' W = ', /, ( 5ES12.4 ) )" )                  &
-            prob%WEIGHT( : prob%n )
+          WRITE( control%out, "( A, ' W =', /, ( 5X, 3ES24.16 ) )" )           &
+            prefix, prob%WEIGHT( : prob%n )
           IF ( prob%target_kind == 0 ) THEN
-            WRITE( control%out, "( ' X0 = zeros ' )" )
+            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
           ELSE IF ( prob%target_kind == 1 ) THEN
-            WRITE( control%out, "( ' X0 = ones ' )" )
+            WRITE( control%out, "( A, ' X0 = ones ' )" ) prefix
           ELSE
-            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" )               &
-              prob%X0( : prob%n )
+            WRITE( control%out, "( A, ' X0 = ', /, ( 5X, 3ES24.16 ) )" )       &
+              prefix, prob%X0( : prob%n )
           END IF
         ELSE
           IF ( SMT_get( prob%H%type ) == 'IDENTITY' ) THEN
-            WRITE( control%out, "( ' H  = I' )" )
+            WRITE( control%out, "( A, ' H  = I' )" ) prefix
           ELSE IF ( SMT_get( prob%H%type ) == 'SCALED_IDENTITY' ) THEN
-            WRITE( control%out, "( ' H  =', ES12.4, ' * I' )" ) prob%H%val( 1 )
+            WRITE( control%out, "( A, ' H  = ', ES24.16, ' * I' )" )           &
+              prefix, prob%H%val( 1 )
           ELSE IF ( SMT_get( prob%H%type ) == 'DIAGONAL' ) THEN
-            WRITE( control%out, "( ' H (diagonal) = ', /, ( 5ES12.4 ) )" )     &
-              prob%H%val( : prob%n )
+            WRITE( control%out, "( A, ' H (diagonal) =', /,                    &
+           &    ( 5X, 3ES24.16 ) )" ) prob%H%val( : prob%n )
           ELSE IF ( SMT_get( prob%H%type ) == 'DENSE' ) THEN
-            WRITE( control%out, "( ' H (dense) = ', /, ( 5ES12.4 ) )" )        &
-              prob%H%val( : prob%n * ( prob%n + 1 ) / 2 )
+            WRITE( control%out, "( A, ' H (dense) = ', /,                      &
+           &  ( 5X, 3ES24.16 ) )" )                                            &
+              prefix, prob%H%val( : prob%n * ( prob%n + 1 ) / 2 )
           ELSE IF ( SMT_get( prob%H%type ) == 'SPARSE_BY_ROWS' ) THEN
-            WRITE( control%out, "( ' H (row-wise) = ' )" )
+            WRITE( control%out, "( A, ' H (row-wise) = ' )" ) prefix
             DO i = 1, prob%n
-              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
-                ( i, prob%H%col( j ), prob%H%val( j ),                         &
-                  j = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1 )
+              IF ( prob%H%ptr( i ) <= prob%H%ptr( i + 1 ) - 1 )                &
+                WRITE( control%out, "( ( 2( 2I8, ES24.16 ) ) )" )              &
+                  ( i, prob%H%col( j ), prob%H%val( j ),                       &
+                    j = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1 )
             END DO
           ELSE
-            WRITE( control%out, "( ' H (co-ordinate) = ' )" )
-            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
+            WRITE( control%out, "( A, ' H (co-ordinate) = ' )" ) prefix
+            WRITE( control%out, "( ( 2( 2I8, ES24.16 ) ) )" )                  &
             ( prob%H%row( i ), prob%H%col( i ), prob%H%val( i ),               &
               i = 1, prob%H%ne)
           END IF
         END IF
-        WRITE( control%out, "( ' X_l = ', /, ( 5ES12.4 ) )" )                  &
-          prob%X_l( : prob%n )
-        WRITE( control%out, "( ' X_u = ', /, ( 5ES12.4 ) )" )                  &
-          prob%X_u( : prob%n )
+        WRITE( control%out, "( A, ' X_l =', /, ( 5X, 3ES24.16 ) )" )           &
+          prefix, prob%X_l( : prob%n )
+        WRITE( control%out, "( A, ' X_u =', /, ( 5X, 3ES24.16 ) )" )           &
+          prefix, prob%X_u( : prob%n )
         IF ( SMT_get( prob%A%type ) == 'DENSE' ) THEN
-          WRITE( control%out, "( ' A (dense) = ', /, ( 5ES12.4 ) )" )          &
+          WRITE( control%out, "( ' A (dense) = ', /, ( 5X, 3ES24.16 ) )" )     &
             prob%A%val( : prob%n * prob%m )
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
-          WRITE( control%out, "( ' A (row-wise) = ' )" )
+          WRITE( control%out, "( A, ' A (row-wise) = ' )" ) prefix
           DO i = 1, prob%m
-            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
-              ( i, prob%A%col( j ), prob%A%val( j ),                           &
-                j = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1 )
+            IF ( prob%A%ptr( i ) <= prob%A%ptr( i + 1 ) - 1 )                  &
+              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
+                ( i, prob%A%col( j ), prob%A%val( j ),                         &
+                  j = prob%A%ptr( i ), prob%A%ptr( i + 1 ) - 1 )
           END DO
         ELSE
-          WRITE( control%out, "( ' A (co-ordinate) = ' )" )
+          WRITE( control%out, "( A, ' A (co-ordinate) = ' )" ) prefix
           WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                     &
           ( prob%A%row( i ), prob%A%col( i ), prob%A%val( i ), i = 1, prob%A%ne)
         END IF
-        WRITE( control%out, "( ' C_l = ', /, ( 5ES12.4 ) )" )                  &
-          prob%C_l( : prob%m )
-        WRITE( control%out, "( ' C_u = ', /, ( 5ES12.4 ) )" )                  &
-          prob%C_u( : prob%m )
+        WRITE( control%out, "( A, ' C_l =', /, ( 5X, 3ES24.16 ) )" )           &
+          prefix, prob%C_l( : prob%m )
+        WRITE( control%out, "( A, ' C_u =', /, ( 5X, 3ES24.16 ) )" )           &
+          prefix, prob%C_u( : prob%m )
       END IF
 
 !  check that problem bounds are consistent; reassign any pair of bounds
@@ -1451,8 +1568,8 @@
         IF ( prob%X_l( i ) - prob%X_u( i ) > control%identical_bounds_tol ) THEN
           inform%status = GALAHAD_error_bad_bounds
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
         ELSE IF ( prob%X_u( i ) == prob%X_l( i )  ) THEN
         ELSE IF ( prob%X_u( i ) - prob%X_l( i )                                &
                   <= control%identical_bounds_tol ) THEN
@@ -1460,7 +1577,7 @@
           prob%X_l( i ) = av_bnd ; prob%X_u( i ) = av_bnd
           reset_bnd = .TRUE.
         END IF
-      END DO   
+      END DO
       IF ( reset_bnd .AND. printi ) WRITE( control%out,                        &
         "( /, A, '   **  Warning: one or more variable bounds reset ' )" )     &
          prefix
@@ -1470,8 +1587,8 @@
         IF ( prob%C_l( i ) - prob%C_u( i ) > control%identical_bounds_tol ) THEN
           inform%status = GALAHAD_error_bad_bounds
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
         ELSE IF ( prob%C_u( i ) == prob%C_l( i ) ) THEN
         ELSE IF ( prob%C_u( i ) - prob%C_l( i )                                &
                   <= control%identical_bounds_tol ) THEN
@@ -1479,7 +1596,7 @@
           prob%C_l( i ) = av_bnd ; prob%C_u( i ) = av_bnd
           reset_bnd = .TRUE.
         END IF
-      END DO   
+      END DO
       IF ( reset_bnd .AND. printi ) WRITE( control%out,                        &
         "( A, /, '   **  Warning: one or more constraint bounds reset ' )" )   &
           prefix
@@ -1489,16 +1606,16 @@
 
       IF ( prob%Hessian_kind < 0 ) THEN
         SELECT CASE ( SMT_get( prob%H%type ) )
-        CASE ( 'IDENTITY' ) 
-        CASE ( 'SCALED_IDENTITY' ) 
+        CASE ( 'IDENTITY' )
+        CASE ( 'SCALED_IDENTITY' )
           IF ( prob%H%val( 1 ) <= zero ) THEN
             inform%status = GALAHAD_error_inertia ; GO TO 800
           END IF
-        CASE ( 'DIAGONAL' ) 
+        CASE ( 'DIAGONAL' )
           IF ( COUNT( prob%H%val( :  prob%n ) <= zero ) > 0 ) THEN
             inform%status = GALAHAD_error_inertia ; GO TO 800
           END IF
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, prob%n
             DO j = 1, i
@@ -1551,12 +1668,17 @@
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( prob%Hessian_kind < 0 ) THEN
           IF ( SMT_get( prob%H%type ) == 'LBFGS' ) THEN
             data%h_ne = 0
+            inform%status = GALAHAD_not_yet_implemented
+            IF ( control%error > 0 .AND. control%print_level > 0 )             &
+              WRITE( control%error,                                            &
+             & "( A, ' LBFGS Hessian not yet implemented ' )" ) prefix
+            GO TO 800
           ELSE IF ( SMT_get( prob%H%type ) == 'IDENTITY' ) THEN
             data%h_ne = 0
           ELSE IF ( SMT_get( prob%H%type ) == 'SCALED_IDENTITY' ) THEN
@@ -1568,7 +1690,7 @@
           ELSE IF ( SMT_get( prob%H%type ) == 'SPARSE_BY_ROWS' ) THEN
             data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
           ELSE
-            data%h_ne = prob%H%ne 
+            data%h_ne = prob%H%ne
           END IF
         ELSE
           data%h_ne = 0
@@ -1581,8 +1703,8 @@
         separable_bqp = .TRUE.
         IF ( prob%Hessian_kind < 0 ) THEN
           SELECT CASE ( SMT_get( prob%H%type ) )
-          CASE ( 'DIAGONAL', 'SCALED_IDENTITY', 'IDENTITY' ) 
-          CASE ( 'DENSE' ) 
+          CASE ( 'DIAGONAL', 'SCALED_IDENTITY', 'IDENTITY' )
+          CASE ( 'DENSE' )
             l = 0
             DO i = 1, prob%n
               DO j = 1, i
@@ -1614,6 +1736,7 @@
 
 !  the problem is a separable bound-constrained QP. Solve it explicitly
 
+!separable_bqp = .FALSE.
         IF ( separable_bqp ) THEN
           IF ( printi ) WRITE( control%out,                                    &
             "( /, A, ' Solving separable bound-constrained QP -' )" ) prefix
@@ -1672,11 +1795,12 @@
         CALL QPP_reorder( data%QPP_map, data%QPP_control,                      &
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
+
 !  test for satisfactory termination
 
         IF ( data%QPP_inform%status /= GALAHAD_ok ) THEN
@@ -1685,10 +1809,10 @@
             WRITE( control%out, "( A, ' status ', I0, ' after QPP_reorder')" ) &
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  record array lengths
 
@@ -1697,12 +1821,17 @@
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( prob%Hessian_kind < 0 ) THEN
           IF ( SMT_get( prob%H%type ) == 'LBFGS' ) THEN
             data%h_ne = 0
+            inform%status = GALAHAD_not_yet_implemented
+            IF ( control%error > 0 .AND. control%print_level > 0 )             &
+              WRITE( control%error,                                            &
+             & "( A, ' LBFGS Hessian not yet implemented ' )" ) prefix
+            GO TO 800
           ELSE IF ( SMT_get( prob%H%type ) == 'IDENTITY' ) THEN
             data%h_ne = 0
           ELSE IF ( SMT_get( prob%H%type ) == 'SCALED_IDENTITY' ) THEN
@@ -1714,7 +1843,7 @@
           ELSE IF ( SMT_get( prob%H%type ) == 'SPARSE_BY_ROWS' ) THEN
             data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
           ELSE
-            data%h_ne = prob%H%ne 
+            data%h_ne = prob%H%ne
           END IF
         END IF
 
@@ -1733,9 +1862,9 @@
           CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
           CALL QPP_apply( data%QPP_map, data%QPP_inform,                       &
                           prob, get_all = .TRUE. )
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
-            inform%time%preprocess + time_now - time_record
+            inform%time%preprocess + REAL( time_now - time_record, wp )
           inform%time%clock_preprocess =                                       &
             inform%time%clock_preprocess + clock_now - clock_record
 
@@ -1747,11 +1876,11 @@
               WRITE( control%out, "( A, ' status ', I0, ' after QPP_apply')" ) &
                prefix, data%QPP_inform%status
             IF ( control%error > 0 .AND. control%print_level > 0 )             &
-              WRITE( control%error, 2010 ) prefix, inform%status 
+              WRITE( control%error, 2010 ) prefix, inform%status
             CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform)
-            GO TO 800 
-          END IF 
-        END IF 
+            GO TO 800
+          END IF
+        END IF
         data%trans = data%trans + 1
       END IF
 
@@ -1781,7 +1910,7 @@
 
 !  find any dependent rows
 
-        nzc = prob%A%ptr( data%dims%c_equality + 1 ) - 1 
+        nzc = prob%A%ptr( data%dims%c_equality + 1 ) - 1
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
         CALL FDC_find_dependent( prob%n, data%dims%c_equality,                 &
                                  prob%A%val( : nzc ),                          &
@@ -1790,9 +1919,9 @@
                                  prob%C_l, n_depen, data%Index_C_freed,        &
                                  data%FDC_data, data%FDC_control,              &
                                  inform%FDC_inform )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%find_dependent =                                           &
-          inform%time%find_dependent + time_now - time_record
+          inform%time%find_dependent + REAL( time_now - time_record, wp )
         inform%time%clock_find_dependent =                                     &
           inform%time%clock_find_dependent + clock_now - clock_record
 
@@ -1808,14 +1937,14 @@
         inform%nfacts = 1
 
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-               time_now - time_start > control%cpu_time_limit ) .OR.           &
+             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
-        END IF 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
+        END IF
 
         IF ( printi .AND. inform%non_negligible_pivot < thousand *             &
           control%FDC_control%SLS_control%absolute_pivot_tolerance )           &
@@ -1886,7 +2015,7 @@
                  exact_size = control%space_critical,                          &
                  bad_alloc = inform%bad_alloc, out = control%error )
           IF ( inform%status /= GALAHAD_ok ) GO TO 900
-        
+
 !  free the constraint bounds as required
 
         DO i = 1, n_depen
@@ -1905,7 +2034,7 @@
 !  store the problem dimensions
 
         data%dims_save_freed = data%dims
-        data%a_ne = prob%A%ne 
+        data%a_ne = prob%A%ne
 
         IF ( printi ) WRITE( control%out,                                      &
                "( /, A, ' problem dimensions before removal of dependecies: ', &
@@ -1914,23 +2043,24 @@
 
 !  perform the preprocessing
 
-        CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record ) 
+        CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record )
         CALL QPP_reorder( data%QPP_map_freed, data%QPP_control,                &
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
-        data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1 
+
+        data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1
         data%dims%x_s = 1 ; data%dims%x_e = prob%n
-        data%dims%c_s = data%dims%x_e + 1 
-        data%dims%c_e = data%dims%x_e + data%dims%nc  
+        data%dims%c_s = data%dims%x_e + 1
+        data%dims%c_e = data%dims%x_e + data%dims%nc
         data%dims%c_b = data%dims%c_e - prob%m
-        data%dims%y_s = data%dims%c_e + 1 
+        data%dims%y_s = data%dims%c_e + 1
         data%dims%y_e = data%dims%c_e + prob%m
-        data%dims%y_i = data%dims%c_s + prob%m 
+        data%dims%y_i = data%dims%c_s + prob%m
         data%dims%v_e = data%dims%y_e
 
 !  test for satisfactory termination
@@ -1941,12 +2071,12 @@
             WRITE( control%out, "( A, ' status ', I0, ' after QPP_reorder')" ) &
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           CALL QPP_terminate( data%QPP_map_freed, data%QPP_control,            &
                               data%QPP_inform )
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  record revised array lengths
 
@@ -1955,7 +2085,7 @@
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( printi ) WRITE( control%out,                                      &
@@ -1964,9 +2094,9 @@
                prefix, prefix, prob%n, prob%m, data%a_ne
       END IF
 
-!  compute the dimension of the KKT system 
+!  compute the dimension of the KKT system
 
-      data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1 
+      data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1
 
 !  arrays containing data relating to the composite vector ( x  c  y )
 !  are partitioned as follows:
@@ -1982,16 +2112,16 @@
 !    ^                 ^    ^ ^               ^ ^    ^               ^
 !    |                 |    | |               | |    |               |
 !   x_s                |    |c_s              |y_s  y_i             y_e = v_e
-!                      |    |                 |                     
+!                      |    |                 |
 !                     c_b  x_e               c_e
 
       data%dims%x_s = 1 ; data%dims%x_e = prob%n
-      data%dims%c_s = data%dims%x_e + 1 
-      data%dims%c_e = data%dims%x_e + data%dims%nc  
+      data%dims%c_s = data%dims%x_e + 1
+      data%dims%c_e = data%dims%x_e + data%dims%nc
       data%dims%c_b = data%dims%c_e - prob%m
-      data%dims%y_s = data%dims%c_e + 1 
+      data%dims%y_s = data%dims%c_e + 1
       data%dims%y_e = data%dims%c_e + prob%m
-      data%dims%y_i = data%dims%c_s + prob%m 
+      data%dims%y_i = data%dims%c_s + prob%m
       data%dims%v_e = data%dims%y_e
 
 !  ----------------
@@ -2004,18 +2134,29 @@
         composite_g = prob%gradient_kind == 0 .OR. prob%gradient_kind == 1
       END IF
 
-      diagonal_h = .TRUE. ; identity_h = .TRUE.
-      scaled_identity_h = SMT_get( prob%H%type ) == 'SCALED_IDENTITY'
-      IF ( prob%Hessian_kind < 0 ) THEN
-H_loop: DO i = 1, prob%n
-          DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1
-            j = prob%H%col( l )
-            IF ( i /= j .AND. prob%H%val( l ) /= zero ) THEN
-              diagonal_h = .FALSE. ; EXIT H_loop
-            END IF
-            IF ( i == j .AND. prob%H%val( l ) /= one ) identity_h = .FALSE.
-          END DO
-        END DO H_loop
+      IF ( prob%hessian_kind < 0 ) THEN
+        diagonal_h = .TRUE. ; identity_h = .TRUE.
+        scaled_identity_h = SMT_get( prob%H%type ) == 'SCALED_IDENTITY'
+        IF ( prob%Hessian_kind < 0 ) THEN
+  H_loop: DO i = 1, prob%n
+            DO l = prob%H%ptr( i ), prob%H%ptr( i + 1 ) - 1
+              j = prob%H%col( l )
+              IF ( i /= j .AND. prob%H%val( l ) /= zero ) THEN
+                diagonal_h = .FALSE. ; EXIT H_loop
+              END IF
+              IF ( i == j .AND. prob%H%val( l ) /= one ) identity_h = .FALSE.
+            END DO
+          END DO H_loop
+        END IF
+      ELSE IF ( prob%hessian_kind == 0 ) THEN
+        diagonal_h = .TRUE. ; identity_h = .TRUE.
+        scaled_identity_h = .FALSE.
+      ELSE IF ( prob%hessian_kind == 1 ) THEN
+        diagonal_h = .TRUE. ; identity_h = .TRUE.
+        scaled_identity_h = .FALSE.
+      ELSE
+        diagonal_h = .TRUE. ; identity_h = .FALSE.
+        scaled_identity_h = .TRUE.
       END IF
 
       CALL DQP_workspace( prob%m, prob%n, data%dims, prob%A, prob%H,           &
@@ -2030,8 +2171,8 @@ H_loop: DO i = 1, prob%n
                           data%VECTOR, data%BREAK_points, data%YC_l,           &
                           data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,          &
                           data%GY_u, data%GZ_l, data%GZ_u, data%V0, data%VT,   &
-                          data%GV, data%G, data%PV, data%DV, data%V_bnd,       &
-                          data%H_sbls, data%A_sbls, data%SCU_mat,              &
+                          data%GV, data%G, data%PV, data%HPV, data%DV,         &
+                          data%V_bnd, data%H_sbls, data%A_sbls, data%SCU_mat,  &
                           control, inform )
 
 !  =================
@@ -2049,14 +2190,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2064,7 +2207,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2075,14 +2219,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2090,7 +2236,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind, G = prob%G,   &
@@ -2103,14 +2250,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2118,7 +2267,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2130,14 +2280,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2145,7 +2297,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2161,14 +2314,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2176,7 +2331,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2188,14 +2344,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2203,7 +2361,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2217,14 +2376,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2232,7 +2393,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2244,14 +2406,16 @@ H_loop: DO i = 1, prob%n
                                  prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,   &
                                  prob%C, prob%f, prefix, control, inform,      &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%SOL, data%RHS, data%RES, data%H_s,       &
@@ -2259,7 +2423,8 @@ H_loop: DO i = 1, prob%n
                                  data%VECTOR, data%BREAK_points, data%YC_l,    &
                                  data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,   &
                                  data%GY_u, data%GZ_l, data%GZ_u, data%V0,     &
-                                 data%VT, data%GV, data%G, data%PV, data%DV,   &
+                                 data%VT, data%GV, data%G, data%PV,            &
+                                 data%HPV, data%DV,                            &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2274,14 +2439,16 @@ H_loop: DO i = 1, prob%n
                                prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,     &
                                prob%C, prob%f, prefix, control, inform,        &
                                prob%Hessian_kind, prob%gradient_kind,          &
-                               nv, lbd, dual_starting_point,                   &
+                               nv, lbd, data%m_ref, dual_starting_point,       &
                                data%clock_total, data%cpu_total,               &
                                data%SBLS_data, data%SLS_data,                  &
                                data%SCU_data, data%GLTR_data,                  &
-                               data%C_status,                                  &
+                               data%SLS_control, data% SBLS_control,           &
+                               data%GLTR_control, data%C_status,               &
                                data%NZ_p, data%IUSED, data%INDEX_r,            &
                                data%INDEX_w, data%X_status, data%V_status,     &
                                data%X_status_old, data%C_status_old,           &
+                               data%refactor, data%m_active, data%n_active,    &
                                data%C_active, data%X_active, data%CHANGES,     &
                                data%ACTIVE_list, data%ACTIVE_status,           &
                                data%SOL, data%RHS, data%RES, data%H_s,         &
@@ -2289,7 +2456,8 @@ H_loop: DO i = 1, prob%n
                                data%VECTOR, data%BREAK_points, data%YC_l,      &
                                data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,     &
                                data%GY_u, data%GZ_l, data%GZ_u, data%V0,       &
-                               data%VT, data%GV, data%G, data%PV, data%DV,     &
+                               data%VT, data%GV, data%G, data%PV,              &
+                               data%HPV, data%DV,                              &
                                data%V_bnd, data%H_sbls, data%A_sbls,           &
                                data%C_sbls, data%SCU_mat,                      &
                                H_val = prob%H%val, H_col = prob%H%col,         &
@@ -2301,14 +2469,16 @@ H_loop: DO i = 1, prob%n
                                prob%X_l, prob%X_u, prob%X, prob%Y, prob%Z,     &
                                prob%C, prob%f, prefix, control, inform,        &
                                prob%Hessian_kind, prob%gradient_kind,          &
-                               nv, lbd, dual_starting_point,                   &
+                               nv, lbd, data%m_ref, dual_starting_point,       &
                                data%clock_total, data%cpu_total,               &
                                data%SBLS_data, data%SLS_data,                  &
                                data%SCU_data, data%GLTR_data,                  &
-                               data%C_status,                                  &
+                               data%SLS_control, data% SBLS_control,           &
+                               data%GLTR_control, data%C_status,               &
                                data%NZ_p, data%IUSED, data%INDEX_r,            &
                                data%INDEX_w, data%X_status, data%V_status,     &
                                data%X_status_old, data%C_status_old,           &
+                               data%refactor, data%m_active, data%n_active,    &
                                data%C_active, data%X_active, data%CHANGES,     &
                                data%ACTIVE_list, data%ACTIVE_status,           &
                                data%SOL, data%RHS, data%RES, data%H_s,         &
@@ -2316,7 +2486,8 @@ H_loop: DO i = 1, prob%n
                                data%VECTOR, data%BREAK_points, data%YC_l,      &
                                data%YC_u, data%ZC_l, data%ZC_u, data%GY_l,     &
                                data%GY_u, data%GZ_l, data%GZ_u, data%V0,       &
-                               data%VT, data%GV, data%G, data%PV, data%DV,     &
+                               data%VT, data%GV, data%G, data%PV,              &
+                               data%HPV, data%DV,                              &
                                data%V_bnd, data%H_sbls, data%A_sbls,           &
                                data%C_sbls, data%SCU_mat,                      &
                                H_val = prob%H%val, H_col = prob%H%col,         &
@@ -2352,8 +2523,9 @@ H_loop: DO i = 1, prob%n
         END IF
         CALL QPP_restore( data%QPP_map_freed, data%QPP_inform, prob,           &
                           get_all = .TRUE.)
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         data%dims = data%dims_save_freed
@@ -2370,7 +2542,7 @@ H_loop: DO i = 1, prob%n
 
 !  retore the problem to its original form
 
-  700 CONTINUE 
+  700 CONTINUE
       data%trans = data%trans - 1
       IF ( data%trans == 0 ) THEN
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
@@ -2406,8 +2578,9 @@ H_loop: DO i = 1, prob%n
                             get_z = .TRUE., get_c = .TRUE. )
         END IF
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         prob%new_problem_structure = data%new_problem_structure
@@ -2416,14 +2589,14 @@ H_loop: DO i = 1, prob%n
 
 !  compute total time
 
-  800 CONTINUE 
-      IF ( control%error > 0 .AND. control%print_level >= 1 )                 &
+  800 CONTINUE
+      IF ( control%error > 0 .AND. control%print_level >= 1 )                  &
         CALL SYMBOLS_status( inform%status, control%error, prefix, 'DQP' )
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
-  
+        inform%time%clock_total + clock_now - clock_start
+
       IF ( printi ) WRITE( control%out,                                        &
      "( /, A, 3X, ' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=',    &
     &             '-=-=-=-=-=-=-=',                                            &
@@ -2442,16 +2615,16 @@ H_loop: DO i = 1, prob%n
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving DQP_solve ' )" ) prefix
-      RETURN  
+      RETURN
 
 !  allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
+        inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
         "( A, ' ** Message from -DQP_solve-', /,  A,                           &
        &      ' Allocation error, for ', A, /, A, ' status = ', I0 ) " )       &
@@ -2459,11 +2632,11 @@ H_loop: DO i = 1, prob%n
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving DQP_solve ' )" ) prefix
-      RETURN  
+      RETURN
 
 !  non-executable statements
 
- 2010 FORMAT( ' ', /, A, '    ** Error return ', I0, ' from DQP ' ) 
+ 2010 FORMAT( ' ', /, A, '    ** Error return ', I0, ' from DQP ' )
 
 !  End of DQP_solve
 
@@ -2474,17 +2647,19 @@ H_loop: DO i = 1, prob%n
       SUBROUTINE DQP_solve_main( n, m, dims, A_val, A_col, A_ptr,              &
                                  C_l, C_u, X_l, X_u, X, Y, Z, C, f,            &
                                  prefix, control, inform,                      &
-                                 Hessian_kind, gradient_kind, nv, lbd,         &
+                                 Hessian_kind, gradient_kind, nv, lbd, m_ref,  &
                                  dual_starting_point, clock_total, cpu_total,  &
                                  SBLS_data, SLS_data, SCU_data, GLTR_data,     &
+                                 SLS_control, SBLS_control, GLTR_control,      &
                                  C_status, NZ_p, IUSED, INDEX_r, INDEX_w,      &
                                  X_status, V_status, X_status_old,             &
-                                 C_status_old, C_active, X_active, CHANGES,    &
+                                 C_status_old, refactor, m_active, n_active,   &
+                                 C_active, X_active, CHANGES,                  &
                                  ACTIVE_list, ACTIVE_status, SOL, RHS, RES,    &
                                  H_s, Y_l, Y_u, Z_l, Z_u, VECTOR,              &
                                  BREAK_points, YC_l, YC_u, ZC_l, ZC_u, GY_l,   &
-                                 GY_u, GZ_l, GZ_u, V0, VT, GV, GC, PV, DV,     &
-                                 V_bnd, H_sbls, A_sbls, C_sbls, SCU_mat,       &
+                                 GY_u, GZ_l, GZ_u, V0, VT, GV, GC, PV, HPV,    &
+                                 DV, V_bnd, H_sbls, A_sbls, C_sbls, SCU_mat,   &
                                  H_val, H_col, H_ptr, WEIGHT, target_kind,     &
                                  X0, G, C_stat, X_stat, initial )
 
@@ -2492,11 +2667,11 @@ H_loop: DO i = 1, prob%n
 !
 !  Minimizes the quadratic objective function
 !
-!        1/2 x^T H x + g^T x + f
+!        q(x) = 1/2 x^T H x + g^T x + f
 !
 !  or the linear/separable objective function
 !
-!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f  
+!        s(x) = 1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f
 !
 !  subject to the constraints
 !
@@ -2506,12 +2681,22 @@ H_loop: DO i = 1, prob%n
 !
 !  where x is a vector of n components ( x_1, .... , x_n ),
 !  A is an m by n matrix, and any of the bounds (c_l)_i, (c_u)_i
-!  (x_l)_i, (x_u)_i may be infinite, using a primal-dual method.
-!  The subroutine is particularly appropriate when A is sparse.
+!  (x_l)_i, (x_u)_i may be infinite, using a dual gradient-projection
+!  method. The subroutine is particularly appropriate when A is sparse.
+!
+!  Optionally, minimize instead the penalty function
+!
+!      q(x) + rho || min( A x - c_l, c_u - A x, 0 )||_1
+!
+!  or
+!
+!      s(x) + rho || min( A x - c_l, c_u - A x, 0 )||_1
+!
+!  subject to the bound constraints x_l <= x <= x_u
 !
 !  In order that many of the internal computations may be performed
-!  efficiently, it is required that   
-!  
+!  efficiently, it is required that
+!
 !  * the variables are ordered so that their bounds appear in the order
 !
 !    free                      x
@@ -2521,7 +2706,7 @@ H_loop: DO i = 1, prob%n
 !    upper                     x <= x_u
 !    non-positivity            x <=  0
 !
-!    Fixed variables are not permitted (ie, x_l < x_u for range variables). 
+!    Fixed variables are not permitted (ie, x_l < x_u for range variables).
 !
 !  * the constraints are ordered so that their bounds appear in the order
 !
@@ -2542,52 +2727,52 @@ H_loop: DO i = 1, prob%n
 !
 !  n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !  m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
+!
 !  dims is a structure of type DQP_data_type, whose components hold SCALAR
 !   information about the problem on input. The components will be unaltered
 !   on exit. The following components must be set:
 !
 !   %x_free is an INTEGER variable, which must be set by the user to the
 !    number of free variables. RESTRICTION: %x_free >= 0
-!                 
+!
 !   %x_l_start is an INTEGER variable, which must be set by the user to the
 !    index of the first variable with a nonzero lower (or lower range) bound.
 !    RESTRICTION: %x_l_start >= %x_free + 1
-!                 
+!
 !   %x_l_end is an INTEGER variable, which must be set by the user to the
 !    index of the last variable with a nonzero lower (or lower range) bound.
 !    RESTRICTION: %x_l_end >= %x_l_start
-!                 
+!
 !   %x_u_start is an INTEGER variable, which must be set by the user to the
-!    index of the first variable with a nonzero upper (or upper range) bound. 
+!    index of the first variable with a nonzero upper (or upper range) bound.
 !    RESTRICTION: %x_u_start >= %x_l_start
-!                 
+!
 !   %x_u_end is an INTEGER variable, which must be set by the user to the
-!    index of the last variable with a nonzero upper (or upper range) bound. 
+!    index of the last variable with a nonzero upper (or upper range) bound.
 !    RESTRICTION: %x_u_end >= %x_u_start
-!                 
+!
 !   %c_equality is an INTEGER variable, which must be set by the user to the
 !    number of equality constraints, m. RESTRICTION: %c_equality >= 0
-!                 
+!
 !   %c_l_start is an INTEGER variable, which must be set by the user to the
-!    index of the first inequality constraint with a lower (or lower range) 
-!    bound. RESTRICTION: %c_l_start = %c_equality + 1 
+!    index of the first inequality constraint with a lower (or lower range)
+!    bound. RESTRICTION: %c_l_start = %c_equality + 1
 !    (strictly, this information is redundant!)
-!                 
+!
 !   %c_l_end is an INTEGER variable, which must be set by the user to the
-!    index of the last inequality constraint with a lower (or lower range) 
+!    index of the last inequality constraint with a lower (or lower range)
 !    bound. RESTRICTION: %c_l_end >= %c_l_start
-!                 
+!
 !   %c_u_start is an INTEGER variable, which must be set by the user to the
-!    index of the first inequality constraint with an upper (or upper range) 
+!    index of the first inequality constraint with an upper (or upper range)
 !    bound. RESTRICTION: %c_u_start >= %c_l_start
 !    (strictly, this information is redundant!)
-!                 
+!
 !   %c_u_end is an INTEGER variable, which must be set by the user to the
-!    index of the last inequality constraint with an upper (or upper range) 
+!    index of the last inequality constraint with an upper (or upper range)
 !    bound. RESTRICTION: %c_u_end = %m
 !    (strictly, this information is redundant!)
 !
@@ -2601,7 +2786,7 @@ H_loop: DO i = 1, prob%n
 !    value n
 !
 !   %c_s is an INTEGER variable, which must be set by the user to the
-!    value dims%x_e + 1 
+!    value dims%x_e + 1
 !
 !   %c_e is an INTEGER variable, which must be set by the user to the
 !    value dims%x_e + dims%nc
@@ -2624,44 +2809,44 @@ H_loop: DO i = 1, prob%n
 !  A_* is used to hold the matrix A by rows. In particular:
 !      A_col( : )   the column indices of the components of A
 !      A_ptr( : )   pointers to the start of each row, and past the end of
-!                   the last row. 
+!                   the last row.
 !      A_val( : )   the values of the components of A
 !
-!  C_l, C_u are REAL arrays of length m, which must be set by the user to 
+!  C_l, C_u are REAL arrays of length m, which must be set by the user to
 !   the values of the arrays x_l and x_u of lower and upper bounds on x, ordered
 !   as described above (strictly only C_l( dims%c_l_start : dims%c_l_end )
 !   and C_u( dims%c_u_start : dims%c_u_end ) need be set, as the other
 !   components are ignored!).
-!  
-!  X_l, X_u are REAL arrays of length n, which must be set by the user to 
+!
+!  X_l, X_u are REAL arrays of length n, which must be set by the user to
 !   the values of the arrays x_l and x_u of lower and upper bounds on x, ordered
 !   as described above (strictly only X_l( dims%x_l_start : dims%x_l_end )
 !   and X_u( dims%x_u_start : dims%x_u_end ) need be set, as the other
 !   components are ignored!).
-!  
-!  X is a REAL array of length n, which must be set by the user on entry to 
-!   DQP_solve to give an initial estimate of the optimization parameters, x. 
-!   The i-th component of X should contain the initial estimate of x_i, for 
-!   i = 1, .... , n.  The estimate need not satisfy the simple bound 
-!   constraints and may be perturbed by DQP_solve prior to the start of the 
-!   minimization.  On exit from DQP_solve, X will contain the best estimate of 
+!
+!  X is a REAL array of length n, which must be set by the user on entry to
+!   DQP_solve to give an initial estimate of the optimization parameters, x.
+!   The i-th component of X should contain the initial estimate of x_i, for
+!   i = 1, .... , n.  The estimate need not satisfy the simple bound
+!   constraints and may be perturbed by DQP_solve prior to the start of the
+!   minimization.  On exit from DQP_solve, X will contain the best estimate of
 !   the optimization parameters found
-!  
-!  Y is a REAL array of length m, which must be set by the user on entry to 
-!   DQP_solve to give an initial estimates of the optimal Lagrange multipiers, 
-!   y. The i-th component of Y should contain the initial estimate of y_i, for 
+!
+!  Y is a REAL array of length m, which must be set by the user on entry to
+!   DQP_solve to give an initial estimates of the optimal Lagrange multipiers,
+!   y. The i-th component of Y should contain the initial estimate of y_i, for
 !   i = 1, .... , m.  The Lagrange multiplier for any constraint with both
-!   infinite lower and upper bounds need not be set. On exit from DQP_solve, 
+!   infinite lower and upper bounds need not be set. On exit from DQP_solve,
 !   Y will contain the best estimate of the Lagrange multipliers found
-!  
-!  Z, is a REAL array of length n, which must be set by on entry to DQP_solve 
-!   to hold the values of the the dual variables associated with the simple 
+!
+!  Z, is a REAL array of length n, which must be set by on entry to DQP_solve
+!   to hold the values of the the dual variables associated with the simple
 !   bound constraints. The dual variable for any variable with both
 !   infinite lower and upper bounds need not be set. On exit from
 !   DQP_solve, Z will contain the best estimates obtained
-!  
+!
 !  C is a REAL array of length m, which need not be set on entry. On exit,
-!   the i-th component of C will contain (A * x)_i, for i = 1, .... , m. 
+!   the i-th component of C will contain (A * x)_i, for i = 1, .... , m.
 !
 !  control and inform are exactly as for DQP_solve
 !
@@ -2672,45 +2857,46 @@ H_loop: DO i = 1, prob%n
 !
 !     1  all the weights will be one. WEIGHT (see below) need not be set
 !
-!     2  the weights will be those given by WEIGHT (see below)
+!    >1  the weights will be those given by WEIGHT (see below)
 !
 !     any other value - the Hessian will be given by H (see below)
 !
-!   WEIGHT is an optional REAL array, which need only be included if 
-!    Hessian_kind is not 0 or 1. If this is so, it must be of length at least 
-!    n, and contain the weights W for the objective function. 
-!  
-!   X0 is an optional REAL array, which need only be included if 
-!    Hessian_kind is not 0. If this is so, it must be of length at least 
-!    n, and contain the shifts X^0 for the objective function. 
-!  
-!   H_* is OPTIONALly used to hold the lower triangle of the matrix H by rows. 
+!   WEIGHT is an optional REAL array, which need only be included if
+!    Hessian_kind is > 1. If this is so, it must be of length at least
+!    n, and contain the weights W for the objective function.
+!
+!   X0 is an optional REAL array, which need only be included if
+!    Hessian_kind is not 0. If this is so, it must be of length at least
+!    n, and contain the shifts X^0 for the objective function.
+!
+!   H_* is OPTIONALly used to hold the lower triangle of the matrix H by rows.
 !    In particular:
 !      H_col( : )   the column indices of the components of H
 !      H_ptr( : )   pointers to the start of each row, and past the end of
-!                   the last row. 
+!                   the last row.
 !      H_val( : )   the values of the components of H
 !    If H_ptr or H_col is absent, H will be presumed to be a scalar
-!    multiple, H_val(1), of the identity.
-!    
+!    multiple, H_val(1), of the identity. If additionally H_val is absent,
+!    H will be presumed to be the identity
+!
 !   gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term will be zero, and the analytic centre of the 
+!     0  the linear term will be zero, and the analytic centre of the
 !        feasible region will be found if in addition Hessian_kind is 0.
 !        G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        G (see below) need not be set
 !
 !     any other value - the gradients will be those given by G (see below)
 !
-!   G is an optional REAL array, which need only be included if 
-!    gradient_kind is not 0 or 1. If this is so, it must be of length at least 
-!    n, and contain the gradient term g for the objective function. 
-!  
+!   G is an optional REAL array, which need only be included if
+!    gradient_kind is not 0 or 1. If this is so, it must be of length at least
+!    n, and contain the gradient term g for the objective function.
+!
 
-!   dual_starting_point is an INTEGER variable that specifies which starting 
+!   dual_starting_point is an INTEGER variable that specifies which starting
 !    point should be used for the dual problem. Possible values are
 
 !      0 user supplied
@@ -2719,17 +2905,16 @@ H_loop: DO i = 1, prob%n
 !      3 all free (= all active primal costraints)
 !      4 all fixed on bounds (= no active primal costraints)
 
-
-!  cpu_total is a REAL variable that gives a running total of the CPU time 
-!   spent in the package. It should be set on entry to the current total 
+!  cpu_total is a REAL variable that gives a running total of the CPU time
+!   spent in the package. It should be set on entry to the current total
 !   CPU time, and on output will give the updated value
 
-!  clock_total is a REAL variable that gives a running total of the clock time 
-!   spent in the package. It should be set on entry to the current total 
+!  clock_total is a REAL variable that gives a running total of the clock time
+!   spent in the package. It should be set on entry to the current total
 !   clock time, and on output will give the updated value
 
-!  The remaining arguments are used as internal workspace, and need not be 
-!  set on entry. These (andtheir minimum lengths where appropriate) are
+!  The remaining arguments are used as internal workspace, and need not be
+!  set on entry. These (and their minimum lengths where appropriate) are
 !
 !  INTEGER C_status(m)
 !  INTEGER NZ_p(nv)
@@ -2776,7 +2961,7 @@ H_loop: DO i = 1, prob%n
 !    INTEGER H_sbls%ptr(n + 1)
 !    INTEGER H_sbls%col(h_ne)
 !    REAL H_sbls%val(h_ne)
-!  when control%max_sc > 0: 
+!  when control%max_sc > 0:
 !    INTEGER CHANGES(m+n)
 !    INTEGER ACTIVE_list(m+n+control%max_sc)
 !    INTEGER ACTIVE_status(m+n)
@@ -2797,30 +2982,31 @@ H_loop: DO i = 1, prob%n
 !  SBLS_data of type SBLS_data_type
 !  GLTR_data of type GLTR_data_type
 !  SCU_data of type SCU_data_type
-!  
-!  where 
-!  
+!
+!  where
+!
 !  h_ne = H%ptr( n + 1 ) - 1
 !  max_ne_active = 2 * ( A%ptr( m + 1 ) + n - 1 )
-!  len_m_active = dims%c_u_start - 1 +  m - dims%c_l_end 
-!                   + 2 * ( dims%c_l_end - dims%c_u_start + 1 ) 
-!  len_n_active = dims%x_u_start - dims%x_free - 1 + n - dims%x_l_end 
-!                   + 2 * ( dims%x_l_end - dims%x_u_start + 1 ) 
+!  len_m_active = dims%c_u_start - 1 +  m - dims%c_l_end
+!                   + 2 * ( dims%c_l_end - dims%c_u_start + 1 )
+!  len_n_active = dims%x_u_start - dims%x_free - 1 + n - dims%x_l_end
+!                   + 2 * ( dims%x_l_end - dims%x_u_start + 1 )
 !  nv = dims%c_l_end + ( dims%c_u_end - dims%c_u_start + 1 )
 !         + ( dims%x_l_end - dims%x_free ) + ( prob%n - dims%x_u_start + 1 )
-!  lbd = # entries in the largest control%max_sc rows of A 
-!  composite_g is true if and only if either 
+!  lbd = # entries in the largest control%max_sc rows of A
+!  composite_g is true if and only if either
 !    Hessian_kind >= 1 and target_kind /= 0 or
 !    Hessian_kind <= 0 and prob%gradient_kind = 0 or 1
 !  diagonal_h is true if and only if the Hessian is diagonal
 !  scaled_identity_h is true if and only if the Hessian is a scaled identity
-!  
+!
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 !  Dummy arguments
 
       TYPE ( DQP_dims_type ), INTENT( IN ) :: dims
       INTEGER, INTENT( IN ) :: n, m, Hessian_kind, gradient_kind
+      INTEGER, INTENT( OUT ) :: m_active, n_active
       INTEGER, INTENT( IN ), OPTIONAL :: target_kind
       REAL ( KIND = wp ), INTENT( IN ) :: f
       LOGICAL, INTENT( IN ), OPTIONAL :: initial
@@ -2843,12 +3029,14 @@ H_loop: DO i = 1, prob%n
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: Z
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( m ) :: C
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
-      TYPE ( DQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( DQP_control_type ), INTENT( IN ) :: control
       TYPE ( DQP_inform_type ), INTENT( INOUT ) :: inform
 
+      LOGICAL, INTENT( INOUT ) :: refactor
       INTEGER, INTENT( IN ) :: dual_starting_point
-      INTEGER, INTENT( INOUT ) :: nv, lbd
-      REAL ( KIND = wp ), INTENT( INOUT ) :: cpu_total, clock_total
+      INTEGER, INTENT( INOUT ) :: nv, lbd, m_ref
+      REAL, INTENT( INOUT ) :: cpu_total
+      REAL ( KIND = wp ), INTENT( INOUT ) :: clock_total
       INTEGER, INTENT( INOUT ), DIMENSION( m ) :: C_status, C_status_old
       INTEGER, INTENT( INOUT ), DIMENSION( nv ) :: NZ_p, V_status
       INTEGER, INTENT( INOUT ), DIMENSION( n ) :: IUSED, INDEX_r, INDEX_w
@@ -2877,6 +3065,7 @@ H_loop: DO i = 1, prob%n
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: GV
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: PV
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: DV
+      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: HPV
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv , 2 ) :: V_bnd
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( * ) :: GC
       TYPE ( SMT_type ), INTENT( INOUT ) :: H_sbls
@@ -2887,32 +3076,34 @@ H_loop: DO i = 1, prob%n
       TYPE ( SBLS_data_type ), INTENT( INOUT ) :: SBLS_data
       TYPE ( GLTR_data_type ), INTENT( INOUT ) :: GLTR_data
       TYPE ( SCU_data_type ), INTENT( INOUT ) :: SCU_data
+      TYPE ( SLS_control_type ), INTENT( INOUT ) :: SLS_control
+      TYPE ( SBLS_control_type ), INTENT( INOUT ) :: SBLS_control
+      TYPE ( GLTR_control_type ), INTENT( INOUT ) :: GLTR_control
 
 !  Local variables
 
-      INTEGER :: a_ne, h_ne, i, ii, j, l, m_sbls, m_subspace
+      INTEGER :: a_ne, h_ne, i, ii, im, j, l, m_sbls, m_subspace
       INTEGER :: out, error, start_print, stop_print, print_level, ip, mpn
       INTEGER :: yl_start, yl_end, yu_start, yu_end, change, change_subspace
       INTEGER :: zl_start, zl_end, zu_start, zu_end, ce_start, ce_end
       INTEGER :: start_ce, start_yl, start_yu, start_zl, start_zu
-      INTEGER :: arc_search_iter, l_start, u_start, print_gap, m_ref
-      INTEGER :: max_row_length, added, deleted, len_list, m_active, n_active
-      REAL ( KIND = wp ) :: time_record, time_start, time_now
+      INTEGER :: arc_search_iter, l_start, u_start, print_gap
+      INTEGER :: max_row_length, added, deleted, len_list, no_change
+      REAL :: time_record, time_start, time_now
       REAL ( KIND = wp ) :: clock_record, clock_start, clock_now, sl, slope
       REAL ( KIND = wp ) :: a_max, h_max, xi, curv, alpha, dual_g_norm, dual_f
-      REAL ( KIND = wp ) :: stop_p, step_max, feas_tol, q0, qt, qc, val
+      REAL ( KIND = wp ) :: stop_d, step_max, feas_tol, q0, qt, qc, val
       REAL ( KIND = wp ) :: norm_pv, alpha_subspace, sigma, c_solve, t_solve
-      REAL ( KIND = wp ) :: f_all, root_hd, growth
-!     REAL ( KIND = wp ) :: stop_d, stop_c
+      REAL ( KIND = wp ) :: f_all, root_hd, growth, rho, primal_infeasibility
+      REAL ( KIND = wp ) :: stop_reasonable, h_scale( 1 )
+!     REAL ( KIND = wp ) :: stop_p, stop_c
       LOGICAL :: set_printt, set_printi, set_printw, set_printd, set_printe
       LOGICAL :: printt, printi, printe, printd, printw, set_printp, printp
-      LOGICAL :: stat_required, dolid, refactor, diagonal_h, composite_g
+      LOGICAL :: stat_required, dolid, diagonal_h, composite_g
       LOGICAL :: identity_h, scaled_identity_h, fresh_start, first_iteration
+      LOGICAL :: subspace_direct, subspace_direct_save, penalty_objective
       CHARACTER ( LEN = 1 ) :: skip
       CHARACTER ( LEN = 80 ) :: array_name
-      TYPE ( SLS_control_type ) :: SLS_control
-      TYPE ( SBLS_control_type ) :: SBLS_control
-      TYPE ( GLTR_control_type ) :: GLTR_control
 
 !  debug variables
 
@@ -2928,22 +3119,42 @@ H_loop: DO i = 1, prob%n
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' entering DQP_solve_main ' )" ) prefix
 
-!  detemine what kind of Hessian is to be stored
-
-      scaled_identity_h = Hessian_kind < 0 .AND.                               &
-        ( .NOT. PRESENT( H_col ) .OR. .NOT. PRESENT( H_ptr ) ) 
-
 !  there must be a Hessian
 
       IF ( Hessian_kind == 0 ) THEN
         GO TO 920
-      ELSE IF ( Hessian_kind < 0 .AND. .NOT. PRESENT( H_val ) ) THEN
-        GO TO 920
-      END IF 
+      ELSE IF ( Hessian_kind > 1 ) THEN
+        IF ( .NOT. PRESENT( WEIGHT ) ) GO TO 920
+        IF ( COUNT( WEIGHT( : n ) == zero ) > 0 )  GO TO 920
+      END IF
+
+!  detemine what kind of Hessian is to be stored
+
+      identity_h = Hessian_kind == 1 .OR. ( Hessian_kind < 0 .AND.             &
+          .NOT. PRESENT( H_val ) )
+!     scaled_identity_h = Hessian_kind > 1 .OR. ( Hessian_kind < 0 .AND.       &
+!         ( .NOT. PRESENT( H_col ) .OR. .NOT. PRESENT( H_ptr ) ) )
+
+      scaled_identity_h = .FALSE.
+      IF ( Hessian_kind > 1 ) THEN
+        IF ( COUNT( WEIGHT( : n ) /= WEIGHT( 1 ) ) == 0 ) THEN
+          scaled_identity_h = .TRUE.
+          h_scale( 1 ) = WEIGHT( 1 ) ** 2
+        END IF
+      ELSE IF ( Hessian_kind < 0 ) THEN
+        IF ( .NOT. PRESENT( H_col ) .OR. .NOT. PRESENT( H_ptr ) ) THEN
+          scaled_identity_h = .TRUE.
+          h_scale( 1 ) = H_val( 1 )
+        END IF
+      END IF
 
 !  the Hessian must be positive definite
 
-     IF ( scaled_identity_h .AND. H_val( 1 ) <= zero ) GO TO 920
+     IF ( .NOT. identity_h ) THEN
+       IF ( scaled_identity_h .AND. Hessian_kind < 0 ) THEN
+         IF ( H_val( 1 ) <= zero ) GO TO 920
+       END IF
+     END IF
 
 !  see how to start
 
@@ -2954,7 +3165,7 @@ H_loop: DO i = 1, prob%n
       END IF
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
 !      IF ( generate_sif ) THEN
 !        CALL QPD_SIF( prob, "DQP_out", sif, control%infinity, .TRUE. )
@@ -2988,22 +3199,22 @@ H_loop: DO i = 1, prob%n
       END IF
 
       IF ( control%stop_print < 0 ) THEN
-        stop_print = control%maxit
+        stop_print = control%maxit + 1
       ELSE
         stop_print = control%stop_print
       END IF
 
-      error = control%error ; out = control%out 
+      error = control%error ; out = control%out
 
       set_printe = error > 0 .AND. control%print_level >= 1
 
 !  basic single line of output per iteration
 
-      set_printi = out > 0 .AND. control%print_level >= 1 
+      set_printi = out > 0 .AND. control%print_level >= 1
 
 !  as per printi, but with additional timings for various operations
 
-      set_printt = out > 0 .AND. control%print_level >= 2 
+      set_printt = out > 0 .AND. control%print_level >= 2
 
 !  as per printt but also with an indication of where in the code we are
 
@@ -3021,12 +3232,12 @@ H_loop: DO i = 1, prob%n
 
       IF ( inform%iter >= start_print .AND. inform%iter < stop_print ) THEN
         printe = set_printe ; printi = set_printi ; printt = set_printt
-        printp = set_printp ; 
+        printp = set_printp ;
         printw = set_printw ; printd = set_printd
         print_level = control%print_level
       ELSE
         printe = .FALSE. ; printi = .FALSE. ; printt = .FALSE.
-        printp = .FALSE. ; 
+        printp = .FALSE. ;
         printw = .FALSE. ; printd = .FALSE.
         print_level = 0
       END IF
@@ -3048,7 +3259,7 @@ H_loop: DO i = 1, prob%n
 
 !  if there are no variables, exit
 
-      IF ( n == 0 ) THEN 
+      IF ( n == 0 ) THEN
         i = COUNT( ABS( C_l( : dims%c_equality ) ) > control%stop_abs_p ) +    &
             COUNT( C_l( dims%c_l_start : dims%c_l_end ) > control%stop_abs_p)+ &
             COUNT( C_u( dims%c_u_start : dims%c_u_end ) < - control%stop_abs_p )
@@ -3066,9 +3277,9 @@ H_loop: DO i = 1, prob%n
           GO TO 810
         END IF
         C = zero ; Y = zero
-        inform%obj = zero
-        GO TO 600 
-      END IF 
+        f_all = f ; dual_g_norm = zero
+        GO TO 600
+      END IF
 
 !  print input matrix for debugging
 
@@ -3076,53 +3287,64 @@ H_loop: DO i = 1, prob%n
         WRITE( control%out, "( ' n, m = ', I0, 1X, I0 )" ) n, m
         WRITE( control%out, "( ' f = ', ES12.4 )" ) f
         IF ( gradient_kind == 0 ) THEN
-          WRITE( control%out, "( ' G = zeros' )" )
+          WRITE( control%out, "( A, ' G = zeros' )" ) prefix
         ELSE IF ( gradient_kind == 1 ) THEN
-          WRITE( control%out, "( ' G = ones' )" )
+          WRITE( control%out, "( A, ' G = ones' )" ) prefix
         ELSE
-          WRITE( control%out, "( ' G = ', /, ( 5ES12.4 ) )" ) G( : n )
+          WRITE( control%out, "( A, ' G =', /, ( 5X, 3ES24.16 ) )" )           &
+            prefix, G( : n )
         END IF
         IF ( Hessian_kind == 1 ) THEN
-          WRITE( control%out, "( ' W = ones ' )" )
+          WRITE( control%out, "( A, ' W = ones ' )" ) prefix
           IF ( target_kind == 0 ) THEN
-            WRITE( control%out, "( ' X0 = zeros ' )" )
+            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
           ELSE IF ( target_kind == 1 ) THEN
-            WRITE( control%out, "( ' X0 = ones ' )" )
+            WRITE( control%out, "( A, ' X0 = ones ' )" ) prefix
           ELSE
-            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" ) X0( : n )
+            WRITE( control%out, "( A, ' X0 =', /, ( 5X, 3ES24.16 ) )" )        &
+             prefix, X0( : n )
           END IF
         ELSE IF ( Hessian_kind == 2 ) THEN
-          WRITE( control%out, "( ' W = ', /, ( 5ES12.4 ) )" ) WEIGHT( : n )
+          WRITE( control%out, "( A, ' W = ', /, ( 5X, 3ES24.16 ) )" )          &
+            prefix, WEIGHT( : n )
           IF ( target_kind == 0 ) THEN
-            WRITE( control%out, "( ' X0 = zeros ' )" )
+            WRITE( control%out, "( A, ' X0 = zeros ' )" ) prefix
           ELSE IF ( target_kind == 1 ) THEN
-            WRITE( control%out, "( ' X0 = ones ' )" )
+            WRITE( control%out, "( A, ' X0 = ones' )" ) prefix
           ELSE
-            WRITE( control%out, "( ' X0 = ', /, ( 5ES12.4 ) )" ) X0( : n )
+            WRITE( control%out, "( A, ' X0 =', /, ( 5X, 3ES24.16 ) )" )        &
+              prefix, X0( : n )
           END IF
         ELSE IF ( Hessian_kind /= 0 ) THEN
           IF ( identity_h ) THEN
-            WRITE( control%out, "( ' H  = I ' )" )
+            WRITE( control%out, "( A, ' H  = I' )" ) prefix
           ELSE IF ( scaled_identity_h ) THEN
-            WRITE( control%out, "( ' H  =', ES12.4, ' * I ' )" ) H_val( 1 )
+            WRITE( control%out, "( A, ' H  = ', ES24.16, ' * I ' )" )          &
+              prefix, h_scale( 1 )
           ELSE
-            WRITE( control%out, "( ' H (row-wise) = ' )" )
+            WRITE( control%out, "( A, ' H (row-wise) =' )" ) prefix
             DO i = 1, n
-              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
+              IF ( H_ptr( i ) <= H_ptr( i + 1 ) - 1 )                          &
+                WRITE( control%out, "( ( 2( 2I8, ES24.16 ) ) )" )              &
                ( i, H_col( j ), H_val( j ), j = H_ptr( i ), H_ptr( i + 1 ) - 1 )
             END DO
           END IF
         END IF
-        WRITE( control%out, "( ' X_l = ', /, ( 5ES12.4 ) )" ) X_l( : n )
-        WRITE( control%out, "( ' X_u = ', /, ( 5ES12.4 ) )" ) X_u( : n )
+        WRITE( control%out, "( A, ' X_l =', /, ( 5X, 3ES24.16 ) )" )           &
+          prefix, X_l( : n )
+        WRITE( control%out, "( A, ' X_u =', /, ( 5X, 3ES24.16 ) )" )           &
+          prefix, X_u( : n )
         IF ( m > 0 ) THEN
-          WRITE( control%out, "( ' A (row-wise) = ' )" )
+          WRITE( control%out, "( A, ' A (row-wise) = ' )" ) prefix
           DO i = 1, m
-            WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                   &
+            IF ( A_ptr( i ) <= A_ptr( i + 1 ) - 1 )                            &
+              WRITE( control%out, "( ( 2( 2I8, ES12.4 ) ) )" )                 &
               ( i, A_col( j ), A_val( j ), j = A_ptr( i ), A_ptr( i + 1 ) - 1 )
           END DO
-          WRITE( control%out, "( ' C_l = ', /, ( 5ES12.4 ) )" ) C_l( : m )
-          WRITE( control%out, "( ' C_u = ', /, ( 5ES12.4 ) )" ) C_u( : m )
+          WRITE( control%out, "( A, ' C_l =', /, ( 5X, 3ES24.16 ) )" )         &
+            prefix, C_l( : m )
+          WRITE( control%out, "( A, ' C_u =', /, ( 5X, 3ES24.16 ) )" )         &
+            prefix, C_u( : m )
         END IF
       END IF
 
@@ -3130,17 +3352,17 @@ H_loop: DO i = 1, prob%n
 
       a_ne = A_ptr( m + 1 ) - 1
       diagonal_h = .TRUE.
-      IF ( Hessian_kind < 0 ) THEN
+      IF ( Hessian_kind < 0 .AND. .NOT. identity_h ) THEN
         identity_h = .TRUE.
         IF ( scaled_identity_h ) THEN
-          IF ( H_val( 1 ) == one ) THEN
+          IF ( h_scale( 1 ) == one ) THEN
             h_ne = 0
           ELSE
             h_ne = 1
             identity_h = .FALSE.
           END IF
         ELSE
-          identity_h = .FALSE.
+!         identity_h = .FALSE.
           h_ne = H_ptr( n + 1 ) - 1
  H_loop : DO i = 1, n
             DO l = H_ptr( i ), H_ptr( i + 1 ) - 1
@@ -3155,6 +3377,7 @@ H_loop: DO i = 1, prob%n
       ELSE
         h_ne = 0
       END IF
+      IF ( identity_h ) scaled_identity_h = .FALSE.
 
 !  find the largest components of A and H
 
@@ -3180,12 +3403,23 @@ H_loop: DO i = 1, prob%n
     &                              /, A, '  maximum element of H =', ES11.4 )")&
         prefix, a_max, prefix, h_max
 
+!  are the general constraints to be handled using a penalty function?
+
+      penalty_objective = control%rho > zero
+      IF ( penalty_objective ) THEN
+        rho = control%rho
+        IF ( printi ) WRITE( out, "( /, A,                                     &
+       &  '  general constraints penalized by ', ES8.2 )" ) prefix, rho
+      ELSE
+        rho = zero
+      END IF
+
 !  decide whether the gradient is to be treated as composite, and if so, set it
 
       IF (  Hessian_kind >= 1 ) THEN
         composite_g = target_kind /= 0
       ELSE
-        composite_g = gradient_kind == 0 .OR.gradient_kind == 1
+        composite_g = gradient_kind == 0 .OR. gradient_kind == 1
       END IF
 
       IF ( composite_g ) THEN
@@ -3228,7 +3462,7 @@ H_loop: DO i = 1, prob%n
           f_all = f + half * SUM( ( WEIGHT( : n ) * X0( : n ) ) ** 2 )
         END IF
       END IF
-      
+
 !  compute the initial objective value
 
       IF ( Hessian_kind == 1 ) THEN
@@ -3236,8 +3470,10 @@ H_loop: DO i = 1, prob%n
       ELSE IF ( Hessian_kind == 2 ) THEN
         inform%obj = f_all + half * SUM( ( WEIGHT * X ) ** 2 )
       ELSE
-        IF ( scaled_identity_h ) THEN
-          curv = H_val( 1 ) * DOT_PRODUCT( X( : n ), X( : n ) )
+        IF ( identity_h ) THEN
+          curv = DOT_PRODUCT( X( : n ), X( : n ) )
+        ELSE IF ( scaled_identity_h ) THEN
+          curv = h_scale( 1 ) * DOT_PRODUCT( X( : n ), X( : n ) )
         ELSE
           curv = zero
           DO i = 1, n
@@ -3258,7 +3494,7 @@ H_loop: DO i = 1, prob%n
         END IF
         inform%obj = f_all + half * curv
       END IF
-      
+
       IF ( composite_g ) THEN
         inform%obj = inform%obj + DOT_PRODUCT( GC( : n ), X )
       ELSE IF ( gradient_kind /= 0 ) THEN
@@ -3267,7 +3503,7 @@ H_loop: DO i = 1, prob%n
 
       mpn = m + n
 
-!   (dual) variables will be stored as follows:
+!   (dual) variables v will be stored as follows:
 
 !   -----------------------------------------------------------
 !   | c_equality  | c_lower  | c_upper  | x_lower  | x_upper  |
@@ -3344,24 +3580,33 @@ H_loop: DO i = 1, prob%n
 
       IF ( diagonal_h ) THEN
 
-!  if the Hessain is a scaled identity matrix, record it 
+!  if the Hessain is a scaled identity matrix, record it
 
-        IF ( scaled_identity_h ) THEN
-          root_hd = SQRT( H_val( 1 ) )
+        IF ( identity_h ) THEN
+          root_hd = one
+
+          array_name = 'dqp: H_sbls%type'
+          CALL SMT_put( H_sbls%type, 'IDENTITY', inform%alloc_status )
+          IF ( inform%status /= 0 ) GO TO 910
+
+!  if the Hessain is a scaled identity matrix, record it
+
+        ELSE IF ( scaled_identity_h ) THEN
+          root_hd = SQRT( h_scale( 1 ) )
 
           array_name = 'dqp: H_sbls%type'
           CALL SMT_put( H_sbls%type, 'SCALED_IDENTITY', inform%alloc_status )
           IF ( inform%status /= 0 ) GO TO 910
-          H_sbls%val( 1 ) = H_val( 1 )
+          H_sbls%val( 1 ) = h_scale( 1 )
 
-!  if the Hessain is diagonal, record it 
+!  if the Hessain is diagonal, record it
 
         ELSE
           H_sbls%n = n ; H_sbls%m = n ; H_sbls%ne = n
           array_name = 'dqp: H_sbls%type'
           CALL SMT_put( H_sbls%type, 'DIAGONAL', inform%alloc_status )
           IF ( inform%status /= 0 ) GO TO 910
-          
+
           IF ( Hessian_kind < 0 ) THEN
             H_sbls%val( : n ) = zero
             DO i = 1, n
@@ -3371,15 +3616,17 @@ H_loop: DO i = 1, prob%n
               END DO
             END DO
           ELSE IF ( Hessian_kind == 1 ) THEN
-            H_sbls%val( : n ) = one
+!           H_sbls%val( : n ) = one
           ELSE
             H_sbls%val( : n ) = WEIGHT( : n ) ** 2
           END IF
 
 !  check that the diagonal Hessian is positive definite
 
-          IF ( COUNT( H_sbls%val( : n ) <= zero ) > 0 ) THEN
-            inform%status = GALAHAD_error_inertia ; GO TO 900
+          IF ( Hessian_kind /= 1 ) THEN
+            IF ( COUNT( H_sbls%val( : n ) <= zero ) > 0 ) THEN
+              inform%status = GALAHAD_error_inertia ; GO TO 900
+            END IF
           END IF
         END IF
         IF ( printt ) WRITE( out, "( A, ' Hessian is diagonal' )" ) prefix
@@ -3392,7 +3639,7 @@ H_loop: DO i = 1, prob%n
         array_name = 'dqp: H_sbls%type'
         CALL SMT_put( H_sbls%type, 'SPARSE_BY_ROWS', inform%alloc_status )
         IF ( inform%status /= 0 ) GO TO 910
-      
+
 !  store H in H_sbls
 
         H_sbls%ptr( : n + 1 ) = H_ptr( : n + 1 )
@@ -3419,7 +3666,8 @@ H_loop: DO i = 1, prob%n
         SLS_control%pivot_control = 2
         CALL SLS_analyse( H_sbls, SLS_data, SLS_control, inform%SLS_inform )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%analyse = inform%time%analyse + time_now - time_record
+        inform%time%analyse =                                                  &
+          inform%time%analyse + REAL( time_now - time_record, wp )
         inform%time%clock_analyse =                                            &
           inform%time%clock_analyse + clock_now - clock_record
 
@@ -3443,7 +3691,8 @@ H_loop: DO i = 1, prob%n
         CALL SLS_factorize( H_sbls, SLS_data, SLS_control, inform%SLS_inform )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%nfacts = inform%nfacts + 1
-        inform%time%factorize = inform%time%factorize + time_now - time_record
+        inform%time%factorize =                                                &
+          inform%time%factorize + REAL( time_now - time_record, wp )
         inform%time%clock_factorize =                                          &
           inform%time%clock_factorize + clock_now - clock_record
 
@@ -3477,15 +3726,27 @@ H_loop: DO i = 1, prob%n
 
 !  record the dual bounds
 
-      V_bnd( : dims%c_equality, 1 ) = - ten * control%infinity
-      V_bnd( dims%c_l_start : yl_end, 1 ) = zero
-      V_bnd( yu_start : yu_end, 1 ) = - ten * control%infinity
+      IF ( penalty_objective ) THEN
+        V_bnd( ce_start : ce_end, 1 ) = - rho
+        V_bnd( yl_start : yl_end, 1 ) = zero
+        V_bnd( yu_start : yu_end, 1 ) = - rho
+
+        V_bnd( ce_start : ce_end, 2 ) = rho
+        V_bnd( yl_start : yl_end, 2 ) = rho
+        V_bnd( yu_start : yu_end, 2 ) = zero
+      ELSE
+        V_bnd( ce_start : ce_end, 1 ) = - ten * control%infinity
+        V_bnd( yl_start : yl_end, 1 ) = zero
+        V_bnd( yu_start : yu_end, 1 ) = - ten * control%infinity
+
+        V_bnd( ce_start : ce_end, 2 ) = ten * control%infinity
+        V_bnd( yl_start : yl_end, 2 ) = ten * control%infinity
+        V_bnd( yu_start : yu_end, 2 ) = zero
+      END IF
+
       V_bnd( zl_start : zl_end, 1 ) = zero
       V_bnd( zu_start : zu_end, 1 ) = - ten * control%infinity
 
-      V_bnd( : dims%c_equality, 2 ) = ten * control%infinity
-      V_bnd( dims%c_l_start : yl_end, 2 ) = ten * control%infinity
-      V_bnd( yu_start : yu_end, 2 ) = zero
       V_bnd( zl_start : zl_end, 2 ) = ten * control%infinity
       V_bnd( zu_start : zu_end, 2 ) = zero
 
@@ -3512,10 +3773,10 @@ H_loop: DO i = 1, prob%n
 !  check that range constraints are not simply fixed variables,
 !  and that the upper bounds are larger than the corresponing lower bounds
 
-        IF ( X_u( i ) - X_l( i ) <= epsmch ) THEN 
+        IF ( X_u( i ) - X_l( i ) <= epsmch ) THEN
           inform%status = GALAHAD_error_bad_bounds ; GO TO 700
         END IF
-        X( i ) = MIN( MAX( X( i ), X_l( i ) ), X_u( i ) ) 
+        X( i ) = MIN( MAX( X( i ), X_l( i ) ), X_u( i ) )
       END DO
 
 !  the variable has just an upper bound
@@ -3553,10 +3814,10 @@ H_loop: DO i = 1, prob%n
 !  check that range constraints are not simply fixed variables,
 !  and that the upper bounds are larger than the corresponing lower bounds
 
-          IF ( C_u( i ) - C_l( i ) <= epsmch ) THEN 
+          IF ( C_u( i ) - C_l( i ) <= epsmch ) THEN
             inform%status = GALAHAD_error_bad_bounds ; GO TO 700
           END IF
-          C( i ) = MIN( MAX( C( i ), C_l( i ) ), C_u( i ) ) 
+          C( i ) = MIN( MAX( C( i ), C_l( i ) ), C_u( i ) )
         END DO
 
 !  the constraint has just an upper bound
@@ -3571,10 +3832,10 @@ H_loop: DO i = 1, prob%n
 !  ------------------------------
 
       C_status = 0 ; X_status = 0
-      stop_p = control%stop_abs_p 
+      stop_d = control%stop_abs_d
 
 !  .....................................................
-!  dual approximation starting point:
+!  dual approximation starting point (see notation below):
 !    minimize v^T g^d + 1/2 weight || v ||^2 s.t. v in D
 !  .....................................................
 
@@ -3586,7 +3847,7 @@ H_loop: DO i = 1, prob%n
           SOL( : n ) = GC( : n )
         ELSE
           SOL( : n ) = G( : n )
-        END IF 
+        END IF
 
 !  find the primal variables by solving H x = r
 
@@ -3594,14 +3855,15 @@ H_loop: DO i = 1, prob%n
         IF ( identity_h ) THEN
 !         SOL( : n ) = SOL( : n )
         ELSE IF ( scaled_identity_h ) THEN
-          SOL( : n ) = SOL( : n ) / H_val( 1 )
+          SOL( : n ) = SOL( : n ) / h_scale( 1 )
         ELSE IF ( diagonal_h ) THEN
           SOL( : n ) = SOL( : n ) / H_sbls%val( : n )
         ELSE
           CALL SLS_solve( H_sbls, SOL, SLS_data, SLS_control, inform%SLS_inform)
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%solve = inform%time%solve + time_now - time_record
+        inform%time%solve =                                                    &
+          inform%time%solve + REAL( time_now - time_record, wp )
         inform%time%clock_solve =                                              &
           inform%time%clock_solve + clock_now - clock_record
 
@@ -3635,7 +3897,7 @@ H_loop: DO i = 1, prob%n
                  MAXVAL( ABS( GZ_l( dims%x_free + 1 : dims%x_l_end ) ) ),      &
                  MAXVAL( ABS( GZ_u( dims%x_u_start : n ) ) ) )
 
-!  weight is a sample r J H^{-1} J^T r for some unit r. 
+!  weight is a sample r J H^{-1} J^T r for some unit r.
 !  Compute r = J^T e / ||e|| and store in sol
 
         ELSE
@@ -3683,7 +3945,8 @@ H_loop: DO i = 1, prob%n
                                  SLS_control, inform%SLS_inform )
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve = inform%time%solve + time_now - time_record
+          inform%time%solve =                                                  &
+            inform%time%solve + REAL( time_now - time_record, wp )
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -3697,7 +3960,7 @@ H_loop: DO i = 1, prob%n
         DO i = dims%x_free + 1, dims%x_l_end
           IF ( GZ_l( i ) < zero ) THEN
             Z_l( i ) = - GZ_l( i ) / sigma
-            IF ( Z_l( i ) > stop_p ) X_status( i ) = 1
+            IF ( Z_l( i ) > stop_d ) X_status( i ) = 1
           ELSE
             Z_l( i ) = zero
           END IF
@@ -3708,13 +3971,13 @@ H_loop: DO i = 1, prob%n
         DO i = dims%x_u_start, n
           IF ( GZ_u( i ) > zero ) THEN
             Z_u( i ) = - GZ_u( i ) / sigma
-            IF ( Z_u( i ) < - stop_p ) X_status( i ) = X_status( i ) + 2
+            IF ( Z_u( i ) < - stop_d ) X_status( i ) = X_status( i ) + 2
           ELSE
             Z_u( i ) = zero
           END IF
         END DO
 
-!  equality constraints 
+!  equality constraints
 
         IF ( m > 0 ) THEN
           DO i = 1, dims%c_equality
@@ -3733,7 +3996,7 @@ H_loop: DO i = 1, prob%n
           DO i = dims%c_l_start, dims%c_l_end
             IF ( GY_l( i ) < zero ) THEN
               Y_l( i ) = - GY_l( i ) / sigma
-              IF ( Y_l( i ) > stop_p ) C_status( i ) = 1
+              IF ( Y_l( i ) > stop_d ) C_status( i ) = 1
             ELSE
               Y_l( i ) = zero
             END IF
@@ -3744,7 +4007,7 @@ H_loop: DO i = 1, prob%n
           DO i = dims%c_u_start, dims%c_u_end
             IF ( GY_u( i ) > zero ) THEN
               Y_u( i ) = - GY_u( i ) / sigma
-              IF ( Y_u( i ) < - stop_p ) C_status( i ) = C_status( i ) + 2
+              IF ( Y_u( i ) < - stop_d ) C_status( i ) = C_status( i ) + 2
             ELSE
               Y_u( i ) = zero
             END IF
@@ -3761,14 +4024,14 @@ H_loop: DO i = 1, prob%n
 
         DO i = dims%x_free + 1, dims%x_l_end
           Z_l( i ) = MAX( Z( i ), one )
-          IF ( Z_l( i ) > stop_p ) X_status( i ) = 1
+          IF ( Z_l( i ) > stop_d ) X_status( i ) = 1
         END DO
 
 !  variables with upper bounds
 
         DO i = dims%x_u_start, n
           Z_u( i ) = MIN( Z( i ), - one )
-          IF ( Z_u( i ) < - stop_p ) X_status( i ) = X_status( i ) + 2
+          IF ( Z_u( i ) < - stop_d ) X_status( i ) = X_status( i ) + 2
         END DO
 
         IF ( m > 0 ) THEN
@@ -3779,14 +4042,14 @@ H_loop: DO i = 1, prob%n
 
           DO i = dims%c_l_start, dims%c_l_end
             Y_l( i ) = MAX( Y( i ), one )
-            IF ( Y_l( i ) > stop_p ) C_status( i ) = 1
+            IF ( Y_l( i ) > stop_d ) C_status( i ) = 1
           END DO
 
 !  constraints with upper bounds
 
           DO i = dims%c_u_start, dims%c_u_end
             Y_u( i ) = MIN( Y( i ), - one )
-            IF ( Y_u( i ) < - stop_p ) C_status( i ) = C_status( i ) + 2
+            IF ( Y_u( i ) < - stop_d ) C_status( i ) = C_status( i ) + 2
           END DO
         END IF
 
@@ -3800,14 +4063,14 @@ H_loop: DO i = 1, prob%n
 
         DO i = dims%x_free + 1, dims%x_l_end
           Z_l( i ) = zero
-          IF ( Z_l( i ) > stop_p ) X_status( i ) = 1
+          IF ( Z_l( i ) > stop_d ) X_status( i ) = 1
         END DO
 
 !  variables with upper bounds
 
         DO i = dims%x_u_start, n
           Z_u( i ) = zero
-          IF ( Z_u( i ) < - stop_p ) X_status( i ) = X_status( i ) + 2
+          IF ( Z_u( i ) < - stop_d ) X_status( i ) = X_status( i ) + 2
         END DO
 
         IF ( m > 0 ) THEN
@@ -3818,16 +4081,76 @@ H_loop: DO i = 1, prob%n
 
           DO i = dims%c_l_start, dims%c_l_end
             Y_l( i ) = zero
-            IF ( Y_l( i ) > stop_p ) C_status( i ) = 1
+            IF ( Y_l( i ) > stop_d ) C_status( i ) = 1
           END DO
 
 !  constraints with upper bounds
 
           DO i = dims%c_u_start, dims%c_u_end
             Y_u( i ) = zero
-            IF ( Y_u( i ) < - stop_p )  C_status( i ) = C_status( i ) + 2
+            IF ( Y_u( i ) < - stop_d )  C_status( i ) = C_status( i ) + 2
           END DO
         END IF
+
+!  ........................................
+!  primal-dual user-supplied starting point
+!  ........................................
+
+      ELSE IF ( dual_starting_point == - 1 ) THEN
+
+!  variables with lower bounds
+
+        DO i = dims%x_free + 1, dims%x_l_end
+          Z_l( i ) = MAX( Z( i ), zero )
+          val = MAX( X( i ) - X_l( i ), zero )
+          IF ( val < Z_l( i ) ) THEN
+            X_status( i ) = 1
+          ELSE
+            Z_l( i ) = zero
+          END IF
+        END DO
+
+!  variables with upper bounds
+
+        DO i = dims%x_u_start, n
+          Z_u( i ) = MIN( Z( i ), zero )
+          val = MAX( X_u( i ) - X( i ), zero )
+          IF ( val < - Z_u( i ) ) THEN
+            X_status( i ) = X_status( i ) + 2
+          ELSE
+            Z_u( i ) = zero
+          END IF
+        END DO
+
+        IF ( m > 0 ) THEN
+          Y_l( : dims%c_equality ) = Y( : dims%c_equality )
+          C_status(: dims%c_equality ) = - 1
+
+!  constraints with lower bounds
+
+          DO i = dims%c_l_start, dims%c_l_end
+            Y_l( i ) = MAX( Y( i ), zero )
+            val = MAX( C( i ) - C_l( i ), zero )
+            IF ( val < Y_l( i ) ) THEN
+              C_status( i ) = 1
+            ELSE
+              Y_l( i ) = zero
+            END IF
+          END DO
+
+!  constraints with upper bounds
+
+          DO i = dims%c_u_start, dims%c_u_end
+            Y_u( i ) = MIN( Y( i ), zero )
+            val = MAX( C_u( i ) - C( i ), zero )
+            IF ( val < - Y_u( i ) ) THEN
+              C_status( i ) = C_status( i ) + 2
+            ELSE
+              Y_u( i ) = zero
+            END IF
+          END DO
+        END IF
+!write(99,"( ( I6, I6 ) )" ) ( i, X_status( i ), i = dims%x_free + 1, n )
 
 !  ............................
 !  user-supplied starting point
@@ -3839,14 +4162,14 @@ H_loop: DO i = 1, prob%n
 
         DO i = dims%x_free + 1, dims%x_l_end
           Z_l( i ) = MAX( Z( i ), zero )
-          IF ( Z_l( i ) > stop_p ) X_status( i ) = 1
+          IF ( Z_l( i ) > stop_d ) X_status( i ) = 1
         END DO
 
 !  variables with upper bounds
 
         DO i = dims%x_u_start, n
           Z_u( i ) = MIN( Z( i ), zero )
-          IF ( Z_u( i ) < - stop_p ) X_status( i ) = X_status( i ) + 2
+          IF ( Z_u( i ) < - stop_d ) X_status( i ) = X_status( i ) + 2
         END DO
 
         IF ( m > 0 ) THEN
@@ -3857,18 +4180,18 @@ H_loop: DO i = 1, prob%n
 
           DO i = dims%c_l_start, dims%c_l_end
             Y_l( i ) = MAX( Y( i ), zero )
-            IF ( Y_l( i ) > stop_p ) C_status( i ) = 1
+            IF ( Y_l( i ) > stop_d ) C_status( i ) = 1
           END DO
 
 !  constraints with upper bounds
 
           DO i = dims%c_u_start, dims%c_u_end
             Y_u( i ) = MIN( Y( i ), zero )
-            IF ( Y_u( i ) < - stop_p ) C_status( i ) = C_status( i ) + 2
+            IF ( Y_u( i ) < - stop_d ) C_status( i ) = C_status( i ) + 2
           END DO
         END IF
       END IF
-!write(6,*) COUNT( C_status(: m ) /= 0 ),COUNT( X_status(: n ) /= 0 )
+! write(6,*) m, COUNT( C_status(: m ) /= 0 ), n, COUNT( X_status(: n ) /= 0 )
       C_status_old( : m ) = C_status( : m )
       X_status_old( : n ) = X_status( : n )
 !write(6,*) ' C_status ', C_status( : m )
@@ -3876,6 +4199,7 @@ H_loop: DO i = 1, prob%n
 
 !  print details of the starting point if required ...
 
+!     IF ( .TRUE. ) THEN
       IF ( printd ) THEN
         WRITE( out, "( /, A, 5X, 'i', 6x, 'x', 10X, 'x_l', 9X, 'x_u', 9X,      &
        &       'z_l', 9X, 'z_u     stat')") prefix
@@ -3920,7 +4244,7 @@ H_loop: DO i = 1, prob%n
           END DO
           DO i = dims%c_l_start, dims%c_u_start - 1
             WRITE( out,  "( A, I6, 2ES12.4, '      -     ', ES12.4,            &
-           &  '      -    ', I5 )" ) prefix, i, C( i ), C_l( i ),              &
+           &  '      -     ', I5 )" ) prefix, i, C( i ), C_l( i ),             &
               Y_l( i ), C_status( i )
           END DO
           DO i = dims%c_u_start, dims%c_l_end
@@ -3936,17 +4260,22 @@ H_loop: DO i = 1, prob%n
         END IF
       END IF
 
-!  set the feasibility tolerance and setp bound
+!  set the feasibility tolerance and step bound
 
       feas_tol = epsmch
       step_max = SQRT( SQRT( HUGE( one ) ) )
+      stop_reasonable = epsmch ** 0.5
       refactor = .TRUE.
+      subspace_direct = control%subspace_direct
+      change_subspace = nv
+      no_change = 0
+      alpha = one
+      alpha_subspace = zero
 
-!  ----------------------------------------------------------------------
 !  Notation:
 !  ========
 
-!  v = ( y_l ), J = ( A ), b = ( c_l ), 
+!  v = ( y_l ), J = ( A ), b = ( c_l ),
 !      ( y_u )      ( A )      ( c_u )
 !      ( z_l )      ( I )      ( x_l )
 !      ( z_u )      ( I )      ( x_u )
@@ -3956,7 +4285,8 @@ H_loop: DO i = 1, prob%n
 !    q_d(v) = 1/2 ( J^T v - g )^T H^{-1} ( J^T v - g ) - <b, v> - f
 !  is the dual objective function
 
-!  ----------------------------------------------------------------------
+!  N.B. For the penalty function case, we have instead
+!  D = { v: 0 <= y_l <= rho, - rho <= y_u <= 0, z_l >= 0 & z_u <= 0 }
 
 !  ---------------------------------------------------------------------
 !  ---------------------- Start of Major Iteration ---------------------
@@ -3979,19 +4309,18 @@ H_loop: DO i = 1, prob%n
 
 !  compute the dual residual r_k = J^T v_k - g and store in sol
 
+!write(6,*) ' composite_g ', composite_g
         IF ( composite_g ) THEN
           SOL( : n ) = - GC( : n )
         ELSE
           SOL( : n ) = - G( : n )
-        END IF 
-!write(6,*) ' SOL ', SOL( : n )
+        END IF
         DO i = 1, dims%c_u_start - 1
           DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
             j = A_col( l )
             SOL( j ) = SOL( j ) + A_val( l ) * Y_l( i )
           END DO
         END DO
-!write(6,*) ' sol ', SOL( : n )
         DO i = dims%c_u_start, dims%c_l_end
           DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
             j = A_col( l )
@@ -4021,24 +4350,26 @@ H_loop: DO i = 1, prob%n
         IF ( identity_h ) THEN
 !         X( : n ) = X( : n )
         ELSE IF ( scaled_identity_h ) THEN
-          X( : n ) = X( : n ) / H_val( 1 )
+          X( : n ) = X( : n ) / h_scale( 1 )
         ELSE IF ( diagonal_h ) THEN
           X( : n ) = X( : n ) / H_sbls%val( : n )
         ELSE
           CALL SLS_solve( H_sbls, X, SLS_data, SLS_control, inform%SLS_inform )
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%solve = inform%time%solve + time_now - time_record
+        inform%time%solve =                                                    &
+          inform%time%solve + REAL( time_now - time_record, wp )
         inform%time%clock_solve =                                              &
           inform%time%clock_solve + clock_now - clock_record
 
 !  compute the dual gradient g^d_k = J x_k - b of q^d(v) at v_k, the
-!  dual objective function q_d(v) = 1/2 x_k^T r_k - <b,v> - f, and the 
+!  dual objective function q_d(v) = 1/2 x_k^T r_k - <b,v> - f, and the
 !  dual optimality measure || P_D[ v_k - g^d_k ] - v_k ||
 
         dual_f = half * DOT_PRODUCT( X( : n ), SOL( : n ) ) - f_all
         dual_g_norm = zero
 
+!write(6,*) ' penalty_objective ', penalty_objective
 !  GY_l = dual gradient wrt Y_l
 
         DO i = 1, dims%c_l_end
@@ -4047,11 +4378,21 @@ H_loop: DO i = 1, prob%n
             GY_l( i ) = GY_l( i ) + A_val( l ) * X( A_col( l ) )
           END DO
           dual_f = dual_f - C_l( i ) * Y_l( i )
-          IF ( i <= dims%c_equality ) THEN
-            dual_g_norm = MAX( dual_g_norm, ABS( GY_l( i ) ) )
+          IF ( penalty_objective ) THEN
+            IF ( i <= dims%c_equality ) THEN
+              dual_g_norm = MAX( dual_g_norm, ABS(                             &
+                 MIN( MAX( Y_l( i ) - GY_l( i ), - rho ), rho ) - Y_l( i ) ) )
+            ELSE
+              dual_g_norm = MAX( dual_g_norm, ABS(                             &
+                 MIN( MAX( Y_l( i ) - GY_l( i ), zero ), rho ) - Y_l( i ) ) )
+            END IF
           ELSE
-            dual_g_norm = MAX( dual_g_norm, ABS(                               &
-               MAX( Y_l( i ) - GY_l( i ), zero ) - Y_l( i ) ) )
+            IF ( i <= dims%c_equality ) THEN
+              dual_g_norm = MAX( dual_g_norm, ABS( GY_l( i ) ) )
+            ELSE
+              dual_g_norm = MAX( dual_g_norm, ABS(                             &
+                 MAX( Y_l( i ) - GY_l( i ), zero ) - Y_l( i ) ) )
+            END IF
           END IF
         END DO
 
@@ -4063,8 +4404,13 @@ H_loop: DO i = 1, prob%n
             GY_u( i ) = GY_u( i ) + A_val( l ) * X( A_col( l ) )
           END DO
           dual_f = dual_f - C_u( i ) * Y_u( i )
-          dual_g_norm = MAX( dual_g_norm, ABS(                                 &
-              MIN( Y_u( i ) - GY_u( i ), zero ) - Y_u( i ) ) )
+          IF ( penalty_objective ) THEN
+            dual_g_norm = MAX( dual_g_norm, ABS(                               &
+                MAX( MIN( Y_u( i ) - GY_u( i ), zero ), - rho ) - Y_u( i ) ) )
+          ELSE
+            dual_g_norm = MAX( dual_g_norm, ABS(                               &
+                MIN( Y_u( i ) - GY_u( i ), zero ) - Y_u( i ) ) )
+          END IF
         END DO
 
 !  GZ_l = dual gradient wrt Z_l
@@ -4085,6 +4431,7 @@ H_loop: DO i = 1, prob%n
              MIN( Z_u( j ) - GZ_u( j ), zero ) - Z_u( j ) ) )
         END DO
 
+!write(6,*) ' dual_g_norm ', dual_g_norm
 !write(6,*) 'gy_l', GY_l( 1 : dims%c_l_end )
 !write(6,*) 'gy_u', GY_u( dims%c_u_start : dims%c_u_end )
 !write(6,*) 'gz_l', GZ_l( dims%x_free + 1 : dims%x_l_end )
@@ -4095,13 +4442,12 @@ H_loop: DO i = 1, prob%n
 !  compute stopping tolerances on the first iteration
 
         IF ( first_iteration ) THEN
-          stop_p = MAX( control%stop_abs_p,                                    &
+          stop_d = MAX( control%stop_abs_p,                                    &
                         control%stop_rel_p * dual_g_norm )
           IF ( printi ) WRITE( out,                                            &
             "(  /, A, '  Primal convergence tolerance =', ES11.4 )" )          &
-              prefix, stop_p
+              prefix, stop_d
         END IF
-!write(6,*) ' dual_f ', dual_f
 
 !  =======================================================================
 !  STEP 2: -*-*-*-*-*-*-*-*-*-   test for optimality   -*-*-*-*-*-*-*-*-*-
@@ -4112,39 +4458,159 @@ H_loop: DO i = 1, prob%n
 
 !  print a summary of the iteration
 
-        CALL CLOCK_TIME( clock_now ) 
+        CALL CLOCK_TIME( clock_now )
         clock_now = clock_now - clock_start + clock_total
-        IF ( printi ) THEN 
-          IF ( first_iteration ) THEN 
+        IF ( printi ) THEN
+          IF ( first_iteration ) THEN
             first_iteration = .FALSE.
             WRITE( out, 2000 ) prefix, prefix
             WRITE( out, 2020 ) prefix, inform%iter,                            &
               dual_f, dual_g_norm, clock_now
-          ELSE 
+          ELSE
             IF ( printt .OR. ( printi .AND.                                    &
                inform%iter == start_print ) ) WRITE( out, 2000 ) prefix, prefix
             WRITE( out, 2030 ) prefix, inform%iter, skip,                      &
              dual_f, dual_g_norm, m_sbls, change, alpha,                       &
              m_subspace, change_subspace, alpha_subspace, clock_now
-          END IF 
-        END IF 
+          END IF
+        END IF
 
 !  test for optimality
 
-        IF ( dual_g_norm <= stop_p ) THEN
-          inform%status = GALAHAD_ok ; GO TO 600 
-        END IF 
+        CALL CPU_TIME( time_record  )
+        CALL CHECKPOINT( inform%iter, time_record - time_start,                &
+                         dual_g_norm, inform%checkpointsIter,                  &
+                         inform%checkpointsTime, 1, 16 )
+
+        IF ( dual_g_norm <= stop_d .OR.                                        &
+             ( no_change > 2 .AND. dual_g_norm <= stop_reasonable ) ) THEN
+
+!  if required, form and factorize the matrix K_0 = (   H     J^T_F_k )
+!                                                   ( J_F_k      0    )
+
+          IF ( control%factor_optimal_matrix .AND. control%subspace_direct     &
+               .AND. change_subspace > 0 ) THEN
+
+!  form the matrix of primal-active rows of A
+
+!  components from the general constraints
+
+            m_sbls = 0 ; A_sbls%ne = 0
+
+            DO j = 1, m_active
+              m_sbls = m_sbls + 1
+              i = ABS( C_active( j ) )
+              DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
+                A_sbls%ne = A_sbls%ne + 1
+                A_sbls%row( A_sbls%ne ) = m_sbls
+                A_sbls%col( A_sbls%ne ) = A_col( l )
+                A_sbls%val( A_sbls%ne ) = A_val( l )
+              END DO
+            END DO
+
+!  components from the simple bounds
+
+            DO i = 1, n_active
+              m_sbls = m_sbls + 1
+              A_sbls%ne = A_sbls%ne + 1
+              A_sbls%row( A_sbls%ne ) = m_sbls
+              A_sbls%col( A_sbls%ne ) = ABS( X_active( i ) )
+              A_sbls%val( A_sbls%ne ) = one
+            END DO
+            A_sbls%m = m_sbls
+
+!write(6,*) m_ref, COUNT( A_sbls%row( :  A_sbls%ne ) > m_ref )
+!do i = 1, A_sbls%ne
+!  if ( A_sbls%row( i ) > m_ref ) write( 6, * ) m_ref, A_sbls%row( i ), i
+!end do
+
+!  factorize the matrix K_0
+
+  210       CONTINUE
+!write(6,*) ' refactor',  refactor, ' n, m_sbls ', n, m_sbls
+            IF ( printw )                                                      &
+              WRITE( out, "( /, A, ' ** enter form_and_factor' )" ) prefix
+            CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
+            CALL SBLS_form_and_factorize( n, m_sbls, H_sbls, A_sbls, C_sbls,   &
+                                          SBLS_data, SBLS_control,             &
+                                          inform%SBLS_inform )
+            CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+            IF ( printw )                                                      &
+              WRITE( out, "( /, A, ' ** form_and_factor complete' )" ) prefix
+            inform%time%factorize                                              &
+              = inform%time%factorize + REAL( time_now - time_record, wp )
+            inform%time%clock_factorize                                        &
+              = inform%time%clock_factorize + clock_now - clock_record
+            inform%nfacts = inform%nfacts + 1
+
+            IF ( printd )                                                      &
+              CALL SBLS_eigs( SBLS_data, out, inform%SBLS_inform )
+
+            IF ( printt ) WRITE( out, "( /, A, ' on exit from SBLS: status = ',&
+           &    I0, ', time = ', F0.2 )" )                                     &
+                 prefix, inform%SBLS_inform%status, clock_now - clock_record
+
+!  check for success
+
+            IF ( inform%SBLS_inform%status < 0 ) THEN
+              IF ( printi ) THEN
+                IF ( inform%SBLS_inform%status == GALAHAD_error_analysis )     &
+                  WRITE( out, "( A, ' error in SLS_analyse called from',       &
+                 &  ' SBLS_form_and_factorize, status = ', I0 )" )             &
+                    prefix, inform%SBLS_inform%SLS_inform%status
+                IF ( inform%SBLS_inform%status == GALAHAD_error_factorization )&
+                  WRITE( out, "( A, ' error in SLS_factorize called from',     &
+                 &  ' SBLS_form_and_factorize, status = ', I0 )" )             &
+                    prefix, inform%SBLS_inform%SLS_inform%status
+              END IF
+
+              IF ( inform%SBLS_inform%status == GALAHAD_error_factorization    &
+                   .AND. SBLS_control%factorization /= 2 ) THEN
+                SBLS_control%factorization = 2
+                IF ( printi ) WRITE( out, "( A, ' retrying SLS_factorize' )" ) &
+                  prefix
+                GO TO 210
+              ELSE
+                inform%status = GALAHAD_error_factorization ; GO TO 900
+              END IF
+
+!  check for singularity
+
+            ELSE IF ( inform%SBLS_inform%rank_def ) THEN
+              IF ( printt ) WRITE( out, "( A, '  ** warning ** the matrix is', &
+             &                        ' not of full rank, nullity = ', I0 )" ) &
+                prefix, n + m_sbls - inform%SBLS_inform%rank
+              skip = 'N'
+
+!  the matrix is full rank
+
+            ELSE
+              IF ( printt )                                                    &
+                WRITE( out, "( A, ' the matrix is of full rank' )" ) prefix
+              skip = ' '
+            END IF
+
+          END IF
+          inform%status = GALAHAD_ok ; GO TO 600
+        END IF
+
+!  check that some progress has been made
+
+        IF ( ( alpha == zero .AND. alpha_subspace == zero ) .OR.               &
+             ( no_change > 2 .AND. dual_g_norm <= stop_reasonable ) ) THEN
+          inform%status = GALAHAD_no_progress ; GO TO 600
+        END IF
 
 !  test to see if more than maxit iterations have been performed
 
-        inform%iter = inform%iter + 1 
-        IF ( inform%iter > control%maxit ) THEN 
-          inform%status = GALAHAD_error_max_iterations ; GO TO 600 
-        END IF 
+        inform%iter = inform%iter + 1
+        IF ( inform%iter > control%maxit ) THEN
+          inform%status = GALAHAD_error_max_iterations ; GO TO 600
+        END IF
 
 !  check that the CPU time limit has not been reached
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         time_now = time_now - time_start + cpu_total
         clock_now = clock_now - clock_start + clock_total
 
@@ -4153,7 +4619,7 @@ H_loop: DO i = 1, prob%n
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit ; GO TO 600
-        END IF 
+        END IF
 
         IF ( ( inform%iter >= start_print .AND. inform%iter < stop_print )     &
              .AND. MOD( inform%iter - start_print, print_gap ) == 0 ) THEN
@@ -4175,9 +4641,9 @@ H_loop: DO i = 1, prob%n
 
 !  find the arc minimizer
 
-!    v^C_k = P_D[ v_k + alpha^C_k d_k ], 
+!    v^C_k = P_D[ v_k + alpha^C_k d_k ],
 
-!  where d = - g^d_k and 
+!  where d = - g^d_k and
 
 !    alpha^C_k = arg min q^D( P_D[ v_k + alpha d_k ] )
 
@@ -4212,116 +4678,134 @@ H_loop: DO i = 1, prob%n
 !       ip = 4
 !       ip = 11
 
+!write(6,"( ' V0 ', /, ( 5ES16.8 ) )" ) V0( ce_start : zu_end )
+!write(6,"( ' PV ', /, ( 5ES16.8 ) )" ) PV( : nv )
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
         t_solve = inform%time%solve ; c_solve = inform%time%clock_solve
         IF ( control%exact_arc_search ) THEN
-          IF ( scaled_identity_h ) THEN
-            CALL DQP_exact_arc_search( nv, n, m, V0, VT, GV, V_bnd, q0,        &
+          IF ( identity_h ) THEN
+            CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV, V_bnd, q0,    &
                      A_ptr, A_col, A_val, V_status, start_ce, start_yl,        &
                      start_yu, start_zl, start_zu, ce_end, yl_end, yu_end,     &
-                     zl_end, zu_end, step_max, feas_tol, qc, PV,               &
+                     zl_end, zu_end, step_max, feas_tol, qc,                   &
                      NZ_p, IUSED, INDEX_r, INDEX_w,                            &
                      out, ip, prefix, BREAK_points, control%infinity,          &
                      control%arc_search_maxit, arc_search_iter, alpha,         &
-                     DV, RHS, SOL, RES, H_s,                                   &
+                     DV, RHS, SOL, RES, H_s, HPV,                              &
                      diagonal_h, scaled_identity_h, identity_h,                &
                      inform%time%solve, inform%time%clock_solve,               &
-                     inform%status,                                            &
-                     H_diag = H_val )
+                     inform%status )
+          ELSE IF ( scaled_identity_h ) THEN
+            CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV, V_bnd, q0,    &
+                     A_ptr, A_col, A_val, V_status, start_ce, start_yl,        &
+                     start_yu, start_zl, start_zu, ce_end, yl_end, yu_end,     &
+                     zl_end, zu_end, step_max, feas_tol, qc,                   &
+                     NZ_p, IUSED, INDEX_r, INDEX_w,                            &
+                     out, ip, prefix, BREAK_points, control%infinity,          &
+                     control%arc_search_maxit, arc_search_iter, alpha,         &
+                     DV, RHS, SOL, RES, H_s, HPV,                              &
+                     diagonal_h, scaled_identity_h, identity_h,                &
+                     inform%time%solve, inform%time%clock_solve,               &
+                     inform%status, HESSIAN = H_sbls )
           ELSE IF ( diagonal_h ) THEN
-            CALL DQP_exact_arc_search( nv, n, m, V0, VT, GV, V_bnd, q0,        &
+            CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV, V_bnd, q0,    &
                      A_ptr, A_col, A_val, V_status, start_ce, start_yl,        &
                      start_yu, start_zl, start_zu, ce_end, yl_end, yu_end,     &
-                     zl_end, zu_end, step_max, feas_tol, qc, PV,               &
+                     zl_end, zu_end, step_max, feas_tol, qc,                   &
                      NZ_p, IUSED, INDEX_r, INDEX_w,                            &
                      out, ip, prefix, BREAK_points, control%infinity,          &
                      control%arc_search_maxit, arc_search_iter, alpha,         &
-                     DV, RHS, SOL, RES, H_s,                                   &
+                     DV, RHS, SOL, RES, H_s, HPV,                              &
                      diagonal_h, scaled_identity_h, identity_h,                &
                      inform%time%solve, inform%time%clock_solve,               &
-                     inform%status, H_diag = H_sbls%val( : n ) )
+                     inform%status, HESSIAN = H_sbls )
           ELSE
-            CALL DQP_exact_arc_search( nv, n, m, V0, VT, GV, V_bnd, q0,        &
+            CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV, V_bnd, q0,    &
                      A_ptr, A_col, A_val, V_status, start_ce, start_yl,        &
                      start_yu, start_zl, start_zu, ce_end, yl_end, yu_end,     &
-                     zl_end, zu_end, step_max, feas_tol, qc, PV,               &
+                     zl_end, zu_end, step_max, feas_tol, qc,                   &
                      NZ_p, IUSED, INDEX_r, INDEX_w,                            &
                      out, ip, prefix, BREAK_points, control%infinity,          &
                      control%arc_search_maxit, arc_search_iter, alpha,         &
-                     DV, RHS, SOL, RES, H_s,                                   &
+                     DV, RHS, SOL, RES, H_s, HPV,                              &
                      diagonal_h, scaled_identity_h, identity_h,                &
                      inform%time%solve, inform%time%clock_solve,               &
-                     inform%status,                                            &
+                     inform%status, HESSIAN = H_sbls,                          &
                      SLS_data = SLS_data, SLS_control = SLS_control,           &
                      SLS_inform = inform%SLS_inform )
           END IF
         ELSE
-          IF ( scaled_identity_h ) THEN
+          IF ( identity_h .OR. scaled_identity_h ) THEN
             IF ( composite_g ) THEN
-              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, GC, q0, Y_l,    &
-                       Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),                 &
+              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qc, alpha,  &
+                       GC, q0, Y_l, Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),    &
                        C_u( dims%c_u_start : dims%c_u_end ),                   &
                        X_l( dims%x_free + 1 : dims%x_l_end ),                  &
-                       X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,         &
+                       X_u( dims%x_u_start : n ),                              &
                        ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,   &
-                       zl_start, zl_end, zu_start, zu_end, step_max, feas_tol, &
-                       VT, qc, alpha, V_status, arc_search_iter,               &
+                       zl_start, zl_end, zu_start, zu_end,                     &
+                       A_ptr, A_col, A_val, step_max, feas_tol,                &
+                       V_status, arc_search_iter,                              &
                        out, ip, prefix, DV, RHS, H_s,                          &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status, H_diag = H_val )
+                       inform%status, HESSIAN = H_sbls )
             ELSE
-              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, G, q0, Y_l,     &
-                       Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),                 &
+              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qc, alpha,  &
+                       G, q0, Y_l, Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),     &
                        C_u( dims%c_u_start : dims%c_u_end ),                   &
                        X_l( dims%x_free + 1 : dims%x_l_end ),                  &
-                       X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,         &
+                       X_u( dims%x_u_start : n ),                              &
                        ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,   &
-                       zl_start, zl_end, zu_start, zu_end, step_max, feas_tol, &
-                       VT, qc, alpha, V_status, arc_search_iter,               &
+                       zl_start, zl_end, zu_start, zu_end,                     &
+                       A_ptr, A_col, A_val, step_max, feas_tol,                &
+                       V_status, arc_search_iter,                              &
                        out, ip, prefix, DV, RHS, H_s,                          &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status, H_diag = H_val )
+                       inform%status, HESSIAN = H_sbls )
             END IF
           ELSE IF ( diagonal_h ) THEN
             IF ( composite_g ) THEN
-              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, GC, q0, Y_l,    &
-                       Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),                 &
+              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qc, alpha,  &
+                       GC, q0, Y_l, Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),    &
                        C_u( dims%c_u_start : dims%c_u_end ),                   &
                        X_l( dims%x_free + 1 : dims%x_l_end ),                  &
-                       X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,         &
+                       X_u( dims%x_u_start : n ),                              &
                        ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,   &
-                       zl_start, zl_end, zu_start, zu_end, step_max, feas_tol, &
-                       VT, qc, alpha, V_status, arc_search_iter,               &
+                       zl_start, zl_end, zu_start, zu_end,                     &
+                       A_ptr, A_col, A_val, step_max, feas_tol,                &
+                       V_status, arc_search_iter,                              &
                        out, ip, prefix, DV, RHS, H_s,                          &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status, H_diag = H_sbls%val( : n ) )
+                       inform%status, HESSIAN = H_sbls )
             ELSE
-              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, G, q0, Y_l,     &
-                       Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),                 &
+              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qc, alpha,  &
+                       G, q0, Y_l, Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),     &
                        C_u( dims%c_u_start : dims%c_u_end ),                   &
                        X_l( dims%x_free + 1 : dims%x_l_end ),                  &
-                       X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,         &
+                       X_u( dims%x_u_start : n ),                              &
                        ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,   &
-                       zl_start, zl_end, zu_start, zu_end, step_max, feas_tol, &
-                       VT, qc, alpha, V_status, arc_search_iter,               &
+                       zl_start, zl_end, zu_start, zu_end,                     &
+                       A_ptr, A_col, A_val, step_max, feas_tol,                &
+                       V_status, arc_search_iter,                              &
                        out, ip, prefix, DV, RHS, H_s,                          &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status, H_diag = H_sbls%val( : n ) )
+                       inform%status, HESSIAN = H_sbls )
             END IF
           ELSE
             IF ( composite_g ) THEN
-              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, GC, q0, Y_l,    &
-                       Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),                 &
+              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qc, alpha,  &
+                       GC, q0, Y_l, Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),    &
                        C_u( dims%c_u_start : dims%c_u_end ),                   &
                        X_l( dims%x_free + 1 : dims%x_l_end ),                  &
-                       X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,         &
+                       X_u( dims%x_u_start : n ),                              &
                        ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,   &
-                       zl_start, zl_end, zu_start, zu_end, step_max, feas_tol, &
-                       VT, qc, alpha, V_status, arc_search_iter,               &
+                       zl_start, zl_end, zu_start, zu_end,                     &
+                       A_ptr, A_col, A_val, step_max, feas_tol,                &
+                       V_status, arc_search_iter,                              &
                        out, ip, prefix, DV, RHS, H_s,                          &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
@@ -4329,14 +4813,15 @@ H_loop: DO i = 1, prob%n
                        SLS_control = SLS_control,                              &
                        SLS_inform = inform%SLS_inform )
             ELSE
-              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, G, q0, Y_l,     &
-                       Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),                 &
+              CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qc, alpha,  &
+                       G, q0, Y_l, Y_u, Z_l, Z_u, C_l( 1 : dims%c_l_end ),     &
                        C_u( dims%c_u_start : dims%c_u_end ),                   &
                        X_l( dims%x_free + 1 : dims%x_l_end ),                  &
-                       X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,         &
+                       X_u( dims%x_u_start : n ),                              &
                        ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,   &
-                       zl_start, zl_end, zu_start, zu_end, step_max, feas_tol, &
-                       VT, qc, alpha, V_status, arc_search_iter,               &
+                       zl_start, zl_end, zu_start, zu_end,                     &
+                       A_ptr, A_col, A_val, step_max, feas_tol,                &
+                       V_status, arc_search_iter,                              &
                        out, ip, prefix, DV, RHS, H_s,                          &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
@@ -4346,9 +4831,11 @@ H_loop: DO i = 1, prob%n
             END IF
           END IF
         END IF
+!write(6,"( ' VT ', /, ( 5ES16.8 ) )" ) VT( ce_start : zu_end )
+!write(6,"( ' V_status ', /, ( 5I5 ) )" ) V_status( : nv )
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        inform%time%search = inform%time%search + time_now - time_record       &
-          + t_solve - inform%time%solve 
+        inform%time%search = inform%time%search +                              &
+          REAL( time_now - time_record, wp ) + t_solve - inform%time%solve
         inform%time%clock_search = inform%time%clock_search                    &
           + clock_now - clock_record + c_solve - inform%time%clock_solve
 
@@ -4358,7 +4845,7 @@ H_loop: DO i = 1, prob%n
 
         YC_l( 1 : dims%c_l_end ) = VT( ce_start : yl_end )
         YC_u( dims%c_u_start : dims%c_u_end ) = VT( yu_start: yu_end )
-        ZC_l( dims%x_free + 1 : dims%x_l_end ) = VT( zl_start:zl_end )
+        ZC_l( dims%x_free + 1 : dims%x_l_end ) = VT( zl_start : zl_end )
         ZC_u( dims%x_u_start : n ) = VT( zu_start : zu_end )
 
         IF (  inform%status == GALAHAD_error_primal_infeasible ) GO TO 700
@@ -4366,12 +4853,13 @@ H_loop: DO i = 1, prob%n
 !  if required compute the dual objective value. Record sol = J^T v_k - g
 
 !       IF ( .TRUE. ) THEN
+!write(6,*) ' composite_g ', composite_g
         IF ( printw ) THEN
           IF ( composite_g ) THEN
             SOL( : n ) = - GC( : n )
           ELSE
             SOL( : n ) = - G( : n )
-          END IF 
+          END IF
           DO i = 1, dims%c_u_start - 1
             DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
               j = A_col( l )
@@ -4407,14 +4895,15 @@ H_loop: DO i = 1, prob%n
           IF ( identity_h ) THEN
 !           X( : n ) = X( : n )
           ELSE IF ( scaled_identity_h ) THEN
-            X( : n ) = X( : n ) / H_val( 1 )
+            X( : n ) = X( : n ) / h_scale( 1 )
           ELSE IF ( diagonal_h ) THEN
             X( : n ) = X( : n ) / H_sbls%val( : n )
           ELSE
             CALL SLS_solve( H_sbls, X, SLS_data, SLS_control, inform%SLS_inform)
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve = inform%time%solve + time_now - time_record
+          inform%time%solve =                                                  &
+            inform%time%solve + REAL( time_now - time_record, wp )
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -4528,6 +5017,7 @@ H_loop: DO i = 1, prob%n
                    COUNT( C_status( : m ) /= C_status_old( : m ) )
         END IF
         C_status_old = C_status ; X_status_old = X_status
+!write(6,*) ' max_sc, change ', control%max_sc, change
 
 !write(6,*) 'yc_l', YC_l( 1 : dims%c_l_end )
 !write(6,*) 'yc_u', YC_u( dims%c_u_start : dims%c_u_end )
@@ -4535,22 +5025,22 @@ H_loop: DO i = 1, prob%n
 !write(6,*) 'zc_u', ZC_u( dims%x_u_start : n )
 
         IF ( printw ) WRITE( out, "( A, 1X, A, I0, A, I0, A, I0 )" ) prefix,   &
-          ' n active = ', n_active, ' m active = ', m_active,                  &
-          ' total active = ', m_sbls
+          ' n active = ', n_active, ', m active = ', m_active,                 &
+          ', total active = ', m_sbls
 
 !  ensure that the Schur complement is updated to account for the changes
 !  in the active set
 
-        IF ( control%subspace_direct .AND. .NOT. refactor .AND.                &
-             change > 0 ) THEN
+        IF ( subspace_direct .AND. .NOT. refactor .AND.                        &
+             change > 0 .AND. .NOT. control%subspace_alternate ) THEN
 
-!  if the number of additions and implied deletions exceeds the permitted size 
+!  if the number of additions and implied deletions exceeds the permitted size
 !  of the Schur complement, restart with a new reference factorization
 
           IF ( deleted > 0 ) THEN
             i = COUNT( ACTIVE_status( CHANGES( mpn - deleted + 1 : mpn ) )     &
                          <= m_ref )
-          ELSE 
+          ELSE
             i = 0
           END IF
           IF ( SCU_mat%m + added + i > SCU_mat%m_max ) THEN
@@ -4580,7 +5070,7 @@ H_loop: DO i = 1, prob%n
               END IF
               SCU_mat%BD_row( l ) = n + ii
               SCU_mat%BD_val( l ) = one
-              l = l + 1 
+              l = l + 1
               SCU_mat%BD_col_start( SCU_mat%m + 2 ) = l
 
 !  update the Schur complement
@@ -4607,7 +5097,7 @@ H_loop: DO i = 1, prob%n
                 END IF
               END DO
 
-!  check to ensure that the updated matrix is non singular; if it is, restart 
+!  check to ensure that the updated matrix is non singular; if it is, restart
 !  with a new reference factorization
 
               IF ( inform%scu_status < 0 ) THEN
@@ -4631,7 +5121,7 @@ H_loop: DO i = 1, prob%n
                                ii - m_ref )
 !write(6,*) ' m ', SCU_mat%m
 
-!  check to ensure that the updated matrix is non singular; if it is, restart 
+!  check to ensure that the updated matrix is non singular; if it is, restart
 !  with a new reference factorization
 
               IF ( inform%scu_status < 0 ) THEN
@@ -4673,7 +5163,7 @@ H_loop: DO i = 1, prob%n
               DO ii = A_ptr( i ), A_ptr( i + 1 ) - 1
                 SCU_mat%BD_row( l ) = A_col( ii )
                 SCU_mat%BD_val( l ) = A_val( ii )
-                l = l + 1 
+                l = l + 1
               END DO
             ELSE ! add a simple-bound constraint
               IF ( l + 1 > lbd ) THEN
@@ -4681,13 +5171,13 @@ H_loop: DO i = 1, prob%n
               END IF
               SCU_mat%BD_row( l ) = i - m
               SCU_mat%BD_val( l ) = one
-              l = l + 1 
+              l = l + 1
             END IF
             SCU_mat%BD_col_start( SCU_mat%m + 2 ) = l
 
 !do l = SCU_mat%BD_col_start( SCU_mat%m + 1 ), &
 ! SCU_mat%BD_col_start( SCU_mat%m + 2 ) - 1
-!write(6,*) ' row, val ',  SCU_mat%BD_row( l ),  SCU_mat%BD_val( l ) 
+!write(6,*) ' row, val ',  SCU_mat%BD_row( l ),  SCU_mat%BD_val( l )
 !end do
 
 !  update the Schur complement
@@ -4763,9 +5253,9 @@ H_loop: DO i = 1, prob%n
 !  4a. find the improved subspace search direction
 !  ...............................................
 
-!    delta v_k = arg min q^D(v^C_k + delta v) : v_A_k = 0
+!    delta v_k = arg min q^D(v^C_k + delta v) : delta v_A_k = 0
 
-!  where the dual active set A_k = { i : (v^C_k)_i = 0 }. 
+!  where the dual active set A_k = { i : (v^C_k)_i = "on bound" }.
 
 !  This is equivalent to solving the linear system
 
@@ -4776,7 +5266,7 @@ H_loop: DO i = 1, prob%n
 !  is inconsistent, finding a direction of linear infinite descent
 !  delta v_k such that J_F_k^T delta v_k = 0 and delta v_k^T b_F_k > 0
 
-!  form the matrix of primal-active rows of A 
+!  form the matrix of primal-active rows of A
 
 !  components from the general constraints
 
@@ -4807,14 +5297,33 @@ H_loop: DO i = 1, prob%n
         dolid = .FALSE.
         skip = ' '
 
-!  use a direct method to find the subspace 
-!  . . . . . . . . . . . . . . . . . . . . 
+!write(6,*) m_ref, COUNT( A_sbls%row( :  A_sbls%ne ) > m_ref )
+!do i = 1, A_sbls%ne
+!  if ( A_sbls%row( i ) > m_ref ) write( 6, * ) m_ref, A_sbls%row( i ), i
+!end do
 
-!write(6,*) ' direct ', control%subspace_direct
-        IF ( control%subspace_direct ) THEN
+        IF ( COUNT( A_sbls%row( :  A_sbls%ne ) > m_ref ) > 0 ) refactor = .TRUE.
 
-!  factorize the matrix K_0 = (   H     J^T_F_k ) on the left-hand side of (S)
-!                             ( J_F_k      0    ) 
+!  use a direct method to find the subspace
+!  . . . . . . . . . . . . . . . . . . . .
+
+        subspace_direct_save = subspace_direct
+        IF ( change == 0 .AND. change_subspace == 0 ) THEN
+          no_change = no_change + 1
+        ELSE
+          no_change = 0
+        END IF
+        IF ( no_change > 0 .AND. .NOT. subspace_direct .AND.                   &
+             control%explore_optimal_subspace >= 2 ) THEN
+          subspace_direct = .TRUE.
+          refactor = .TRUE.
+          IF ( printw ) WRITE( out,                                            &
+            "( A, ' direct exploration of subspace' )" ) prefix
+        END IF
+
+        IF ( subspace_direct ) THEN
+          IF ( control%subspace_alternate )                                    &
+             subspace_direct = .NOT. subspace_direct
 
   410     CONTINUE
 !write(6,*) ' refactor',  refactor, ' n, m_sbls ', n, m_sbls
@@ -4825,11 +5334,11 @@ H_loop: DO i = 1, prob%n
             CALL SBLS_form_and_factorize( n, m_sbls, H_sbls, A_sbls, C_sbls,   &
                                           SBLS_data, SBLS_control,             &
                                           inform%SBLS_inform )
-            CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+            CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
             IF ( printw )                                                      &
               WRITE( out, "( /, A, ' ** form_and_factor complete' )" ) prefix
             inform%time%factorize                                              &
-              = inform%time%factorize + time_now - time_record
+              = inform%time%factorize + REAL( time_now - time_record, wp )
             inform%time%clock_factorize                                        &
               = inform%time%clock_factorize + clock_now - clock_record
             inform%nfacts = inform%nfacts + 1
@@ -4857,7 +5366,7 @@ H_loop: DO i = 1, prob%n
 
               IF ( inform%SBLS_inform%status == GALAHAD_error_factorization    &
                    .AND. SBLS_control%factorization /= 2 ) THEN
-                SBLS_control%factorization = 2 
+                SBLS_control%factorization = 2
                 IF ( printi ) WRITE( out, "( A, ' retrying SLS_factorize' )" ) &
                   prefix
                 GO TO 410
@@ -4886,7 +5395,7 @@ H_loop: DO i = 1, prob%n
 
 !  if the matrix is full rank, initialize the Schur complement if required
 
-            ELSE 
+            ELSE
               IF ( printt )                                                    &
                 WRITE( out, "( A, ' the matrix is of full rank' )" ) prefix
               skip = ' '
@@ -4906,15 +5415,15 @@ H_loop: DO i = 1, prob%n
 
 !  initialize ACTIVE_list and ACTIVE_status -
 
-!   ACTIVE_list(:len_list) gives the list of constraints that are currently 
+!   ACTIVE_list(:len_list) gives the list of constraints that are currently
 !   active. Any entry 0 corresponds to a constraint that was active at some
 !   time since the current reference matrix was established. Any entry whose
-!   value is <= m corresponds to a general constraint, while those > m 
+!   value is <= m corresponds to a general constraint, while those > m
 !   correspond to variable value - m
 !
 !   ACTIVE_status(:m) gives the status of each constraint. The status = 0 for
-!   an inactive constraint, while > 0 points to the position in ACTIVE_list 
-!   of an active constraint. ACTIVE_status(m+1:m+n) does the same for 
+!   an inactive constraint, while > 0 points to the position in ACTIVE_list
+!   of an active constraint. ACTIVE_status(m+1:m+n) does the same for
 !   simple-bound constraints
 
                 len_list = 0
@@ -4955,7 +5464,7 @@ H_loop: DO i = 1, prob%n
               RHS( : n ) = - GC( : n )
             ELSE
               RHS( : n ) = - G( : n )
-            END IF 
+            END IF
 
 !  components from the general constraints
 
@@ -4963,17 +5472,50 @@ H_loop: DO i = 1, prob%n
             DO j = 1, m_active
               ii = ii + 1 ; i = C_active( j )
               IF ( i < 0 ) THEN
-                DO l = A_ptr( - i ), A_ptr( - i + 1 ) - 1
-                  RHS( A_col( l ) ) = RHS( A_col( l ) ) + A_val( l ) * YC_l( -i)
-                END DO
                 RHS( ii ) = C_l( - i )
               ELSE
-                DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
-                  RHS( A_col( l ) ) = RHS( A_col( l ) ) + A_val( l ) * YC_u( i )
-                END DO
                 RHS( ii ) = C_u( i )
               END IF
             END DO
+
+!  N.B. Careful, if there is a penalty term, some of the fixed duals may
+!  not be zero!
+
+            IF ( penalty_objective ) THEN
+              DO i = 1, dims%c_u_start - 1
+                DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  RHS( j ) = RHS( j ) + A_val( l ) * YC_l( i )
+                END DO
+              END DO
+              DO i = dims%c_u_start, dims%c_l_end
+                DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  RHS( j ) = RHS( j ) + A_val( l ) * ( YC_l( i ) + YC_u( i ) )
+                END DO
+              END DO
+              DO i = dims%c_l_end + 1, dims%c_u_end
+                DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  RHS( j ) = RHS( j ) + A_val( l ) * YC_u( i )
+                END DO
+              END DO
+            ELSE
+              DO im = 1, m_active
+                i = C_active( im )
+                IF ( i < 0 ) THEN
+                  DO l = A_ptr( - i ), A_ptr( - i + 1 ) - 1
+                    j = A_col( l )
+                    RHS( j ) = RHS( j ) + A_val( l ) * YC_l( - i )
+                  END DO
+                ELSE
+                  DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
+                    j = A_col( l )
+                    RHS( j ) = RHS( j ) + A_val( l ) * YC_u( i )
+                  END DO
+                END IF
+              END DO
+            END IF
 
 !  components from the simple bounds
 
@@ -4988,30 +5530,34 @@ H_loop: DO i = 1, prob%n
               END IF
             END DO
 
-!  find the Fredholm Alternative for the linear system (S); the solution will 
+!  find the Fredholm Alternative for the linear system (S); the solution will
 !  be in sol
 
             SOL( : n + m_sbls ) = RHS( : n + m_sbls )
 !WRITE(6, "( /, A, ' Fredholm rhs = ', ES12.4 )" ) &
 !  prefix, MAXVAL( ABS( RHS( : n + m_sbls ) ) )
-            IF ( printd ) WRITE( out, "( /, A, ' Fredholm rhs = ', ES12.4 )" ) &
-              prefix, MAXVAL( ABS( RHS( : n + m_sbls ) ) )
 !           IF ( .TRUE. ) THEN
             IF ( inform%SBLS_inform%rank_def ) THEN
+              IF ( printd ) WRITE( out, "( /, A, ' Fredholm RHS = ', ES12.4 )")&
+                prefix, MAXVAL( ABS( RHS( : n + m_sbls ) ) )
               CALL SBLS_fredholm_alternative( n, m_sbls, A_sbls,               &
                                               SBLS_data%efactors,              &
                                               SBLS_control,                    &
                                               inform%SBLS_inform, SOL )
               refactor = .TRUE.
             ELSE
-              growth = MAXVAL( ABS( SOL( : n + m_sbls ) ) )
-              CALL SBLS_solve( n, m_sbls, A_sbls, C_sbls, SBLS_data,           &
-                               SBLS_control, inform%SBLS_inform, SOL )
-              growth = MAXVAL( ABS( SOL( : n + m_sbls ) ) ) / growth
-              IF ( growth > control%max_growth ) refactor = .TRUE. 
-            END IF
+              IF ( printd ) WRITE( out, "( /, A, ' RHS = ', ES12.4 )" )        &
+                prefix, MAXVAL( ABS( RHS( : n + m_sbls ) ) )
+              growth = MAXVAL( ABS( SOL( : n + m_sbls ) ) ) + epsmch
 !WRITE(6, "( /, A, ' sol = ', ES12.4 )" ) &
 !  prefix, MAXVAL( ABS( SOL( : n + m_sbls ) ) )
+              CALL SBLS_solve( n, m_sbls, A_sbls, C_sbls, SBLS_data,           &
+                               SBLS_control, inform%SBLS_inform, SOL )
+!WRITE(6, "( /, A, ' sol = ', ES12.4 )" ) &
+!  prefix, MAXVAL( ABS( SOL( : n + m_sbls ) ) )
+              growth = MAXVAL( ABS( SOL( : n + m_sbls ) ) ) / growth
+              IF ( growth > control%max_growth ) refactor = .TRUE.
+            END IF
             IF ( inform%SBLS_inform%status < 0 ) THEN
               IF ( printi ) WRITE( out,                                        &
                  "( ' SBLS_fredholm_alternative, status = ', I0 )" )           &
@@ -5046,7 +5592,7 @@ H_loop: DO i = 1, prob%n
                 IF ( identity_h ) THEN
                   RES( : n ) = RES( : n ) + SOL( : n )
                 ELSE IF ( scaled_identity_h ) THEN
-                  RES( : n ) = RES( : n ) + H_val( 1 ) * SOL( : n )
+                  RES( : n ) = RES( : n ) + h_scale( 1 ) * SOL( : n )
                 ELSE IF ( diagonal_h ) THEN
                   RES( : n ) = RES( : n ) + H_sbls%val( : n ) * SOL( : n )
                 ELSE
@@ -5082,7 +5628,7 @@ H_loop: DO i = 1, prob%n
                 IF ( identity_h ) THEN
                   RES( : n ) = RES( : n ) + SOL( : n )
                 ELSE IF ( scaled_identity_h ) THEN
-                  RES( : n ) = RES( : n ) + H_val( 1 ) * SOL( : n )
+                  RES( : n ) = RES( : n ) + h_scale( 1 ) * SOL( : n )
                 ELSE IF ( diagonal_h ) THEN
                   RES( : n ) = RES( : n ) + H_sbls%val( : n ) * SOL( : n )
                 ELSE
@@ -5102,8 +5648,8 @@ H_loop: DO i = 1, prob%n
                 END DO
                 WRITE( out, "( A, ' Fredholm residual ', ES12.4 )" )           &
                   prefix, MAXVAL( ABS( RES( : n + m_sbls ) ) )
-                WRITE( out, "( 5ES12.4 )" ) RES( : n )
-                WRITE( out, "( 5ES12.4 )" ) RES( n + 1 : n + m_sbls )
+!               WRITE( out, "( 5ES12.4 )" ) RES( : n )
+!               WRITE( out, "( 5ES12.4 )" ) RES( n + 1 : n + m_sbls )
               END IF
 
 !  as sol contains - delta v_F_k, replace sol by delta v_k_F_k
@@ -5111,7 +5657,7 @@ H_loop: DO i = 1, prob%n
               SOL( n + 1 : n + m_sbls ) = - SOL( n + 1 : n + m_sbls )
             END IF
 
-!  alteratively ... try updating the existing factorization using the 
+!  alteratively ... try updating the existing factorization using the
 !  Schur-complement method. That is, given the reference matrix, we form
 
 !    K = ( K_0  K_+^T )
@@ -5129,7 +5675,7 @@ H_loop: DO i = 1, prob%n
               RHS( : n ) = - GC( : n )
             ELSE
               RHS( : n ) = - G( : n )
-            END IF 
+            END IF
             RHS( n + 1 : SCU_mat%n + SCU_mat%m ) = zero
 
 !  components from the general constraints
@@ -5138,17 +5684,47 @@ H_loop: DO i = 1, prob%n
               i = C_active( j )
               ii = n + ACTIVE_status( ABS( i ) )
               IF ( i < 0 ) THEN
-                DO l = A_ptr( - i ), A_ptr( - i + 1 ) - 1
-                  RHS( A_col( l ) ) = RHS( A_col( l ) ) + A_val( l ) * YC_l( -i)
-                END DO
                 RHS( ii ) = C_l( - i )
               ELSE
-                DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
-                  RHS( A_col( l ) ) = RHS( A_col( l ) ) + A_val( l ) * YC_u( i )
-                END DO
                 RHS( ii ) = C_u( i )
               END IF
             END DO
+
+            IF ( penalty_objective ) THEN
+              DO i = 1, dims%c_u_start - 1
+                DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  RHS( j ) = RHS( j ) + A_val( l ) * YC_l( i )
+                END DO
+              END DO
+              DO i = dims%c_u_start, dims%c_l_end
+                DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  RHS( j ) = RHS( j ) + A_val( l ) * ( YC_l( i ) + YC_u( i ) )
+                END DO
+              END DO
+              DO i = dims%c_l_end + 1, dims%c_u_end
+                DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  RHS( j ) = RHS( j ) + A_val( l ) * YC_u( i )
+                END DO
+              END DO
+            ELSE
+              DO im = 1, m_active
+                i = C_active( im )
+                IF ( i < 0 ) THEN
+                  DO l = A_ptr( - i ), A_ptr( - i + 1 ) - 1
+                    j = A_col( l )
+                    RHS( j ) = RHS( j ) + A_val( l ) * YC_l( - i )
+                  END DO
+                ELSE
+                  DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
+                    j = A_col( l )
+                    RHS( j ) = RHS( j ) + A_val( l ) * YC_u( i )
+                  END DO
+                END IF
+              END DO
+            END IF
 
 !  components from the simple bounds
 
@@ -5254,10 +5830,10 @@ H_loop: DO i = 1, prob%n
             END IF
           END IF
 
-!  calculate the slope = - dy^T A H^^-1 A^T dy ... first store the vector 
+!  calculate the slope = - dy^T A H^^-1 A^T dy ... first store the vector
 !  A^T dy in vt ...
 
-!write(6,*) ' dolid ', dolid 
+!write(6,*) ' dolid ', dolid
 !         IF ( printd .AND. .NOT. dolid ) THEN
           IF ( .TRUE. .AND. .NOT. dolid ) THEN
             VT( : n ) = zero
@@ -5280,7 +5856,8 @@ H_loop: DO i = 1, prob%n
                                    SLS_control, inform%SLS_inform )
             END IF
             CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-            inform%time%solve = inform%time%solve + time_now - time_record
+            inform%time%solve =                                                &
+              inform%time%solve + REAL( time_now - time_record, wp )
             inform%time%clock_solve =                                          &
               inform%time%clock_solve + clock_now - clock_record
 
@@ -5288,13 +5865,16 @@ H_loop: DO i = 1, prob%n
 
             slope = - DOT_PRODUCT(  VT( : n ),  VT( : n ) )
             curv = - slope
+!write(6,*) ' slope ', slope
           END IF
 !write(6,"( 'sol_y ', / ( 5ES12.4 ) )" ) SOL( n + 1 : n + m_sbls )
 
-!  use an iterative method to find the subspace 
+!  use an iterative method to find the subspace
 !  . . . . . . . . . . . . . . . . . . . . . . .
 
         ELSE
+          IF ( control%subspace_alternate )                                    &
+             subspace_direct = .NOT. subspace_direct
 
 !  compute the dual residual r_k = g - J_F_k^T v_k  and store in SOL
 
@@ -5302,22 +5882,45 @@ H_loop: DO i = 1, prob%n
             SOL( : n ) = GC( : n )
           ELSE
             SOL( : n ) = G( : n )
-          END IF 
+          END IF
 
 !  components from the general constraints
 
-          DO j = 1, m_active
-            i = C_active( j )
-            IF ( i < 0 ) THEN
-              DO l = A_ptr( - i ), A_ptr( - i + 1 ) - 1
-                SOL( A_col( l ) ) = SOL( A_col( l ) ) - A_val( l ) * YC_l( - i )
+          IF ( penalty_objective ) THEN
+            DO i = 1, dims%c_u_start - 1
+              DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                j = A_col( l )
+                SOL( j ) = SOL( j ) - A_val( l ) * YC_l( i )
               END DO
-            ELSE
-              DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
-                SOL( A_col( l ) ) = SOL( A_col( l ) ) - A_val( l ) * YC_u( i )
+            END DO
+            DO i = dims%c_u_start, dims%c_l_end
+              DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                j = A_col( l )
+                SOL( j ) = SOL( j ) - A_val( l ) * ( YC_l( i ) + YC_u( i ) )
               END DO
-            END IF
-          END DO
+            END DO
+            DO i = dims%c_l_end + 1, dims%c_u_end
+              DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                j = A_col( l )
+                SOL( j ) = SOL( j ) - A_val( l ) * YC_u( i )
+              END DO
+            END DO
+          ELSE
+            DO im = 1, m_active
+              i = C_active( im )
+              IF ( i < 0 ) THEN
+                DO l = A_ptr( - i ), A_ptr( - i + 1 ) - 1
+                  j = A_col( l )
+                  SOL( j ) = SOL( j ) - A_val( l ) * YC_l( - i )
+                END DO
+              ELSE
+                DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
+                  j = A_col( l )
+                  SOL( j ) = SOL( j ) - A_val( l ) * YC_u( i )
+                END DO
+              END IF
+            END DO
+          END IF
 
 !  components from the simple bounds
 
@@ -5336,7 +5939,7 @@ H_loop: DO i = 1, prob%n
           IF ( identity_h ) THEN
 !           SOL( : n ) = SOL( : n )
           ELSE IF ( scaled_identity_h ) THEN
-            SOL( : n ) = SOL( : n ) / H_val( 1 )
+            SOL( : n ) = SOL( : n ) / h_scale( 1 )
           ELSE IF ( diagonal_h ) THEN
             SOL( : n ) = SOL( : n ) / H_sbls%val( : n )
           ELSE
@@ -5344,7 +5947,8 @@ H_loop: DO i = 1, prob%n
                             SLS_control, inform%SLS_inform )
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve = inform%time%solve + time_now - time_record
+          inform%time%solve =                                                  &
+            inform%time%solve + REAL( time_now - time_record, wp )
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -5388,11 +5992,16 @@ H_loop: DO i = 1, prob%n
           GLTR_control = control%GLTR_control
 !         GLTR_control%print_level = 1
           GLTR_control%f_0 = qc
+          IF ( no_change > 0 .AND. control%explore_optimal_subspace == 1 ) THEN
+            GLTR_control%itmax = - 1
+            IF ( printw ) WRITE( out,                                          &
+              "( A, ' more thorough exploration of subspace' )" ) prefix
+          END IF
           inform%GLTR_inform%status = 1
 
 !  iteration to find the minimizer
 
-          DO                                     
+          DO
             CALL GLTR_solve( m_sbls, big_radius, qt, SOL( n + 1 : n + m_sbls ),&
                              GV, PV, GLTR_data, GLTR_control,                  &
                              inform%GLTR_inform )
@@ -5407,10 +6016,10 @@ H_loop: DO i = 1, prob%n
 
 !  form the matrix-vector product
 
-            CASE ( 3, 7 )                 
+            CASE ( 3, 7 )
 
 !  compute pv -> A H^^-1 A^T pv ... first store the vector A^T pv in vt ...
- 
+
               VT( : n ) = zero
               DO l = 1, A_sbls%ne
                 i = A_sbls%row( l ) ; j = A_sbls%col( l )
@@ -5423,7 +6032,7 @@ H_loop: DO i = 1, prob%n
               IF ( identity_h ) THEN
 !               VT( : n ) = VT( : n )
               ELSE IF ( scaled_identity_h ) THEN
-                VT( : n ) = VT( : n ) / H_val( 1 )
+                VT( : n ) = VT( : n ) / h_scale( 1 )
               ELSE IF ( diagonal_h ) THEN
                 VT( : n ) = VT( : n ) / H_sbls%val( : n )
               ELSE
@@ -5431,7 +6040,8 @@ H_loop: DO i = 1, prob%n
                                 SLS_control, inform%SLS_inform )
               END IF
               CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-              inform%time%solve = inform%time%solve + time_now - time_record
+              inform%time%solve =                                              &
+                inform%time%solve + REAL( time_now - time_record, wp )
               inform%time%clock_solve =                                        &
                 inform%time%clock_solve + clock_now - clock_record
 
@@ -5462,9 +6072,20 @@ H_loop: DO i = 1, prob%n
             END SELECT
           END DO
 
-!  compute the slope and curvature
+!  scale the setp if it is a direction of linear infinite descent
 
           dolid = inform%GLTR_inform%iter_pass2 > 0
+          IF ( dolid .AND. control%exact_arc_search ) THEN
+            norm_pv = MAXVAL( ABS( SOL( n + 1 : n + m_sbls ) ) )
+            IF ( norm_pv > zero )                                              &
+              SOL( n + 1 : n + m_sbls ) = SOL( n + 1 : n + m_sbls ) / norm_pv
+          END IF
+
+!  compute the slope and curvature
+
+          IF ( printw .AND. GLTR_control%itmax == - 1 ) WRITE( out,            &
+             "( /, A, 1X, I0, ' GLTR iterations required' )" )                 &
+               prefix, inform%GLTR_inform%iter
           inform%cg_iter = inform%cg_iter + inform%GLTR_inform%iter
           IF ( dolid ) skip = 'D'
           IF ( .TRUE. ) THEN
@@ -5486,7 +6107,7 @@ H_loop: DO i = 1, prob%n
 !                        prefix, SOL( n + 1 : n + m_sbls ), qt,                &
 !                        arc_search_iter, inform%status, V0, DV,               &
 !                        H_s PV, VT, control,                                  &
-!                        H_diag = H_val( 1 ) )
+!                        H_diag = h_scale( 1 ) ) )
 !         ELSE IF ( diagonal_h ) THEN
 !           CALL DQP_CG( n, m_sbls, diagonal_h, scaled_identity_h, identity_h, &
 !                        H_sbls, GV, qc, A_sbls, out, i,                       &
@@ -5513,12 +6134,11 @@ H_loop: DO i = 1, prob%n
 !  4b(i). perform an arc search
 !  ----------------------------
 
-!  find v_{k+1} = P_D[ v^C_k + alpha_k delta v_k ], where 
+!  find v_{k+1} = P_D[ v^C_k + alpha_k delta v_k ], where
 !  alpha_k = arg min q^D( P_D[ v^C_k + alpha delta v_k ] )
 
+        subspace_direct = subspace_direct_save
         IF ( control%subspace_arc_search ) THEN
-!         write(6,*) ' subspace arc search not ready yet ... stop '
-!         STOP
 
 !  record the initial point
 
@@ -5568,7 +6188,7 @@ H_loop: DO i = 1, prob%n
             RES( : n ) = - GC( : n )
           ELSE
             RES( : n ) = - G( : n )
-          END IF 
+          END IF
           DO i = 1, dims%c_u_start - 1
             DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
               j = A_col( l )
@@ -5603,15 +6223,17 @@ H_loop: DO i = 1, prob%n
           IF ( identity_h ) THEN
 !           RES( : n ) = RES( : n )
           ELSE IF ( scaled_identity_h ) THEN
-            RES( : n ) = RES( : n ) / H_val( 1 )
+            RES( : n ) = RES( : n ) / h_scale( 1 )
           ELSE IF ( diagonal_h ) THEN
             RES( : n ) = RES( : n ) / H_sbls%val( : n )
           ELSE
             CALL SLS_solve( H_sbls, RES, SLS_data,                             &
                             SLS_control, inform%SLS_inform )
           END IF
+!write(6,"(A, /, (5ES16.8))" ) ' x ', RES( : n )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve = inform%time%solve + time_now - time_record
+          inform%time%solve =                                                  &
+            inform%time%solve + REAL( time_now - time_record, wp )
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
@@ -5646,18 +6268,25 @@ H_loop: DO i = 1, prob%n
             i = i + 1
           END DO
 
+!write(6,"(A, /, (5ES16.8))" ) ' pv ', PV
+!write(6,"(A, /, (5ES16.8))" ) ' gv ', GV
+
           slope = DOT_PRODUCT( PV( : nv ), GV( : nv ) )
+!write(6,*) ' slope ', slope
           IF ( slope > zero ) THEN
             IF ( printp )                                                      &
               WRITE( out, "( A, ' flip sign of search direction ' )" ) prefix
             slope = - slope
             PV( : nv ) = - PV( : nv )
           END IF
+!write(6,"(A, /, (5ES16.8))" ) ' v0 ', V0
+!write(6,"(A, /, (5ES16.8))" ) ' pv ', PV
+!write(6,"(A, /, (5ES16.8))" ) ' v0+pv ', V0+PV
 
 !  scale the search direction
 
           norm_pv = MAXVAL( ABS( PV( : nv ) ) )
-!         IF ( norm_pv > zero ) PV( : nv ) = PV( : nv ) / norm_pv
+          IF ( norm_pv > zero ) PV( : nv ) = PV( : nv ) / norm_pv
 
 !write(6,*) ' p^T g ', slope
 !write(6,*) ' gy_l ', GY_l( 1 : dims%c_l_end )
@@ -5666,8 +6295,8 @@ H_loop: DO i = 1, prob%n
 !write(6,*) ' gz_u ', GZ_u( dims%x_u_start : n )
 !write(6,*) ' g ', GV( : nv )
 !write(6,*) ' p ', PV( : nv )
-!write(6,*) ' bnd_l ', V_bnd( : nv, 1 ) 
-!write(6,*) ' bnd_u ', V_bnd( : nv, 2 ) 
+!write(6,*) ' bnd_l ', V_bnd( : nv, 1 )
+!write(6,*) ' bnd_u ', V_bnd( : nv, 2 )
 !write(6,*) ' q0 ', q0
 !write(6,*) ' V0 ', V0
 
@@ -5678,139 +6307,152 @@ H_loop: DO i = 1, prob%n
           ip = print_level
 !         ip = 4
 !         ip = 11
+!write(6,"( ' V0 ', /, ( 5ES16.8 ) )" ) V0( ce_start : zu_end )
+!write(6,"( ' PV ', /, ( 5ES16.8 ) )" ) PV( : nv )
 
           CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
           t_solve = inform%time%solve ; c_solve = inform%time%clock_solve
           IF ( control%exact_arc_search ) THEN
-            IF ( scaled_identity_h ) THEN
-              CALL DQP_exact_arc_search( nv, n, m, V0, VT, GV,                 &
+            IF ( identity_h ) THEN
+              CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV,             &
                        V_bnd, q0, A_ptr, A_col, A_val, V_status,               &
                        start_ce, start_yl, start_yu, start_zl, start_zu,       &
                        ce_end, yl_end, yu_end, zl_end, zu_end, step_max,       &
-                       feas_tol, qt, PV, NZ_p, IUSED,                          &
+                       feas_tol, qt, NZ_p, IUSED,                              &
                        INDEX_r, INDEX_w, out, ip, prefix,                      &
                        BREAK_points, control%infinity,                         &
                        control%arc_search_maxit,                               &
                        arc_search_iter, alpha_subspace,                        &
-                       DV, RHS, SOL, RES, H_s,                                 &
+                       DV, RHS, SOL, RES, H_s, HPV,                            &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status,                                          &
-                       H_diag = H_val )
+                       inform%status )
+            ELSE IF ( scaled_identity_h ) THEN
+              CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV,             &
+                       V_bnd, q0, A_ptr, A_col, A_val, V_status,               &
+                       start_ce, start_yl, start_yu, start_zl, start_zu,       &
+                       ce_end, yl_end, yu_end, zl_end, zu_end, step_max,       &
+                       feas_tol, qt, NZ_p, IUSED,                              &
+                       INDEX_r, INDEX_w, out, ip, prefix,                      &
+                       BREAK_points, control%infinity,                         &
+                       control%arc_search_maxit,                               &
+                       arc_search_iter, alpha_subspace,                        &
+                       DV, RHS, SOL, RES, H_s, HPV,                            &
+                       diagonal_h, scaled_identity_h, identity_h,              &
+                       inform%time%solve, inform%time%clock_solve,             &
+                       inform%status, HESSIAN = H_sbls )
             ELSE IF ( diagonal_h ) THEN
-              CALL DQP_exact_arc_search( nv, n, m, V0, VT, GV,                 &
+              CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV,             &
                        V_bnd, q0, A_ptr, A_col, A_val, V_status,               &
                        start_ce, start_yl, start_yu, start_zl, start_zu,       &
                        ce_end, yl_end, yu_end, zl_end, zu_end, step_max,       &
-                       feas_tol, qt, PV, NZ_p, IUSED,                          &
+                       feas_tol, qt, NZ_p, IUSED,                              &
                        INDEX_r, INDEX_w, out, ip, prefix,                      &
                        BREAK_points, control%infinity,                         &
                        control%arc_search_maxit,                               &
                        arc_search_iter, alpha_subspace,                        &
-                       DV, RHS, SOL, RES, H_s,                                 &
+                       DV, RHS, SOL, RES, H_s, HPV,                            &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status,                                          &
-                       H_diag = H_sbls%val( : n ) )
+                       inform%status, HESSIAN = H_sbls )
             ELSE
-              CALL DQP_exact_arc_search( nv, n, m, V0, VT, GV,                 &
+              CALL DQP_exact_arc_search( nv, n, m, V0, PV, VT, GV,             &
                        V_bnd, q0, A_ptr, A_col, A_val, V_status,               &
                        start_ce, start_yl, start_yu, start_zl, start_zu,       &
                        ce_end, yl_end, yu_end, zl_end, zu_end, step_max,       &
-                       feas_tol, qt, PV, NZ_p, IUSED,                          &
+                       feas_tol, qt, NZ_p, IUSED,                              &
                        INDEX_r, INDEX_w, out, ip, prefix,                      &
                        BREAK_points, control%infinity,                         &
                        control%arc_search_maxit,                               &
                        arc_search_iter, alpha_subspace,                        &
-                       DV, RHS, SOL, RES, H_s,                                 &
+                       DV, RHS, SOL, RES, H_s, HPV,                            &
                        diagonal_h, scaled_identity_h, identity_h,              &
                        inform%time%solve, inform%time%clock_solve,             &
-                       inform%status,                                          &
-                       SLS_data = SLS_data,                                    &
-                       SLS_control = SLS_control,                              &
+                       inform%status, HESSIAN = H_sbls,                        &
+                       SLS_data = SLS_data, SLS_control = SLS_control,         &
                        SLS_inform = inform%SLS_inform )
             END IF
           ELSE
-            IF ( scaled_identity_h ) THEN
+            IF ( identity_h .OR. scaled_identity_h ) THEN
               IF ( composite_g ) THEN
-                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, GC,           &
-                         q0, YC_l, YC_u, ZC_l, ZC_u,                           &
+                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qt,       &
+                         alpha_subspace, GC, q0, YC_l, YC_u, ZC_l, ZC_u,       &
                          C_l( 1 : dims%c_l_end ),                              &
                          C_u( dims%c_u_start : dims%c_u_end ),                 &
                          X_l( dims%x_free + 1 : dims%x_l_end ),                &
-                         X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,       &
+                         X_u( dims%x_u_start : n ),                            &
                          ce_start, ce_end, yl_start, yl_end, yu_start, yu_end, &
-                         zl_start, zl_end, zu_start, zu_end, step_max,         &
-                         feas_tol, VT, qt, alpha_subspace, V_status,           &
-                         arc_search_iter, out, ip, prefix,                     &
+                         zl_start, zl_end, zu_start, zu_end,                   &
+                         A_ptr, A_col, A_val, step_max, feas_tol,              &
+                         V_status, arc_search_iter, out, ip, prefix,           &
                          DV, RHS, H_s,                                         &
                          diagonal_h, scaled_identity_h, identity_h,            &
                          inform%time%solve, inform%time%clock_solve,           &
                          inform%status,                                        &
-                         H_diag = H_val )
+                         HESSIAN = H_sbls )
               ELSE
-                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, G,            &
-                         q0, YC_l, YC_u, ZC_l, ZC_u,                           &
+                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qt,       &
+                         alpha_subspace, G, q0, YC_l, YC_u, ZC_l, ZC_u,        &
                          C_l( 1 : dims%c_l_end ),                              &
                          C_u( dims%c_u_start : dims%c_u_end ),                 &
                          X_l( dims%x_free + 1 : dims%x_l_end ),                &
-                         X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,       &
+                         X_u( dims%x_u_start : n ),                            &
                          ce_start, ce_end, yl_start, yl_end, yu_start, yu_end, &
-                         zl_start, zl_end, zu_start, zu_end, step_max,         &
-                         feas_tol, VT, qt, alpha_subspace, V_status,           &
-                         arc_search_iter, out, ip, prefix,                     &
+                         zl_start, zl_end, zu_start, zu_end,                   &
+                         A_ptr, A_col, A_val, step_max, feas_tol,              &
+                         V_status, arc_search_iter, out, ip, prefix,           &
                          DV, RHS, H_s,                                         &
                          diagonal_h, scaled_identity_h, identity_h,            &
                          inform%time%solve, inform%time%clock_solve,           &
                          inform%status,                                        &
-                         H_diag = H_val )
+                         HESSIAN = H_sbls )
               END IF
             ELSE IF ( diagonal_h ) THEN
               IF ( composite_g ) THEN
-                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, GC,           &
-                         q0, YC_l, YC_u, ZC_l, ZC_u,                           &
+                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qt,       &
+                         alpha_subspace, GC, q0, YC_l, YC_u, ZC_l, ZC_u,       &
                          C_l( 1 : dims%c_l_end ),                              &
                          C_u( dims%c_u_start : dims%c_u_end ),                 &
                          X_l( dims%x_free + 1 : dims%x_l_end ),                &
-                         X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,       &
+                         X_u( dims%x_u_start : n ),                            &
                          ce_start, ce_end, yl_start, yl_end, yu_start, yu_end, &
-                         zl_start, zl_end, zu_start, zu_end, step_max,         &
-                         feas_tol, VT, qt, alpha_subspace, V_status,           &
-                         arc_search_iter, out, ip, prefix,                     &
+                         zl_start, zl_end, zu_start, zu_end,                   &
+                         A_ptr, A_col, A_val, step_max, feas_tol,              &
+                         V_status, arc_search_iter, out, ip, prefix,           &
                          DV, RHS, H_s,                                         &
                          diagonal_h, scaled_identity_h, identity_h,            &
                          inform%time%solve, inform%time%clock_solve,           &
                          inform%status,                                        &
-                         H_diag = H_sbls%val( : n ) )
+                         HESSIAN = H_sbls )
               ELSE
-                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, G,            &
-                         q0, YC_l, YC_u, ZC_l, ZC_u,                           &
+                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qt,       &
+                         alpha_subspace, G, q0, YC_l, YC_u, ZC_l, ZC_u,        &
                          C_l( 1 : dims%c_l_end ),                              &
                          C_u( dims%c_u_start : dims%c_u_end ),                 &
                          X_l( dims%x_free + 1 : dims%x_l_end ),                &
-                         X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,       &
+                         X_u( dims%x_u_start : n ),                            &
                          ce_start, ce_end, yl_start, yl_end, yu_start, yu_end, &
-                         zl_start, zl_end, zu_start, zu_end, step_max,         &
-                         feas_tol, VT, qt, alpha_subspace, V_status,           &
-                         arc_search_iter, out, ip, prefix,                     &
+                         zl_start, zl_end, zu_start, zu_end,                   &
+                         A_ptr, A_col, A_val, step_max, feas_tol,              &
+                         V_status, arc_search_iter, out, ip, prefix,           &
                          DV, RHS, H_s,                                         &
                          diagonal_h, scaled_identity_h, identity_h,            &
                          inform%time%solve, inform%time%clock_solve,           &
                          inform%status,                                        &
-                         H_diag = H_sbls%val( : n ) )
+                         HESSIAN = H_sbls )
               END IF
             ELSE
               IF ( composite_g ) THEN
-                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, GC,           &
-                         q0, YC_l, YC_u, ZC_l, ZC_u,                           &
+                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qt,       &
+                         alpha_subspace, GC, q0, YC_l, YC_u, ZC_l, ZC_u,       &
                          C_l( 1 : dims%c_l_end ),                              &
                          C_u( dims%c_u_start : dims%c_u_end ),                 &
                          X_l( dims%x_free + 1 : dims%x_l_end ),                &
-                         X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,       &
+                         X_u( dims%x_u_start : n ),                            &
                          ce_start, ce_end, yl_start, yl_end, yu_start, yu_end, &
-                         zl_start, zl_end, zu_start, zu_end, step_max,         &
-                         feas_tol, VT, qt, alpha_subspace, V_status,           &
-                         arc_search_iter, out, ip, prefix,                     &
+                         zl_start, zl_end, zu_start, zu_end,                   &
+                         A_ptr, A_col, A_val, step_max, feas_tol,              &
+                         V_status, arc_search_iter, out, ip, prefix,           &
                          DV, RHS, H_s,                                         &
                          diagonal_h, scaled_identity_h, identity_h,            &
                          inform%time%solve, inform%time%clock_solve,           &
@@ -5819,16 +6461,16 @@ H_loop: DO i = 1, prob%n
                          SLS_control = SLS_control,                            &
                          SLS_inform = inform%SLS_inform )
               ELSE
-                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, G,            &
-                         q0, YC_l, YC_u, ZC_l, ZC_u,                           &
+                CALL DQP_inexact_arc_search( dims, nv, n, m, PV, VT, qt,       &
+                         alpha_subspace, G, q0, YC_l, YC_u, ZC_l, ZC_u,        &
                          C_l( 1 : dims%c_l_end ),                              &
                          C_u( dims%c_u_start : dims%c_u_end ),                 &
                          X_l( dims%x_free + 1 : dims%x_l_end ),                &
-                         X_u( dims%x_u_start : n ), A_ptr, A_col, A_val,       &
+                         X_u( dims%x_u_start : n ),                            &
                          ce_start, ce_end, yl_start, yl_end, yu_start, yu_end, &
-                         zl_start, zl_end, zu_start, zu_end, step_max,         &
-                         feas_tol, VT, qt, alpha_subspace, V_status,           &
-                         arc_search_iter, out, ip, prefix,                     &
+                         zl_start, zl_end, zu_start, zu_end,                   &
+                         A_ptr, A_col, A_val, step_max, feas_tol,              &
+                         V_status, arc_search_iter, out, ip, prefix,           &
                          DV, RHS, H_s,                                         &
                          diagonal_h, scaled_identity_h, identity_h,            &
                          inform%time%solve, inform%time%clock_solve,           &
@@ -5839,9 +6481,11 @@ H_loop: DO i = 1, prob%n
               END IF
             END IF
           END IF
+!write(6,"( ' VT ', /, ( 5ES16.8 ) )" ) VT( ce_start : zu_end )
+!write(6,"( ' V_status ', /, ( 5I5 ) )" ) V_status( : nv )
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%search = inform%time%search + time_now - time_record     &
-            + t_solve - inform%time%solve 
+          inform%time%search = inform%time%search +                            &
+            REAL( time_now - time_record, wp ) + t_solve - inform%time%solve
           inform%time%clock_search = inform%time%clock_search                  &
             + clock_now - clock_record + c_solve - inform%time%clock_solve
 
@@ -5901,14 +6545,14 @@ H_loop: DO i = 1, prob%n
                               + COUNT( C_status( : m ) /= C_status_old( : m ) )
 
           IF ( printw ) WRITE( out, "( A, 1X, A, I0, A, I0, A, I0 )" ) prefix, &
-            ' n active = ', n_active, ' m active = ', m_active,                &
-            ' total subspace active = ', m_subspace
+            ' n active = ', n_active, ', m active = ', m_active,               &
+            ', total subspace active = ', m_subspace
 
 !  4b(ii). perform a line search
 !  -----------------------------
 
-!  find v_{k+1} = v^C_k + alpha_k delta v_k, where alpha_k is the 
-!  largest alpha in [0,1] for which v^C_k + alpha delta v_k is in D
+!  find v_{k+1} = v^C_k + alpha_k delta v_k, where alpha_k is the largest
+!  alpha in [0,1] for which v^C_k + alpha delta v_k is in D (see notation)
 
         ELSE
           alpha_subspace = one
@@ -5988,11 +6632,15 @@ H_loop: DO i = 1, prob%n
 
 !       IF ( .TRUE. ) THEN
         IF ( printw ) THEN
+!write(6,*) 'y_l', Y_l( 1 : dims%c_l_end )
+!write(6,*) 'y_u', Y_u( dims%c_u_start : dims%c_u_end )
+!write(6,*) 'z_l', Z_l( dims%x_free + 1 : dims%x_l_end )
+!write(6,*) 'z_u', Z_u( dims%x_u_start : n )
           IF ( composite_g ) THEN
             SOL( : n ) = - GC( : n )
           ELSE
             SOL( : n ) = - G( : n )
-          END IF 
+          END IF
           DO i = 1, dims%c_u_start - 1
             DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
               j = A_col( l )
@@ -6028,7 +6676,7 @@ H_loop: DO i = 1, prob%n
           IF ( identity_h ) THEN
 !           X( : n ) = X( : n )
           ELSE IF ( scaled_identity_h ) THEN
-            X( : n ) = X( : n ) / H_val( 1 )
+            X( : n ) = X( : n ) / h_scale( 1 )
           ELSE IF ( diagonal_h ) THEN
             X( : n ) = X( : n ) / H_sbls%val( : n )
           ELSE
@@ -6036,13 +6684,15 @@ H_loop: DO i = 1, prob%n
                             inform%SLS_inform )
           END IF
           CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-          inform%time%solve = inform%time%solve + time_now - time_record
+          inform%time%solve =                                                  &
+            inform%time%solve + REAL( time_now - time_record, wp )
           inform%time%clock_solve =                                            &
             inform%time%clock_solve + clock_now - clock_record
 
 !  compute the dual objective function q_d(v) = 1/2 x_k^T r_k - <b,v> - f
 
           dual_f = half * DOT_PRODUCT( X( : n ), SOL( : n ) ) - f_all
+          val = dual_f
           DO i = 1, dims%c_l_end
             dual_f = dual_f - C_l( i ) * Y_l( i )
           END DO
@@ -6055,9 +6705,10 @@ H_loop: DO i = 1, prob%n
           DO j = dims%x_u_start, n
             dual_f = dual_f - X_u( j ) * Z_u( j )
           END DO
+          val = dual_f - val
           WRITE( out, "( A, ' dual obj after subspace step (computed,',        &
          &               ' recurred) =', 2ES14.6 )" ) prefix, dual_f, qt
-        END IF  
+        END IF
 
 !  =====================================================================
 !  -*-*-*-*-*-*-*-*-*-*-*-   Book keeping  -*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -6072,11 +6723,11 @@ H_loop: DO i = 1, prob%n
 !  ---------------------- End of Major Iteration -----------------------
 !  ---------------------------------------------------------------------
 
-      END DO 
+      END DO
 
 !  print details of the solution obtained
 
-  600 CONTINUE 
+  600 CONTINUE
 
 !  Compute the final objective function value
 
@@ -6085,8 +6736,10 @@ H_loop: DO i = 1, prob%n
       ELSE IF ( Hessian_kind == 2 ) THEN
         inform%obj = f_all + half * SUM( ( WEIGHT * X ) ** 2 )
       ELSE
-        IF ( scaled_identity_h ) THEN
-          curv = H_val( 1 ) * DOT_PRODUCT( X( : n ), X( : n ) )
+        IF ( identity_h ) THEN
+          curv = DOT_PRODUCT( X( : n ), X( : n ) )
+        ELSE IF ( scaled_identity_h ) THEN
+          curv = h_scale( 1 ) * DOT_PRODUCT( X( : n ), X( : n ) )
         ELSE
           curv = zero
           DO i = 1, n
@@ -6100,14 +6753,14 @@ H_loop: DO i = 1, prob%n
               END IF
             END DO
           END DO
-          IF ( printd )                                                        &
+          IF ( printd .AND. n > 0 )                                            &
             WRITE( out, "( A, A6, /, ( 4( 2I5, ES10.2 ) ) )" ) prefix,         &
            &  ' h ', ( ( i, H_col( l ), H_val( l ), l = H_ptr( i ),            &
               H_ptr( i + 1 ) - 1 ), i = 1, n )
         END IF
         inform%obj = f_all + half * curv
       END IF
-      
+
       IF ( composite_g ) THEN
         inform%obj = inform%obj + DOT_PRODUCT( GC( : n ), X )
       ELSE IF ( gradient_kind /= 0 ) THEN
@@ -6157,15 +6810,35 @@ H_loop: DO i = 1, prob%n
 
 !  Compute the values of the constraints
 
-      C( : m ) = zero
-      CALL DQP_AX( m, C( : m ), m, a_ne, A_val, A_col, A_ptr, n, X, '+ ')
-      inform%primal_infeasibility =                                            &
-        MAX( zero, MAXVAL( ABS( C_l( : dims%c_equality ) -                     &
-                                C(: dims%c_equality ) ) ),                     &
-                   MAXVAL( C_l(  dims%c_l_start : dims%c_l_end ) -             &
-                           C(  dims%c_l_start : dims%c_l_end ) ),              &
-                   MAXVAL( C( dims%c_u_start : dims%c_u_end ) -                &
-                           C_u( dims%c_u_start : dims%c_u_end ) ) )     
+      IF ( m > 0 ) THEN
+        C( : m ) = zero
+        CALL DQP_AX( m, C( : m ), m, a_ne, A_val, A_col, A_ptr, n, X, '+ ')
+        inform%primal_infeasibility =                                          &
+          MAX( zero, MAXVAL( ABS( C_l( : dims%c_equality ) -                   &
+                                  C(: dims%c_equality ) ) ),                   &
+                     MAXVAL( C_l(  dims%c_l_start : dims%c_l_end ) -           &
+                             C(  dims%c_l_start : dims%c_l_end ) ),            &
+                     MAXVAL( C( dims%c_u_start : dims%c_u_end ) -              &
+                             C_u( dims%c_u_start : dims%c_u_end ) ) )
+        primal_infeasibility = zero
+        DO i = 1, dims%c_equality
+          inform%obj = inform%obj + rho * ABS( C( i ) -  C_l( i ) )
+          primal_infeasibility                                                 &
+            = primal_infeasibility + ABS( C( i ) -  C_l( i ) )
+        END DO
+        DO i = dims%c_equality + 1, dims%c_l_end
+          inform%obj = inform%obj + rho * MAX( zero, C_l( i ) - C( i ) )
+          primal_infeasibility                                                 &
+            = primal_infeasibility + MAX( zero, C_l( i ) - C( i ) )
+        END DO
+        DO i = dims%c_u_start, dims%c_u_end
+          inform%obj = inform%obj + rho * MAX( zero, C( i ) - C_u( i ) )
+          primal_infeasibility                                                 &
+            = primal_infeasibility + MAX( zero, C( i ) - C_u( i ) )
+        END DO
+      ELSE
+        inform%primal_infeasibility = zero
+      END IF
 
       IF ( printi ) THEN
         WRITE( out, "( /, A, '  Final objective function value is', ES22.14,   &
@@ -6173,7 +6846,7 @@ H_loop: DO i = 1, prob%n
       &       /, A, '  Norm of primal infeasibility is', ES11.4,               &
       &       /, A, '  Norm of dual infeasibility is', ES11.4 )" )             &
           prefix, inform%obj, prefix, inform%iter,                             &
-          prefix, dual_g_norm, prefix, inform%primal_infeasibility
+          prefix, inform%primal_infeasibility, prefix, dual_g_norm
       END IF
 
 !  estimate the variable and constraint exit status
@@ -6200,40 +6873,43 @@ H_loop: DO i = 1, prob%n
           END IF
         END DO
 
-!  print details of the starting point if required ...
+!  print details of the optimal point if required ...
 
       IF ( printd ) THEN
-        WRITE( out, "( /, A, 5X, 'i', 6x, 'x', 10X, 'x_l', 9X, 'x_u', 9X,      &
+!     IF ( .TRUE. ) THEN
+        IF ( n > 0 ) THEN
+          WRITE( out, "( /, A, 5X, 'i', 6x, 'x', 10X, 'x_l', 9X, 'x_u', 9X,    &
        &       'z_l', 9X, 'z_u     stat')") prefix
-        DO i = 1, dims%x_free
-          WRITE( out, "( A, I6, ES12.4, 4( '      -     ' ), I5 )" ) prefix,   &
-            i, X( i ), X_status( i )
-        END DO
-        DO i = dims%x_free + 1, dims%x_l_start - 1
-          WRITE( out, "( A, I6, 2ES12.4, '      -     ', ES12.4,               &
-         &  '      -     ', I5 )" ) prefix, i, X( i ), zero, Z_l( i ),         &
-            X_status( i )
-        END DO
-        DO i = dims%x_l_start, dims%x_u_start - 1
-          WRITE( out, "( A, I6, 2ES12.4, '      -     ', ES12.4,               &
-         &  '      -     ', I5 )" ) prefix, i, X( i ), X_l( i ),               &
-            Z_l( i ), X_status( i )
-        END DO
-        DO i = dims%x_u_start, dims%x_l_end
-          WRITE( out, "( A, I6, 5ES12.4, I5 )" )                               &
-             prefix, i, X( i ), X_l( i ), X_u( i ), Z_l( i ),                  &
-             Z_u( i ), X_status( i )
-        END DO
-        DO i = dims%x_l_end + 1, dims%x_u_end
-          WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,                &
-         &  '      -     ', ES12.4, I5 )" ) prefix, i, X( i ), X_u( i ),       &
-            Z_u( i ), X_status( i )
-        END DO
-        DO i = dims%x_u_end + 1, n
-          WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,                &
-         &  '      -     ',  ES12.4, I5 )" ) prefix, i, X( i ), zero,          &
-            Z_u( i ), X_status( i )
-        END DO
+          DO i = 1, dims%x_free
+            WRITE( out, "( A, I6, ES12.4, 4( '      -     ' ), I5 )" ) prefix, &
+              i, X( i ), X_status( i )
+          END DO
+          DO i = dims%x_free + 1, dims%x_l_start - 1
+            WRITE( out, "( A, I6, 2ES12.4, '      -     ', ES12.4,             &
+           &  '      -     ', I5 )" ) prefix, i, X( i ), zero, Z_l( i ),       &
+              X_status( i )
+          END DO
+          DO i = dims%x_l_start, dims%x_u_start - 1
+            WRITE( out, "( A, I6, 2ES12.4, '      -     ', ES12.4,             &
+           &  '      -     ', I5 )" ) prefix, i, X( i ), X_l( i ),             &
+              Z_l( i ), X_status( i )
+          END DO
+          DO i = dims%x_u_start, dims%x_l_end
+            WRITE( out, "( A, I6, 5ES12.4, I5 )" )                             &
+               prefix, i, X( i ), X_l( i ), X_u( i ), Z_l( i ),                &
+               Z_u( i ), X_status( i )
+          END DO
+          DO i = dims%x_l_end + 1, dims%x_u_end
+            WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,              &
+           &  '      -     ', ES12.4, I5 )" ) prefix, i, X( i ), X_u( i ),     &
+              Z_u( i ), X_status( i )
+          END DO
+          DO i = dims%x_u_end + 1, n
+            WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,              &
+           &  '      -     ',  ES12.4, I5 )" ) prefix, i, X( i ), zero,        &
+              Z_u( i ), X_status( i )
+          END DO
+        END IF
 
 !  ... and of the constraints
 
@@ -6246,7 +6922,7 @@ H_loop: DO i = 1, prob%n
           END DO
           DO i = dims%c_l_start, dims%c_u_start - 1
             WRITE( out,  "( A, I6, 2ES12.4, '      -     ', ES12.4,            &
-           &  '      -    ', I5 )" ) prefix, i, C( i ), C_l( i ),              &
+           &  '      -     ', I5 )" ) prefix, i, C( i ), C_l( i ),             &
               Y_l( i ), C_status( i )
           END DO
           DO i = dims%c_u_start, dims%c_l_end
@@ -6255,8 +6931,8 @@ H_loop: DO i = 1, prob%n
               C_status( i )
           END DO
           DO i = dims%c_l_end + 1, dims%c_u_end
-            WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4, '      -',   &
-            &  '     ', ES12.4, I5 )" ) prefix, i, C( i ), C_u( i ),           &
+            WRITE( out, "( A, I6, ES12.4, '      -     ', ES12.4,              &
+            & '      -     ', ES12.4, I5 )" ) prefix, i, C( i ), C_u( i ),     &
               Y_u( i ), C_status( i )
           END DO
         END IF
@@ -6292,7 +6968,8 @@ H_loop: DO i = 1, prob%n
         CASE( GALAHAD_error_unbounded ) ; WRITE( out, "( /, A,                 &
        &   '  Warning - problem appears to be unbounded from below' )") prefix
         END SELECT
-        IF ( control%subspace_direct ) THEN
+
+        IF ( subspace_direct .OR. control%subspace_alternate ) THEN
           WRITE( out, "( A, '  Direct subspace solver used' )" ) prefix
           IF ( inform%SBLS_inform%preconditioner /= 2 )                        &
             WRITE( out, "( A, 2X, I0, ' projected CG iterations taken ' )" )   &
@@ -6311,7 +6988,8 @@ H_loop: DO i = 1, prob%n
          &               ' (preconditioner = ', I0, ') is used' )" )           &
               prefix, TRIM( SBLS_control%symmetric_linear_solver ),            &
               inform%SBLS_inform%preconditioner
-        ELSE
+        END IF
+        IF ( .NOT. subspace_direct .OR. control%subspace_alternate ) THEN
           WRITE( out, "( A, '  Iterative subspace solver used, ', A,           &
        &    ' iterations taken in total' )" ) prefix,                          &
           TRIM( STRING_integer_6( inform%cg_iter ) )
@@ -6325,12 +7003,12 @@ H_loop: DO i = 1, prob%n
 
 !  error
 
-  900 CONTINUE 
+  900 CONTINUE
       GO TO 990
 
 !  allocation error
 
-  910 CONTINUE 
+  910 CONTINUE
       inform%status = GALAHAD_error_allocate
       IF ( printe ) WRITE( control%error,                                      &
         "( A, ' ** Message from -DQP_solve-', /,  A,                           &
@@ -6351,18 +7029,18 @@ H_loop: DO i = 1, prob%n
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
       cpu_total = cpu_total + time_now - time_start
       clock_total = clock_total + clock_now - clock_start
-      RETURN  
+      RETURN
 
 !  Non-executable statements
 
 !2000 FORMAT( /, A, ' Iter   p-feas  d-feas com-slk    obj   ',                &
-!               '  step   target    time' ) 
- 2000 FORMAT( /, A, 26X, ' <-  arcsearch  ->  <-   subsapce  ->',              &
-              /, A, ' Iter    dual obj   p-feas active  +/-   step ',          &
-                'active  +/-   step    time' ) 
- 2020 FORMAT( A, I5, 1X, ES12.4, ES8.1, '      -    -    -        -',          &
-              '    -    -  ', 0P, F8.2 ) 
- 2030 FORMAT( A, I5, A1, ES12.4, ES8.1, 2( I7, I5, ES7.0 ), 0P, F8.2 ) 
+!               '  step   target    time' )
+ 2000 FORMAT( /, A, 26X, ' <-   arcsearch   ->  <-    subsapce   ->',          &
+              /, A, ' Iter    dual obj   p-feas  active   +/-   step ',        &
+                ' active   +/-   step    time' )
+ 2020 FORMAT( A, I5, 1X, ES12.4, ES8.1, '       -     -    -         -',       &
+              '     -    -  ', 0P, F8.2 )
+ 2030 FORMAT( A, I5, A1, ES12.4, ES8.1, 2( I8, I6, ES7.0 ), 0P, F8.2 )
 
 !  End of DQP_solve_main
 
@@ -6392,9 +7070,9 @@ H_loop: DO i = 1, prob%n
 !  Dummy arguments
 
       TYPE ( DQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( DQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( DQP_control_type ), INTENT( IN ) :: control
       TYPE ( DQP_inform_type ), INTENT( INOUT ) :: inform
- 
+
 !  Local variables
 
       INTEGER :: scu_status
@@ -6405,7 +7083,7 @@ H_loop: DO i = 1, prob%n
       CALL FDC_terminate( data%FDC_data, data%FDC_control,                     &
                           inform%FDC_inform )
       IF ( inform%FDC_inform%status /= GALAHAD_ok )                            &
-        inform%status = inform%FDC_inform%status 
+        inform%status = inform%FDC_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -6436,7 +7114,7 @@ H_loop: DO i = 1, prob%n
       CALL GLTR_terminate( data%GLTR_data, control%GLTR_control,               &
                            inform%GLTR_inform )
       IF ( inform%GLTR_inform%status /= GALAHAD_ok )                           &
-        inform%status = inform%GLTR_inform%status 
+        inform%status = inform%GLTR_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -6773,6 +7451,13 @@ H_loop: DO i = 1, prob%n
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
+      array_name = 'dqp: data%HPV'
+      CALL SPACE_dealloc_array( data%HPV,                                      &
+         inform%status, inform%alloc_status, array_name = array_name,          &
+         bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( control%deallocate_error_fatal .AND.                                &
+           inform%status /= GALAHAD_ok ) RETURN
+
       array_name = 'dqp: data%SOL'
       CALL SPACE_dealloc_array( data%SOL,                                      &
          inform%status, inform%alloc_status, array_name = array_name,          &
@@ -6823,28 +7508,30 @@ H_loop: DO i = 1, prob%n
 
 !-*-*-*-  D Q P _ E X A C T _ A R C _ S E A R C H   S U B R O U T I N E  -*-*-*-
 
-      SUBROUTINE DQP_exact_arc_search( nv, n, m, V_0, V_t, G, BND, f,          &
+      SUBROUTINE DQP_exact_arc_search( nv, n, m, V_0, P, V_t, G, BND, f,       &
                    A_ptr, A_col, A_val, V_status, start_ce, start_yl,          &
                    start_yu, start_zl, start_zu, ce_end, yl_end, yu_end,       &
-                   zl_end, zu_end, t_max, feas_tol, q_t, P, NZ_p, IUSED,       &
+                   zl_end, zu_end, t_max, feas_tol, q_t, NZ_p, IUSED,          &
                    INDEX_r, INDEX_w, out, print_level, prefix, BREAK_points,   &
                    bnd_inf, max_iter, iter, t_arc_minimizer, D, R, W, U, H,    &
-                   diagonal_h, scaled_identity_h, identity_h, solve,           &
-                   clock_solve, status, SLS_data, SLS_control, SLS_inform,     &
-                   H_diag )
+                   HP, diagonal_h, scaled_identity_h, identity_h, solve,       &
+                   clock_solve, status, HESSIAN,                               &
+                   SLS_data, SLS_control, SLS_inform )
 
-!  Find the arc minimizer in the direction P from V_0 for a given quadratic 
+!  Find the arc minimizer in the direction P from V_0 for a given quadratic
 !  function within a box shaped region
 
-!  If we define the arc v(t) = projection of v_0 + t*p into the box region 
+!  If we define the arc v(t) = projection of v_0 + t*p into the box region
 
-!     BND(*,1) <= v(*) <= BND(*,2), 
+!     BND(*,1) <= v(*) <= BND(*,2),
 
 !  the arc minimizer is the first local minimizer of the quadratic function
 
-!     1/2 (v-v_0)^T H_d (v-v_0) + G_d^T (v-v_0) + f
+!     1/2 (v-v_0)^T H_d (v-v_0) + g_d^T (v-v_0) + f
 
-!  for points lying on v(t), with 0 <= t <= t_max. 
+!  for points lying on v(t), with 0 <= t <= t_max. Here
+
+!    H_d = J H^{-1} J^T and g_d is given
 
 !  The value of the array V_status gives the status of the variables
 
@@ -6868,10 +7555,13 @@ H_loop: DO i = 1, prob%n
 !          ** this variable is not altered by the subroutine
 !  V_0    (REAL array of length at least nv) the point V_0 from which the search
 !          arc commences. ** this variable is not altered by the subroutine
-!  V_t    (REAL array of length at least nv) the current estimate of the 
+!  P      (REAL array of length at least n) contains the values of the
+!          components of the vector P. On entry, P must contain the initial
+!          direction of the search arc
+!  V_t    (REAL array of length at least nv) the current estimate of the
 !         arc minimizer
 !  G      (REAL array of length at least nv) the coefficients of
-!          the linear term in the quadratic function
+!          the linear term g_d in the quadratic function
 !          ** this variable is not altered by the subroutine
 !  BND    (two dimensional REAL array with leading dimension nv and second
 !          dimension 2) the lower (BND(*,1)) and upper (BND(*,2)) bounds on
@@ -6889,9 +7579,6 @@ H_loop: DO i = 1, prob%n
 !          ** this variable is not altered by the subroutine.
 !  q_t     (REAL) the value of the piecewise quadratic function at the current
 !          estimate of the arc minimizer
-!  P      (REAL array of length at least n) contains the values of the
-!          components of the vector P. On entry, P must contain the initial 
-!          direction of the search arc
 !  NZ_p   (INTEGER array of length at least nv) workspace
 !  INDEX_w (INTEGER array of length at least nv) workspace
 !  out    (INTEGER) the fortran output channel number to be used
@@ -6899,8 +7586,8 @@ H_loop: DO i = 1, prob%n
 !  iter   (INTEGER) the number of iterations performed
 !  bnf_inf (REAL) any BND larger than bnd_inf in modulus is infinite
 !  t_arc_minimizer (REAL) the minimizing value of t
-!  print_level (INTEGER) allows detailed printing. If print_level is larger 
-!          than 4, detailed output from the routine will be given. Otherwise, 
+!  print_level (INTEGER) allows detailed printing. If print_level is larger
+!          than 4, detailed output from the routine will be given. Otherwise,
 !          no output occurs
 !  BREAK_points (REAL) workspace that must be preserved between calls
 
@@ -6912,7 +7599,7 @@ H_loop: DO i = 1, prob%n
       INTEGER, INTENT( IN ) :: ce_end, yl_end, yu_end, zl_end, zu_end
       INTEGER, INTENT( INOUT ):: status
       REAL ( KIND = wp ), INTENT( IN ):: t_max, feas_tol, bnd_inf
-      REAL ( KIND = wp ), INTENT( INOUT ):: f, q_t, t_arc_minimizer 
+      REAL ( KIND = wp ), INTENT( INOUT ):: f, q_t, t_arc_minimizer
       REAL ( KIND = wp ), INTENT( INOUT ):: solve, clock_solve
       LOGICAL, INTENT( IN ) :: diagonal_h, scaled_identity_h, identity_h
       CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
@@ -6926,21 +7613,21 @@ H_loop: DO i = 1, prob%n
       REAL ( KIND = wp ), INTENT( IN ), DIMENSION( nv ) :: V_0, G
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: V_t
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: R, W, U, H
-      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: D, P
+      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: D, P, HP
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: BREAK_points
+      TYPE ( SMT_type ), OPTIONAL, INTENT( IN ) :: HESSIAN
       TYPE ( SLS_data_type ), OPTIONAL, INTENT( INOUT ) :: SLS_data
       TYPE ( SLS_control_type ), OPTIONAL, INTENT( IN ) :: SLS_control
       TYPE ( SLS_inform_type ), OPTIONAL, INTENT( INOUT ) :: SLS_inform
-      REAL ( KIND = wp ), OPTIONAL, INTENT( IN ), DIMENSION( * ) :: H_diag
 
 !  INITIALIZATION:
 
 !  On the initial call to the subroutine the following variables MUST BE SET
 !  by the user:
 
-!      n, V_0, G, t_max, P, BND, f, feas_tol, out, print_level
+!      n, V_0, P, G, t_max, BND, f, feas_tol, out, print_level
 
-!  If the i-th variable is required to be fixed at its initial value, V_0(i), 
+!  If the i-th variable is required to be fixed at its initial value, V_0(i),
 !   V_status(i) must be set to 3 or 4
 
 !-----------------------------------------------
@@ -6950,10 +7637,10 @@ H_loop: DO i = 1, prob%n
       INTEGER :: i, ii, j, k, l, ibreak, insort, nvar_l, nvar_u
       INTEGER :: n_free, n_freed, n_break, n_zero, n_fix, nnz_r, nnz_w
       REAL :: time_record, time_now
-      REAL ( KIND = wp ) :: clock_record, clock_now 
-      REAL ( KIND = wp ) :: t, t_star, feasep, beta, tk, q_t1, q_t2, epstl2
-      REAL ( KIND = wp ) :: tbreak, deltat, root_hd
-      LOGICAL :: xlower, xupper, printp, printw, printww, printd
+      REAL ( KIND = wp ) :: clock_record, clock_now
+      REAL ( KIND = wp ) :: t, t_star, feasep, beta, tk, q_t1, q_t1_old, q_t2
+      REAL ( KIND = wp ) :: tbreak, deltat, root_hd, gp, val, php, epstl2
+      LOGICAL :: xlower, xupper, printp, printw, printd, printdd, recomp
 !     LOGICAL :: recomp
 
       status = GALAHAD_ok
@@ -6962,14 +7649,45 @@ H_loop: DO i = 1, prob%n
 
       printp = print_level >= 3 .AND. out > 0
       printw = print_level >= 4 .AND. out > 0
-      printww = print_level >= 5 .AND. out > 0
-      printd = print_level > 10 .AND. out > 0
+      printd = print_level >= 5 .AND. out > 0
+      printdd = print_level > 10 .AND. out > 0
+!     printd = .TRUE.
 
-      IF ( printp ) WRITE( out, "( /, A, ' ** arc search entered ** ' )" )     &
-        prefix
+      IF ( printp ) WRITE( out, "( /, A, ' ** arc search entered (nv = ', I0,  &
+     &  ') ** ' )" ) prefix, nv
       n_break = 0 ; n_freed = 0 ; n_zero = nv + 1
       epstl2 = ten * epsmch
       tbreak = zero
+
+!     IF ( printp ) THEN
+      IF ( .FALSE. ) THEN
+        i = COUNT(  V_status( : nv ) == 0 )
+        IF ( i /= 1 ) THEN
+          WRITE( out, "( /, A, 1X, I0, ' variables are free' )" ) prefix, i
+        ELSE
+          WRITE( out, "( /, A, ' 1 variable is free' )" ) prefix
+        END IF
+        i = COUNT(  V_status( : nv ) == 1 )
+        IF ( i /= 1 ) THEN
+          WRITE( out, "( A, 1X, I0, ' variables are on lower bounds' )" )      &
+            prefix, i
+        ELSE
+          WRITE( out, "( A, 1X, ' 1 variable is on its lower bound' )" ) prefix
+        END IF
+        i = COUNT(  V_status( : nv ) == 2 )
+        IF ( i /= 1 ) THEN
+          WRITE( out, "( A, 1X, I0, ' variables are on upper bounds' )" )      &
+            prefix, i
+        ELSE
+          WRITE( out, "( A, 1X, ' 1 variable is on its upper bound' )" ) prefix
+        END IF
+        i = COUNT(  V_status( : nv ) >= 3 )
+        IF ( i /= 1 ) THEN
+          WRITE( out, "( /, A, 1X, I0, ' variables are fixed' )" ) prefix, i
+        ELSE
+          WRITE( out, "( /, A, 1X, ' 1 variable is fixed' )" ) prefix
+        END IF
+      END IF
 
       IF ( print_level >= 100 ) THEN
         DO i = 1, nv
@@ -6984,12 +7702,12 @@ H_loop: DO i = 1, prob%n
 
 !  find the status of the variables
 
-      IF ( print_level >= 100 ) WRITE( out,                                    &
+      IF ( printdd ) WRITE( out,                                               &
         "( A, '    nv     BND_l       V_0         BND_u        P' )" ) prefix
 
       n_fix = 0
       DO i = 1, nv
-        IF ( print_level >= 100 ) WRITE( out, "( A, I6, 5ES12.4 )" )           &
+        IF ( printdd ) WRITE( out, "( A, I6, 5ES12.4 )" )                      &
           prefix, i, BND( i, 1 ), V_0( i ), BND( i, 2 ), P( i )
 
 !  check to see whether the variable is fixed
@@ -7006,12 +7724,14 @@ H_loop: DO i = 1, prob%n
             IF ( ABS( P( i ) ) > epsmch ) GO TO 110
             n_zero = n_zero - 1
             NZ_p( n_zero ) = i
+!write(6,*) 'NZ(', n_zero, ')=', i, ' nzero '
           ELSE
 
 !  the variable lies close to its lower bound
 
             IF ( xlower ) THEN
               IF ( P( i ) > epsmch ) THEN
+!write(6,*) ' variable ', i, ' freed from lower bound'
                 n_freed = n_freed + 1
                 GO TO 110
               END IF
@@ -7021,6 +7741,7 @@ H_loop: DO i = 1, prob%n
 
             ELSE
               IF ( P( i ) < - epsmch ) THEN
+!write(6,*) ' variable ', i, ' freed from upper bound'
                 n_freed = n_freed + 1
                 GO TO 110
               END IF
@@ -7042,6 +7763,7 @@ H_loop: DO i = 1, prob%n
 !  p ready for calculating q = H * p
 
         n_break = n_break + 1
+!write(6,*) 'NZ(', n_break, ')=', i
         NZ_p( n_break ) = i
       END DO
 
@@ -7084,7 +7806,7 @@ H_loop: DO i = 1, prob%n
 
 !  order the breakpoints in increasing size using a heapsort. Build the heap
 
-      CALL SORT_heapsort_build( n_break, BREAK_points, insort, INDA = NZ_p )
+      CALL SORT_heapsort_build( n_break, BREAK_points, insort, ix = NZ_p )
 
 !  compute w = J^T p
 
@@ -7094,11 +7816,11 @@ H_loop: DO i = 1, prob%n
       DO k = nvar_l, nvar_u
         ii = NZ_p( k )
         IF ( ii <= 0 .OR. ii > nv ) THEN
-          IF ( printd ) WRITE( out, "( ' extended index ', I0,                 &
+          IF ( printdd ) WRITE( out, "( ' extended index ', I0,                &
          &   ' larger than nv = ', I0 )" ) ii, nv
         ELSE IF ( ii <= ce_end ) THEN
           i = ii + start_ce
-          IF ( printd )                                                        &
+          IF ( printdd )                                                       &
             WRITE( out, "( ' product involves equality c ', I0 )" ) i
           DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
             j = A_col( l )
@@ -7106,7 +7828,7 @@ H_loop: DO i = 1, prob%n
           END DO
         ELSE IF ( ii <= yl_end ) THEN
           i = ii + start_yl
-          IF ( printd )                                                        &
+          IF ( printdd )                                                       &
             WRITE( out, "( ' product involves lower c ', I0 )" ) i
           DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
             j = A_col( l )
@@ -7114,7 +7836,7 @@ H_loop: DO i = 1, prob%n
           END DO
         ELSE IF ( ii <= yu_end ) THEN
           i = ii + start_yu
-          IF ( printd )                                                        &
+          IF ( printdd )                                                       &
             WRITE( out, "( ' product involves upper c ', I0 )" ) i
           DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
             j = A_col( l )
@@ -7122,12 +7844,12 @@ H_loop: DO i = 1, prob%n
           END DO
         ELSE IF ( ii <= zl_end ) THEN
           i = ii + start_zl
-          IF ( printd )                                                        &
+          IF ( printdd )                                                       &
             WRITE( out, "( ' product involves lower x ', I0 )" ) i
           W( i ) = W( i ) + P( ii )
         ELSE IF ( ii <= zu_end ) THEN
           i = ii + start_zu
-          IF ( printd )                                                        &
+          IF ( printdd )                                                       &
             WRITE( out, "( ' product involves upper x ', I0 )" ) i
           W( i ) = W( i ) + P( ii )
         END IF
@@ -7139,16 +7861,16 @@ H_loop: DO i = 1, prob%n
       IF ( identity_h ) THEN
 !       W( : n ) = W( : n )
       ELSE IF ( scaled_identity_h ) THEN
-        root_hd = SQRT( H_diag( 1 ) )
+        root_hd = SQRT( HESSIAN%val( 1 ) )
         W( : n ) = W( : n ) / root_hd
       ELSE IF ( diagonal_h ) THEN
-        W( : n ) = W( : n ) / SQRT( H_diag( : n ) )
+        W( : n ) = W( : n ) / SQRT( HESSIAN%val( : n ) )
       ELSE
         CALL SLS_part_solve( 'S', W( : n ), SLS_data, SLS_control, SLS_inform )
       END IF
 
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      solve = solve + time_now - time_record
+      solve = solve + REAL( time_now - time_record, wp )
       clock_solve = clock_solve + clock_now - clock_record
 
 !  initialize h
@@ -7169,6 +7891,10 @@ H_loop: DO i = 1, prob%n
       END DO
       q_t2 = DOT_PRODUCT( H( : n ), H( : n ) )
       IF ( q_t2 < hzero ) q_t2 = zero
+
+      IF ( printdd ) WRITE( out,                                               &
+        "( A, ' Current search direction ', /, ( 6X, 4( I6, ES12.4 ) ) )" )    &
+         prefix, ( NZ_p( i ), P( NZ_p( i ) ), i = 1, nvar_u )
 
 !  ---------
 !  main loop
@@ -7208,8 +7934,7 @@ H_loop: DO i = 1, prob%n
 !  find the next breakpoint ( end of the piece )
 
         tbreak = BREAK_points( 1 )
-        CALL SORT_heapsort_smallest( n_break, BREAK_points, insort,            &
-                                     INDA = NZ_p )
+        CALL SORT_heapsort_smallest( n_break, BREAK_points, insort, ix = NZ_p )
 
 !  compute the length of the current piece
 
@@ -7218,8 +7943,8 @@ H_loop: DO i = 1, prob%n
 !  print details of the breakpoint
 
         IF ( printw ) THEN
-          WRITE( out, "( /, A, ' Next break point = ', ES12.4, /, A,           &
-         &  ' Maximum step     = ', ES12.4 )" ) prefix, tbreak, prefix,        &
+          WRITE( out, "( /, A, ' Next break point =', ES11.4, /, A,            &
+         &  ' Maximum step     =', ES11.4 )" ) prefix, tbreak, prefix,         &
             t_max
         END IF
 
@@ -7241,7 +7966,13 @@ H_loop: DO i = 1, prob%n
           IF ( q_t2 > zero ) THEN
             t_star = - q_t1 / q_t2
             IF ( printw ) WRITE( out,                                          &
-              "( A, ' Stationary point = ', ES12.4 )" ) prefix, t_star
+              "( A, ' Stationary point =', ES11.4 )" ) prefix, tk + t_star
+
+!           IF ( t_star > deltat ) THEN
+!             write(6,*) ' t_star > deltat', t_star, deltat, ABS(t_star-deltat)
+!           ELSE
+!             write(6,*) ' t_star < deltat', t_star, deltat, ABS(t_star-deltat)
+!           END IF
 
 !  if the line minimum occurs before the breakpoint, the line minimum gives
 !  the arc minimizer. Exit
@@ -7281,7 +8012,7 @@ H_loop: DO i = 1, prob%n
           n_fix = n_fix + 1
           ibreak = NZ_p( n_break )
           n_break = n_break - 1
-          IF ( printww ) WRITE( out, "( A, ' Variable ', I0,                   &
+          IF ( printd ) WRITE( out, "( A, ' Variable ', I0,                    &
          &  ' is fixed, step =', ES12.4 )" ) prefix, ibreak, tbreak
 
 !  indicate the status of the newly fixed variable
@@ -7315,7 +8046,7 @@ H_loop: DO i = 1, prob%n
 
           IF (  BREAK_points( 1 ) >= feasep  ) EXIT
           CALL SORT_heapsort_smallest( n_break, BREAK_points, insort,          &
-                                       INDA = NZ_p )
+                                       ix = NZ_p )
         END DO
 
 !  update u and beta
@@ -7339,11 +8070,11 @@ H_loop: DO i = 1, prob%n
         DO k = nvar_l, nvar_u
           ii = NZ_p( k )
           IF ( ii <= 0 .OR. ii > nv ) THEN
-            IF ( printd ) WRITE( out, "( ' extended index ', I0,               &
+            IF ( printdd ) WRITE( out, "( ' extended index ', I0,              &
            &   ' larger than nv = ', I0 )" ) ii, nv
           ELSE IF ( ii <= ce_end ) THEN
             i = ii + start_ce
-            IF ( printd )                                                      &
+            IF ( printdd )                                                     &
               WRITE( out, "( ' product involves equality c ', I0 )" ) i
             DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
               j = A_col( l )
@@ -7354,7 +8085,7 @@ H_loop: DO i = 1, prob%n
             END DO
           ELSE IF ( ii <= yl_end ) THEN
             i = ii + start_yl
-            IF ( printd )                                                      &
+            IF ( printdd )                                                     &
               WRITE( out, "( ' product involves lower c ', I0 )" ) i
             DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
               j = A_col( l )
@@ -7365,7 +8096,7 @@ H_loop: DO i = 1, prob%n
             END DO
           ELSE IF ( ii <= yu_end ) THEN
             i = ii + start_yu
-            IF ( printd )                                                      &
+            IF ( printdd)                                                      &
               WRITE( out, "( ' product involves upper c ', I0 )" ) i
             DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
               j = A_col( l )
@@ -7376,7 +8107,7 @@ H_loop: DO i = 1, prob%n
             END DO
           ELSE IF ( ii <= zl_end ) THEN
             i = ii + start_zl
-            IF ( printd )                                                      &
+            IF ( printdd )                                                     &
               WRITE( out, "( ' product involves lower x ', I0 )" ) i
             IF ( IUSED( i ) < iter ) THEN
               nnz_r = nnz_r + 1 ; INDEX_r( nnz_r ) = i ; IUSED( i ) = iter
@@ -7384,7 +8115,7 @@ H_loop: DO i = 1, prob%n
             R( i ) = R( i ) + P( ii )
           ELSE IF ( ii <= zu_end ) THEN
             i = ii + start_zu
-            IF ( printd )                                                      &
+            IF ( printdd )                                                     &
               WRITE( out, "( ' product involves upper x ', I0 )" ) i
             IF ( IUSED( i ) < iter ) THEN
               nnz_r = nnz_r + 1 ; INDEX_r( nnz_r ) = i ; IUSED( i ) = iter
@@ -7413,7 +8144,7 @@ H_loop: DO i = 1, prob%n
         ELSE IF ( diagonal_h ) THEN
           DO j = 1, nnz_r
             i = INDEX_r( j )
-            W( i ) = R( i ) / SQRT( H_diag( i ) )
+            W( i ) = R( i ) / SQRT( HESSIAN%val( i ) )
             INDEX_w( j ) = i
           END DO
           nnz_w = nnz_r
@@ -7422,7 +8153,7 @@ H_loop: DO i = 1, prob%n
                                          SLS_data, SLS_control, SLS_inform )
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        solve = solve + time_now - time_record
+        solve = solve + REAL( time_now - time_record, wp )
         clock_solve = clock_solve + clock_now - clock_record
 
 !  reset nonzero components of r to zero
@@ -7431,6 +8162,7 @@ H_loop: DO i = 1, prob%n
 
 !  update the first and second derivatives of the univariate function
 
+        q_t1_old = q_t1
         q_t1 = q_t1 + deltat * q_t2
 
 !  include the contributions from the variables which have just been fixed
@@ -7471,41 +8203,146 @@ H_loop: DO i = 1, prob%n
 !  the current segment of the piecewise arc. If it has, there may be a loss
 !  of accuracy, so the line derivatives will be recomputed
 
-!     recomp = ABS( q_t1 ) < - epsqrt * q_t1old
+        recomp = ABS( q_t1 ) < - SQRT( epsmch ) * q_t1_old .OR. q_t2 <= zero
 
 !  if required, compute the true line gradient and curvature.
-!  Firstly, compute the matrix-vector product H * p
 
-!     IF ( recomp .OR. prnter ) THEN
-!       jumpto = 4 ; nvar_l = 1
-!       RETURN
-!     END IF
+        IF ( recomp .OR. printw ) THEN
 
-! 450 CONTINUE
+!  next compute the matrix-vector product u = H_d * v_t = J H^{-1} J^T p.
+!  First, compute r = J^T p
 
-!  calculate the line gradient and curvature
+          DO k = 1, nvar_u
+            ii = NZ_p( k )
+            IF ( ii <= 0 .OR. ii > nv ) THEN
+              IF ( printdd ) WRITE( out, "( ' extended index ', I0,            &
+             &   ' larger than nv = ', I0 )" ) ii, nv
+            ELSE IF ( ii <= ce_end ) THEN
+              i = ii + start_ce
+              IF ( printdd )                                                   &
+                WRITE( out, "( ' product involves equality c ', I0 )" ) i
+              DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                j = A_col( l )
+                R( j ) = R( j ) + A_val( l ) * P( ii )
+              END DO
+            ELSE IF ( ii <= yl_end ) THEN
+              i = ii + start_yl
+              IF ( printdd )                                                   &
+                WRITE( out, "( ' product involves lower c ', I0 )" ) i
+              DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                j = A_col( l )
+                R( j ) = R( j ) + A_val( l ) * P( ii )
+              END DO
+            ELSE IF ( ii <= yu_end ) THEN
+              i = ii + start_yu
+              IF ( printdd )                                                   &
+                WRITE( out, "( ' product involves upper c ', I0 )" ) i
+              DO l = A_ptr( i ) , A_ptr( i + 1 ) - 1
+                j = A_col( l )
+                R( j ) = R( j ) + A_val( l ) * P( ii )
+              END DO
+            ELSE IF ( ii <= zl_end ) THEN
+              i = ii + start_zl
+              IF ( printdd )                                                   &
+                WRITE( out, "( ' product involves lower x ', I0 )" ) i
+              R( i ) = R( i ) + P( ii )
+            ELSE IF ( ii <= zu_end ) THEN
+              i = ii + start_zu
+              IF ( printdd )                                                   &
+                WRITE( out, "( ' product involves upper x ', I0 )" ) i
+              R( i ) = R( i ) + P( ii )
+            END IF
+          END DO
 
-!     IF ( recomp .OR. prnter ) THEN
-!       pbp = zero ; gp = zero
-!       IF ( print_level > 100 .AND. out > 0 ) WRITE( out,                     &
-!         "( A, ' Current search direction ', /, ( 6X, 4( I6, ES12.4 ) ) )" )  &
-!          prefix, ( NZ_p( i ), P( NZ_p( i ) ), i = 1, nvar_u )
-!       DO j = 1, nvar_u
-!         i = NZ_p( j )
-!         qipi = P( i ) * U( i )
-!         pbp = pbp + qipi ; gp = gp + P( i ) * G( i ) + tbreak * qipi
-!       END DO
-!       DO j = nvar_u + 1, n_free
-!         i = NZ_p( j )
-!         gp = gp + P( i ) * U( i )
-!       END DO
-!       IF ( prnter ) WRITE( out, "( /, A, ' Calculated q_t1 and q_t2 = ',     &
-!      &  2ES12.4, /, A, ' Recurred   q_t1 and q_t2 = ', 2ES12.4 )" )          &
-!           prefix, gp, pbp, prefix, q_t1, q_t2
-!       IF ( recomp ) THEN
-!         q_t1 = gp ; q_t2 = pbp
-!       END IF
-!     END IF
+!  next set r -> H^{-1} r
+
+          IF ( identity_h ) THEN
+            IF ( printdd ) WRITE( out, "( ' identity h' )" )
+!           R( : n ) = R( : n )
+          ELSE IF ( scaled_identity_h ) THEN
+            IF ( printdd ) WRITE( out, "( ' scaled identity h' )" )
+            R( : n ) = R( : n ) / HESSIAN%val( 1 )
+          ELSE IF ( diagonal_h ) THEN
+            IF ( printdd ) WRITE( out, "( ' diagonal h' )" )
+            R( : n ) = R( : n ) / HESSIAN%val( : n )
+          ELSE
+            IF ( printdd ) WRITE( out, "( ' general h' )" )
+            CALL SLS_solve( HESSIAN, R, SLS_data, SLS_control, SLS_inform )
+          END IF
+
+!  finally, compute hp = J r
+
+          DO ii = 1, yu_end
+            IF ( ii <= ce_end ) THEN
+              i = ii + start_ce
+              IF ( printdd )                                                 &
+                WRITE( out, "( ' product involves equality c ', I0 )" ) i
+            ELSE IF ( ii <= yl_end ) THEN
+              i = ii + start_yl
+              IF ( printdd )                                                 &
+                WRITE( out, "( ' product involves lower c ', I0 )" ) i
+            ELSE
+              i = ii + start_yu
+              IF ( printdd )                                                 &
+                WRITE( out, "( ' product involves upper c ', I0 )" ) i
+            END IF
+            val = zero
+            DO l = A_ptr( i ), A_ptr( i + 1 ) - 1
+              val = val + A_val( l ) * R( A_col( l ) )
+            END DO
+            HP( ii ) = val
+          END DO
+
+          DO ii = yu_end + 1, nv
+            IF ( ii <= zl_end ) THEN
+              i = ii + start_zl
+              IF ( printdd )                                                 &
+                WRITE( out, "( ' product involves lower x ', I0 )" ) i
+            ELSE
+              i = ii + start_zu
+              IF ( printdd )                                                 &
+                WRITE( out, "( ' product involves upper x ', I0 )" ) i
+            END IF
+            HP( ii ) = R( i )
+          END DO
+
+!  remember to re-initialise r = 0
+
+          R( : n ) = zero
+
+!  compute v_t
+
+          V_t( NZ_p( : nvar_u ) ) =                                            &
+            V_0( NZ_p( : nvar_u ) ) + tbreak * P( NZ_p( : nvar_u ) )
+
+         IF ( printdd ) THEN
+           WRITE( out, "( A, ' Current search direction ', /,                  &
+          &  ( 6X, 4( I6, ES12.4 ) ) )" )                                      &
+              prefix, ( NZ_p( i ), P( NZ_p( i ) ), i = 1, nvar_u )
+           WRITE( out,  "( A, ' G ', /, ( 6X, 6( ES12.4 ) ) )" )               &
+              prefix, ( G( i ), i = 1, nv )
+           WRITE( out, "( A, ' HP ', /, ( 6X, 6( ES12.4 ) ) )" )               &
+              prefix, ( HP( i ), i = 1, nv )
+           WRITE( out,  "( A, ' v_t ', /, ( 6X, 6( ES12.4 ) ) )" )             &
+             prefix, ( V_t( i ) , i = 1, nv )
+         END IF
+
+!  compute gp = hp^T v_t + p^T g_d and php = hp^T p
+
+          gp = DOT_PRODUCT( HP, ( V_t - V_0 ) ) ; php = zero
+          DO j = 1, nvar_u
+            i = NZ_p( j )
+            gp = gp + P( i ) * G( i )
+            php = php + P( i ) * HP( i )
+          END DO
+
+          IF ( printw ) WRITE( out, "( /, A, ' Calculated q_t1 and q_t2 =',    &
+         &  2ES22.14, /, A, ' Recurred   q_t1 and q_t2 =', 2ES22.14 )" )       &
+              prefix, gp, php, prefix, q_t1, q_t2
+          IF ( recomp ) THEN
+            q_t1 = gp ; q_t2 = php
+          END IF
+        END IF
 
 !  jump back to calculate the next breakpoint
 
@@ -7528,7 +8365,7 @@ H_loop: DO i = 1, prob%n
       IF ( printp ) WRITE( out,                                                &
        "( /, A, ' Function value at the arc minimizer ', ES12.4 )" ) prefix, q_t
 
-!  the arc minimizer has been found. Set the array p to the step from the 
+!  the arc minimizer has been found. Set the array p to the step from the
 !  initial point to the arc minimizer
 
   600 CONTINUE
@@ -7560,19 +8397,20 @@ H_loop: DO i = 1, prob%n
 
 !-*-*-  D Q P _ I N E X A C T _ A R C _ S E A R C H   S U B R O U T I N E  -*-*-
 
-      SUBROUTINE DQP_inexact_arc_search( dims, nv, n, m, P, G, q_0, Y_l, Y_u,  &
-                   Z_l, Z_u, C_l, C_u, X_l, X_u, A_ptr, A_col, A_val,          &
+      SUBROUTINE DQP_inexact_arc_search( dims, nv, n, m, P, V_t, q_t, t,       &
+                   G, q_0, Y_l, Y_u, Z_l, Z_u, C_l, C_u, X_l, X_u,             &
                    ce_start, ce_end, yl_start, yl_end, yu_start, yu_end,       &
-                   zl_start, zl_end, zu_start, zu_end, t_max, feas_tol,        &
-                   V_t, q_t, t, V_status, iter, out, print_level,  prefix,     &
+                   zl_start, zl_end, zu_start, zu_end,                         &
+                   A_ptr, A_col, A_val, t_max, feas_tol,                       &
+                   V_status, iter, out, print_level,  prefix,                  &
                    D, S, H, diagonal_h, scaled_identity_h, identity_h, solve,  &
-                   clock_solve, status, SLS_data, SLS_control, SLS_inform,     &
-                   H_diag )
+                   clock_solve, status, HESSIAN,                               &
+                   SLS_data, SLS_control, SLS_inform )
 
-!  Find an approximation to the arc minimizer in the direction p from v_0 
+!  Find an approximation to the arc minimizer in the direction p from v_0
 !  for a given quadratic function within a box shaped region
 
-!  If we define the arc v(t) = projection of v_0 + t * p into the box region 
+!  If we define the arc v(t) = projection of v_0 + t * p into the box region
 
 !     v_l <= v <= v_u,
 
@@ -7587,13 +8425,13 @@ H_loop: DO i = 1, prob%n
 !  If v = v_0 + s and H = L L^T, we have that
 
 !    q(v) = 1/2 s^T J H^{-1} J s + s^T ( J H^{-1} ( J^T v_0 - g ) - d )
-!         = 1/2 h^T t + h^T q - s^T d, 
+!         = 1/2 h^T t + h^T q - s^T d,
 
 !  where L h = J^T s and L q = J^T v_0 - g
 
 !  A suitable inexact arc search is defined as follows:
 
-!  1) If the minimizer of q(x) along x_0 + t * p lies on the search arc, 
+!  1) If the minimizer of q(x) along x_0 + t * p lies on the search arc,
 !     this is the required point. Otherwise,
 
 !  2) Starting from some specified t_0, construct a decreasing sequence
@@ -7621,11 +8459,17 @@ H_loop: DO i = 1, prob%n
 
 !  nv     (INTEGER) the number of independent variables.
 !          ** this variable is not altered by the subroutine
-!  V_0    (REAL array of length at least nv) the point v_0 from which the 
-!          search arc commences. ** this variable is not altered by the 
+!  V_0    (REAL array of length at least nv) the point v_0 from which the
+!          search arc commences. ** this variable is not altered by the
 !          subroutine
-!  V_t    (REAL array of length at least nv) the current estimate of the 
+!  P      (REAL array of length at least n) contains the values of the
+!          components of the vector P. On entry, P must contain the initial
+!          direction of the search arc
+!  V_t    (REAL array of length at least nv) the current estimate of the
 !          arc minimizer
+!  q_t     (REAL) the value of the piecewise quadratic function at the current
+!          estimate of the arc minimizer
+!  t      (REAL) the minimizing value of t
 !  G      (REAL array of length at least nv) the coefficients of
 !          the linear term in the quadratic function
 !          ** this variable is not altered by the subroutine
@@ -7643,17 +8487,11 @@ H_loop: DO i = 1, prob%n
 !          ** this variable is not altered by the subroutine
 !  feas_tol (REAL) a tolerance on feasibility of V_0, see above.
 !          ** this variable is not altered by the subroutine.
-!  q_t     (REAL) the value of the piecewise quadratic function at the current
-!          estimate of the arc minimizer
-!  P      (REAL array of length at least n) contains the values of the
-!          components of the vector P. On entry, P must contain the initial 
-!          direction of the search arc
 !  INDEX_w (INTEGER array of length at least nv) workspace
 !  out    (INTEGER) the fortran output channel number to be used
 !  iter   (INTEGER) the number of iterations performed
-!  t      (REAL) the minimizing value of t
-!  print_level (INTEGER) allows detailed printing. If print_level is larger 
-!          than 4, detailed output from the routine will be given. Otherwise, 
+!  print_level (INTEGER) allows detailed printing. If print_level is larger
+!          than 4, detailed output from the routine will be given. Otherwise,
 !          no output occurs
 !  BREAK_points (REAL) workspace that must be preserved between calls
 
@@ -7687,17 +8525,17 @@ H_loop: DO i = 1, prob%n
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: V_t
       REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( nv ) :: D, P
       REAL ( KIND = wp ), INTENT( OUT ), DIMENSION( n ) :: S, H
+      TYPE ( SMT_type ), OPTIONAL, INTENT( IN ) :: HESSIAN
       TYPE ( SLS_data_type ), OPTIONAL, INTENT( INOUT ) :: SLS_data
       TYPE ( SLS_control_type ), OPTIONAL, INTENT( IN ) :: SLS_control
       TYPE ( SLS_inform_type ), OPTIONAL, INTENT( INOUT ) :: SLS_inform
-      REAL ( KIND = wp ), OPTIONAL, INTENT( IN ), DIMENSION( * ) :: H_diag
 
 !  INITIALIZATION:
 
 !  On the initial call to the subroutine the following variables MUST BE SET
 !  by the user:
 
-!      n, G, t_max, P, f, feas_tol, out, print_level
+!      n, P, G, t_max, f, feas_tol, out, print_level
 
 !  If the i-th variable is required to be fixed at its initial value
 !   V_status(i) must be set to 3 or 4
@@ -7708,7 +8546,7 @@ H_loop: DO i = 1, prob%n
 
       INTEGER :: i, il, iu, j, jl, ju, l, n_free, n_zero
       REAL :: time_record, time_now
-      REAL ( KIND = wp ) :: clock_record, clock_now 
+      REAL ( KIND = wp ) :: clock_record, clock_now
       REAL ( KIND = wp ) :: slope, curvature, t_first, t_last, t_break
       REAL ( KIND = wp ) :: di, l_t, q_old, root_hd
       LOGICAL :: printp
@@ -7876,15 +8714,15 @@ H_loop: DO i = 1, prob%n
       IF ( identity_h ) THEN
 !       H( : n ) = H( : n )
       ELSE IF ( scaled_identity_h ) THEN
-        root_hd = SQRT( H_diag( 1 ) )
+        root_hd = SQRT( HESSIAN%val( 1 ) )
         H( : n ) = H( : n ) / root_hd
       ELSE IF ( diagonal_h ) THEN
-        H( : n ) = H( : n ) / SQRT( H_diag( : n ) )
+        H( : n ) = H( : n ) / SQRT( HESSIAN%val( : n ) )
       ELSE
         CALL SLS_part_solve( 'S', H, SLS_data, SLS_control, SLS_inform )
       END IF
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      solve = solve + time_now - time_record
+      solve = solve + REAL( time_now - time_record, wp )
       clock_solve = clock_solve + clock_now - clock_record
 
 !  compute J^T d and store in S
@@ -7919,7 +8757,7 @@ H_loop: DO i = 1, prob%n
         S( j ) = S( j ) + D( ju ) ; ju = ju + 1
       END DO
 
-!  solve L s = J^t d and overwrite s in S
+!  solve L s = J^T d and overwrite s in S
 
       CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
       IF ( identity_h ) THEN
@@ -7927,12 +8765,12 @@ H_loop: DO i = 1, prob%n
       ELSE IF ( scaled_identity_h ) THEN
         S( : n ) = S( : n ) / root_hd
       ELSE IF ( diagonal_h ) THEN
-        S( : n ) = S( : n ) / SQRT( H_diag( : n ) )
+        S( : n ) = S( : n ) / SQRT( HESSIAN%val( : n ) )
       ELSE
         CALL SLS_part_solve( 'S', S, SLS_data, SLS_control, SLS_inform )
       END IF
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      solve = solve + time_now - time_record
+      solve = solve + REAL( time_now - time_record, wp )
       clock_solve = clock_solve + clock_now - clock_record
 
 !  compute the slope along d
@@ -8065,7 +8903,7 @@ H_loop: DO i = 1, prob%n
 
         D( ce_start : ce_end ) = t * P( ce_start : ce_end )
         D( yl_start : yl_end ) = MAX( Y_l( dims%c_l_start : dims%c_l_end )     &
-                                        + t * P(  yl_start : yl_end ), zero )  &
+                                        + t * P( yl_start : yl_end ), zero )   &
                                    - Y_l( dims%c_l_start : dims%c_l_end )
         D( yu_start : yu_end ) = MIN( Y_u( dims%c_u_start : dims%c_u_end )     &
                                         + t * P( yu_start : yu_end ), zero )   &
@@ -8117,12 +8955,12 @@ H_loop: DO i = 1, prob%n
         ELSE IF ( scaled_identity_h ) THEN
           S( : n ) = S( : n ) / root_hd
         ELSE IF ( diagonal_h ) THEN
-          S( : n ) = S( : n ) / SQRT( H_diag( : n ) )
+          S( : n ) = S( : n ) / SQRT( HESSIAN%val( : n ) )
         ELSE
           CALL SLS_part_solve( 'S', S, SLS_data, SLS_control, SLS_inform )
         END IF
         CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-        solve = solve + time_now - time_record
+        solve = solve + REAL( time_now - time_record, wp )
         clock_solve = clock_solve + clock_now - clock_record
 
 !  compute the slope along d
@@ -8295,245 +9133,245 @@ H_loop: DO i = 1, prob%n
       END SUBROUTINE DQP_inexact_arc_search
 
 !-*-*-*-*-*-*-*-*-*-*-  D Q P _ C G   S U B R O U T I N E  -*-*-*-*-*-*-*-*-*-*-
-
-      SUBROUTINE DQP_CG( n, m, diagonal_h, scaled_identity_h, identity_h,      &
-                         H, G, f, A, out, print_level, prefix, V, q, iter,     &
-                         status, R, S, HS, PR, SOL, control, SLS_data,         &
-                         SLS_control, SLS_inform, H_diag )
-
-!  Approximate the minimizer of the quadratic function
-
-!    q(v) = 1/2 < v, Bv > + < g, v > + f
-
-!  when B = A H^{-1} A^T is positive semi definite. If q in unbounded from 
-!  below, find a vector v for which q(v) decreases without bound
-
-!  ------------------------- dummy arguments --------------------------
-
-!  n      (INTEGER) the number of independent variables.
-!          ** this variable is not altered by the subroutine
-!  G      (REAL array of length at least nv) the coefficients of
-!          the linear term in the quadratic function
-!          ** this variable is not altered by the subroutine
-!  f      (REAL) the value of the quadratic at V = 0, see above.
-!          ** this variable is not altered by the subroutine
-!  print_level (INTEGER) allows detailed printing. If print_level is larger 
-!          than 4, detailed output from the routine will be given. Otherwise, 
-!          no output occurs
-!  V      (REAL array of length at least n) the estimate of the minimizer
-!  q      (REAL) the value of the piecewise quadratic function at the current
-!          estimate of the arc minimizer
-!  iter   (INTEGER) the number of iterations performed
-
-!  ------------------ end of dummy arguments --------------------------
-
-      INTEGER, INTENT( IN ):: n, m, out, print_level
-      INTEGER, INTENT( INOUT ):: iter
-      INTEGER, INTENT( OUT ):: status
-      REAL ( KIND = wp ), INTENT( INOUT ):: f, q
-      LOGICAL, INTENT( IN ) :: diagonal_h, scaled_identity_h, identity_h
-      CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
-      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: G
-      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: V, R, S, HS, PR
-      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: SOL
-      TYPE ( SMT_type ), INTENT( IN ) :: H, A
-      TYPE ( DQP_control_type ), INTENT( IN ) :: control
-      TYPE ( SLS_data_type ), OPTIONAL, INTENT( INOUT ) :: SLS_data
-      TYPE ( SLS_control_type ), OPTIONAL, INTENT( IN ) :: SLS_control
-      TYPE ( SLS_inform_type ), OPTIONAL, INTENT( INOUT ) :: SLS_inform
-      REAL ( KIND = wp ), OPTIONAL, INTENT( IN ), DIMENSION( * ) :: H_diag
-
-!  INITIALIZATION:
-
-!  On the initial call to the subroutine the following variables MUST BE SET
-!  by the user:
-
-!      n, G, f, A_*, out, print_level
-
-!-----------------------------------------------
-!   L o c a l   V a r i a b l e s
-!-----------------------------------------------
-
-      INTEGER :: i, j, l
-      REAL ( KIND = wp ) :: alpha, beta, gnrmsq, old_gnrmsq
-      REAL ( KIND = wp ) :: stop_cg, pnrmsq, curvature
-      LOGICAL :: printp, printw
-
-!  on entry, set constants
-
-      printp = print_level >= 3 .AND. out > 0
-      printw = print_level >= 4 .AND. out > 0
-
-      IF ( printp ) WRITE( out, "( /, A, ' ** CG entered ** ' )" ) prefix
-
-      status = GALAHAD_ok
-
-!  start from v = 0 
-
-       V( : m ) = zero ;  q = f
-       R( : m ) = G( : m )
-
-!  - - - - - - - - - -
-!  Start the CG loop
-!  - - - - - - - - - -
-
-       DO iter = 1, control%cg_maxit + 1
-
-!  obtain the preconditioned residual pg
-
-         PR( : m ) = R( : m ) 
-         gnrmsq =  DOT_PRODUCT( PR( : m ), R( : m ) )
-
-!  compute the CG stopping tolerance
-
-         IF (  iter == 1 )                                                     &
-           stop_cg = MAX( SQRT( ABS( gnrmsq ) ) * control%stop_cg_relative,    &
-                          control%stop_cg_absolute )
-
-!  print details of the current iteration
-
-         IF ( printw ) THEN
-           IF ( iter == 1 ) THEN
-             WRITE( out, "( /, A, '    required gradient =', ES8.1, /, A,      &
-            &    '    iter     model    proj grad    curvature     step')" )   &
-             prefix, stop_cg, prefix
-             WRITE( out,                                                       &
-               "( A, 1X, I7, 2ES12.4, '      -            -     ' )" )         &
-               prefix, iter, q, SQRT( ABS( gnrmsq ) )
-           ELSE          
-             WRITE( out, "( A, 1X, I7, 4ES12.4 )" )                            &
-              prefix, iter, q, SQRT( ABS( gnrmsq ) ), curvature, alpha
-           END IF
-         END IF
-       
-!  if the gradient of the model is sufficiently small or if the CG iteration 
-!  limit is exceeded, exit; record the CG direction
- 
-         IF ( SQRT( ABS( gnrmsq ) ) <= stop_cg ) EXIT
-
-!  compute the search direction, p_free, and the square of its length
-
-         IF ( iter > 1 ) THEN
-           beta = gnrmsq / old_gnrmsq
-           S( : m ) = - PR( : m ) + beta * S( : m )
-           pnrmsq = gnrmsq + pnrmsq * beta ** 2
-         ELSE
-           S( : m ) = - PR( : m )
-           pnrmsq = gnrmsq
-         END IF
-
-!  save the norm of the preconditioned gradient
-
-         old_gnrmsq = gnrmsq
-
-!  compute HS = A H^^-1 A^T s ... first store the vector A^T s in sol ...
- 
-         SOL( : n ) = zero
-         DO l = 1, A%ne
-           i = A%row( l ) ; j = A%col( l )
-           SOL( j ) = SOL( j ) + A%val( l ) * S( i )
-         END DO
-
-!  ... then solve H x = sol and overwrite sol with x ...
-
-         IF ( identity_h ) THEN
-!          SOL( : n ) = SOL( : n )
-         ELSE IF ( scaled_identity_h ) THEN
-           SOL( : n ) = SOL( : n ) / H_diag( 1 )
-         ELSE IF ( diagonal_h ) THEN
-           SOL( : n ) = SOL( : n ) / H_diag( : n )
-         ELSE
-           CALL SLS_solve( H, SOL( : n ), SLS_data, SLS_control, SLS_inform )
-!          CALL SLS_solve( H, SOL( : n ), SLS_data, scontrol, SLS_inform )
-         END IF
-
-!  ... and finally compute HS = A sol
-
-         HS( : m ) = zero
-         DO l = 1, A%ne
-           i = A%row( l ) ; j = A%col( l )
-           HS( i ) = HS( i ) + A%val( l ) * SOL( j )
-         END DO
-
-!  compute the curvature s^T ( J H^{-1} J^T ) s along the search direction
-
-         curvature = DOT_PRODUCT( HS( : m ), S( : m ) ) / pnrmsq
-
-!  if the curvature is positive, compute the step to the minimizer of
-!  the objective along the search direction
-
-         IF ( curvature > control%cg_zero_curvature ) THEN
-           alpha = old_gnrmsq / curvature
-
-!  otherwise, the objective is unbounded ....
-
-         ELSE IF ( curvature >= - control%cg_zero_curvature ) THEN
-           IF ( printw ) WRITE( out, "( /, A, ' zero curvature = ', ES12.4 )" )&
-             prefix, curvature
-           V( : m ) = S( : m )
-           q = f + DOT_PRODUCT( S( : m ), G( : m ) )
-           EXIT
-         ELSE
-           status = GALAHAD_error_inertia
-           EXIT
-         END IF
-
-!  update the objective value
-
-         q = q + alpha * ( - old_gnrmsq + half * alpha * curvature )
-
-!  update the estimate of the solution
-
-         V( : m ) = V( : m ) + alpha * S( : m ) 
-
-!  update the gradient/residual at the estimate of the solution
-
-         R( : m ) = R( : m ) + alpha * HS( : m ) 
-
-!  compute HS = A H^^-1 A^T s ... first store the vector A^T s in sol ...
- 
-         SOL( : n ) = zero
-         DO l = 1, A%ne
-           i = A%row( l ) ; j = A%col( l )
-           SOL( j ) = SOL( j ) + A%val( l ) * R( i )
-         END DO
-
-!  ... then solve H x = sol and overwrite sol with x ...
-
-         IF ( identity_h ) THEN
-!          SOL( : n ) = SOL( : n )
-         ELSE IF ( scaled_identity_h ) THEN
-           SOL( : n ) = SOL( : n ) / H_diag( 1 )
-         ELSE IF ( diagonal_h ) THEN
-           SOL( : n ) = SOL( : n ) / H_diag( : n )
-         ELSE
-           CALL SLS_solve( H, SOL( : n ), SLS_data, SLS_control, SLS_inform )
-!          CALL SLS_solve( H, SOL( : n ), SLS_data, scontrol, SLS_inform )
-         END IF
-
-!  ... and finally compute HS = A sol
-
-         PR( : m ) = zero
-         DO l = 1, A%ne
-           i = A%row( l ) ; j = A%col( l )
-           PR( i ) = PR( i ) + A%val( l ) * SOL( j )
-         END DO
-
-!  compute the curvature s^T ( J H^{-1} J^T ) s along the search direction
-
-         curvature = DOT_PRODUCT( PR( : m ), R( : m ) ) / &
-                     DOT_PRODUCT( R( : m ), R( : m ) )
-       END DO
-
-!  - - - - - - - - -
-!  End the CG loop
-!  - - - - - - - - -
-
-      RETURN
-
-!  End of subroutine DQP_CG
-
-      END SUBROUTINE DQP_CG
+!
+!      SUBROUTINE DQP_CG( n, m, diagonal_h, scaled_identity_h, identity_h,     &
+!                         H, G, f, A, out, print_level, prefix, V, q, iter,    &
+!                         status, R, S, HS, PR, SOL, control, SLS_data,        &
+!                         SLS_control, SLS_inform, H_diag )
+!
+!!  Approximate the minimizer of the quadratic function
+!
+!!    q(v) = 1/2 < v, Bv > + < g, v > + f
+!
+!!  when B = A H^{-1} A^T is positive semi definite. If q in unbounded from
+!!  below, find a vector v for which q(v) decreases without bound
+!
+!!  ------------------------- dummy arguments --------------------------
+!
+!!  n      (INTEGER) the number of independent variables.
+!!          ** this variable is not altered by the subroutine
+!!  G      (REAL array of length at least nv) the coefficients of
+!!          the linear term in the quadratic function
+!!          ** this variable is not altered by the subroutine
+!!  f      (REAL) the value of the quadratic at V = 0, see above.
+!!          ** this variable is not altered by the subroutine
+!!  print_level (INTEGER) allows detailed printing. If print_level is larger
+!!          than 4, detailed output from the routine will be given. Otherwise,
+!!          no output occurs
+!!  V      (REAL array of length at least n) the estimate of the minimizer
+!!  q      (REAL) the value of the piecewise quadratic function at the current
+!!          estimate of the arc minimizer
+!!  iter   (INTEGER) the number of iterations performed
+!
+!!  ------------------ end of dummy arguments --------------------------
+!
+!      INTEGER, INTENT( IN ):: n, m, out, print_level
+!      INTEGER, INTENT( INOUT ):: iter
+!      INTEGER, INTENT( OUT ):: status
+!      REAL ( KIND = wp ), INTENT( INOUT ):: f, q
+!      LOGICAL, INTENT( IN ) :: diagonal_h, scaled_identity_h, identity_h
+!      CHARACTER ( LEN = * ), INTENT( IN ) :: prefix
+!      REAL ( KIND = wp ), INTENT( IN ), DIMENSION( m ) :: G
+!      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( m ) :: V, R, S, HS, PR
+!      REAL ( KIND = wp ), INTENT( INOUT ), DIMENSION( n ) :: SOL
+!      TYPE ( SMT_type ), INTENT( IN ) :: H, A
+!      TYPE ( DQP_control_type ), INTENT( IN ) :: control
+!      TYPE ( SLS_data_type ), OPTIONAL, INTENT( INOUT ) :: SLS_data
+!      TYPE ( SLS_control_type ), OPTIONAL, INTENT( IN ) :: SLS_control
+!      TYPE ( SLS_inform_type ), OPTIONAL, INTENT( INOUT ) :: SLS_inform
+!      REAL ( KIND = wp ), OPTIONAL, INTENT( IN ), DIMENSION( * ) :: H_diag
+!
+!!  INITIALIZATION:
+!
+!!  On the initial call to the subroutine the following variables MUST BE SET
+!!  by the user:
+!
+!!      n, G, f, A_*, out, print_level
+!
+!!-----------------------------------------------
+!!   L o c a l   V a r i a b l e s
+!!-----------------------------------------------
+!
+!      INTEGER :: i, j, l
+!      REAL ( KIND = wp ) :: alpha, beta, gnrmsq, old_gnrmsq
+!      REAL ( KIND = wp ) :: stop_cg, pnrmsq, curvature
+!      LOGICAL :: printp, printw
+!
+!!  on entry, set constants
+!
+!      printp = print_level >= 3 .AND. out > 0
+!      printw = print_level >= 4 .AND. out > 0
+!
+!      IF ( printp ) WRITE( out, "( /, A, ' ** CG entered ** ' )" ) prefix
+!
+!      status = GALAHAD_ok
+!
+!!  start from v = 0
+!
+!       V( : m ) = zero ;  q = f
+!       R( : m ) = G( : m )
+!
+!!  - - - - - - - - - -
+!!  Start the CG loop
+!!  - - - - - - - - - -
+!
+!       DO iter = 1, control%cg_maxit + 1
+!
+!!  obtain the preconditioned residual pg
+!
+!         PR( : m ) = R( : m )
+!         gnrmsq =  DOT_PRODUCT( PR( : m ), R( : m ) )
+!
+!!  compute the CG stopping tolerance
+!
+!         IF (  iter == 1 )                                                     &
+!           stop_cg = MAX( SQRT( ABS( gnrmsq ) ) * control%stop_cg_relative,    &
+!                          control%stop_cg_absolute )
+!
+!!  print details of the current iteration
+!
+!         IF ( printw ) THEN
+!           IF ( iter == 1 ) THEN
+!             WRITE( out, "( /, A, '    required gradient =', ES8.1, /, A,      &
+!            &    '    iter     model    proj grad    curvature     step')" )   &
+!             prefix, stop_cg, prefix
+!             WRITE( out,                                                       &
+!               "( A, 1X, I7, 2ES12.4, '      -            -     ' )" )         &
+!               prefix, iter, q, SQRT( ABS( gnrmsq ) )
+!           ELSE
+!             WRITE( out, "( A, 1X, I7, 4ES12.4 )" )                            &
+!              prefix, iter, q, SQRT( ABS( gnrmsq ) ), curvature, alpha
+!           END IF
+!         END IF
+!
+!!  if the gradient of the model is sufficiently small or if the CG iteration
+!!  limit is exceeded, exit; record the CG direction
+!
+!         IF ( SQRT( ABS( gnrmsq ) ) <= stop_cg ) EXIT
+!
+!!  compute the search direction, p_free, and the square of its length
+!
+!         IF ( iter > 1 ) THEN
+!           beta = gnrmsq / old_gnrmsq
+!           S( : m ) = - PR( : m ) + beta * S( : m )
+!           pnrmsq = gnrmsq + pnrmsq * beta ** 2
+!         ELSE
+!           S( : m ) = - PR( : m )
+!           pnrmsq = gnrmsq
+!         END IF
+!
+!!  save the norm of the preconditioned gradient
+!
+!         old_gnrmsq = gnrmsq
+!
+!!  compute HS = A H^^-1 A^T s ... first store the vector A^T s in sol ...
+!
+!         SOL( : n ) = zero
+!         DO l = 1, A%ne
+!           i = A%row( l ) ; j = A%col( l )
+!           SOL( j ) = SOL( j ) + A%val( l ) * S( i )
+!         END DO
+!
+!!  ... then solve H x = sol and overwrite sol with x ...
+!
+!         IF ( identity_h ) THEN
+!!          SOL( : n ) = SOL( : n )
+!         ELSE IF ( scaled_identity_h ) THEN
+!           SOL( : n ) = SOL( : n ) / H_diag( 1 )
+!         ELSE IF ( diagonal_h ) THEN
+!           SOL( : n ) = SOL( : n ) / H_diag( : n )
+!         ELSE
+!           CALL SLS_solve( H, SOL( : n ), SLS_data, SLS_control, SLS_inform )
+!!          CALL SLS_solve( H, SOL( : n ), SLS_data, scontrol, SLS_inform )
+!         END IF
+!
+!!  ... and finally compute HS = A sol
+!
+!         HS( : m ) = zero
+!         DO l = 1, A%ne
+!           i = A%row( l ) ; j = A%col( l )
+!           HS( i ) = HS( i ) + A%val( l ) * SOL( j )
+!         END DO
+!
+!!  compute the curvature s^T ( J H^{-1} J^T ) s along the search direction
+!
+!         curvature = DOT_PRODUCT( HS( : m ), S( : m ) ) / pnrmsq
+!
+!!  if the curvature is positive, compute the step to the minimizer of
+!!  the objective along the search direction
+!
+!         IF ( curvature > control%cg_zero_curvature ) THEN
+!           alpha = old_gnrmsq / curvature
+!
+!!  otherwise, the objective is unbounded ....
+!
+!         ELSE IF ( curvature >= - control%cg_zero_curvature ) THEN
+!           IF ( printw ) WRITE( out, "( /, A, ' zero curvature = ', ES12.4 )" )&
+!             prefix, curvature
+!           V( : m ) = S( : m )
+!           q = f + DOT_PRODUCT( S( : m ), G( : m ) )
+!           EXIT
+!         ELSE
+!           status = GALAHAD_error_inertia
+!           EXIT
+!         END IF
+!
+!!  update the objective value
+!
+!         q = q + alpha * ( - old_gnrmsq + half * alpha * curvature )
+!
+!!  update the estimate of the solution
+!
+!         V( : m ) = V( : m ) + alpha * S( : m )
+!
+!!  update the gradient/residual at the estimate of the solution
+!
+!         R( : m ) = R( : m ) + alpha * HS( : m )
+!
+!!  compute HS = A H^^-1 A^T s ... first store the vector A^T s in sol ...
+!
+!         SOL( : n ) = zero
+!         DO l = 1, A%ne
+!           i = A%row( l ) ; j = A%col( l )
+!           SOL( j ) = SOL( j ) + A%val( l ) * R( i )
+!         END DO
+!
+!!  ... then solve H x = sol and overwrite sol with x ...
+!
+!         IF ( identity_h ) THEN
+!!          SOL( : n ) = SOL( : n )
+!         ELSE IF ( scaled_identity_h ) THEN
+!           SOL( : n ) = SOL( : n ) / H_diag( 1 )
+!         ELSE IF ( diagonal_h ) THEN
+!           SOL( : n ) = SOL( : n ) / H_diag( : n )
+!         ELSE
+!           CALL SLS_solve( H, SOL( : n ), SLS_data, SLS_control, SLS_inform )
+!!          CALL SLS_solve( H, SOL( : n ), SLS_data, scontrol, SLS_inform )
+!         END IF
+!
+!!  ... and finally compute HS = A sol
+!
+!         PR( : m ) = zero
+!         DO l = 1, A%ne
+!           i = A%row( l ) ; j = A%col( l )
+!           PR( i ) = PR( i ) + A%val( l ) * SOL( j )
+!         END DO
+!
+!!  compute the curvature s^T ( J H^{-1} J^T ) s along the search direction
+!
+!         curvature = DOT_PRODUCT( PR( : m ), R( : m ) ) / &
+!                     DOT_PRODUCT( R( : m ), R( : m ) )
+!       END DO
+!
+!!  - - - - - - - - -
+!!  End the CG loop
+!!  - - - - - - - - -
+!
+!      RETURN
+!
+!!  End of subroutine DQP_CG
+!
+!      END SUBROUTINE DQP_CG
 
 !-*-*-*-*-*-*-   D Q P _ w o r k s p a c e   S U B R O U T I N E  -*-*-*-*-*-*-
 
@@ -8545,10 +9383,10 @@ H_loop: DO i = 1, prob%n
                                 ACTIVE_list, ACTIVE_status, SOL, RHS, RES,     &
                                 H_s, Y_l, Y_u, Z_l, Z_u, VECTOR,               &
                                 BREAK_points, YC_l, YC_u, ZC_l, ZC_u, GY_l,    &
-                                GY_u, GZ_l, GZ_u, V0, VT, GV, G, PV, DV,       &
+                                GY_u, GZ_l, GZ_u, V0, VT, GV, G, PV, HPV, DV,  &
                                 V_bnd, H_sbls, A_sbls, SCU_mat,                &
                                 control, inform )
-                                     
+
 !  allocate workspace arrays for use in DQP_solve_main
 
 !  Dummy arguments
@@ -8597,6 +9435,7 @@ H_loop: DO i = 1, prob%n
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: VT
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: GV
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: PV
+      REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: HPV
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ), DIMENSION( : ) :: DV
       REAL ( KIND = wp ), ALLOCATABLE, INTENT( INOUT ),                        &
                                        DIMENSION( : , : ) :: V_bnd
@@ -8604,7 +9443,7 @@ H_loop: DO i = 1, prob%n
       TYPE ( SMT_type ), INTENT( INOUT ) :: H_sbls
       TYPE ( SMT_type ), INTENT( INOUT ) :: A_sbls
       TYPE ( SCU_matrix_type ), INTENT( INOUT ) :: SCU_mat
-      TYPE ( DQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( DQP_control_type ), INTENT( IN ) :: control
       TYPE ( DQP_inform_type ), INTENT( INOUT ) :: inform
 
 !  Local variables
@@ -8884,6 +9723,14 @@ H_loop: DO i = 1, prob%n
              bad_alloc = inform%bad_alloc, out = control%error )
       IF ( inform%status /= 0 ) RETURN
 
+      array_name = 'dqp: HPV'
+      CALL SPACE_resize_array( nv, HPV,                                        &
+             inform%status, inform%alloc_status, array_name = array_name,      &
+             deallocate_error_fatal = control%deallocate_error_fatal,          &
+             exact_size = control%space_critical,                              &
+             bad_alloc = inform%bad_alloc, out = control%error )
+      IF ( inform%status /= 0 ) RETURN
+
       array_name = 'dqp: DV'
       CALL SPACE_resize_array( nv, DV,                                         &
              inform%status, inform%alloc_status, array_name = array_name,      &
@@ -9019,24 +9866,25 @@ H_loop: DO i = 1, prob%n
 
 !  discover how many entries there are in the largest control%max_sc rows
 
-        X_status = 0 ; X_status( 1 ) = n
-        max_row_length = 0
-        DO i = 1, m
-          j = A%ptr( i + 1 ) - A%ptr( i )
-          IF ( j > 0 ) THEN
-            X_status( j ) = X_status( j ) + 1
-            max_row_length = MAX( max_row_length, j )
-          END IF
-        END DO
-        l = control%max_sc
-        lbd = 0
-        DO i = max_row_length, 1, - 1
-          j = MIN( X_status( i ), l )
-          lbd = lbd + j * i
-          l = l - j
-          IF ( l == 0 ) EXIT
-        END DO
-
+        IF ( n > 0 ) THEN
+          X_status = 0 ; X_status( 1 ) = n
+          max_row_length = 0
+          DO i = 1, m
+            j = A%ptr( i + 1 ) - A%ptr( i )
+            IF ( j > 0 ) THEN
+              X_status( j ) = X_status( j ) + 1
+              max_row_length = MAX( max_row_length, j )
+            END IF
+          END DO
+          l = control%max_sc
+          lbd = 0
+          DO i = max_row_length, 1, - 1
+            j = MIN( X_status( i ), l )
+            lbd = lbd + j * i
+            l = l - j
+            IF ( l == 0 ) EXIT
+          END DO
+        END IF
         array_name = 'dqp: CHANGES'
         CALL SPACE_resize_array( m + n, CHANGES,                               &
                inform%status, inform%alloc_status, array_name = array_name,    &
@@ -9159,13 +10007,3 @@ H_loop: DO i = 1, prob%n
 !  End of module DQP
 
     END MODULE GALAHAD_DQP_double
-
-
-
-
-
-
-
-
-
-

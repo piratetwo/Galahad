@@ -1,0 +1,320 @@
+MAIN
+! write-problem-data                                no
+! problem-data-file-name                            FISQP.data
+! problem-data-file-device                          26
+! print-level-override                              0
+! write-solution                                    no
+! solution-file-name                                FISQPSOL.d
+! solution-file-device                              62
+! write-solution-vector                             no
+! solution-vector-file-name                         FISQPSOLVEC.d
+! solution-vector-file-device                       63
+! write-result-summary                              yes
+! result-summary-file-name                          FISQPRES.d
+! result-summary-file-device                        47
+! check-all-derivatives                             no
+! check-derivatives                                 yes
+! check-element-derivatives                         yes
+! check-group-derivatives                           yes
+! ignore-derivative-bugs                            no
+! ignore-element-derivative-bugs                    no
+! ignore-group-derivative-bugs                      no
+! get-scaling-factors                               no
+! scaling-print-level                               1
+! use-scaling-factors                               no
+! use-constraint-scaling-factors                    no
+! use-variable-scaling-factors                      no
+! maximizer-sought                                  no
+! restart-from-previous-point                       no
+! restart-data-file-name                            FISQPSAVE.d
+! restart-data-file-device                          59
+! save-data-for-restart-every                       0
+
+INCLUDE FISQP
+
+COMMENT
+! ********************* steering *************************
+
+INCLUDE L1QP STEERING-QP
+REPLACE
+! output-line-prefix                                " - StQP:"
+
+COMMENT
+! ******************* steering CQP ***********************
+
+INCLUDE CQP STEERING-QP-CQP
+REPLACE
+! absolute-primal-accuracy                          -1.0D+0
+! relative-primal-accuracy                          -1.0D+0
+! absolute-dual-accuracy                            -1.0D+0
+! relative-dual-accuracy                            -1.0D+0
+! absolute-complementary-slackness-accuracy         -1.0D+0
+! relative-complementary-slackness-accuracy         -1.0D+0
+
+INCLUDE SBLS STEERING-QP-CQP-SBLS
+
+INCLUDE SLS STEERING-QP-CQP-SBLS-SLS
+
+INCLUDE ULS STEERING-QP-CQP-SBLS-ULS
+
+INCLUDE FDC STEERING-QP-CQP-FDC
+
+INCLUDE SLS STEERING-QP-CQP-FDC-SLS
+
+INCLUDE ULS STEERING-QP-CQP-FDC-ULS
+
+INCLUDE FIT STEERING-QP-CQP-FIT
+
+INCLUDE ROOTS STEERING-QP-CQP-ROOTS
+
+INCLUDE CRO STEERING-QP-CQP-CRO
+
+INCLUDE SLS STEERING-QP-CQP-CRO-SLS
+
+INCLUDE ULS STEERING-QP-CQP-CRO-ULS
+
+INCLUDE SBLS STEERING-QP-CQP-CRO-SBLS
+
+INCLUDE SLS STEERING-QP-CQP-CRO-SBLS-SLS
+
+INCLUDE ULS STEERING-QP-CQP-CRO-SBLS-ULS
+
+INCLUDE IR STEERING-QP-CQP-CRO-IR
+
+COMMENT
+! ******************* steering DQP ***********************
+
+INCLUDE DQP STEERING-QP-DQP
+REPLACE
+! absolute-primal-accuracy                          -1.0D+0
+! relative-primal-accuracy                          -1.0D+0
+! absolute-dual-accuracy                            -1.0D+0
+! relative-dual-accuracy                            -1.0D+0
+! absolute-complementary-slackness-accuracy         -1.0D+0
+! relative-complementary-slackness-accuracy         -1.0D+0
+
+INCLUDE SLS STEERING-QP-DQP-SLS
+
+INCLUDE SBLS STEERING-QP-DQP-SBLS
+
+INCLUDE SLS STEERING-QP-DQP-SBLS-SLS
+
+INCLUDE ULS STEERING-QP-DQP-SBLS-ULS
+
+INCLUDE FDC STEERING-QP-DQP-FDC
+
+INCLUDE SLS STEERING-QP-DQP-FDC-SLS
+
+INCLUDE ULS STEERING-QP-DQP-FDC-ULS
+
+INCLUDE GLTR STEERING-QP-DQP-GLTR
+
+COMMENT
+! ******************* steering DLP ***********************
+
+INCLUDE DLP STEERING-QP-DLP
+REPLACE
+! absolute-primal-accuracy                          -1.0D+0
+! relative-primal-accuracy                          -1.0D+0
+! absolute-dual-accuracy                            -1.0D+0
+! relative-dual-accuracy                            -1.0D+0
+! absolute-complementary-slackness-accuracy         -1.0D+0
+! relative-complementary-slackness-accuracy         -1.0D+0
+
+INCLUDE SLS STEERING-QP-DLP-SLS
+
+INCLUDE SBLS STEERING-QP-DLP-SBLS
+
+INCLUDE SLS STEERING-QP-DLP-SBLS-SLS
+
+INCLUDE ULS STEERING-QP-DLP-SBLS-ULS
+
+INCLUDE FDC STEERING-QP-DLP-FDC
+
+INCLUDE SLS STEERING-QP-DLP-FDC-SLS
+
+INCLUDE ULS STEERING-QP-DLP-FDC-ULS
+
+INCLUDE GLTR STEERING-QP-DLP-GLTR
+
+COMMENT
+! ******************* steering LPQP **********************
+
+INCLUDE LPQP STEERING-QP-LPQP
+REPLACE
+! H-output-format                                   COORDINATE
+! A-output-format                                   COORDINATE
+
+COMMENT
+! ******************* steering CRO ***********************
+
+INCLUDE CRO STEERING-QP-CRO
+
+INCLUDE SLS STEERING-QP-CRO-SLS
+
+INCLUDE ULS STEERING-QP-CRO-ULS
+
+INCLUDE SBLS STEERING-QP-CRO-SBLS
+
+INCLUDE SLS STEERING-QP-CRO-SBLS-SLS
+
+INCLUDE ULS STEERING-QP-CRO-SBLS-ULS
+
+INCLUDE IR STEERING-QP-CRO-IR
+
+COMMENT
+! ********************* predictor *************************
+
+INCLUDE L1QP PREDICTOR-QP
+REPLACE
+! output-line-prefix                                " - PrQP:"
+
+COMMENT
+! ******************* predictor CQP ***********************
+
+INCLUDE CQP PREDICTOR-QP-CQP
+REPLACE
+! absolute-primal-accuracy                          -1.0D+0
+! relative-primal-accuracy                          -1.0D+0
+! absolute-dual-accuracy                            -1.0D+0
+! relative-dual-accuracy                            -1.0D+0
+! absolute-complementary-slackness-accuracy         -1.0D+0
+! relative-complementary-slackness-accuracy         -1.0D+0
+
+INCLUDE SBLS PREDICTOR-QP-CQP-SBLS
+
+INCLUDE SLS PREDICTOR-QP-CQP-SBLS-SLS
+
+INCLUDE ULS PREDICTOR-QP-CQP-SBLS-ULS
+
+INCLUDE FDC PREDICTOR-QP-CQP-FDC
+
+INCLUDE SLS PREDICTOR-QP-CQP-FDC-SLS
+
+INCLUDE ULS PREDICTOR-QP-CQP-FDC-ULS
+
+INCLUDE FIT PREDICTOR-QP-CQP-FIT
+
+INCLUDE ROOTS PREDICTOR-QP-CQP-ROOTS
+
+INCLUDE CRO PREDICTOR-QP-CQP-CRO
+
+INCLUDE SLS PREDICTOR-QP-CQP-CRO-SLS
+
+INCLUDE ULS PREDICTOR-QP-CQP-CRO-ULS
+
+INCLUDE SBLS PREDICTOR-QP-CQP-CRO-SBLS
+
+INCLUDE SLS PREDICTOR-QP-CQP-CRO-SBLS-SLS
+
+INCLUDE ULS PREDICTOR-QP-CQP-CRO-SBLS-ULS
+
+INCLUDE IR PREDICTOR-QP-CQP-CRO-IR
+
+COMMENT
+! ******************* predictor DQP ***********************
+
+INCLUDE DQP PREDICTOR-QP-DQP
+REPLACE
+! absolute-primal-accuracy                          -1.0D+0
+! relative-primal-accuracy                          -1.0D+0
+! absolute-dual-accuracy                            -1.0D+0
+! relative-dual-accuracy                            -1.0D+0
+! absolute-complementary-slackness-accuracy         -1.0D+0
+! relative-complementary-slackness-accuracy         -1.0D+0
+
+INCLUDE SLS PREDICTOR-QP-DQP-SLS
+
+INCLUDE SBLS PREDICTOR-QP-DQP-SBLS
+
+INCLUDE SLS PREDICTOR-QP-DQP-SBLS-SLS
+
+INCLUDE ULS PREDICTOR-QP-DQP-SBLS-ULS
+
+INCLUDE FDC PREDICTOR-QP-DQP-FDC
+
+INCLUDE SLS PREDICTOR-QP-DQP-FDC-SLS
+
+INCLUDE ULS PREDICTOR-QP-DQP-FDC-ULS
+
+INCLUDE GLTR PREDICTOR-QP-DQP-GLTR
+
+COMMENT
+! ******************* predictor DLP ***********************
+
+INCLUDE DLP PREDICTOR-QP-DLP
+REPLACE
+! absolute-primal-accuracy                          -1.0D+0
+! relative-primal-accuracy                          -1.0D+0
+! absolute-dual-accuracy                            -1.0D+0
+! relative-dual-accuracy                            -1.0D+0
+! absolute-complementary-slackness-accuracy         -1.0D+0
+! relative-complementary-slackness-accuracy         -1.0D+0
+
+INCLUDE SLS PREDICTOR-QP-DLP-SLS
+
+INCLUDE SBLS PREDICTOR-QP-DLP-SBLS
+
+INCLUDE SLS PREDICTOR-QP-DLP-SBLS-SLS
+
+INCLUDE ULS PREDICTOR-QP-DLP-SBLS-ULS
+
+INCLUDE FDC PREDICTOR-QP-DLP-FDC
+
+INCLUDE SLS PREDICTOR-QP-DLP-FDC-SLS
+
+INCLUDE ULS PREDICTOR-QP-DLP-FDC-ULS
+
+INCLUDE GLTR PREDICTOR-QP-DLP-GLTR
+
+COMMENT
+! ******************* predictor LPQP **********************
+
+INCLUDE LPQP PREDICTOR-QP-LPQP
+REPLACE
+! H-output-format                                   COORDINATE
+! A-output-format                                   COORDINATE
+
+COMMENT
+! ******************* predictor CRO ***********************
+
+INCLUDE CRO PREDICTOR-QP-CRO
+
+INCLUDE SLS PREDICTOR-QP-CRO-SLS
+
+INCLUDE ULS PREDICTOR-QP-CRO-ULS
+
+INCLUDE SBLS PREDICTOR-QP-CRO-SBLS
+
+INCLUDE SLS PREDICTOR-QP-CRO-SBLS-SLS
+
+INCLUDE ULS PREDICTOR-QP-CRO-SBLS-ULS
+
+INCLUDE IR PREDICTOR-QP-CRO-IR
+
+
+COMMENT
+! ******************* accelerator **********************
+
+INCLUDE EQP ACCELERATOR-EQP
+REPLACE
+! output-line-prefix                                " - AcQP:"
+
+INCLUDE SBLS ACCELERATOR-EQP-SBLS
+
+INCLUDE SLS ACCELERATOR-EQP-SBLS-SLS
+
+INCLUDE ULS ACCELERATOR-EQP-SBLS-ULS
+
+INCLUDE GLTR ACCELERATOR-EQP-GLTR
+
+INCLUDE FDC ACCELERATOR-EQP-FDC
+
+COMMENT
+! ********************* other parts ************************
+
+INCLUDE FILTER
+
+INCLUDE SLS
+
+INCLUDE LMS

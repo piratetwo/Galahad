@@ -408,9 +408,16 @@ fi
 cd ${WorkingDir}
 # If needed, use the package spec file
 if [[ ${SPECS} != "" ]]; then
+  if [[ ! -e ~/.cutest/specs ]] ; then
+    mkdir -p ~/.cutest/specs
+    chmod 755 -Rf ~/.cutest
+  fi
   if [[ ! -e ${SPECS} ]]; then
      if [[ -e ${CUTEST}/src/${PACKDIR}/${SPECS} ]]; then
-       ${LN} -fs ${CUTEST}/src/${PACKDIR}/${SPECS} ${SPECS}
+       if [[ ! -e ~/.cutest/specs/${SPECS} ]]; then
+         cp ${CUTEST}/src/${PACKDIR}/${SPECS} ~/.cutest/specs/${SPECS}
+       fi
+       ${LN} -fs ~/.cutest/specs/${SPECS} ${SPECS}
      else
         warning "Cannot find spec file ${SPECS}---skipping"
      fi
@@ -476,7 +483,7 @@ if [[ ${PKG} == "matlab" ]]; then
 elif [[ ${PKG} == "nomad" ]]; then
     # Link all the PACK and tools files together.
     (( OUTPUT )) && printf '\nLinking all the object files together ...\n'
-    command="${FORTRAN} ${FFLAGS} -o ${DRIVER} ELFUN.o GROUP.o RANGE.o ${EXTER} ${CUTEST}/objects/${ARCH}/${PRECISION}/${DRIVER}.o ${PACKOBJS[@]} ${ALT_LIB_PATH[@]} -L${LIBDIR} ${PACKLIBS} ${SPECIALLIBS} -lcutest ${BLAS} ${LAPACK} ${XTRALIBS[@]}"
+    command="${FORTRAN} ${FFLAGS} -o ${DRIVER} ELFUN.o GROUP.o RANGE.o ${EXTER} ${CUTEST}/objects/${ARCH}/${PRECISION}/${DRIVER}.o ${PACKOBJS[@]} ${ALT_LIB_PATH[@]} -L${LIBDIR} ${PACKLIBS} ${SPECIALLIBS} -lcutest ${XTRALIBS[*]} ${BLAS} ${LAPACK}"
     (( show_commands )) && echo "$command"
     $command
     command="$CP $CUTEST/src/nomad/run_nomad ./"
@@ -486,7 +493,7 @@ elif [[ ${PKG} == "nomad" ]]; then
 else
     # Link all the PACK and tools files together.
     (( OUTPUT )) && printf '\nLinking all the object files together ...\n'
-    command="${FORTRAN} ${FFLAGS} -o run_${PACKAGE} ELFUN.o GROUP.o RANGE.o ${EXTER} ${CUTEST}/objects/${ARCH}/${PRECISION}/${DRIVER}.o ${PACKOBJS[@]} ${ALT_LIB_PATH[@]} -L${LIBDIR} ${PACKLIBS} ${SPECIALLIBS} -lcutest ${BLAS} ${LAPACK} ${XTRALIBS[@]}"
+    command="${FORTRAN} ${FFLAGS} -o run_${PACKAGE} ELFUN.o GROUP.o RANGE.o ${EXTER} ${CUTEST}/objects/${ARCH}/${PRECISION}/${DRIVER}.o ${PACKOBJS[@]} ${ALT_LIB_PATH[@]} -L${LIBDIR} ${PACKLIBS} ${SPECIALLIBS} -lcutest ${XTRALIBS[*]} ${BLAS} ${LAPACK}"
     (( show_commands )) && echo "$command"
     $command
 fi

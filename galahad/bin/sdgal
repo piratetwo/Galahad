@@ -3,19 +3,23 @@
 # sdgal: generic script to decode an SIF file and then run package
 #        on architecture on the output
 #  * version for Bourne/bash shell
+#  This version October 21st, 2015
 
-# Use: sdgal architecture package [-s] [-h] [-k] [-f] [-b]
-#                            [-p] [-o j] [-l secs] probname[.SIF]
+# Use: sdgal architecture package [-s] [-h] [-k] [-f] [-b] [-st j]
+#                          [-c] [-m] [-p] [-u] [-o j] [-l secs] probname[.SIF]
 #
 # where: options -s : run the single precision version
 #                     (Default: run the double precision version)
 #                -h : print this help and stop execution
 #                -k : keep the load module after use
 #                     (Default: delete the load module)
+#                -c : check derivatives for errors using finite
+#                     differences (default: do not check)
 #                -f : use automatic differentiation in forward mode
 #                -b : use automatic differentiation in backward mode
-#                -p : profile the code (when possible)
 #                -m : check for memory leaks (when possible) using valgrind
+#                -p : profile the code (when possible)
+#                -u : update the specfile to include the latest options
 #                -o : 0 for silent mode, 1 for brief description of
 #                     the stages executed.
 #                     (Default: -o 0)
@@ -51,12 +55,12 @@ elif [[ "`echo $1 | grep -e '^-'`" != "" || "`echo $2 | grep -e '^-'`" != ""  ]]
 fi
 
 if [[ "$stop_early" == "true" ]]; then
-    echo ' Use: sdgal architecture package [-s] [-h] [-k] [-f] [-b] [-a j]'
-    echo '                       [-m] [-p] [-o j] [-l secs] probname[.SIF]'
+    echo ' Use: sdgal architecture package [-s] [-h] [-k] [-f] [-b] [-st j]'
+    echo '                 [-c] [-m] [-p] [-u] [-o j] [-l secs] probname[.SIF]'
     exit 1
 fi
 
-if [[ $2 == 'lanb' || $2 == 'lanb_steering' ]]; then
+if [[ $2 == 'lancelot' || $2 == 'lancelot_steering' ]]; then
   METHARG="-A $1 -p 0"
 else
   METHARG="-A $1 "
@@ -76,6 +80,11 @@ LIMIT=99999999
 # PRECISION = 0 (single precision), = 1 (double precision)
 
 PRECISION=1
+
+# UPDATE = 0 (use existing specfile),
+#        = 1 (update specfile to include latest options)
+
+UPDATE=0
 
 #   AUTOMATIC = 0 (provided), = 1 (automatic forward), = 2 (automatic backward)
 
@@ -98,6 +107,10 @@ PROFILE=0
 
 OUTPUT=0
 
+#  starting point vector to be used; if start > # starting vectors, start = 1
+
+START=1
+
 let i=3
 
 while (( i <= last ))
@@ -106,17 +119,22 @@ do
 #  echo " opt = $opt"
   if [[ "$opt" == '-h' || "$opt" == '--help' ]]; then
     echo ' Use: sdgal architecture package [-s] [-h|--help] [-k] [-f] [-b]'
-    echo '                            [-m] [-p] [-o j] [-l secs] probname[.SIF]'
+    echo '          [-st start] [-m] [-p] [-u] [-o j] [-l secs] probname[.SIF]'
     echo ' '
     echo ' where: options -s : run the single precision version'
     echo '                     (Default: run the double precision version)'
     echo '                -h : print this help and stop execution'
     echo '                -k : keep the load module after use '
     echo '                     (Default: delete the load module)'
+    echo "                -c : check derivatives for errors using finite"
+    echo "                     differences (default: do not check)"
     echo '                -f : use automatic differentiation in forward mode'
     echo '                -b : use automatic differentiation in backward mode'
+    echo "               -st : starting point vector to be used"
+    echo "                   (Default: -st 1)"
     echo '                -m : check for memory leaks (when possible) using valgrind'
     echo '                -p : profile the code (when possible)'
+    echo '                -u : update the specfile to include the latest options'
     echo '                -o : 0 for silent mode, 1 for brief description of'
     echo '                     the stages executed'
     echo '                     (Default: -o 0)'
@@ -128,11 +146,19 @@ do
     exit 0
   elif [[ "$opt" == '-s' ]]; then
     PRECISION=0
-    METHARG="$METARG -s"
+    METHARG="$METHARG -s"
+  elif [[ "$opt" == '-u' ]]; then
+    UPDATE=1
+  elif [[ "$opt" == '-c' ]]; then
+    METHARG="$METHARG -c"
   elif [[ "$opt" == '-f' ]]; then
     AUTOMATIC=1
   elif [[ "$opt" == '-b' ]]; then
     AUTOMATIC=2
+  elif [[ "$opt" == '-st' ]]; then
+    (( i++ ))
+    START=${!i}
+    METHARG="$METHARG -st $START"
   elif [[ "$opt" == '-k' ]]; then
     KEEP=1
   elif [[ "$opt" == '-m' ]]; then
@@ -142,15 +168,15 @@ do
   elif [[ "$opt" == '-o' ]]; then
     (( i++ ))
     OUTPUT=${!i}
-    METHARG="$METARG -o $OUTPUT"
+    METHARG="$METHARG -o $OUTPUT"
   elif [[ "$opt" == '-l' ]]; then
     (( i++ ))
     LIMIT=${!i}
-    METHARG="$METARG -l $LIMIT"
+    METHARG="$METHARG -l $LIMIT"
   elif [[ "$opt" == '-a' ]]; then
     (( i++ ))
     AD0=${!i}
-    METHARG="$METARG -a 2"
+    METHARG="$METHARG -a 2"
   fi
   (( i++ ))
 done
@@ -173,9 +199,9 @@ eval "`cat $GALAHAD/bin/sys/$1`"
 #. $GALAHAD/bin/sys/$1
 
 if [[ $AUTOMATIC == "1" ]]; then
-  METHARG="$METARG -f -m 0"
+  METHARG="$METHARG -f -m 0"
 elif [[ $AUTOMATIC == "2" ]]; then
-  METHARG="$METARG -b -m 0"
+  METHARG="$METHARG -b -m 0"
 fi
 
 if [[ $KEEP == "1" ]]; then
@@ -194,6 +220,12 @@ if [[ $PROFILE == "1" ]]; then
  pro="-p"
 else
  pro=""
+fi
+
+if [[ $UPDATE == "1" ]]; then
+ update="-u"
+else
+ update=""
 fi
 
 probname=${!#}
@@ -237,7 +269,7 @@ echo $AUTOMATIC $AD0 > AUTOMAT.d
 
 #  run the program on the output
 
-$GALAHAD/bin/gal $1 $2 $p $k $mem $pro -o $OUTPUT -l $LIMIT
+$GALAHAD/bin/gal $1 $2 $p $k $update $mem $pro -o $OUTPUT -l $LIMIT
 
 $RM $TMP/sdgal.input
 

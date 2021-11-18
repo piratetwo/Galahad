@@ -55,12 +55,15 @@ To get CUTEst working, here is what you need to do:
 
       export ARCHDEFS="/home/rsimpson/archdefs"  (etc).
 
+    ** If you plan to use Matlab **, you must also set $MYMATLAB to
+    your system Matlab installation directory
+
     To make these permanent, place them in your ~/.cshrc or ~/.bashrc
     shell startup file.
 
 2.  Now, move to the ./cutest directory, enter the command
 
-     $ARCHDEFS/install_optsuite
+     $ARCHDEFS/install_optrove
 
     and follow the instructions. You may install as many machine/os/compiler
     combinations (architectures) as you wish, and you will have access to each
@@ -88,8 +91,8 @@ To get CUTEst working, here is what you need to do:
 
        $SIFDECODE/man and $CUTEST/man
 
-    are on your man path ($MANPATH$). See README.csh (for C-shell users)
-    and README.sh (for Bourne, bash and korn shell users).
+    are on your man path ($MANPATH$). See README.cshrc (for C-shell users)
+    and README.bashrc (for Bourne, bash and korn shell users).
 
 3.  To test that the installation works, issue the commands
 
@@ -229,7 +232,7 @@ To get CUTEst working, here is what you need to do:
 
        $CUTEST/src/gen
 
-    and 
+    and
 
        $CUTEST/packages/defaults/gen77
        $CUTEST/packages/defaults/gen90
@@ -251,6 +254,17 @@ To get CUTEst working, here is what you need to do:
 
     for updates/bug fixes/news.
 
+12. To uninstall a particular architecture in CUTEst, execute the
+    script
+
+      $CUTEST/bin/uninstall_cutest
+
+    and follow the instructions
+
+13. To completely remove CUTEst, execute the command
+
+      rm -rf $CUTEST ~/.cutest
+
 Best of luck
 
 Nick Gould
@@ -259,4 +273,4 @@ Philippe Toint
 
 For GALAHAD productions
 30 January 2013
-This version: 12 June 2013
+This version: 19 Decemeber 2018

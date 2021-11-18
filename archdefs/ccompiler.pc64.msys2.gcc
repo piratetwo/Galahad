@@ -1,0 +1,19 @@
+# GCC compiler Windows (pc version) under MSYS2
+#
+# C compilation and loading
+#
+
+CC=gcc
+CCBASIC='-c' # -fPIC'
+CCISO='-ansi -pedantic' # -pedantic-errors'
+CCDEBUG= #-g -DDEBUG_GALAHAD
+CCFFLAGS=-lgfortran
+
+CXX=g++
+CXXBASIC='-c -std=c++11 -fPIC'
+CXXOPT=-O2
+CXXNOOPT=-O0
+CXXDEBUG=''
+CXXFFLAGS=''
+
+HWLOC=''

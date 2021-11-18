@@ -16,7 +16,7 @@
 
       INTEGER, INTENT( OUT ) :: status
       CHARACTER ( LEN = * ), INTENT( IN ) :: name
-      REAL ( KIND = wp ), INTENT( out ) :: time
+      REAL, INTENT( out ) :: time
 
 !  ---------------------------------------------------------------------------
 !  return the total CPU time spent in the cutest evaluation tool called 'name'
@@ -51,7 +51,7 @@
       INTEGER, INTENT( IN ) :: thread
       INTEGER, INTENT( OUT ) :: status
       CHARACTER ( LEN = * ), INTENT( IN ) :: name
-      REAL ( KIND = wp ), INTENT( out ) :: time
+      REAL, INTENT( out ) :: time
 
 !  ---------------------------------------------------------------------------
 !  return the total CPU time spent in the cutest evaluation tool called 'name'
@@ -98,7 +98,7 @@
       TYPE ( CUTEST_work_type ) :: work
       INTEGER, INTENT( OUT ) :: status
       CHARACTER ( LEN = * ), INTENT( IN ) :: name
-      REAL ( KIND = wp ), INTENT( out ) :: time
+      REAL, INTENT( out ) :: time
 
 !  ---------------------------------------------------------------------------
 !  return the total CPU time spent in the cutest evaluation tool called 'name'
@@ -111,10 +111,10 @@
       SELECT CASE ( name )
       CASE ( 'start' )
         work%record_times = .TRUE.
-        time = 0.0_wp
+        time = 0.0
       CASE ( 'stop' )
         work%record_times = .FALSE.
-        time = 0.0_wp
+        time = 0.0
       CASE ( 'cutest_ccfg' )
         time = work%time_ccfg
       CASE ( 'cutest_ccfsg' )
@@ -211,7 +211,7 @@
         time = work%time_ushprod
       CASE DEFAULT
         status = 26
-        time = 0.0_wp
+        time = 0.0
         IF ( data%out > 0 ) WRITE( data%out,                                   &
           "( ' ** SUBROUTINE TIMINGS: unknown evaluation function ', A )" )    &
             TRIM ( name )

@@ -3,7 +3,7 @@
    USE GALAHAD_SYMBOLS
    USE GALAHAD_ULS_double
    IMPLICIT NONE
-   INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )  
+   INTEGER, PARAMETER :: wp = KIND( 1.0D+0 )
    TYPE ( SMT_type ) :: matrix
    TYPE ( ULS_data_type ) :: data
    TYPE ( ULS_control_type ) control
@@ -11,7 +11,8 @@
    INTEGER :: i, ordering, solver, type, s
    INTEGER, PARAMETER :: n = 5, ne  = 7
    INTEGER :: ORDER( n )
-   REAL ( KIND = wp ) :: B( n ), X( n ), B2( n, 2 ), X2( n, 2 )
+   REAL ( KIND = wp ) :: B( n ), X( n )
+!  REAL ( KIND = wp ) :: B2( n, 2 ), X2( n, 2 )
    INTEGER :: ROWS( n ), COLS( n )
    INTEGER, DIMENSION( ne ) :: row = (/ 1, 2, 2, 3, 3, 4, 5 /)
    INTEGER, DIMENSION( ne ) :: col = (/ 1, 1, 5, 2, 3, 3, 4 /)
@@ -92,7 +93,11 @@
          END IF
 ! Factorize
          CALL ULS_factorize( matrix, data, control, inform )
-         IF ( inform%status < 0 ) THEN
+         IF ( inform%status == GALAHAD_unavailable_option ) THEN
+           WRITE( 6, "( '  none ' )", advance = 'no' )
+           WRITE( 6, "( '' )" )
+           CYCLE
+         ELSE IF ( inform%status < 0 ) THEN
            WRITE( 6, "( '  fail in factorize ' )", advance = 'no' )
            WRITE( 6, "( '' )" )
            CYCLE

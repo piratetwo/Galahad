@@ -1,4 +1,4 @@
-! THIS VERSION: GALAHAD 2.7 - 17/07/2015 AT 13:00 GMT.
+! THIS VERSION: GALAHAD 3.3 - 27/01/2020 AT 10:30 GMT.
 
 !-*-*-*-*-*-*-*-*-*-  G A L A H A D _ C C Q P    M O D U L E  -*-*-*-*-*-*-*-*-
 
@@ -8,7 +8,7 @@
 !  History -
 !   originally released with GALAHAD Version 2.7. July 17th 2015
 
-!  For full documentation, see 
+!  For full documentation, see
 !   http://galahad.rl.ac.uk/galahad-www/specs.html
 
 MODULE GALAHAD_CCQP_double
@@ -39,8 +39,8 @@ MODULE GALAHAD_CCQP_double
 !NOT95USE GALAHAD_CPU_time
       USE GALAHAD_CLOCK
       USE GALAHAD_SYMBOLS
-      USE GALAHAD_STRING_double, ONLY: STRING_pleural, STRING_verb_pleural,    &
-                                       STRING_ies, STRING_are, STRING_ordinal
+      USE GALAHAD_STRING, ONLY: STRING_pleural, STRING_verb_pleural,           &
+                                STRING_ies, STRING_are, STRING_ordinal
       USE GALAHAD_SPACE_double
       USE GALAHAD_SMT_double
       USE GALAHAD_QPT_double
@@ -51,8 +51,7 @@ MODULE GALAHAD_CCQP_double
                               CCQP_abs_AX => QPD_abs_AX,                       &
                               CCQP_abs_HX => QPD_abs_HX
       USE GALAHAD_LMS_double, ONLY: LMS_data_type, LMS_apply_lbfgs
-      USE GALAHAD_SORT_double, ONLY: SORT_heapsort_build,                      &
-                               SORT_heapsort_smallest, SORT_inverse_permute
+      USE GALAHAD_SORT_double, ONLY: SORT_inverse_permute
       USE GALAHAD_FDC_double
       USE GALAHAD_CQP_double
       USE GALAHAD_DQP_double
@@ -118,14 +117,14 @@ MODULE GALAHAD_CCQP_double
 !  D e r i v e d   t y p e   d e f i n i t i o n s
 !-------------------------------------------------
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   control derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: CCQP_control_type
 
-!   error and warning diagnostics occur on stream error 
-   
+!   error and warning diagnostics occur on stream error
+
         INTEGER :: error = 6
 
 !   general output occurs on stream out
@@ -145,21 +144,21 @@ MODULE GALAHAD_CCQP_double
 
         INTEGER :: restore_problem = 2
 
-!    specifies the unit number to write generated SIF file describing the 
+!    specifies the unit number to write generated SIF file describing the
 !     current problem
 
         INTEGER :: sif_file_device = 52
 
-!    specifies the unit number to write generated QPLIB file describing the 
+!    specifies the unit number to write generated QPLIB file describing the
 !     current problem
 
         INTEGER :: qplib_file_device = 53
 
-!   any bound larger than infinity in modulus will be regarded as infinite 
+!   any bound larger than infinity in modulus will be regarded as infinite
 
         REAL ( KIND = wp ) :: infinity = ten ** 19
 
-!   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than 
+!   any pair of constraint bounds (c_l,c_u) or (x_l,x_u) that are closer than
 !    identical_bounds_tol will be reset to the average of their values
 
         REAL ( KIND = wp ) :: identical_bounds_tol = epsmch
@@ -176,12 +175,12 @@ MODULE GALAHAD_CCQP_double
 
         REAL ( KIND = wp ) :: clock_time_limit = - one
 
-!   the equality constraints will be preprocessed to remove any linear 
+!   the equality constraints will be preprocessed to remove any linear
 !    dependencies if true
 
         LOGICAL :: remove_dependencies = .TRUE.
 
-!    any problem bound with the value zero will be treated as if it were a 
+!    any problem bound with the value zero will be treated as if it were a
 !     general value if true
 
         LOGICAL :: treat_zero_bounds_as_general = .FALSE.
@@ -201,12 +200,12 @@ MODULE GALAHAD_CCQP_double
 
         LOGICAL :: deallocate_error_fatal = .FALSE.
 
-!   if %generate_sif_file is .true. if a SIF file describing the current 
+!   if %generate_sif_file is .true. if a SIF file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_sif_file = .FALSE.
 
-!   if %generate_qplib_file is .true. if a QPLIB file describing the current 
+!   if %generate_qplib_file is .true. if a QPLIB file describing the current
 !    problem is to be generated
 
         LOGICAL :: generate_qplib_file = .FALSE.
@@ -222,7 +221,7 @@ MODULE GALAHAD_CCQP_double
          "CCQPPROB.qplib"  // REPEAT( ' ', 16 )
 
 !  all output lines will be prefixed by %prefix(2:LEN(TRIM(%prefix))-1)
-!   where %prefix contains the required string enclosed in 
+!   where %prefix contains the required string enclosed in
 !   quotes, e.g. "string" or 'string'
 
         CHARACTER ( LEN = 30 ) :: prefix = '""                            '
@@ -299,9 +298,9 @@ MODULE GALAHAD_CCQP_double
         REAL ( KIND = wp ) :: clock_solve = 0.0
       END TYPE
 
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 !   inform derived type with component defaults
-!  - - - - - - - - - - - - - - - - - - - - - - - 
+!  - - - - - - - - - - - - - - - - - - - - - - -
 
       TYPE, PUBLIC :: CCQP_inform_type
 
@@ -337,7 +336,7 @@ MODULE GALAHAD_CCQP_double
 
         INTEGER :: threads = 1
 
-!  the value of the objective function at the best estimate of the solution 
+!  the value of the objective function at the best estimate of the solution
 !   determined by CCQP_solve
 
         REAL ( KIND = wp ) :: obj = HUGE( one )
@@ -354,7 +353,7 @@ MODULE GALAHAD_CCQP_double
 
         REAL ( KIND = wp ) :: complementary_slackness = HUGE( one )
 
-!  the smallest pivot which was not judged to be zero when detecting linearly 
+!  the smallest pivot which was not judged to be zero when detecting linearly
 !   dependent constraints
 
         REAL ( KIND = wp ) :: non_negligible_pivot = - one
@@ -397,8 +396,8 @@ MODULE GALAHAD_CCQP_double
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !
 !  Default control data for CCQP. This routine should be called before
-!  CCQP_primal_dual
-! 
+!  CCQP_solve
+!
 !  ---------------------------------------------------------------------------
 !
 !  Arguments:
@@ -410,7 +409,7 @@ MODULE GALAHAD_CCQP_double
 ! =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
       TYPE ( CCQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( CCQP_control_type ), INTENT( OUT ) :: control        
+      TYPE ( CCQP_control_type ), INTENT( OUT ) :: control
       TYPE ( CCQP_inform_type ), INTENT( OUT ) :: inform
 
       inform%status = GALAHAD_ok
@@ -445,7 +444,7 @@ MODULE GALAHAD_CCQP_double
       data%trans = 0 ; data%tried_to_remove_deps = .FALSE.
       data%save_structure = .TRUE.
 
-      RETURN  
+      RETURN
 
 !  End of CCQP_initialize
 
@@ -455,10 +454,10 @@ MODULE GALAHAD_CCQP_double
 
       SUBROUTINE CCQP_read_specfile( control, device, alt_specname )
 
-!  Reads the content of a specification file, and performs the assignment of 
+!  Reads the content of a specification file, and performs the assignment of
 !  values associated with given keywords to the corresponding control parameters
 
-!  The defauly values as given by CCQP_initialize could (roughly) 
+!  The defauly values as given by CCQP_initialize could (roughly)
 !  have been set as:
 
 ! BEGIN CCQP SPECIFICATIONS (DEFAULT)
@@ -478,7 +477,7 @@ MODULE GALAHAD_CCQP_double
 !  remove-linear-dependencies                        T
 !  treat-zero-bounds-as-general                      F
 !  cross-over-solution                               T
-!  array-syntax-worse-than-do-loop                   F 
+!  array-syntax-worse-than-do-loop                   F
 !  space-critical                                    F
 !  deallocate-error-fatal                            F
 !  generate-sif-file                                 F
@@ -490,7 +489,7 @@ MODULE GALAHAD_CCQP_double
 
 !  Dummy arguments
 
-      TYPE ( CCQP_control_type ), INTENT( INOUT ) :: control        
+      TYPE ( CCQP_control_type ), INTENT( INOUT ) :: control
       INTEGER, INTENT( IN ) :: device
       CHARACTER( LEN = * ), OPTIONAL :: alt_specname
 
@@ -506,7 +505,7 @@ MODULE GALAHAD_CCQP_double
       INTEGER, PARAMETER :: qplib_file_device = sif_file_device + 1
       INTEGER, PARAMETER :: infinity = qplib_file_device + 1
       INTEGER, PARAMETER :: identical_bounds_tol = infinity + 1
-      INTEGER, PARAMETER :: perturb_h = identical_bounds_tol + 1 
+      INTEGER, PARAMETER :: perturb_h = identical_bounds_tol + 1
       INTEGER, PARAMETER :: cpu_time_limit = perturb_h + 1
       INTEGER, PARAMETER :: clock_time_limit = cpu_time_limit + 1
       INTEGER, PARAMETER :: remove_dependencies = clock_time_limit + 1
@@ -530,7 +529,7 @@ MODULE GALAHAD_CCQP_double
 
       spec( error )%keyword = 'error-printout-device'
       spec( out )%keyword = 'printout-device'
-      spec( print_level )%keyword = 'print-level' 
+      spec( print_level )%keyword = 'print-level'
       spec( restore_problem )%keyword = 'restore-problem-on-output'
       spec( sif_file_device )%keyword = 'sif-file-device'
       spec( qplib_file_device )%keyword = 'qplib-file-device'
@@ -694,11 +693,11 @@ MODULE GALAHAD_CCQP_double
 !
 !  Minimize the quadratic objective
 !
-!        1/2 x^T H x + g^T x + f  
+!        1/2 x^T H x + g^T x + f
 !
 !  or the linear/separable objective
 !
-!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f  
+!        1/2 || W * ( x - x^0 ) ||_2^2 + g^T x + f
 !
 !  where
 !
@@ -715,11 +714,11 @@ MODULE GALAHAD_CCQP_double
 !
 !  Arguments:
 !
-!  prob is a structure of type QPT_problem_type, whose components hold 
+!  prob is a structure of type QPT_problem_type, whose components hold
 !   information about the problem on input, and its solution on output.
 !   The following components must be set:
 !
-!   %new_problem_structure is a LOGICAL variable, which must be set to 
+!   %new_problem_structure is a LOGICAL variable, which must be set to
 !    .TRUE. by the user if this is the first problem with this "structure"
 !    to be solved since the last call to CCQP_initialize, and .FALSE. if
 !    a previous call to a problem with the same "structure" (but different
@@ -727,18 +726,18 @@ MODULE GALAHAD_CCQP_double
 !
 !   %n is an INTEGER variable, which must be set by the user to the
 !    number of optimization parameters, n.  RESTRICTION: %n >= 1
-!                 
+!
 !   %m is an INTEGER variable, which must be set by the user to the
 !    number of general linear constraints, m. RESTRICTION: %m >= 0
-!                 
+!
 !   %gradient_kind is an INTEGER variable which defines the type of linear
 !    term of the objective function to be used. Possible values are
 !
-!     0  the linear term g will be zero, and the analytic centre of the 
+!     0  the linear term g will be zero, and the analytic centre of the
 !        feasible region will be found if in addition %Hessian_kind is 0.
 !        %G (see below) need not be set
 !
-!     1  each component of the linear terms g will be one. 
+!     1  each component of the linear terms g will be one.
 !        %G (see below) need not be set
 !
 !     any other value - the gradients will be those given by %G (see below)
@@ -746,16 +745,16 @@ MODULE GALAHAD_CCQP_double
 !   %Hessian_kind is an INTEGER variable which defines the type of objective
 !    function to be used. Possible values are
 !
-!     0  all the weights will be zero, and the analytic centre of the 
+!     0  all the weights will be zero, and the analytic centre of the
 !        feasible region will be found. %WEIGHT (see below) need not be set
 !
 !     1  all the weights will be one. %WEIGHT (see below) need not be set
 !
 !     2  the weights will be those given by %WEIGHT (see below)
 !
-!    <0  the positive semi-definite Hessian H will be used 
+!    <0  the positive semi-definite Hessian H will be used
 !
-!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part 
+!   %H is a structure of type SMT_type used to hold the LOWER TRIANGULAR part
 !    of H (except for the L-BFGS case). Eight storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -766,7 +765,7 @@ MODULE GALAHAD_CCQP_double
 !       H%val( : )   the values of the components of H
 !       H%row( : )   the row indices of the components of H
 !       H%col( : )   the column indices of the components of H
-!       H%ne         the number of nonzeros used to store 
+!       H%ne         the number of nonzeros used to store
 !                    the LOWER TRIANGULAR part of H
 !
 !    ii) sparse, by rows
@@ -785,7 +784,7 @@ MODULE GALAHAD_CCQP_double
 !
 !       H%type( 1 : 5 ) = TRANSFER( 'DENSE', H%type )
 !       H%val( : )   the values of the components of H, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    iv) diagonal
@@ -824,32 +823,32 @@ MODULE GALAHAD_CCQP_double
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above,
-!    except for scheme (ix), for which a permutation will be set within H_lm. 
+!    except for scheme (ix), for which a permutation will be set within H_lm.
 !    However, if scheme (i) is used for input, the output H%row will contain
 !    the row numbers corresponding to the values in H%val, and thus in this
 !    case the output matrix will be available in both formats (i) and (ii).
-!    
+!
 !   %H_lm is a structure of type LMS_data_type, whose components hold the
 !     L-BFGS Hessian. Access to this structure is via the module GALAHAD_LMS,
 !     and this component needs only be set if %H%type( 1 : 5 ) = 'LBFGS.'
 !
 !   %WEIGHT is a REAL array, which need only be set if %Hessian_kind is larger
 !    than 1. If this is so, it must be of length at least %n, and contain the
-!    weights W for the objective function. 
-!  
+!    weights W for the objective function.
+!
 !   %X0 is a REAL array, which need only be set if %Hessian_kind is not 1 or 2.
 !    If this is so, it must be of length at least %n, and contain the
-!    weights X^0 for the objective function. 
-!  
-!   %G is a REAL array, which need only be set if %gradient_kind is not 0 
+!    weights X^0 for the objective function.
+!
+!   %G is a REAL array, which need only be set if %gradient_kind is not 0
 !    or 1. If this is so, it must be of length at least %n, and contain the
-!    linear terms g for the objective function. 
-!  
+!    linear terms g for the objective function.
+!
 !   %f is a REAL variable, which must be set by the user to the value of
 !    the constant term f in the objective function. On exit, it may have
 !    been changed to reflect variables which have been fixed.
 !
-!   %A is a structure of type SMT_type used to hold the matrix A. 
+!   %A is a structure of type SMT_type used to hold the matrix A.
 !    Three storage formats are permitted:
 !
 !    i) sparse, co-ordinate
@@ -878,68 +877,68 @@ MODULE GALAHAD_CCQP_double
 !
 !       A%type( 1 : 5 ) = TRANSFER( 'DENSE', A%type )
 !       A%val( : )   the values of the components of A, stored row by row,
-!                    with each the entries in each row in order of 
+!                    with each the entries in each row in order of
 !                    increasing column indicies.
 !
 !    On exit, the components will most likely have been reordered.
 !    The output  matrix will be stored by rows, according to scheme (ii) above.
 !    However, if scheme (i) is used for input, the output A%row will contain
 !    the row numbers corresponding to the values in A%val, and thus in this
-!    case the output matrix will be available in both formats (i) and (ii).   
-! 
-!   %C is a REAL array of length %m, which is used to store the values of 
-!    A x. It need not be set on entry. On exit, it will have been filled 
+!    case the output matrix will be available in both formats (i) and (ii).
+!
+!   %C is a REAL array of length %m, which is used to store the values of
+!    A x. It need not be set on entry. On exit, it will have been filled
 !    with appropriate values.
 !
 !   %X is a REAL array of length %n, which must be set by the user
-!    to estimaes of the solution, x. On successful exit, it will contain 
+!    to estimaes of the solution, x. On successful exit, it will contain
 !    the required solution, x.
 !
 !   %C_l, %C_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays c_l and c_u of lower and upper bounds on A x.
-!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %C_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %C_u to a value larger than 
-!    control%infinity. On exit, %C_l and %C_u will most likely have been 
+!    Any bound c_l_i or c_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %C_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %C_u to a value larger than
+!    control%infinity. On exit, %C_l and %C_u will most likely have been
 !    reordered.
-!   
+!
 !   %Y is a REAL array of length %m, which must be set by the user to
-!    appropriate estimates of the values of the Lagrange multipliers 
-!    corresponding to the general constraints c_l <= A x <= c_u. 
-!    On successful exit, it will contain the required vector of Lagrange 
+!    appropriate estimates of the values of the Lagrange multipliers
+!    corresponding to the general constraints c_l <= A x <= c_u.
+!    On successful exit, it will contain the required vector of Lagrange
 !    multipliers.
 !
 !   %X_l, %X_u are REAL arrays of length %n, which must be set by the user
 !    to the values of the arrays x_l and x_u of lower and upper bounds on x.
-!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in 
-!    absolute value will be regarded as being infinite (see the entry 
-!    control%infinity). Thus, an infinite lower bound may be specified by 
-!    setting the appropriate component of %X_l to a value smaller than 
-!    -control%infinity, while an infinite upper bound can be specified by 
-!    setting the appropriate element of %X_u to a value larger than 
-!    control%infinity. On exit, %X_l and %X_u will most likely have been 
+!    Any bound x_l_i or x_u_i larger than or equal to control%infinity in
+!    absolute value will be regarded as being infinite (see the entry
+!    control%infinity). Thus, an infinite lower bound may be specified by
+!    setting the appropriate component of %X_l to a value smaller than
+!    -control%infinity, while an infinite upper bound can be specified by
+!    setting the appropriate element of %X_u to a value larger than
+!    control%infinity. On exit, %X_l and %X_u will most likely have been
 !    reordered.
-!   
+!
 !   %Z is a REAL array of length %n, which must be set by the user to
-!    appropriate estimates of the values of the dual variables 
-!    (Lagrange multipliers corresponding to the simple bound constraints 
+!    appropriate estimates of the values of the dual variables
+!    (Lagrange multipliers corresponding to the simple bound constraints
 !    x_l <= x <= x_u). On successful exit, it will contain
-!   the required vector of dual variables. 
+!   the required vector of dual variables.
 !
 !  data is a structure of type CCQP_data_type which holds private internal data
 !
-!  control is a structure of type CCQP_control_type that controls the 
+!  control is a structure of type CCQP_control_type that controls the
 !   execution of the subroutine and must be set by the user. Default values for
 !   the elements may be set by a call to CCQP_initialize. See the preamble
 !   for details
 !
-!  inform is a structure of type CCQP_inform_type that provides 
-!    information on exit from CCQP_solve. The component status 
+!  inform is a structure of type CCQP_inform_type that provides
+!    information on exit from CCQP_solve. The component status
 !    has possible values:
-!  
+!
 !     0 Normal termination with a locally optimal solution.
 !
 !    -1 An allocation error occured; the status is given in the component
@@ -948,7 +947,7 @@ MODULE GALAHAD_CCQP_double
 !    -2 A deallocation error occured; the status is given in the component
 !       alloc_status.
 !
-!   - 3 one of the restrictions 
+!   - 3 one of the restrictions
 !        prob%n     >=  1
 !        prob%m     >=  0
 !        prob%A%type in { 'DENSE', 'SPARSE_BY_ROWS', 'COORDINATE' }
@@ -963,43 +962,43 @@ MODULE GALAHAD_CCQP_double
 !
 !    -8 The analytic center appears to be unbounded.
 !
-!    -9 The analysis phase of the factorization failed; the return status 
+!    -9 The analysis phase of the factorization failed; the return status
 !       from the factorization package is given in the component factor_status.
-!      
+!
 !   -10 The factorization failed; the return status from the factorization
 !       package is given in the component factor_status.
-!      
-!   -11 The solve of a required linear system failed; the return status from 
+!
+!   -11 The solve of a required linear system failed; the return status from
 !       the factorization package is given in the component factor_status.
-!      
-!   -16 The problem is so ill-conditoned that further progress is impossible.  
+!
+!   -16 The problem is so ill-conditoned that further progress is impossible.
 !
 !   -17 The step is too small to make further impact.
 !
 !   -18 Too many iterations have been performed. This may happen if
-!       control%maxit is too small, but may also be symptomatic of 
+!       control%maxit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !   -19 Too much time has passed. This may happen if control%cpu_time_limit or
-!       control%clock_time_limit is too small, but may also be symptomatic of 
+!       control%clock_time_limit is too small, but may also be symptomatic of
 !       a badly scaled problem.
 !
 !  On exit from CCQP_solve, other components of inform are given in the preamble
 !
-!  C_stat is an optional INTEGER array of length m, which if present will be 
-!   set on exit to indicate the likely ultimate status of the constraints. 
-!   Possible values are 
-!   C_stat( i ) < 0, the i-th constraint is likely in the active set, 
-!                    on its lower bound, 
+!  C_stat is an optional INTEGER array of length m, which if present will be
+!   set on exit to indicate the likely ultimate status of the constraints.
+!   Possible values are
+!   C_stat( i ) < 0, the i-th constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th constraint is likely not in the active set
 !
-!  B_stat is an optional  INTEGER array of length n, which if present will be 
-!   set on exit to indicate the likely ultimate status of the simple bound 
-!   constraints. Possible values are 
-!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set, 
-!                    on its lower bound, 
+!  B_stat is an optional  INTEGER array of length n, which if present will be
+!   set on exit to indicate the likely ultimate status of the simple bound
+!   constraints. Possible values are
+!   B_stat( i ) < 0, the i-th bound constraint is likely in the active set,
+!                    on its lower bound,
 !               > 0, the i-th bound constraint is likely in the active set
 !                    on its upper bound, and
 !               = 0, the i-th bound constraint is likely not in the active set
@@ -1010,7 +1009,7 @@ MODULE GALAHAD_CCQP_double
 
       TYPE ( QPT_problem_type ), INTENT( INOUT ) :: prob
       TYPE ( CCQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( CCQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CCQP_control_type ), INTENT( IN ) :: control
       TYPE ( CCQP_inform_type ), INTENT( OUT ) :: inform
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%m ) :: C_stat
       INTEGER, INTENT( OUT ), OPTIONAL, DIMENSION( prob%n ) :: B_stat
@@ -1018,7 +1017,7 @@ MODULE GALAHAD_CCQP_double
 !  Local variables
 
       INTEGER :: i, j, l, n_depen, nzc, nv, lbd, dual_starting_point
-      REAL ( KIND = wp ) :: time_start, time_record, time_now
+      REAL :: time_start, time_record, time_now
       REAL ( KIND = wp ) :: time_analyse, time_factorize
       REAL ( KIND = wp ) :: clock_start, clock_record, clock_now
       REAL ( KIND = wp ) :: clock_analyse, clock_factorize, cro_clock_matrix
@@ -1035,7 +1034,7 @@ MODULE GALAHAD_CCQP_double
 
 !$    INTEGER :: OMP_GET_MAX_THREADS
 
-!  prefix for all output 
+!  prefix for all output
 
       CHARACTER ( LEN = LEN( TRIM( control%prefix ) ) - 2 ) :: prefix
       IF ( LEN( TRIM( control%prefix ) ) > 2 )                                 &
@@ -1045,7 +1044,7 @@ MODULE GALAHAD_CCQP_double
         WRITE( control%out, "( A, ' entering CCQP_solve ' )" ) prefix
 
 ! -------------------------------------------------------------------
-!  If desired, generate a SIF file for problem passed 
+!  If desired, generate a SIF file for problem passed
 
       IF ( control%generate_sif_file ) THEN
         CALL QPD_SIF( prob, control%sif_file_name, control%sif_file_device,    &
@@ -1056,7 +1055,7 @@ MODULE GALAHAD_CCQP_double
 ! -------------------------------------------------------------------
 
 ! -------------------------------------------------------------------
-!  If desired, generate a QPLIB file for problem passed 
+!  If desired, generate a QPLIB file for problem passed
 
       IF ( control%generate_qplib_file ) THEN
         CALL RPD_write_qp_problem_data( prob, control%qplib_file_name,         &
@@ -1076,7 +1075,7 @@ MODULE GALAHAD_CCQP_double
       inform%alloc_status = 0 ; inform%bad_alloc = ''
       inform%factorization_status = 0
       inform%nfacts = - 1
-      inform%factorization_integer = - 1 ; inform%factorization_real = - 1 
+      inform%factorization_integer = - 1 ; inform%factorization_real = - 1
       inform%obj = - one
       inform%non_negligible_pivot = zero
       inform%feasible = .FALSE.
@@ -1086,7 +1085,7 @@ MODULE GALAHAD_CCQP_double
 
 !  basic single line of output per iteration
 
-      printi = control%out > 0 .AND. control%print_level >= 1 
+      printi = control%out > 0 .AND. control%print_level >= 1
       printa = control%out > 0 .AND. control%print_level >= 101
 
 !  ensure that input parameters are within allowed ranges
@@ -1095,15 +1094,15 @@ MODULE GALAHAD_CCQP_double
            .NOT. QPT_keyword_A( prob%A%type ) ) THEN
         inform%status = GALAHAD_error_restrictions
         IF ( control%error > 0 .AND. control%print_level > 0 )                 &
-          WRITE( control%error, 2010 ) prefix, inform%status 
-        GO TO 800 
-      END IF 
+          WRITE( control%error, 2010 ) prefix, inform%status
+        GO TO 800
+      END IF
 
 !  assign CQP control parameters
 
       CQP_control = control%CQP_control
 
-!  if required, write out problem 
+!  if required, write out problem
 
       IF ( prob%Hessian_kind < 0 ) THEN
         lbfgs = SMT_get( prob%H%type ) == 'LBFGS'
@@ -1121,8 +1120,8 @@ MODULE GALAHAD_CCQP_double
         IF ( prob%X_l( i ) - prob%X_u( i ) > control%identical_bounds_tol ) THEN
           inform%status = GALAHAD_error_bad_bounds
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
         ELSE IF ( prob%X_u( i ) == prob%X_l( i )  ) THEN
         ELSE IF ( prob%X_u( i ) - prob%X_l( i )                                &
                   <= control%identical_bounds_tol ) THEN
@@ -1130,7 +1129,7 @@ MODULE GALAHAD_CCQP_double
           prob%X_l( i ) = av_bnd ; prob%X_u( i ) = av_bnd
           reset_bnd = .TRUE.
         END IF
-      END DO   
+      END DO
       IF ( reset_bnd .AND. printi ) WRITE( control%out,                        &
         "( /, A, '   **  Warning: one or more variable bounds reset ' )" )     &
          prefix
@@ -1140,8 +1139,8 @@ MODULE GALAHAD_CCQP_double
         IF ( prob%C_l( i ) - prob%C_u( i ) > control%identical_bounds_tol ) THEN
           inform%status = GALAHAD_error_bad_bounds
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
         ELSE IF ( prob%C_u( i ) == prob%C_l( i ) ) THEN
         ELSE IF ( prob%C_u( i ) - prob%C_l( i )                                &
                   <= control%identical_bounds_tol ) THEN
@@ -1149,7 +1148,7 @@ MODULE GALAHAD_CCQP_double
           prob%C_l( i ) = av_bnd ; prob%C_u( i ) = av_bnd
           reset_bnd = .TRUE.
         END IF
-      END DO   
+      END DO
       IF ( reset_bnd .AND. printi ) WRITE( control%out,                        &
         "( A, /, '   **  Warning: one or more constraint bounds reset ' )" )   &
           prefix
@@ -1186,28 +1185,28 @@ MODULE GALAHAD_CCQP_double
 !  store the problem dimensions
 
         SELECT CASE ( SMT_get( prob%A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           data%a_ne = prob%m * prob%n
         CASE ( 'SPARSE_BY_ROWS' )
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         CASE ( 'COORDINATE' )
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END SELECT
 
         IF ( prob%Hessian_kind < 0 ) THEN
           SELECT CASE ( SMT_get( prob%H%type ) )
-          CASE ( 'NONE', 'ZERO', 'IDENTITY' ) 
+          CASE ( 'NONE', 'ZERO', 'IDENTITY' )
             data%h_ne = 0
-          CASE ( 'SCALED_IDENTITY' ) 
+          CASE ( 'SCALED_IDENTITY' )
             data%h_ne = 1
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%h_ne = prob%n
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%h_ne = ( prob%n * ( prob%n + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
           CASE ( 'COORDINATE' )
-            data%h_ne = prob%H%ne 
+            data%h_ne = prob%H%ne
           CASE ( 'LBFGS' )
             data%h_ne = 0
           END SELECT
@@ -1219,8 +1218,8 @@ MODULE GALAHAD_CCQP_double
       IF ( data%a_ne <= 0 ) THEN
         separable_bqp = .TRUE.
         SELECT CASE ( SMT_get( prob%H%type ) )
-        CASE ( 'NONE', 'ZERO', 'IDENTITY', 'SCALED_IDENTITY', 'DIAGONAL' ) 
-        CASE ( 'DENSE' ) 
+        CASE ( 'NONE', 'ZERO', 'IDENTITY', 'SCALED_IDENTITY', 'DIAGONAL' )
+        CASE ( 'DENSE' )
           l = 0
           DO i = 1, prob%n
             DO j = 1, i
@@ -1318,11 +1317,12 @@ MODULE GALAHAD_CCQP_double
         CALL QPP_reorder( data%QPP_map, data%QPP_control,                      &
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
+
 !  test for satisfactory termination
 
         IF ( data%QPP_inform%status /= GALAHAD_ok ) THEN
@@ -1331,36 +1331,36 @@ MODULE GALAHAD_CCQP_double
             WRITE( control%out, "( A, ' status ', I0, ' after QPP_reorder')" ) &
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  record array lengths
 
         SELECT CASE ( SMT_get( prob%A%type ) )
-        CASE ( 'DENSE' ) 
+        CASE ( 'DENSE' )
           data%a_ne = prob%m * prob%n
         CASE ( 'SPARSE_BY_ROWS' )
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         CASE ( 'COORDINATE' )
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END SELECT
 
         IF ( prob%Hessian_kind < 0 ) THEN
           SELECT CASE ( SMT_get( prob%H%type ) )
-          CASE ( 'NONE', 'ZERO', 'IDENTITY' ) 
+          CASE ( 'NONE', 'ZERO', 'IDENTITY' )
             data%h_ne = 0
-          CASE ( 'SCALED_IDENTITY' ) 
+          CASE ( 'SCALED_IDENTITY' )
             data%h_ne = 1
-          CASE ( 'DIAGONAL' ) 
+          CASE ( 'DIAGONAL' )
             data%h_ne = prob%n
-          CASE ( 'DENSE' ) 
+          CASE ( 'DENSE' )
             data%h_ne = ( prob%n * ( prob%n + 1 ) ) / 2
           CASE ( 'SPARSE_BY_ROWS' )
             data%h_ne = prob%H%ptr( prob%n + 1 ) - 1
           CASE ( 'COORDINATE' )
-            data%h_ne = prob%H%ne 
+            data%h_ne = prob%H%ne
           CASE ( 'LBFGS' )
             data%h_ne = 0
           END SELECT
@@ -1381,9 +1381,9 @@ MODULE GALAHAD_CCQP_double
           CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
           CALL QPP_apply( data%QPP_map, data%QPP_inform,                       &
                           prob, get_all = .TRUE. )
-          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+          CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
           inform%time%preprocess =                                             &
-            inform%time%preprocess + time_now - time_record
+            inform%time%preprocess + REAL( time_now - time_record, wp )
           inform%time%clock_preprocess =                                       &
             inform%time%clock_preprocess + clock_now - clock_record
 
@@ -1395,12 +1395,24 @@ MODULE GALAHAD_CCQP_double
               WRITE( control%out, "( A, ' status ', I0, ' after QPP_apply')" ) &
                prefix, data%QPP_inform%status
             IF ( control%error > 0 .AND. control%print_level > 0 )             &
-              WRITE( control%error, 2010 ) prefix, inform%status 
+              WRITE( control%error, 2010 ) prefix, inform%status
             CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform)
-            GO TO 800 
-          END IF 
-        END IF 
+            GO TO 800
+          END IF
+        END IF
         data%trans = data%trans + 1
+      END IF
+
+!  special case: no free variables
+
+      IF ( prob%n == 0 ) THEN
+        prob%Y( : prob%m ) = zero
+        prob%Z( : prob%n ) = zero
+        prob%C( : prob%m ) = zero
+        CALL CCQP_AX( prob%m, prob%C( : prob%m ), prob%m,                      &
+                      prob%A%ptr( prob%m + 1 ) - 1, prob%A%val,                &
+                      prob%A%col, prob%A%ptr, prob%n, prob%X, '+ ')
+        GO TO 700
       END IF
 
 !  =================================================================
@@ -1429,7 +1441,7 @@ MODULE GALAHAD_CCQP_double
 
 !  find any dependent rows
 
-        nzc = prob%A%ptr( data%dims%c_equality + 1 ) - 1 
+        nzc = prob%A%ptr( data%dims%c_equality + 1 ) - 1
         CALL CPU_TIME( time_record ) ; CALL CLOCK_time( clock_record )
         CALL FDC_find_dependent( prob%n, data%dims%c_equality,                 &
                                  prob%A%val( : nzc ),                          &
@@ -1438,9 +1450,9 @@ MODULE GALAHAD_CCQP_double
                                  prob%C_l, n_depen, data%Index_C_freed,        &
                                  data%FDC_data, data%FDC_control,              &
                                  inform%FDC_inform )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
         inform%time%find_dependent =                                           &
-          inform%time%find_dependent + time_now - time_record
+          inform%time%find_dependent + REAL( time_now - time_record, wp )
         inform%time%clock_find_dependent =                                     &
           inform%time%clock_find_dependent + clock_now - clock_record
 
@@ -1456,14 +1468,14 @@ MODULE GALAHAD_CCQP_double
         inform%nfacts = 1
 
         IF ( ( control%cpu_time_limit >= zero .AND.                            &
-               time_now - time_start > control%cpu_time_limit ) .OR.           &
+             REAL( time_now - time_start, wp ) > control%cpu_time_limit ) .OR. &
              ( control%clock_time_limit >= zero .AND.                          &
                clock_now - clock_start > control%clock_time_limit ) ) THEN
           inform%status = GALAHAD_error_cpu_limit
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
-          GO TO 800 
-        END IF 
+            WRITE( control%error, 2010 ) prefix, inform%status
+          GO TO 800
+        END IF
 
         IF ( printi .AND. inform%non_negligible_pivot < thousand *             &
           control%FDC_control%SLS_control%absolute_pivot_tolerance )           &
@@ -1533,7 +1545,7 @@ MODULE GALAHAD_CCQP_double
                  exact_size = control%space_critical,                          &
                  bad_alloc = inform%bad_alloc, out = control%error )
           IF ( inform%status /= GALAHAD_ok ) GO TO 900
-        
+
 !  free the constraint bounds as required
 
         DO i = 1, n_depen
@@ -1552,7 +1564,7 @@ MODULE GALAHAD_CCQP_double
 !  store the problem dimensions
 
         data%dims_save_freed = data%dims
-        data%a_ne = prob%A%ne 
+        data%a_ne = prob%A%ne
 
         IF ( printi ) WRITE( control%out,                                      &
                "( /, A, ' problem dimensions before removal of dependecies: ', &
@@ -1561,23 +1573,24 @@ MODULE GALAHAD_CCQP_double
 
 !  perform the preprocessing
 
-        CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record ) 
+        CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record )
         CALL QPP_reorder( data%QPP_map_freed, data%QPP_control,                &
                           data%QPP_inform, data%dims, prob,                    &
                           .FALSE., .FALSE., .FALSE. )
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
-  
-        data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1 
+
+        data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1
         data%dims%x_s = 1 ; data%dims%x_e = prob%n
-        data%dims%c_s = data%dims%x_e + 1 
-        data%dims%c_e = data%dims%x_e + data%dims%nc  
+        data%dims%c_s = data%dims%x_e + 1
+        data%dims%c_e = data%dims%x_e + data%dims%nc
         data%dims%c_b = data%dims%c_e - prob%m
-        data%dims%y_s = data%dims%c_e + 1 
+        data%dims%y_s = data%dims%c_e + 1
         data%dims%y_e = data%dims%c_e + prob%m
-        data%dims%y_i = data%dims%c_s + prob%m 
+        data%dims%y_i = data%dims%c_s + prob%m
         data%dims%v_e = data%dims%y_e
 
 !  test for satisfactory termination
@@ -1588,12 +1601,12 @@ MODULE GALAHAD_CCQP_double
             WRITE( control%out, "( A, ' status ', I0, ' after QPP_reorder')" ) &
              prefix, data%QPP_inform%status
           IF ( control%error > 0 .AND. control%print_level > 0 )               &
-            WRITE( control%error, 2010 ) prefix, inform%status 
+            WRITE( control%error, 2010 ) prefix, inform%status
           CALL QPP_terminate( data%QPP_map_freed, data%QPP_control,            &
                               data%QPP_inform )
           CALL QPP_terminate( data%QPP_map, data%QPP_control, data%QPP_inform )
-          GO TO 800 
-        END IF 
+          GO TO 800
+        END IF
 
 !  record revised array lengths
 
@@ -1602,7 +1615,7 @@ MODULE GALAHAD_CCQP_double
         ELSE IF ( SMT_get( prob%A%type ) == 'SPARSE_BY_ROWS' ) THEN
           data%a_ne = prob%A%ptr( prob%m + 1 ) - 1
         ELSE
-          data%a_ne = prob%A%ne 
+          data%a_ne = prob%A%ne
         END IF
 
         IF ( printi ) WRITE( control%out,                                      &
@@ -1611,9 +1624,9 @@ MODULE GALAHAD_CCQP_double
                prefix, prefix, prob%n, prob%m, data%a_ne
       END IF
 
-!  compute the dimension of the KKT system 
+!  compute the dimension of the KKT system
 
-      data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1 
+      data%dims%nc = data%dims%c_u_end - data%dims%c_l_start + 1
 
 !  arrays containing data relating to the composite vector ( x  c  y )
 !  are partitioned as follows:
@@ -1629,16 +1642,16 @@ MODULE GALAHAD_CCQP_double
 !    ^                 ^    ^ ^               ^ ^    ^               ^
 !    |                 |    | |               | |    |               |
 !   x_s                |    |c_s              |y_s  y_i             y_e = v_e
-!                      |    |                 |                     
+!                      |    |                 |
 !                     c_b  x_e               c_e
 
       data%dims%x_s = 1 ; data%dims%x_e = prob%n
-      data%dims%c_s = data%dims%x_e + 1 
-      data%dims%c_e = data%dims%x_e + data%dims%nc  
+      data%dims%c_s = data%dims%x_e + 1
+      data%dims%c_e = data%dims%x_e + data%dims%nc
       data%dims%c_b = data%dims%c_e - prob%m
-      data%dims%y_s = data%dims%c_e + 1 
+      data%dims%y_s = data%dims%c_e + 1
       data%dims%y_e = data%dims%c_e + prob%m
-      data%dims%y_i = data%dims%c_s + prob%m 
+      data%dims%y_i = data%dims%c_s + prob%m
       data%dims%v_e = data%dims%y_e
 
 !  ----------------
@@ -1667,13 +1680,15 @@ MODULE GALAHAD_CCQP_double
 
 !  assign CQP control parameters
 
-      CALL CPU_TIME( time_now ) ; time_record = time_now - time_start
+      CALL CPU_TIME( time_now )
+      time_record = time_now - time_start
       IF ( control%cpu_time_limit >= zero ) THEN
         IF ( CQP_control%cpu_time_limit < zero ) THEN
-          CQP_control%cpu_time_limit = control%cpu_time_limit - time_record
+          CQP_control%cpu_time_limit =                                         &
+            control%cpu_time_limit - REAL( time_record, wp )
         ELSE
           CQP_control%cpu_time_limit = MIN( CQP_control%cpu_time_limit,        &
-                                         control%cpu_time_limit ) - time_record
+            control%cpu_time_limit ) - REAL( time_record, wp )
         END IF
       END IF
       CALL CLOCK_time( clock_now ) ; clock_record = clock_now - clock_start
@@ -1688,7 +1703,7 @@ MODULE GALAHAD_CCQP_double
 
 !  solve the problem using an infeasible primal-dual interior-point method
 
-      CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record ) 
+      CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record )
 
       IF ( prob%Hessian_kind == 0 ) THEN
         IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -1717,7 +1732,7 @@ MODULE GALAHAD_CCQP_double
                                prob%Hessian_kind, prob%gradient_kind,          &
                                C_last = data%A_s, X_last = data%H_s,           &
                                Y_last = data%Y_last, Z_last = data%Z_last,     &
-                               C_stat = data%C_stat, B_Stat = data%B_Stat )    
+                               C_stat = data%C_stat, B_Stat = data%B_Stat )
         ELSE
           CALL CQP_solve_main( data%dims, prob%n, prob%m,                      &
                                prob%A%val, prob%A%col, prob%A%ptr,             &
@@ -1745,7 +1760,7 @@ MODULE GALAHAD_CCQP_double
                                G = prob%G,                                     &
                                C_last = data%A_s, X_last = data%H_s,           &
                                Y_last = data%Y_last, Z_last = data%Z_last,     &
-                               C_stat = data%C_stat, B_Stat = data%B_Stat )    
+                               C_stat = data%C_stat, B_Stat = data%B_Stat )
         END IF
       ELSE IF ( prob%Hessian_kind == 1 ) THEN
         IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -1775,7 +1790,7 @@ MODULE GALAHAD_CCQP_double
                                X0 = prob%X0,                                   &
                                C_last = data%A_s, X_last = data%H_s,           &
                                Y_last = data%Y_last, Z_last = data%Z_last,     &
-                               C_stat = data%C_stat, B_Stat = data%B_Stat )    
+                               C_stat = data%C_stat, B_Stat = data%B_Stat )
         ELSE
           CALL CQP_solve_main( data%dims, prob%n, prob%m,                      &
                                prob%A%val, prob%A%col, prob%A%ptr,             &
@@ -1803,10 +1818,10 @@ MODULE GALAHAD_CCQP_double
                                X0 = prob%X0, G = prob%G,                       &
                                C_last = data%A_s, X_last = data%H_s,           &
                                Y_last = data%Y_last, Z_last = data%Z_last,     &
-                               C_stat = data%C_stat, B_Stat = data%B_Stat )   
+                               C_stat = data%C_stat, B_Stat = data%B_Stat )
         END IF
       ELSE IF ( prob%Hessian_kind == 2 ) THEN
-        IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN       
+        IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
           CALL CQP_solve_main( data%dims, prob%n, prob%m,                      &
                                prob%A%val, prob%A%col, prob%A%ptr,             &
                                prob%C_l, prob%C_u, prob%X_l, prob%X_u,         &
@@ -1833,7 +1848,7 @@ MODULE GALAHAD_CCQP_double
                                WEIGHT = prob%WEIGHT, X0 = prob%X0,             &
                                C_last = data%A_s, X_last = data%H_s,           &
                                Y_last = data%Y_last, Z_last = data%Z_last,     &
-                               C_stat = data%C_stat, B_Stat = data%B_Stat )    
+                               C_stat = data%C_stat, B_Stat = data%B_Stat )
         ELSE
           CALL CQP_solve_main( data%dims, prob%n, prob%m,                      &
                                prob%A%val, prob%A%col, prob%A%ptr,             &
@@ -1862,7 +1877,7 @@ MODULE GALAHAD_CCQP_double
                                G = prob%G,                                     &
                                C_last = data%A_s, X_last = data%H_s,           &
                                Y_last = data%Y_last, Z_last = data%Z_last,     &
-                               C_stat = data%C_stat, B_Stat = data%B_Stat )    
+                               C_stat = data%C_stat, B_Stat = data%B_Stat )
         END IF
       ELSE
         IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -1894,7 +1909,7 @@ MODULE GALAHAD_CCQP_double
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last,                         &
                                  Z_last = data%Z_last,                         &
-                                 C_stat = data%C_stat, B_Stat = data%B_Stat )  
+                                 C_stat = data%C_stat, B_Stat = data%B_Stat )
           ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
@@ -1924,7 +1939,7 @@ MODULE GALAHAD_CCQP_double
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last,                         &
                                  Z_last = data%Z_last,                         &
-                                 C_stat = data%C_stat, B_Stat = data%B_Stat )  
+                                 C_stat = data%C_stat, B_Stat = data%B_Stat )
           END IF
         ELSE
           IF ( lbfgs ) THEN
@@ -1955,8 +1970,8 @@ MODULE GALAHAD_CCQP_double
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last,                         &
                                  Z_last = data%Z_last,                         &
-                                 C_stat = data%C_stat, B_Stat = data%B_Stat )  
-          ELSE                                                                 
+                                 C_stat = data%C_stat, B_Stat = data%B_Stat )
+          ELSE
             CALL CQP_solve_main( data%dims, prob%n, prob%m,                    &
                                  prob%A%val, prob%A%col, prob%A%ptr,           &
                                  prob%C_l, prob%C_u, prob%X_l, prob%X_u,       &
@@ -1985,13 +2000,13 @@ MODULE GALAHAD_CCQP_double
                                  C_last = data%A_s, X_last = data%H_s,         &
                                  Y_last = data%Y_last,                         &
                                  Z_last = data%Z_last,                         &
-                                 C_stat = data%C_stat, B_Stat = data%B_Stat )  
-          END IF                                                               
-        END IF                                                                 
-      END IF                                                                   
-                                                                               
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-      inform%CQP_inform%time%total = time_now - time_record
+                                 C_stat = data%C_stat, B_Stat = data%B_Stat )
+          END IF
+        END IF
+      END IF
+
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+      inform%CQP_inform%time%total = REAL( time_now - time_record, wp )
       inform%CQP_inform%time%clock_total = clock_now - clock_record
 
 !  record output statistics
@@ -2039,13 +2054,17 @@ MODULE GALAHAD_CCQP_double
             prob%X_l( i ), prob%X( i ), prob%X_u( i ), prob%Z( i ), B_stat( i )
           END DO
 
-          WRITE( control%out, "( /, A, '      i       C_l             C   ',   &
-         &   '          C_u            Y        st' )" ) prefix
-          DO i = 1, prob%m
-            WRITE( control%out, "( A, I7, 4ES15.7, I3 )" ) prefix, i,          &
-            prob%C_l( i ), prob%C( i ), prob%C_u( i ), prob%Y( i ), C_stat( i )
-          END DO
+          IF ( prob%m > 0 ) THEN
+            WRITE( control%out, "( /, A, '      i       C_l             C ',   &
+           &   '            C_u            Y        st' )" ) prefix
+            DO i = 1, prob%m
+              WRITE( control%out, "( A, I7, 4ES15.7, I3 )" ) prefix, i,        &
+                prob%C_l( i ), prob%C( i ), prob%C_u( i ), prob%Y( i ),        &
+                C_stat( i )
+            END DO
+          END IF
         END IF
+
         data%CRO_control = control%CRO_control
         data%CRO_control%feasibility_tolerance =                               &
           MAX( inform%primal_infeasibility, inform%dual_infeasibility,         &
@@ -2100,13 +2119,15 @@ MODULE GALAHAD_CCQP_double
             data%B_stat( i )
           END DO
 
-          WRITE( control%out, "( /, A, '      i       C_l             C   ',   &
-         &   '          C_u            Y        st' )" ) prefix
-          DO i = 1, prob%m
-            WRITE( control%out, "( A, I7, 4ES15.7, I3 )" ) prefix, i,          &
-            prob%C_l( i ), prob%C( i ), prob%C_u( i ), prob%Y( i ),            &
-            data%C_stat( i )
-          END DO
+          IF ( prob%m > 0 ) THEN
+            WRITE( control%out, "( /, A, '      i       C_l             C ',   &
+           &   '            C_u            Y        st' )" ) prefix
+            DO i = 1, prob%m
+              WRITE( control%out, "( A, I7, 4ES15.7, I3 )" ) prefix, i,        &
+                prob%C_l( i ), prob%C( i ), prob%C_u( i ), prob%Y( i ),        &
+                data%C_stat( i )
+            END DO
+          END IF
         END IF
       END IF
 !write(6,*) ' n_active, m_active ',  &
@@ -2124,13 +2145,13 @@ MODULE GALAHAD_CCQP_double
 !  if necessary) for DQP. The exact mapping for data% is as follows:
 
 !  CQP           DQP     CQP            DQP             CQP          DQP
-!  ---           ---     ---            ---             ---          --- 
-!  GRAD_L    <-  G       DY_u_zh    <-  GY_u            SCALE_C  <-  VT  
-!  DIST_X_l  <-  ZC_l    DZ_l_zh    <-  GZ_l            DX_zh    <-  SOL 
-!  DIST_X_u  <-  ZC_u    DZ_u_zh    <-  GZ_u            DY_zh    <-  RES 
-!  DIST_C_l  <-  YC_l    C          <-  VECTOR          A_s      <-  GV  
-!  DIST_C_u  <-  YC_u    BARRIER_X  <-  BREAK_points    Y_last   <-  PV  
-!  DY_l_zh   <-  GY_l    BARRIER_C  <-  V0              Z_last   <-  DV  
+!  ---           ---     ---            ---             ---          ---
+!  GRAD_L    <-  G       DY_u_zh    <-  GY_u            SCALE_C  <-  VT
+!  DIST_X_l  <-  ZC_l    DZ_l_zh    <-  GZ_l            DX_zh    <-  SOL
+!  DIST_X_u  <-  ZC_u    DZ_u_zh    <-  GZ_u            DY_zh    <-  RES
+!  DIST_C_l  <-  YC_l    C          <-  VECTOR          A_s      <-  GV
+!  DIST_C_u  <-  YC_u    BARRIER_X  <-  BREAK_points    Y_last   <-  PV
+!  DY_l_zh   <-  GY_l    BARRIER_C  <-  V0              Z_last   <-  DV
 
       IF ( prob%Hessian_kind >= 1 ) THEN
         composite_g = prob%target_kind /= 0
@@ -2165,7 +2186,8 @@ H_loop: DO i = 1, prob%n
                           data%DIST_C_u, data%DIST_X_l, data%DIST_X_u,         &
                           data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,            &
                           data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,          &
-                          data%A_s, data%GRAD_L, data%Y_last, data%Z_last,     &
+                          data%A_s, data%GRAD_L, data%Y_last,                  &
+                          data%HPV, data%Z_last,                               &
                           data%V_bnd, data%H_sbls, data%A_sbls, data%SCU_mat,  &
                           DQP_control, inform%DQP_inform )
 
@@ -2175,10 +2197,11 @@ H_loop: DO i = 1, prob%n
       CALL CPU_TIME( time_now ) ; time_record = time_now - time_start
       IF ( control%cpu_time_limit >= zero ) THEN
         IF ( DQP_control%cpu_time_limit < zero ) THEN
-          DQP_control%cpu_time_limit = control%cpu_time_limit - time_record
+          DQP_control%cpu_time_limit =                                         &
+            control%cpu_time_limit - REAL( time_record, wp )
         ELSE
           DQP_control%cpu_time_limit = MIN( DQP_control%cpu_time_limit,        &
-                                         control%cpu_time_limit ) - time_record
+            control%cpu_time_limit ) - REAL( time_record, wp )
         END IF
       END IF
       CALL CLOCK_time( clock_now ) ; clock_record = clock_now - clock_start
@@ -2191,12 +2214,21 @@ H_loop: DO i = 1, prob%n
         END IF
       END IF
 
-      dual_starting_point = 0
+!  ensure that the relative decrease in the criticality measures are
+!  relative to the initial values from CQP not DQP
+
+      DQP_control%stop_abs_p = MAX( DQP_control%stop_abs_p,                    &
+        DQP_control%stop_rel_p * inform%CQP_inform%init_primal_infeasibility )
+      DQP_control%stop_abs_d = MAX( DQP_control%stop_abs_d,                    &
+        DQP_control%stop_rel_d * inform%CQP_inform%init_dual_infeasibility )
+      DQP_control%stop_abs_c = MAX( DQP_control%stop_abs_c,                    &
+        DQP_control%stop_rel_d * inform%CQP_inform%init_complementary_slackness)
+
+      dual_starting_point = - 1
 
 !  solve the problem using a dual projected-gradient method
 
-      CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record ) 
-
+      CALL CPU_TIME( time_record )  ; CALL CLOCK_time( clock_record )
       IF ( prob%Hessian_kind == 1 ) THEN
         IF ( prob%target_kind == 0 .OR. prob%target_kind == 1 ) THEN
           IF ( prob%gradient_kind == 0 .OR. prob%gradient_kind == 1 ) THEN
@@ -2206,14 +2238,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2223,7 +2257,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2235,14 +2269,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2252,7 +2288,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind, G = prob%G,   &
@@ -2266,14 +2302,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2283,7 +2321,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2296,14 +2334,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2313,7 +2353,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2330,14 +2370,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2347,7 +2389,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2360,14 +2402,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2377,7 +2421,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2392,14 +2436,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2409,7 +2455,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2422,14 +2468,16 @@ H_loop: DO i = 1, prob%n
                                  prob%C, prob%f, prefix,                       &
                                  DQP_control, inform%DQP_inform,               &
                                  prob%Hessian_kind, prob%gradient_kind,        &
-                                 nv, lbd, dual_starting_point,                 &
+                                 nv, lbd, data%m_ref, dual_starting_point,     &
                                  data%clock_total, data%cpu_total,             &
                                  data%SBLS_data, data%SLS_data,                &
                                  data%SCU_data, data%GLTR_data,                &
-                                 data%C_status,                                &
+                                 data%SLS_control, data% SBLS_control,         &
+                                 data%GLTR_control, data%C_status,             &
                                  data%NZ_p, data%IUSED, data%INDEX_r,          &
                                  data%INDEX_w, data%X_status, data%V_status,   &
                                  data%X_status_old, data%C_status_old,         &
+                                 data%refactor, data%m_active, data%n_active,  &
                                  data%C_active, data%X_active, data%CHANGES,   &
                                  data%ACTIVE_list, data%ACTIVE_status,         &
                                  data%DX_zh, data%RHS, data%DY_zh, data%H_s,   &
@@ -2439,7 +2487,7 @@ H_loop: DO i = 1, prob%n
                                  data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,     &
                                  data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,   &
                                  data%A_s, data%GRAD_L,                        &
-                                 data%Y_last, data%Z_last,                     &
+                                 data%Y_last, data%HPV, data%Z_last,           &
                                  data%V_bnd, data%H_sbls, data%A_sbls,         &
                                  data%C_sbls, data%SCU_mat,                    &
                                  target_kind = prob%target_kind,               &
@@ -2456,14 +2504,16 @@ H_loop: DO i = 1, prob%n
                                prob%C, prob%f, prefix,                         &
                                DQP_control, inform%DQP_inform,                 &
                                prob%Hessian_kind, prob%gradient_kind,          &
-                               nv, lbd, dual_starting_point,                   &
+                               nv, lbd, data%m_ref, dual_starting_point,       &
                                data%clock_total, data%cpu_total,               &
                                data%SBLS_data, data%SLS_data,                  &
                                data%SCU_data, data%GLTR_data,                  &
-                               data%C_status,                                  &
+                               data%SLS_control, data% SBLS_control,           &
+                               data%GLTR_control, data%C_status,               &
                                data%NZ_p, data%IUSED, data%INDEX_r,            &
                                data%INDEX_w, data%X_status, data%V_status,     &
                                data%X_status_old, data%C_status_old,           &
+                               data%refactor, data%m_active, data%n_active,    &
                                data%C_active, data%X_active, data%CHANGES,     &
                                data%ACTIVE_list, data%ACTIVE_status,           &
                                data%DX_zh, data%RHS, data%DY_zh, data%H_s,     &
@@ -2473,7 +2523,7 @@ H_loop: DO i = 1, prob%n
                                data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,       &
                                data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,     &
                                data%A_s, data%GRAD_L,                          &
-                               data%Y_last, data%Z_last,                       &
+                               data%Y_last, data%HPV, data%Z_last,             &
                                data%V_bnd, data%H_sbls, data%A_sbls,           &
                                data%C_sbls, data%SCU_mat,                      &
                                H_val = prob%H%val, H_col = prob%H%col,         &
@@ -2486,14 +2536,16 @@ H_loop: DO i = 1, prob%n
                                prob%C, prob%f, prefix,                         &
                                DQP_control, inform%DQP_inform,                 &
                                prob%Hessian_kind, prob%gradient_kind,          &
-                               nv, lbd, dual_starting_point,                   &
+                               nv, lbd, data%m_ref, dual_starting_point,       &
                                data%clock_total, data%cpu_total,               &
                                data%SBLS_data, data%SLS_data,                  &
                                data%SCU_data, data%GLTR_data,                  &
-                               data%C_status,                                  &
+                               data%SLS_control, data% SBLS_control,           &
+                               data%GLTR_control, data%C_status,               &
                                data%NZ_p, data%IUSED, data%INDEX_r,            &
                                data%INDEX_w, data%X_status, data%V_status,     &
                                data%X_status_old, data%C_status_old,           &
+                               data%refactor, data%m_active, data%n_active,    &
                                data%C_active, data%X_active, data%CHANGES,     &
                                data%ACTIVE_list, data%ACTIVE_status,           &
                                data%DX_zh, data%RHS, data%DY_zh, data%H_s,     &
@@ -2503,7 +2555,7 @@ H_loop: DO i = 1, prob%n
                                data%DY_l_zh, data%DY_u_zh, data%DZ_l_zh,       &
                                data%DZ_u_zh, data%BARRIER_C, data%SCALE_C,     &
                                data%A_s, data%GRAD_L,                          &
-                               data%Y_last, data%Z_last,                       &
+                               data%Y_last, data%HPV, data%Z_last,             &
                                data%V_bnd, data%H_sbls, data%A_sbls,           &
                                data%C_sbls, data%SCU_mat,                      &
                                H_val = prob%H%val, H_col = prob%H%col,         &
@@ -2512,8 +2564,8 @@ H_loop: DO i = 1, prob%n
         END IF
       END IF
 
-      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-      inform%DQP_inform%time%total = time_now - time_record
+      CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+      inform%DQP_inform%time%total = REAL( time_now - time_record, wp )
       inform%DQP_inform%time%clock_total = clock_now - clock_record
 
 !  record output statistics
@@ -2562,8 +2614,9 @@ H_loop: DO i = 1, prob%n
                                    IX = data%B_stat( : data%QPP_map_freed%n ) )
         CALL QPP_restore( data%QPP_map_freed, data%QPP_inform, prob,           &
                           get_all = .TRUE.)
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         data%dims = data%dims_save_freed
@@ -2580,7 +2633,7 @@ H_loop: DO i = 1, prob%n
 
 !  retore the problem to its original form
 
-  700 CONTINUE 
+  700 CONTINUE
       data%trans = data%trans - 1
       IF ( data%trans == 0 ) THEN
 !       data%IW( : prob%n + 1 ) = 0
@@ -2615,8 +2668,9 @@ H_loop: DO i = 1, prob%n
                             get_z = .TRUE., get_c = .TRUE. )
         END IF
 
-        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now ) 
-        inform%time%preprocess = inform%time%preprocess + time_now - time_record
+        CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
+        inform%time%preprocess =                                               &
+          inform%time%preprocess + REAL( time_now - time_record, wp )
         inform%time%clock_preprocess =                                         &
           inform%time%clock_preprocess + clock_now - clock_record
         prob%new_problem_structure = data%new_problem_structure
@@ -2632,12 +2686,12 @@ H_loop: DO i = 1, prob%n
 
 !  compute total time
 
-  800 CONTINUE 
+  800 CONTINUE
       CALL CPU_time( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
-  
+        inform%time%clock_total + clock_now - clock_start
+
       IF ( printi ) WRITE( control%out,                                        &
      "( /, A, 3X, ' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=',    &
     &             '-=-=-=-=-=-=-=',                                            &
@@ -2656,16 +2710,16 @@ H_loop: DO i = 1, prob%n
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving CCQP_solve ' )" ) prefix
-      RETURN  
+      RETURN
 
 !  allocation error
 
-  900 CONTINUE 
+  900 CONTINUE
       inform%status = GALAHAD_error_allocate
       CALL CPU_TIME( time_now ) ; CALL CLOCK_time( clock_now )
-      inform%time%total = inform%time%total + time_now - time_start 
+      inform%time%total = inform%time%total + REAL( time_now - time_start, wp )
       inform%time%clock_total =                                                &
-        inform%time%clock_total + clock_now - clock_start 
+        inform%time%clock_total + clock_now - clock_start
       IF ( printi ) WRITE( control%out,                                        &
         "( A, ' ** Message from -CCQP_solve-', /,  A,                          &
        &      ' Allocation error, for ', A, /, A, ' status = ', I0 ) " )       &
@@ -2673,11 +2727,11 @@ H_loop: DO i = 1, prob%n
 
       IF ( control%out > 0 .AND. control%print_level >= 5 )                    &
         WRITE( control%out, "( A, ' leaving CCQP_solve ' )" ) prefix
-      RETURN  
+      RETURN
 
 !  non-executable statements
 
- 2010 FORMAT( ' ', /, A, '    ** Error return ', I0, ' from CCQP ' ) 
+ 2010 FORMAT( ' ', /, A, '    ** Error return ', I0, ' from CCQP ' )
 
 !  End of CCQP_solve
 
@@ -2707,9 +2761,9 @@ H_loop: DO i = 1, prob%n
 !  Dummy arguments
 
       TYPE ( CCQP_data_type ), INTENT( INOUT ) :: data
-      TYPE ( CCQP_control_type ), INTENT( IN ) :: control        
+      TYPE ( CCQP_control_type ), INTENT( IN ) :: control
       TYPE ( CCQP_inform_type ), INTENT( INOUT ) :: inform
- 
+
 !  Local variables
 
       INTEGER :: scu_status
@@ -2720,7 +2774,7 @@ H_loop: DO i = 1, prob%n
       CALL FDC_terminate( data%FDC_data, data%FDC_control,                     &
                           inform%FDC_inform )
       IF ( inform%FDC_inform%status /= GALAHAD_ok )                            &
-        inform%status = inform%FDC_inform%status 
+        inform%status = inform%FDC_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -2729,7 +2783,7 @@ H_loop: DO i = 1, prob%n
       CALL CRO_terminate( data%CRO_data, control%CRO_control,                  &
                           inform%CRO_inform )
       IF ( inform%CRO_inform%status /= GALAHAD_ok )                            &
-        inform%status = inform%CRO_inform%status 
+        inform%status = inform%CRO_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -2738,7 +2792,7 @@ H_loop: DO i = 1, prob%n
       CALL FIT_terminate( data%FIT_data, control%CQP_control%FIT_control,      &
                           inform%CQP_inform%FIT_inform )
       IF ( inform%CQP_inform%FIT_inform%status /= GALAHAD_ok )                 &
-        inform%status = inform%CQP_inform%FIT_inform%status 
+        inform%status = inform%CQP_inform%FIT_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -2748,7 +2802,7 @@ H_loop: DO i = 1, prob%n
                             control%CQP_control%ROOTS_control,                 &
                             inform%CQP_inform%ROOTS_inform )
       IF ( inform%CQP_inform%ROOTS_inform%status /= GALAHAD_ok )               &
-        inform%status = inform%CQP_inform%ROOTS_inform%status 
+        inform%status = inform%CQP_inform%ROOTS_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
@@ -2779,7 +2833,7 @@ H_loop: DO i = 1, prob%n
       CALL GLTR_terminate( data%GLTR_data, control%DQP_control%GLTR_control,   &
                            inform%DQP_inform%GLTR_inform )
       IF ( inform%DQP_inform%GLTR_inform%status /= GALAHAD_ok )                &
-        inform%status = inform%DQP_inform%GLTR_inform%status 
+        inform%status = inform%DQP_inform%GLTR_inform%status
       IF ( control%deallocate_error_fatal .AND.                                &
            inform%status /= GALAHAD_ok ) RETURN
 
